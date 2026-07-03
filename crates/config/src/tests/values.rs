@@ -27,10 +27,7 @@ fn database_url_uses_parts_when_url_is_blank() {
         ..database_parts()
     });
 
-    assert_eq!(
-        settings.database_url().unwrap(),
-        "postgres://postgres:123456@localhost:5433/postgres"
-    );
+    assert_eq!(settings.database_url().unwrap(), "postgres://postgres:123456@localhost:5433/postgres");
 }
 
 #[test]
@@ -70,10 +67,7 @@ fn redis_url_trims_explicit_value() {
 
 #[test]
 fn redis_url_uses_parts_when_url_is_missing() {
-    let settings = settings_with_redis(RedisSettings {
-        url: None,
-        ..redis_settings()
-    });
+    let settings = settings_with_redis(RedisSettings { url: None, ..redis_settings() });
 
     assert_eq!(settings.redis_url().unwrap(), "redis://default:@localhost:6380?protocol=resp3");
 }
@@ -112,20 +106,14 @@ fn http_config_rejects_zero_timeout() {
 fn explicit_config_path_reads_path_after_config_arg() {
     let args = vec![OsString::from("backend"), OsString::from("--config"), OsString::from("custom.yaml")];
 
-    assert_eq!(
-        crate::loader::explicit_config_path(&args).unwrap(),
-        Some(PathBuf::from("custom.yaml"))
-    );
+    assert_eq!(crate::loader::explicit_config_path(&args).unwrap(), Some(PathBuf::from("custom.yaml")));
 }
 
 #[test]
 fn explicit_config_path_errors_without_value() {
     let args = vec![OsString::from("backend"), OsString::from("--config")];
 
-    assert!(matches!(
-        crate::loader::explicit_config_path(&args),
-        Err(SettingsError::MissingConfigArgument)
-    ));
+    assert!(matches!(crate::loader::explicit_config_path(&args), Err(SettingsError::MissingConfigArgument)));
 }
 
 #[test]

@@ -1,17 +1,23 @@
-use sqlx::{Connection, Executor, PgConnection, query};
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use sqlx::{Executor, PgPool, postgres::PgPoolOptions, query};
 use storage::{Database, connect_database};
 use types::pagination::PageSliceRequest;
 
 use super::{UserRecordInput, UserStore};
 
-const TEST_DB_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
-const TEST_DB_LOCK_ID: i64 = 5_406_001;
+const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
+const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
+
+static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
 
 #[tokio::test]
 async fn user_soft_delete_is_filtered_from_list_and_lookup() {
-    let _guard = test_lock().await;
-    let database = reset_test_db().await;
-    let users = UserStore::new(database);
+    let database = TestDatabase::create().await;
+    let users = UserStore::new(database.database().clone());
 
     let created = users
         .create(UserRecordInput {
@@ -41,40 +47,48 @@ async fn user_soft_delete_is_filtered_from_list_and_lookup() {
 
     assert_eq!(page.total, 0);
     assert!(page.items.is_empty());
+
+    database.drop().await;
 }
 
-async fn reset_test_db() -> Database {
-    let database = connect_database(TEST_DB_URL).await.unwrap();
-    for table in managed_tables() {
-        database.pool().execute(format!("DROP TABLE IF EXISTS {table} CASCADE").as_str()).await.unwrap();
+struct TestDatabase {
+    admin_pool: PgPool,
+    database: Database,
+    name: String,
+}
+
+impl TestDatabase {
+    async fn create() -> Self {
+        let admin_pool = PgPoolOptions::new().max_connections(1).connect(TEST_DB_ADMIN_URL).await.unwrap();
+        let name = test_database_name();
+
+        query(&format!(r#"CREATE DATABASE "{name}""#)).execute(&admin_pool).await.unwrap();
+
+        let database = connect_database(&format!("{TEST_DB_URL_PREFIX}/{name}")).await.unwrap();
+        for sql in migration_sqls() {
+            database.pool().execute(sql).await.unwrap();
+        }
+
+        Self { admin_pool, database, name }
     }
-    database.pool().execute("DROP TABLE IF EXISTS _sqlx_migrations").await.unwrap();
-    for sql in migration_sqls() {
-        database.pool().execute(sql).await.unwrap();
+
+    fn database(&self) -> &Database {
+        &self.database
     }
-    database
-}
 
-async fn test_lock() -> PgConnection {
-    let mut connection = PgConnection::connect(TEST_DB_URL).await.unwrap();
-    query("SELECT pg_advisory_lock($1)")
-        .bind(TEST_DB_LOCK_ID)
-        .execute(&mut connection)
-        .await
-        .unwrap();
-    connection
-}
-
-fn managed_tables() -> [&'static str; 7] {
-    [
-        "role_menu_permissions",
-        "role_api_permissions",
-        "menu_items",
-        "menu_sections",
-        "api_permissions",
-        "roles",
-        "users",
-    ]
+    async fn drop(self) {
+        self.database.pool().close().await;
+        query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()")
+            .bind(&self.name)
+            .execute(&self.admin_pool)
+            .await
+            .unwrap();
+        query(&format!(r#"DROP DATABASE IF EXISTS "{}""#, self.name))
+            .execute(&self.admin_pool)
+            .await
+            .unwrap();
+        self.admin_pool.close().await;
+    }
 }
 
 fn migration_sqls() -> [&'static str; 2] {
@@ -82,4 +96,10 @@ fn migration_sqls() -> [&'static str; 2] {
         include_str!("../../../../../migrations/20260508000001_baseline.up.sql"),
         include_str!("../../../../../migrations/20260508000002_add_rbac_timestamps.up.sql"),
     ]
+}
+
+fn test_database_name() -> String {
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros();
+    let sequence = NEXT_TEST_DB_ID.fetch_add(1, Ordering::Relaxed);
+    format!("hook_user_test_{}_{}_{}", std::process::id(), timestamp, sequence)
 }

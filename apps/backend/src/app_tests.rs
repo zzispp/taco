@@ -26,17 +26,10 @@ mod tests {
             .unwrap();
         assert_eq!(openapi.status(), StatusCode::OK);
 
-        let docs = app
-            .clone()
-            .oneshot(Request::builder().uri("/docs").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+        let docs = app.clone().oneshot(Request::builder().uri("/docs").body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(docs.status(), StatusCode::OK);
 
-        let metrics = app
-            .oneshot(Request::builder().uri("/metrics").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+        let metrics = app.oneshot(Request::builder().uri("/metrics").body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(metrics.status(), StatusCode::OK);
     }
 
@@ -80,10 +73,7 @@ mod tests {
             .await
             .unwrap();
 
-        let response = app
-            .oneshot(Request::builder().uri("/metrics").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+        let response = app.oneshot(Request::builder().uri("/metrics").body(Body::empty()).unwrap()).await.unwrap();
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let text = String::from_utf8(body.to_vec()).unwrap();

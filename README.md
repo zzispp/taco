@@ -138,6 +138,8 @@ Frontend default address:
 
 - `http://127.0.0.1:8082`
 
+By default, the frontend calls the backend at `http://127.0.0.1:3000`. Override it with `NEXT_PUBLIC_SERVER_URL` when needed.
+
 ## Useful Commands
 
 ### Rust workspace

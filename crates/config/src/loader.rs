@@ -1,6 +1,4 @@
-use crate::{
-    DatabaseSettings, RedisSettings, Settings, SettingsError,
-};
+use crate::{DatabaseSettings, RedisSettings, Settings, SettingsError};
 use config_rs::{Config, File};
 use std::{
     env,

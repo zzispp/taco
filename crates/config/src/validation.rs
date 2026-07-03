@@ -92,10 +92,7 @@ fn validate_method_list(key: &'static str, values: &[String]) -> Result<Validate
     let list = validate_list(key, values, true)?;
     if let ValidatedCorsList::Values(values) = &list {
         for value in values {
-            http::Method::from_bytes(value.as_bytes()).map_err(|_| SettingsError::InvalidHttpMethod {
-                key,
-                value: value.clone(),
-            })?;
+            http::Method::from_bytes(value.as_bytes()).map_err(|_| SettingsError::InvalidHttpMethod { key, value: value.clone() })?;
         }
     }
     Ok(list)
@@ -105,10 +102,7 @@ fn validate_header_list(key: &'static str, values: &[String]) -> Result<Validate
     let list = validate_list(key, values, false)?;
     if let ValidatedCorsList::Values(values) = &list {
         for value in values {
-            http::header::HeaderName::from_bytes(value.as_bytes()).map_err(|_| SettingsError::InvalidHttpHeaderName {
-                key,
-                value: value.clone(),
-            })?;
+            http::header::HeaderName::from_bytes(value.as_bytes()).map_err(|_| SettingsError::InvalidHttpHeaderName { key, value: value.clone() })?;
         }
     }
     Ok(list)
@@ -129,11 +123,7 @@ fn validate_list(key: &'static str, values: &[String], uppercase: bool) -> Resul
         if trimmed == "*" {
             has_wildcard = true;
         }
-        let normalized_value = if uppercase {
-            trimmed.to_ascii_uppercase()
-        } else {
-            trimmed.to_owned()
-        };
+        let normalized_value = if uppercase { trimmed.to_ascii_uppercase() } else { trimmed.to_owned() };
         normalized.push(normalized_value);
     }
 

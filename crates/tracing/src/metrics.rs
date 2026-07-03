@@ -70,11 +70,7 @@ pub fn init_metrics(config: MetricsConfig) -> Result<MetricsHandle, MetricsError
 }
 
 pub async fn metrics_handler(handle: PrometheusHandle) -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        [("content-type", "text/plain; version=0.0.4; charset=utf-8")],
-        handle.render(),
-    )
+    (StatusCode::OK, [("content-type", "text/plain; version=0.0.4; charset=utf-8")], handle.render())
 }
 
 pub async fn metrics_middleware(request: Request, next: Next) -> Response {
@@ -110,8 +106,7 @@ where
     let status = if result.is_ok() { "ok" } else { "error" };
 
     counter!(DB_QUERIES_TOTAL, "component" => component, "operation" => operation, "status" => status).increment(1);
-    histogram!(DB_QUERY_DURATION_SECONDS, "component" => component, "operation" => operation, "status" => status)
-        .record(started_at.elapsed().as_secs_f64());
+    histogram!(DB_QUERY_DURATION_SECONDS, "component" => component, "operation" => operation, "status" => status).record(started_at.elapsed().as_secs_f64());
 
     result
 }

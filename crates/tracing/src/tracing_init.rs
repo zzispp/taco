@@ -32,23 +32,13 @@ pub fn init_global_subscriber(config: TracingConfig) -> Result<Option<WorkerGuar
             validate_file_settings(&config).expect("file logging settings should already be validated");
             let file_appender = tracing_appender::rolling::daily(&config.file_directory, &config.file_prefix);
             let (non_blocking, worker_guard) = tracing_appender::non_blocking(file_appender);
-            let file_layer = tracing_subscriber::fmt::layer()
-                .with_target(false)
-                .with_ansi(false)
-                .with_writer(non_blocking);
+            let file_layer = tracing_subscriber::fmt::layer().with_target(false).with_ansi(false).with_writer(non_blocking);
             guard = Some(worker_guard);
-            tracing_subscriber::registry()
-                .with(filter)
-                .with(stdout_layer)
-                .with(file_layer)
-                .init();
+            tracing_subscriber::registry().with(filter).with(stdout_layer).with(file_layer).init();
             return;
         }
 
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(stdout_layer)
-            .init();
+        tracing_subscriber::registry().with(filter).with(stdout_layer).init();
     });
 
     Ok(guard)

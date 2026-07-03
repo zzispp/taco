@@ -22,7 +22,7 @@ use crate::{
     BackendResult,
     app_state::AppState,
     auth::{AuthState, AuthStateParts, auth_middleware},
-    docs, http_config, system,
+    docs, http_config, migration, system,
 };
 
 struct RbacServices {
@@ -32,6 +32,7 @@ struct RbacServices {
 
 pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let database = connect_database(&settings.database_url()?).await?;
+    migration::ensure_runtime_schema_ready(database.pool()).await?;
     let rbac = build_rbac_services(settings, database.clone()).await?;
     let users: Arc<dyn UserUseCase> = Arc::new(UserService::with_system_user(
         StorageUserRepository::new(database.clone()),
@@ -70,9 +71,7 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tra
         authorization: state.authorization,
     });
 
-    let api_router = Router::new()
-        .merge(create_user_router(user_state))
-        .merge(create_rbac_router(rbac_state));
+    let api_router = Router::new().merge(create_user_router(user_state)).merge(create_rbac_router(rbac_state));
 
     let app = public_routes().nest("/api", api_router);
     let app = attach_metrics(app, metrics_handle);

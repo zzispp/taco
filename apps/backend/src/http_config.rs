@@ -55,10 +55,7 @@ fn apply_method_policy(layer: CorsLayer, policy: &ValidatedCorsList) -> BackendR
     match policy {
         ValidatedCorsList::Any => Ok(layer.allow_methods(Any)),
         ValidatedCorsList::Values(values) => {
-            let methods = values
-                .iter()
-                .map(|value| Method::from_bytes(value.as_bytes()))
-                .collect::<Result<Vec<_>, _>>()?;
+            let methods = values.iter().map(|value| Method::from_bytes(value.as_bytes())).collect::<Result<Vec<_>, _>>()?;
             Ok(layer.allow_methods(methods))
         }
     }
@@ -79,10 +76,7 @@ fn apply_exposed_header_policy(layer: CorsLayer, policy: &ValidatedCorsList) -> 
 }
 
 fn parse_header_values(values: &[String]) -> BackendResult<Vec<HeaderValue>> {
-    values
-        .iter()
-        .map(|value| HeaderValue::from_str(value).map_err(|error| error.into()))
-        .collect()
+    values.iter().map(|value| HeaderValue::from_str(value).map_err(|error| error.into())).collect()
 }
 
 fn parse_header_names(values: &[String]) -> BackendResult<Vec<header::HeaderName>> {
@@ -96,13 +90,16 @@ fn parse_header_names(values: &[String]) -> BackendResult<Vec<header::HeaderName
 mod tests {
     use super::{cors_layer, parse_header_values};
     use axum::{
+        Router,
         body::Body,
         http::{
             HeaderValue, Method, Request, Response, StatusCode,
-            header::{self, ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS},
+            header::{
+                self, ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
+                ACCESS_CONTROL_EXPOSE_HEADERS,
+            },
         },
         routing::get,
-        Router,
     };
     use configuration::{CorsSettings, Settings};
     use tower::{Layer, Service, ServiceExt, service_fn};
@@ -110,15 +107,17 @@ mod tests {
     #[tokio::test]
     async fn cors_allows_wildcard_origin_for_normal_request() {
         let layer = cors_layer(&test_settings()).unwrap();
-        let response = layer.layer(ok_service()).oneshot(
-            Request::builder()
-                .uri("/api/test")
-                .header(header::ORIGIN, "http://localhost:8082")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let response = layer
+            .layer(ok_service())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/test")
+                    .header(header::ORIGIN, "http://localhost:8082")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers().get(ACCESS_CONTROL_ALLOW_ORIGIN), Some(&HeaderValue::from_static("*")));
@@ -129,18 +128,20 @@ mod tests {
     #[tokio::test]
     async fn cors_answers_preflight_with_wildcards() {
         let layer = cors_layer(&test_settings()).unwrap();
-        let response = layer.layer(ok_service()).oneshot(
-            Request::builder()
-                .method(Method::OPTIONS)
-                .uri("/api/test")
-                .header(header::ORIGIN, "http://localhost:8082")
-                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
-                .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let response = layer
+            .layer(ok_service())
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/api/test")
+                    .header(header::ORIGIN, "http://localhost:8082")
+                    .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                    .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers().get(ACCESS_CONTROL_ALLOW_ORIGIN), Some(&HeaderValue::from_static("*")));
@@ -182,7 +183,10 @@ mod tests {
             Some(&HeaderValue::from_static("http://localhost:8082"))
         );
         assert_eq!(response.headers().get(ACCESS_CONTROL_ALLOW_METHODS), Some(&HeaderValue::from_static("GET")));
-        assert_eq!(response.headers().get(ACCESS_CONTROL_ALLOW_HEADERS), Some(&HeaderValue::from_static("authorization")));
+        assert_eq!(
+            response.headers().get(ACCESS_CONTROL_ALLOW_HEADERS),
+            Some(&HeaderValue::from_static("authorization"))
+        );
         assert!(response.headers().get(ACCESS_CONTROL_EXPOSE_HEADERS).is_none());
     }
 
@@ -212,7 +216,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.headers().get(ACCESS_CONTROL_EXPOSE_HEADERS), Some(&HeaderValue::from_static("x-request-id")));
+        assert_eq!(
+            response.headers().get(ACCESS_CONTROL_EXPOSE_HEADERS),
+            Some(&HeaderValue::from_static("x-request-id"))
+        );
     }
 
     #[test]
@@ -237,10 +244,7 @@ mod tests {
             )
             .layer(super::timeout_layer(&settings).unwrap());
 
-        let response = app
-            .oneshot(Request::builder().uri("/slow").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+        let response = app.oneshot(Request::builder().uri("/slow").body(Body::empty()).unwrap()).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
     }

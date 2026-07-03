@@ -10,8 +10,8 @@ use crate::{
     api::{
         ApiState, TokenPair,
         dto::{
-            AuthSessionResponse, ListUsersQuery, MeResponse, RefreshTokenPayload, SignInPayload, SignUpPayload, TokenPairResponse, UserPayload,
-            UserResponse, UsersPageResponse,
+            AuthSessionResponse, ListUsersQuery, MeResponse, RefreshTokenPayload, SignInPayload, SignUpPayload, TokenPairResponse, UserPayload, UserResponse,
+            UsersPageResponse,
         },
         error::ApiError,
     },

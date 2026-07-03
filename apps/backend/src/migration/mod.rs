@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
+use crate::BackendResult;
 use sqlx::{
     PgPool,
     migrate::{Migrate, MigrateError, Migrator},
     query,
 };
 
-use crate::BackendResult;
+mod readiness;
+pub use readiness::ensure_runtime_schema_ready;
 
 pub static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
@@ -191,109 +193,4 @@ async fn reset_database(pool: &PgPool) -> BackendResult<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    use sqlx::{PgPool, postgres::PgPoolOptions, query, query_scalar};
-
-    use super::{down, fresh, refresh, reset, status, up};
-
-    const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
-    const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
-    const MIGRATION_TOTAL: usize = 2;
-    const USERS_TABLE_REGCLASS: &str = "public.users";
-
-    #[tokio::test]
-    async fn migrations_support_full_up_down_cycle() {
-        let database = TestDatabase::create().await;
-        let pool = database.pool();
-
-        assert_status_counts(pool, 0, MIGRATION_TOTAL).await;
-
-        up(pool, Some(1)).await.unwrap();
-        assert_status_counts(pool, 1, MIGRATION_TOTAL - 1).await;
-        assert!(users_table_exists(pool).await);
-
-        up(pool, None).await.unwrap();
-        assert_status_counts(pool, MIGRATION_TOTAL, 0).await;
-        assert!(users_table_exists(pool).await);
-
-        down(pool, Some(1)).await.unwrap();
-        assert_status_counts(pool, 1, MIGRATION_TOTAL - 1).await;
-        assert!(users_table_exists(pool).await);
-
-        refresh(pool).await.unwrap();
-        assert_status_counts(pool, MIGRATION_TOTAL, 0).await;
-        assert!(users_table_exists(pool).await);
-
-        reset(pool).await.unwrap();
-        assert_status_counts(pool, 0, MIGRATION_TOTAL).await;
-        assert!(!users_table_exists(pool).await);
-
-        fresh(pool).await.unwrap();
-        assert_status_counts(pool, MIGRATION_TOTAL, 0).await;
-        assert!(users_table_exists(pool).await);
-
-        database.drop().await;
-    }
-
-    struct TestDatabase {
-        admin_pool: PgPool,
-        pool: PgPool,
-        name: String,
-    }
-
-    impl TestDatabase {
-        async fn create() -> Self {
-            let admin_pool = PgPoolOptions::new().max_connections(1).connect(TEST_DB_ADMIN_URL).await.unwrap();
-            let name = test_database_name();
-
-            query(&format!(r#"CREATE DATABASE "{name}""#)).execute(&admin_pool).await.unwrap();
-
-            let pool = PgPoolOptions::new()
-                .max_connections(5)
-                .connect(&format!("{TEST_DB_URL_PREFIX}/{name}"))
-                .await
-                .unwrap();
-
-            Self { admin_pool, pool, name }
-        }
-
-        fn pool(&self) -> &PgPool {
-            &self.pool
-        }
-
-        async fn drop(self) {
-            self.pool.close().await;
-            query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()")
-                .bind(&self.name)
-                .execute(&self.admin_pool)
-                .await
-                .unwrap();
-            query(&format!(r#"DROP DATABASE IF EXISTS "{}""#, self.name))
-                .execute(&self.admin_pool)
-                .await
-                .unwrap();
-            self.admin_pool.close().await;
-        }
-    }
-
-    async fn assert_status_counts(pool: &PgPool, applied: usize, pending: usize) {
-        let rows = status(pool).await.unwrap();
-        assert_eq!(rows.iter().filter(|row| row.kind == "applied").count(), applied);
-        assert_eq!(rows.iter().filter(|row| row.kind == "pending").count(), pending);
-    }
-
-    async fn users_table_exists(pool: &PgPool) -> bool {
-        query_scalar::<_, bool>("SELECT to_regclass($1) IS NOT NULL")
-            .bind(USERS_TABLE_REGCLASS)
-            .fetch_one(pool)
-            .await
-            .unwrap()
-    }
-
-    fn test_database_name() -> String {
-        let suffix = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros();
-        format!("hook_migration_test_{}_{}", std::process::id(), suffix)
-    }
-}
+mod tests;

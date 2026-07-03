@@ -2,8 +2,8 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use serde::Deserialize;
 use kernel::pagination::{Page, PageRequest};
+use serde::Deserialize;
 use types::http::RequestJson;
 
 use crate::api::{RbacApiError, RbacApiState};
@@ -51,10 +51,7 @@ pub async fn list_apis(State(state): State<RbacApiState>, Query(query): Query<Rb
     Ok(ok(state.rbac_admin.page_apis(query.into()).await?))
 }
 
-pub async fn create_api(
-    State(state): State<RbacApiState>,
-    RequestJson(payload): RequestJson<ApiPermissionInput>,
-) -> ApiResult<ApiJson<ApiPermission>> {
+pub async fn create_api(State(state): State<RbacApiState>, RequestJson(payload): RequestJson<ApiPermissionInput>) -> ApiResult<ApiJson<ApiPermission>> {
     Ok(ok(state.rbac_admin.create_api(payload).await?))
 }
 
@@ -89,10 +86,7 @@ pub async fn list_menu_sections(State(state): State<RbacApiState>, Query(query):
     Ok(ok(state.rbac_admin.page_menu_sections(query.into()).await?))
 }
 
-pub async fn create_menu_section(
-    State(state): State<RbacApiState>,
-    RequestJson(payload): RequestJson<MenuSectionInput>,
-) -> ApiResult<ApiJson<MenuSection>> {
+pub async fn create_menu_section(State(state): State<RbacApiState>, RequestJson(payload): RequestJson<MenuSectionInput>) -> ApiResult<ApiJson<MenuSection>> {
     Ok(ok(state.rbac_admin.create_menu_section(payload).await?))
 }
 
@@ -113,10 +107,7 @@ pub async fn list_menu_items(State(state): State<RbacApiState>, Query(query): Qu
     Ok(ok(state.rbac_admin.page_menu_items(query.into()).await?))
 }
 
-pub async fn create_menu_item(
-    State(state): State<RbacApiState>,
-    RequestJson(payload): RequestJson<MenuItemInput>,
-) -> ApiResult<ApiJson<MenuItem>> {
+pub async fn create_menu_item(State(state): State<RbacApiState>, RequestJson(payload): RequestJson<MenuItemInput>) -> ApiResult<ApiJson<MenuItem>> {
     Ok(ok(state.rbac_admin.create_menu_item(payload).await?))
 }
 

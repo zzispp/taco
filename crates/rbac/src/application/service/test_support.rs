@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
 use crate::application::{RbacCache, RbacError, RbacRepository, RbacResult};
 use crate::domain::{
     ApiPermission, ApiPermissionInput, MenuItem, MenuItemInput, MenuSection, MenuSectionInput, NavResponse, PermissionSnapshot, Role, RoleInput,
     RoleMenuBindingInput,
 };
+use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest};
 
 use super::test_fixtures::{api_permission, menu_item, menu_section, page_items, permission_snapshot, rbac_id, role_from_input};

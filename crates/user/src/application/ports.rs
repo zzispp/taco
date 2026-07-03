@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest, PageSliceRequest};
 
-use crate::domain::{Credentials, NewUser, ReplaceUser, User, UserId};
 use super::AppResult;
+use crate::domain::{Credentials, NewUser, ReplaceUser, User, UserId};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReplaceUserRecord {

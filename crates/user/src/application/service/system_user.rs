@@ -1,8 +1,8 @@
 use constants::pagination::MIN_PAGE_NUMBER;
 use kernel::pagination::{Page, PageRequest, PageSliceRequest};
 
-use crate::domain::{User, UserId};
 use crate::application::{AppError, AppResult, SystemUserProvider, SystemUserRecord, UserAuthRecord, UserRepository};
+use crate::domain::{User, UserId};
 
 pub(super) fn reject_conflicting_system_user<S: SystemUserProvider>(system_users: &S, username: &str, email: &str) -> AppResult<()> {
     let Some(system) = system_users.system_user().map(|record| record.user) else {

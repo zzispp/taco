@@ -1,15 +1,14 @@
-use async_trait::async_trait;
-use storage::{Database, StorageError};
 use crate::application::{RbacError, RbacRepository, RbacResult};
 use crate::domain::{
     ApiPermission, ApiPermissionInput, ApiPermissionSnapshot, MenuItem, MenuItemInput, MenuSection, MenuSectionInput, NavItemResponse, NavSectionResponse,
     PermissionSnapshot, Role, RoleInput, RoleMenuBindingInput, RoleMenuSnapshot,
 };
+use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest};
+use storage::{Database, StorageError};
 
 use super::persistence::{
-    ApiPermissionRecordInput, MenuItemRecordInput, MenuSectionRecordInput, RbacStore, RoleApiBindingRecordInput, RoleMenuBindingRecordInput,
-    RoleRecordInput,
+    ApiPermissionRecordInput, MenuItemRecordInput, MenuSectionRecordInput, RbacStore, RoleApiBindingRecordInput, RoleMenuBindingRecordInput, RoleRecordInput,
 };
 use kernel::pagination::PageSliceRequest;
 

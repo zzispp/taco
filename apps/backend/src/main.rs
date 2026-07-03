@@ -3,9 +3,9 @@ mod auth;
 mod commands;
 mod composition;
 mod docs;
+mod http_config;
 mod migration;
 mod openapi;
-mod http_config;
 mod startup;
 mod system;
 

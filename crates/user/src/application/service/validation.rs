@@ -2,8 +2,8 @@ use constants::auth::{PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, USERNAME_MAX_LEN
 use constants::pagination::{MAX_PAGE_SIZE, MIN_PAGE_NUMBER, MIN_PAGE_SIZE};
 use kernel::pagination::PageRequest;
 
-use crate::domain::{Credentials, NewUser, ReplaceUser};
 use crate::application::{AppError, AppResult};
+use crate::domain::{Credentials, NewUser, ReplaceUser};
 
 pub(super) fn validate_credentials(input: &Credentials) -> AppResult<()> {
     reject_blank("identifier", &input.identifier)?;
