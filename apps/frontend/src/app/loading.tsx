@@ -1,4 +1,4 @@
-import { SplashScreen } from 'src/components/loading-screen';
+import { SplashScreen } from 'src/shared/ui/loading-screen';
 
 // ----------------------------------------------------------------------
 

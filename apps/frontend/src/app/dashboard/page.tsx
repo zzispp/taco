@@ -2,9 +2,8 @@ import type { Metadata } from 'next';
 
 import { redirect } from 'next/navigation';
 
-import { paths } from 'src/routes/paths';
-
-import { CONFIG } from 'src/global-config';
+import { CONFIG } from 'src/shared/config';
+import { paths } from 'src/shared/routes/paths';
 
 // ----------------------------------------------------------------------
 

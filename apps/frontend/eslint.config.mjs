@@ -66,6 +66,38 @@ const importRules = () => ({
     0, // disabled if slow
     { ignoreExternal: true, disableScc: true },
   ],
+  'import/no-restricted-paths': [
+    2,
+    {
+      zones: [
+        {
+          target: './src/shared',
+          from: ['./src/entities', './src/features', './src/widgets', './src/pages-layer', './src/app'],
+          message: 'shared 层不能依赖上层业务代码',
+        },
+        {
+          target: './src/entities',
+          from: ['./src/features', './src/widgets', './src/pages-layer', './src/app'],
+          message: 'entities 层只能依赖 shared',
+        },
+        {
+          target: './src/features',
+          from: ['./src/widgets', './src/pages-layer', './src/app'],
+          message: 'features 层不能依赖 widgets/pages/app',
+        },
+        {
+          target: './src/widgets',
+          from: ['./src/pages-layer', './src/app'],
+          message: 'widgets 层不能依赖 pages/app',
+        },
+        {
+          target: './src/pages-layer',
+          from: ['./src/app'],
+          message: 'pages 层不能依赖 app 层',
+        },
+      ],
+    },
+  ],
 });
 
 /**
@@ -87,13 +119,12 @@ const unusedImportsRules = () => ({
 const sortImportsRules = () => {
   const customGroups = {
     mui: ['custom-mui'],
-    auth: ['custom-auth'],
-    hooks: ['custom-hooks'],
-    utils: ['custom-utils'],
-    types: ['custom-types'],
-    routes: ['custom-routes'],
-    sections: ['custom-sections'],
-    components: ['custom-components'],
+    app: ['custom-app'],
+    pages: ['custom-pages'],
+    widgets: ['custom-widgets'],
+    features: ['custom-features'],
+    entities: ['custom-entities'],
+    shared: ['custom-shared'],
   };
 
   const typeGroups = [
@@ -129,14 +160,13 @@ const sortImportsRules = () => {
           ...typeGroups,
           ['builtin', 'external'],
           customGroups.mui,
-          customGroups.routes,
-          customGroups.hooks,
-          customGroups.utils,
+          customGroups.shared,
+          customGroups.entities,
+          customGroups.features,
+          customGroups.widgets,
+          customGroups.pages,
+          customGroups.app,
           'internal',
-          customGroups.components,
-          customGroups.sections,
-          customGroups.auth,
-          customGroups.types,
           ['parent', 'sibling', 'index'],
           'object',
           'unknown',
@@ -144,13 +174,12 @@ const sortImportsRules = () => {
         customGroups: {
           value: {
             [customGroups.mui]: ['^@mui/.+'],
-            [customGroups.auth]: ['^src/auth/.+'],
-            [customGroups.hooks]: ['^src/hooks/.+'],
-            [customGroups.utils]: ['^src/utils/.+'],
-            [customGroups.types]: ['^src/types/.+'],
-            [customGroups.routes]: ['^src/routes/.+'],
-            [customGroups.sections]: ['^src/sections/.+'],
-            [customGroups.components]: ['^src/components/.+'],
+            [customGroups.app]: ['^src/app/.+'],
+            [customGroups.pages]: ['^src/pages-layer/.+'],
+            [customGroups.widgets]: ['^src/widgets/.+'],
+            [customGroups.features]: ['^src/features/.+'],
+            [customGroups.entities]: ['^src/entities/.+'],
+            [customGroups.shared]: ['^src/shared/.+'],
           },
         },
       },

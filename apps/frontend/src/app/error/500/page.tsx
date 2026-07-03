@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/global-config';
+import { CONFIG } from 'src/shared/config';
 
-import { View500 } from 'src/sections/error';
+import { Error500Page } from 'src/pages-layer/error-500';
 
 // ----------------------------------------------------------------------
 
@@ -11,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <View500 />;
+  return <Error500Page />;
 }

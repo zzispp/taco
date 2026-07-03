@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { HomeView } from 'src/sections/home/view';
+import { HomePage } from 'src/pages-layer/home';
 
 // ----------------------------------------------------------------------
 
@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <HomeView />;
+  return <HomePage />;
 }

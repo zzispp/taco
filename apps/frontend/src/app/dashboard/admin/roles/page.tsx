@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/global-config';
+import { CONFIG } from 'src/shared/config';
 
-import { RoleManagementView } from 'src/sections/admin/role-management-view';
+import { AdminRolesPage } from 'src/pages-layer/admin-roles';
 
 // ----------------------------------------------------------------------
 
 export const metadata: Metadata = { title: `Role management | Dashboard - ${CONFIG.appName}` };
 
 export default function Page() {
-  return <RoleManagementView />;
+  return <AdminRolesPage />;
 }

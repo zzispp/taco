@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/global-config';
+import { CONFIG } from 'src/shared/config';
 
-import { NotFoundView } from 'src/sections/error';
+import { Error404Page } from 'src/pages-layer/error-404';
 
 // ----------------------------------------------------------------------
 
 export const metadata: Metadata = { title: `404 page not found! | Error - ${CONFIG.appName}` };
 
 export default function Page() {
-  return <NotFoundView />;
+  return <Error404Page />;
 }

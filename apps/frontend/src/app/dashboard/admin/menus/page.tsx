@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/global-config';
+import { CONFIG } from 'src/shared/config';
 
-import { MenuManagementView } from 'src/sections/admin/menu-management-view';
+import { AdminMenusPage } from 'src/pages-layer/admin-menus';
 
 // ----------------------------------------------------------------------
 
 export const metadata: Metadata = { title: `Menu management | Dashboard - ${CONFIG.appName}` };
 
 export default function Page() {
-  return <MenuManagementView />;
+  return <AdminMenusPage />;
 }

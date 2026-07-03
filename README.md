@@ -1,16 +1,15 @@
 # taco
 
-A Rust + Next.js admin template for teams that want a clean backend foundation and a ready-to-use management console.
+`taco` is a Rust + Next.js admin monorepo with a DDD + Clean Architecture backend and a Feature-Sliced Design frontend.
 
-`taco` combines an Axum backend, a Next.js dashboard, PostgreSQL, Redis, SQLx migrations, and role-based access control in a single monorepo. The current template is focused on authentication and system administration: users, roles, API permissions, and menu management.
+The backend is centered on bounded contexts for users and RBAC. The frontend is already refactored into FSD layers under `apps/frontend/src` and keeps the existing routes and API contracts stable.
 
 ## Highlights
 
-- Rust workspace backend with clear module boundaries
-- Next.js 16 admin frontend with App Router and MUI 7
+- Rust backend organized by bounded context and Clean Architecture layers
+- Next.js 16 frontend organized by FSD layers instead of template-style technical folders
 - JWT sign-in, sign-up, refresh, and current-user endpoints
-- RBAC for users, roles, APIs, and menus
-- OpenAPI and docs endpoints out of the box
+- RBAC for users, roles, API permissions, and menus
 - PostgreSQL persistence with SQLx migrations
 - Redis-backed RBAC cache rebuild on startup
 - pnpm workspace + Cargo workspace in one repository
@@ -35,9 +34,48 @@ A Rust + Next.js admin template for teams that want a clean backend foundation a
 - Axios
 - SWR
 
-## What Is Included
+## Architecture
 
-### Frontend routes
+### Backend: DDD + Clean Architecture
+
+The backend keeps business logic inside domain crates and uses `apps/backend` as the composition root.
+
+- `apps/backend`: app entry, dependency wiring, HTTP bootstrap, migration commands
+- `crates/user`: user bounded context with `domain`, `application`, `infra`, `api`
+- `crates/rbac`: RBAC bounded context with `domain`, `application`, `infra`, `api`
+- `crates/config`: typed config loading and validation
+- `crates/storage`: database and storage foundation
+- `crates/types`: shared transport DTOs and request/response types
+- `crates/constants`, `crates/kernel`, `crates/tracing`: shared support crates
+
+Backend rule: user and RBAC business rules must stay in their owning domain crates. Do not push domain logic down into `apps/backend` or generic crates.
+
+### Frontend: FSD on top of Next.js App Router
+
+The frontend follows Feature-Sliced Design inside `apps/frontend/src`.
+
+```text
+apps/frontend/src
+├── app          # Next.js App Router entry + FSD app layer
+├── pages-layer  # page composition layer; named this way because Next.js reserves src/pages
+├── widgets      # page blocks and layout/business containers
+├── features     # user actions and use-case level UI behavior
+├── entities     # business entities, entity UI, entity queries/types
+└── shared       # pure shared infrastructure, UI, config, routes, theme, assets
+```
+
+Layer dependency direction is fixed:
+
+- `app -> pages-layer/widgets/features/entities/shared`
+- `pages-layer -> widgets/features/entities/shared`
+- `widgets -> features/entities/shared`
+- `features -> entities/shared`
+- `entities -> shared`
+- `shared -> shared`
+
+Important frontend rule: `src/app/**/page.tsx` stays thin and delegates page composition to `src/pages-layer/**`. Business logic must not drift back into template-era top-level directories.
+
+## Current Frontend Routes
 
 - `/`
 - `/auth/sign-in`
@@ -46,45 +84,58 @@ A Rust + Next.js admin template for teams that want a clean backend foundation a
 - `/dashboard/admin/roles`
 - `/dashboard/admin/apis`
 - `/dashboard/admin/menus`
+- `/error/403`
+- `/error/404`
+- `/error/500`
 
 `/dashboard` redirects to `/dashboard/admin/users`.
 
-### Backend public endpoints
+## Backend Public Endpoints
 
 - `GET /health`
 - `GET /metrics`
 - `GET /openapi.json`
 - `GET /docs`
 
-### Backend domain scope
+## Backend Domain Scope
 
+- authentication and authorization
 - user management
 - role management
 - API permission management
 - menu management
-- authentication and authorization
 
 ## Repository Layout
 
 ```text
 .
 ├── apps
-│   ├── backend         # Axum app entry, composition root, migration commands
+│   ├── backend         # Axum app entry and composition root
 │   └── frontend        # Next.js admin app
 ├── crates
 │   ├── config          # typed config loading and validation
 │   ├── constants       # shared constants
-│   ├── kernel          # small shared primitives
-│   ├── rbac            # RBAC domain/application/infra/api
+│   ├── kernel          # shared low-level primitives
+│   ├── rbac            # RBAC bounded context
 │   ├── storage         # database and storage foundation
 │   ├── tracing         # tracing and metrics helpers
-│   ├── types           # transport DTOs and shared request/response types
-│   └── user            # user domain/application/infra/api
-├── config              # YAML configuration
+│   ├── types           # shared transport DTOs
+│   └── user            # user bounded context
+├── config              # YAML runtime configuration
 ├── migrations          # SQLx migration files
 ├── compose.yaml        # local Postgres and Redis
 └── justfile            # Rust-focused dev commands
 ```
+
+## Architecture Guardrails
+
+These rules are part of the repository contract:
+
+- Frontend must stay inside the current FSD layers under `apps/frontend/src`.
+- Do not reintroduce top-level template directories such as `sections`, `layouts`, `actions`, `types`, `components`, `routes`, `locales`, `theme`, `assets`, `lib`, `auth`, or `global-config` as parallel business structure.
+- Backend must stay inside DDD + Clean Architecture boundaries.
+- `apps/backend` is not a domain bucket; it is the composition root.
+- Generic crates such as `config`, `storage`, `types`, `constants`, `kernel`, and `tracing` are not substitutes for bounded contexts.
 
 ## Quick Start
 
@@ -188,4 +239,3 @@ Before deploying anywhere beyond local development, review and change:
 - Migrations are explicit. Startup does not create or update schema automatically.
 - RBAC cache is rebuilt during backend startup.
 - The baseline data seeds roles, API permissions, menu sections, and menu items for the admin console.
-

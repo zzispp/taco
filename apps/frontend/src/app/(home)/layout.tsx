@@ -1,4 +1,4 @@
-import { MainLayout } from 'src/layouts/main';
+import { MainLayout } from 'src/widgets/main-shell';
 
 // ----------------------------------------------------------------------
 
