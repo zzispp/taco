@@ -1,0 +1,25 @@
+[package]
+name = "rbac"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+axum.workspace = true
+constants.workspace = true
+hook_tracing.workspace = true
+kernel.workspace = true
+matchit.workspace = true
+redis.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+storage.workspace = true
+thiserror.workspace = true
+time.workspace = true
+types.workspace = true
+utoipa.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tower.workspace = true

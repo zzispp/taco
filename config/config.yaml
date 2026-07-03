@@ -1,0 +1,75 @@
+server:
+  host: "127.0.0.1"
+  port: 3000
+
+database:
+  url:
+  scheme: "postgres"
+  host: "localhost"
+  port: 5433
+  username: "postgres"
+  password: "123456"
+  name: "postgres"
+
+jwt:
+  secret: "hook-local-development-jwt-secret-change-before-deploy"
+  access_token_ttl_seconds: 1440
+  refresh_token_ttl_seconds: 604800
+
+admin:
+  id: "00000000-0000-7000-8000-000000000000"
+  username: "admin"
+  email: "admin@example.com"
+  role: "admin"
+  is_active: true
+  password_hash: "$argon2id$v=19$m=19456,t=2,p=1$FpN5fcXCVNOVBGybU6xVBA$1y5zUgTGlohI/RVCXKyckyv1CCyuzVhVMagjJux9rUA"
+
+auth:
+  whitelist:
+    - methods: ["GET"]
+      path_pattern: "/health"
+    - methods: ["GET"]
+      path_pattern: "/metrics"
+    - methods: ["GET"]
+      path_pattern: "/openapi.json"
+    - methods: ["GET"]
+      path_pattern: "/docs"
+    - methods: ["POST"]
+      path_pattern: "/api/auth/sign-in"
+    - methods: ["POST"]
+      path_pattern: "/api/auth/sign-up"
+    - methods: ["POST"]
+      path_pattern: "/api/auth/refresh"
+
+cors:
+  allowed_origins: ["*"]
+  allowed_methods: ["*"]
+  allowed_headers: ["*"]
+  exposed_headers: ["*"]
+  allow_credentials: false
+  max_age_seconds:
+
+http:
+  request_timeout_ms: 30000
+  compression_enabled: true
+
+metrics:
+  enabled: true
+
+redis:
+  url: "redis://default:@localhost:6380?protocol=resp3"
+  scheme: "redis"
+  host: "localhost"
+  port: 6380
+  username: "default"
+  password: ""
+  database:
+  protocol: "resp3"
+  key_prefix: "hook"
+
+tracing:
+  log_level: "info"
+  file:
+    enabled: false
+    directory: "logs"
+    prefix: "hook.log"

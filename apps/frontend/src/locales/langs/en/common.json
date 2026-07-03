@@ -1,0 +1,6 @@
+{
+  "demo": {
+    "lang": "English",
+    "description": "Hook is the backend control plane for authentication, RBAC, API permissions, and menu governance."
+  }
+}

@@ -1,0 +1,46 @@
+# OS
+.DS_Store
+
+# editor
+.vscode
+.idea
+
+# logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# dependencies
+node_modules
+.pnpm-store
+.pnp
+.pnp.js
+
+# env
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# frontend build output
+.next
+.swc
+_static
+out
+dist
+build
+coverage
+.vercel
+.netlify
+.turbo
+tsconfig.tsbuildinfo
+
+# rust build output
+target
+
+# local task record
+.codex-tasks

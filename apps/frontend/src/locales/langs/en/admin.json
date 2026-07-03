@@ -1,0 +1,259 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "dashboard": "Dashboard",
+    "resources": "Resources",
+    "account": "Account",
+    "systemManagement": "System Management",
+    "users": "Users",
+    "roles": "Roles",
+    "apis": "APIs",
+    "menus": "Menus",
+    "customKeyboardShortcuts": "Custom keyboard shortcuts."
+  },
+    "common": {
+      "active": "Active",
+      "add": "Add",
+      "api": "API",
+      "apis": "APIs",
+      "auth": "Auth",
+      "cancel": "Cancel",
+      "caption": "Caption",
+      "close": "Close",
+      "code": "Code",
+    "create": "Create",
+    "custom": "Custom",
+    "delete": "Delete",
+    "description": "Description",
+    "disabled": "Disabled",
+    "edit": "Edit",
+    "email": "Email",
+    "enabled": "Enabled",
+    "group": "Group",
+    "icon": "Icon",
+    "loading": "Loading...",
+    "local": "Local",
+    "menu": "Menu",
+    "menus": "Menus",
+    "method": "Method",
+    "retry": "Retry",
+    "name": "Name",
+    "none": "None",
+    "noData": "No data",
+    "password": "Password",
+    "path": "Path",
+    "permissions": "Permissions",
+    "role": "Role",
+    "save": "Save",
+    "section": "Section",
+    "sort": "Sort",
+    "sortOrder": "Sort order",
+    "source": "Source",
+    "status": "Status",
+    "system": "System",
+    "title": "Title",
+    "type": "Type",
+    "username": "Username"
+  },
+  "pages": {
+    "apiManagement": "API Management",
+    "menuManagement": "Menu Management",
+    "roleManagement": "Role Management",
+    "userManagement": "User Management"
+  },
+  "actions": {
+    "addApi": "Add API",
+    "addMenuItem": "Add menu item",
+    "addRole": "Add role",
+    "addSection": "Add section",
+    "addUser": "Add user",
+    "apiPermissions": "API permissions",
+    "menuPermissions": "Menu permissions",
+    "savePermissions": "Save permissions"
+  },
+  "fields": {
+    "deepMatch": "Deep match",
+    "displayName": "Display name",
+    "newPassword": "New password",
+    "parentItem": "Parent item",
+    "pathPattern": "Path pattern",
+    "subheader": "Subheader"
+  },
+  "dialogs": {
+    "createApi": "Create API permission",
+    "createMenuItem": "Create menu item",
+    "createMenuSection": "Create menu section",
+    "createRole": "Create role",
+    "createUser": "Create user",
+    "deleteApi": "Delete API permission",
+    "deleteContent": "Delete {{name}}?",
+    "deleteMenuItem": "Delete menu item",
+    "deleteMenuSection": "Delete menu section",
+    "deleteRole": "Delete role",
+    "deleteUser": "Delete user",
+    "editApi": "Edit API permission",
+    "editMenuItem": "Edit menu item",
+    "editMenuSection": "Edit menu section",
+    "editRole": "Edit role",
+    "editUser": "Edit user",
+    "rolePermissions": "Role permissions: {{name}}"
+  },
+  "helper": {
+    "deepMatch": "Deep match controls subpath highlighting.",
+    "pathPatternExample": "Example: /api/users/{id}",
+    "updatePasswordRequired": "Backend currently requires a password on update."
+  },
+  "messages": {
+    "apiCreated": "API permission created",
+    "apiDeleted": "API permission deleted",
+    "apiUpdated": "API permission updated",
+    "deleteFailed": "Delete failed",
+    "loadBindingsFailed": "Load bindings failed",
+    "loadingPermissions": "Loading permissions...",
+    "menuItemCreated": "Menu item created",
+    "menuItemDeleted": "Menu item deleted",
+    "menuItemUpdated": "Menu item updated",
+    "menuSectionCreated": "Menu section created",
+    "menuSectionDeleted": "Menu section deleted",
+    "menuSectionUpdated": "Menu section updated",
+    "roleCreated": "Role created",
+    "roleDeleted": "Role deleted",
+    "rolePermissionsUpdated": "Role permissions updated",
+    "roleUpdated": "Role updated",
+    "saveBindingsFailed": "Save bindings failed",
+    "saveFailed": "Save failed",
+    "userCreated": "User created",
+    "userDeleted": "User deleted",
+    "userUpdated": "User updated"
+  },
+  "roles": {
+    "admin": {
+      "name": "Administrator",
+      "description": "Built-in administrator role"
+    },
+    "user": {
+      "name": "User",
+      "description": "Default signed-up user role"
+    }
+  },
+  "authSources": {
+    "local": "Local",
+    "system": "System"
+  },
+  "apiGroups": {
+    "auth": "Auth",
+    "menus": "Menus",
+    "rbac": "RBAC",
+    "system": "System",
+    "users": "Users"
+  },
+  "apiPermissionNames": {
+    "auth_me": "Current user",
+    "navbar_read": "Navbar",
+    "users_read": "List users",
+    "users_create": "Create user",
+    "users_update": "Update user",
+    "users_delete": "Delete user",
+    "roles_read": "List roles",
+    "roles_create": "Create role",
+    "roles_update": "Update role",
+    "roles_delete": "Delete role",
+    "role_apis_read": "Read role API bindings",
+    "role_apis_update": "Update role API bindings",
+    "role_menus_read": "Read role menu bindings",
+    "role_menus_update": "Update role menu bindings",
+    "apis_read": "List API permissions",
+    "apis_create": "Create API permission",
+    "apis_update": "Update API permission",
+    "apis_delete": "Delete API permission",
+    "menu_sections_read": "List menu sections",
+    "menu_sections_create": "Create menu section",
+    "menu_sections_update": "Update menu section",
+    "menu_sections_delete": "Delete menu section",
+    "menu_items_read": "List menu items",
+    "menu_items_create": "Create menu item",
+    "menu_items_update": "Update menu item",
+    "menu_items_delete": "Delete menu item"
+  },
+  "dashboard": {
+    "welcome": "Hi, Welcome back 👋",
+    "weeklySales": "Weekly sales",
+    "newUsers": "New users",
+    "purchaseOrders": "Purchase orders",
+    "messages": "Messages",
+    "currentVisits": "Current visits",
+    "websiteVisits": "Website visits",
+    "conversionRates": "Conversion rates",
+    "currentSubject": "Current subject",
+    "news": "News",
+    "orderTimeline": "Order timeline",
+    "trafficBySite": "Traffic by site",
+    "tasks": "Tasks",
+    "thanLastYear": "(+43%) than last year",
+    "visits": "visits",
+    "viewAll": "View all",
+    "markComplete": "Mark complete",
+    "share": "Share",
+    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"],
+    "regions": {
+      "america": "America",
+      "asia": "Asia",
+      "europe": "Europe",
+      "africa": "Africa"
+    },
+    "countries": {
+      "italy": "Italy",
+      "japan": "Japan",
+      "china": "China",
+      "canada": "Canada",
+      "france": "France"
+    },
+    "subjects": {
+      "english": "English",
+      "history": "History",
+      "physics": "Physics",
+      "geography": "Geography",
+      "chinese": "Chinese",
+      "math": "Math"
+    },
+    "series": {
+      "teamA": "Team A",
+      "teamB": "Team B",
+      "series1": "Series 1",
+      "series2": "Series 2",
+      "series3": "Series 3"
+    },
+    "newsItems": {
+      "titles": [
+        "The Future of Renewable Energy: Innovations and Challenges Ahead",
+        "Exploring the Impact of Artificial Intelligence on Modern Healthcare",
+        "Climate Change and Its Effects on Global Food Security",
+        "The Rise of Remote Work: Benefits, Challenges, and Future Trends",
+        "Understanding Blockchain Technology: Beyond Cryptocurrency"
+      ],
+      "descriptions": [
+        "The sun slowly set over the horizon, painting the sky in vibrant hues of orange and pink.",
+        "She eagerly opened the gift, her eyes sparkling with excitement.",
+        "The old oak tree stood tall and majestic, its branches swaying gently in the breeze.",
+        "The aroma of freshly brewed coffee filled the air, awakening my senses.",
+        "The children giggled with joy as they ran through the sprinklers on a hot summer day."
+      ]
+    },
+    "timeline": {
+      "items": [
+        "1983, orders, $4220",
+        "12 Invoices have been paid",
+        "Order #37745 from September",
+        "New order placed #XF-2356",
+        "New order placed #XF-2346"
+      ]
+    },
+    "taskItems": [
+      "Prepare Monthly Financial Report",
+      "Design New Marketing Campaign",
+      "Analyze Customer Feedback",
+      "Update Website Content",
+      "Conduct Market Research"
+    ]
+  }
+}

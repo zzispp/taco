@@ -1,0 +1,259 @@
+{
+  "nav": {
+    "overview": "概览",
+    "dashboard": "仪表盘",
+    "resources": "资源",
+    "account": "账户",
+    "systemManagement": "系统管理",
+    "users": "用户管理",
+    "roles": "角色管理",
+    "apis": "API 管理",
+    "menus": "菜单管理",
+    "customKeyboardShortcuts": "自定义键盘快捷键。"
+  },
+    "common": {
+      "active": "启用",
+      "add": "新增",
+      "api": "API",
+      "apis": "API",
+      "auth": "认证",
+      "cancel": "取消",
+      "caption": "说明",
+      "close": "关闭",
+      "code": "编码",
+    "create": "创建",
+    "custom": "自定义",
+    "delete": "删除",
+    "description": "描述",
+    "disabled": "禁用",
+    "edit": "编辑",
+    "email": "邮箱",
+    "enabled": "启用",
+    "group": "分组",
+    "icon": "图标",
+    "loading": "加载中...",
+    "local": "本地",
+    "menu": "菜单",
+    "menus": "菜单",
+    "method": "方法",
+    "retry": "重试",
+    "name": "名称",
+    "none": "无",
+    "noData": "暂无数据",
+    "password": "密码",
+    "path": "路径",
+    "permissions": "权限",
+    "role": "角色",
+    "save": "保存",
+    "section": "分组",
+    "sort": "排序",
+    "sortOrder": "排序",
+    "source": "来源",
+    "status": "状态",
+    "system": "系统",
+    "title": "标题",
+    "type": "类型",
+    "username": "用户名"
+  },
+  "pages": {
+    "apiManagement": "API 管理",
+    "menuManagement": "菜单管理",
+    "roleManagement": "角色管理",
+    "userManagement": "用户管理"
+  },
+  "actions": {
+    "addApi": "新增 API",
+    "addMenuItem": "新增菜单",
+    "addRole": "新增角色",
+    "addSection": "新增分组",
+    "addUser": "新增用户",
+    "apiPermissions": "API 权限",
+    "menuPermissions": "菜单权限",
+    "savePermissions": "保存权限"
+  },
+  "fields": {
+    "deepMatch": "深度匹配",
+    "displayName": "显示名称",
+    "newPassword": "新密码",
+    "parentItem": "父级菜单",
+    "pathPattern": "路径模式",
+    "subheader": "分组标题"
+  },
+  "dialogs": {
+    "createApi": "创建 API 权限",
+    "createMenuItem": "创建菜单项",
+    "createMenuSection": "创建菜单分组",
+    "createRole": "创建角色",
+    "createUser": "创建用户",
+    "deleteApi": "删除 API 权限",
+    "deleteContent": "确认删除 {{name}}？",
+    "deleteMenuItem": "删除菜单项",
+    "deleteMenuSection": "删除菜单分组",
+    "deleteRole": "删除角色",
+    "deleteUser": "删除用户",
+    "editApi": "编辑 API 权限",
+    "editMenuItem": "编辑菜单项",
+    "editMenuSection": "编辑菜单分组",
+    "editRole": "编辑角色",
+    "editUser": "编辑用户",
+    "rolePermissions": "角色权限：{{name}}"
+  },
+  "helper": {
+    "deepMatch": "深度匹配用于控制子路径高亮。",
+    "pathPatternExample": "示例：/api/users/{id}",
+    "updatePasswordRequired": "后端当前要求更新用户时填写密码。"
+  },
+  "messages": {
+    "apiCreated": "API 权限已创建",
+    "apiDeleted": "API 权限已删除",
+    "apiUpdated": "API 权限已更新",
+    "deleteFailed": "删除失败",
+    "loadBindingsFailed": "加载绑定失败",
+    "loadingPermissions": "权限加载中...",
+    "menuItemCreated": "菜单项已创建",
+    "menuItemDeleted": "菜单项已删除",
+    "menuItemUpdated": "菜单项已更新",
+    "menuSectionCreated": "菜单分组已创建",
+    "menuSectionDeleted": "菜单分组已删除",
+    "menuSectionUpdated": "菜单分组已更新",
+    "roleCreated": "角色已创建",
+    "roleDeleted": "角色已删除",
+    "rolePermissionsUpdated": "角色权限已更新",
+    "roleUpdated": "角色已更新",
+    "saveBindingsFailed": "保存绑定失败",
+    "saveFailed": "保存失败",
+    "userCreated": "用户已创建",
+    "userDeleted": "用户已删除",
+    "userUpdated": "用户已更新"
+  },
+  "roles": {
+    "admin": {
+      "name": "管理员",
+      "description": "内置管理员角色"
+    },
+    "user": {
+      "name": "用户",
+      "description": "默认注册用户角色"
+    }
+  },
+  "authSources": {
+    "local": "本地",
+    "system": "系统"
+  },
+  "apiGroups": {
+    "auth": "认证",
+    "menus": "菜单",
+    "rbac": "权限",
+    "system": "系统",
+    "users": "用户"
+  },
+  "apiPermissionNames": {
+    "auth_me": "当前用户",
+    "navbar_read": "导航菜单",
+    "users_read": "查看用户列表",
+    "users_create": "创建用户",
+    "users_update": "更新用户",
+    "users_delete": "删除用户",
+    "roles_read": "查看角色列表",
+    "roles_create": "创建角色",
+    "roles_update": "更新角色",
+    "roles_delete": "删除角色",
+    "role_apis_read": "读取角色 API 绑定",
+    "role_apis_update": "更新角色 API 绑定",
+    "role_menus_read": "读取角色菜单绑定",
+    "role_menus_update": "更新角色菜单绑定",
+    "apis_read": "查看 API 权限列表",
+    "apis_create": "创建 API 权限",
+    "apis_update": "更新 API 权限",
+    "apis_delete": "删除 API 权限",
+    "menu_sections_read": "查看菜单分组列表",
+    "menu_sections_create": "创建菜单分组",
+    "menu_sections_update": "更新菜单分组",
+    "menu_sections_delete": "删除菜单分组",
+    "menu_items_read": "查看菜单项列表",
+    "menu_items_create": "创建菜单项",
+    "menu_items_update": "更新菜单项",
+    "menu_items_delete": "删除菜单项"
+  },
+  "dashboard": {
+    "welcome": "你好，欢迎回来 👋",
+    "weeklySales": "本周销售额",
+    "newUsers": "新增用户",
+    "purchaseOrders": "采购订单",
+    "messages": "消息",
+    "currentVisits": "当前访问",
+    "websiteVisits": "网站访问",
+    "conversionRates": "转化率",
+    "currentSubject": "当前科目",
+    "news": "新闻",
+    "orderTimeline": "订单时间线",
+    "trafficBySite": "站点流量",
+    "tasks": "任务",
+    "thanLastYear": "较去年增长 (+43%)",
+    "visits": "次访问",
+    "viewAll": "查看全部",
+    "markComplete": "标记完成",
+    "share": "分享",
+    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
+    "regions": {
+      "america": "美洲",
+      "asia": "亚洲",
+      "europe": "欧洲",
+      "africa": "非洲"
+    },
+    "countries": {
+      "italy": "意大利",
+      "japan": "日本",
+      "china": "中国",
+      "canada": "加拿大",
+      "france": "法国"
+    },
+    "subjects": {
+      "english": "英语",
+      "history": "历史",
+      "physics": "物理",
+      "geography": "地理",
+      "chinese": "语文",
+      "math": "数学"
+    },
+    "series": {
+      "teamA": "团队 A",
+      "teamB": "团队 B",
+      "series1": "系列 1",
+      "series2": "系列 2",
+      "series3": "系列 3"
+    },
+    "newsItems": {
+      "titles": [
+        "可再生能源的未来：创新与挑战",
+        "人工智能对现代医疗的影响",
+        "气候变化与全球粮食安全",
+        "远程办公兴起：收益、挑战与趋势",
+        "理解区块链技术：不止加密货币"
+      ],
+      "descriptions": [
+        "太阳缓缓落入地平线，将天空染成橙色与粉色。",
+        "她迫不及待地打开礼物，眼中闪烁着兴奋的光。",
+        "古老橡树高大挺拔，枝叶在微风中轻轻摇曳。",
+        "新鲜咖啡的香气弥漫开来，唤醒了所有感官。",
+        "炎热夏日里，孩子们穿过喷泉时开心地笑着。"
+      ]
+    },
+    "timeline": {
+      "items": [
+        "1983，订单，$4220",
+        "12 张发票已支付",
+        "来自 9 月的订单 #37745",
+        "新订单已创建 #XF-2356",
+        "新订单已创建 #XF-2346"
+      ]
+    },
+    "taskItems": [
+      "准备月度财务报告",
+      "设计新的营销活动",
+      "分析客户反馈",
+      "更新网站内容",
+      "开展市场调研"
+    ]
+  }
+}

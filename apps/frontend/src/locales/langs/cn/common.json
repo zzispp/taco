@@ -1,0 +1,6 @@
+{
+  "demo": {
+    "lang": "Chinese",
+    "description": "Hook 是后端控制台，用于管理认证、RBAC、API 权限与菜单治理。"
+  }
+}
