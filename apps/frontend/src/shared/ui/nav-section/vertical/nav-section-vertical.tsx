@@ -9,6 +9,7 @@ import Collapse from '@mui/material/Collapse';
 import { useTheme } from '@mui/material/styles';
 
 import { NavList } from './nav-list';
+import { navItemKey, navGroupKey } from '../nav-key';
 import { Nav, NavUl, NavLi, NavSubheader } from '../components';
 import { navSectionClasses, navSectionCssVars } from '../styles';
 
@@ -36,9 +37,9 @@ export function NavSectionVertical({
       {...other}
     >
       <NavUl sx={{ flex: '1 1 auto', gap: 'var(--nav-item-gap)' }}>
-        {data.map((group) => (
+        {data.map((group, index) => (
           <Group
-            key={group.subheader ?? group.items[0].title}
+            key={navGroupKey(group, index)}
             subheader={group.subheader}
             items={group.items}
             render={render}
@@ -66,9 +67,9 @@ function Group({
 
   const renderContent = () => (
     <NavUl sx={{ gap: 'var(--nav-item-gap)' }}>
-      {items.map((list) => (
+      {items.map((list, index) => (
         <NavList
-          key={list.title}
+          key={navItemKey(list, index)}
           data={list}
           render={render}
           depth={1}

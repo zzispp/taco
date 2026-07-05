@@ -8,6 +8,7 @@ import { useTheme } from '@mui/material/styles';
 
 import { NavList } from './nav-list';
 import { Nav, NavUl, NavLi } from '../components';
+import { navItemKey, navGroupKey } from '../nav-key';
 import { navSectionClasses, navSectionCssVars } from '../styles';
 
 // ----------------------------------------------------------------------
@@ -34,9 +35,9 @@ export function NavSectionMini({
       {...other}
     >
       <NavUl sx={{ flex: '1 1 auto', gap: 'var(--nav-item-gap)' }}>
-        {data.map((group) => (
+        {data.map((group, index) => (
           <Group
-            key={group.subheader ?? group.items[0].title}
+            key={navGroupKey(group, index)}
             render={render}
             cssVars={cssVars}
             items={group.items}
@@ -63,9 +64,9 @@ function Group({
   return (
     <NavLi>
       <NavUl sx={{ gap: 'var(--nav-item-gap)' }}>
-        {items.map((list) => (
+        {items.map((list, index) => (
           <NavList
-            key={list.title}
+            key={navItemKey(list, index)}
             depth={1}
             data={list}
             render={render}

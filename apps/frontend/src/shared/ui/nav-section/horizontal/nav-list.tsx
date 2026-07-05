@@ -12,6 +12,7 @@ import { popoverClasses } from '@mui/material/Popover';
 import { usePathname } from 'src/shared/routes/hooks';
 
 import { NavItem } from './nav-item';
+import { navItemKey } from '../nav-key';
 import { navSectionClasses } from '../styles';
 import { NavUl, NavLi, NavDropdown, NavDropdownPaper } from '../components';
 
@@ -160,9 +161,9 @@ function NavSubList({
 }: NavSubListProps) {
   return (
     <NavUl sx={{ gap: 0.5 }}>
-      {data.map((list) => (
+      {data.map((list, index) => (
         <NavList
-          key={list.title}
+          key={navItemKey(list, index)}
           data={list}
           render={render}
           depth={depth + 1}

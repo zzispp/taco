@@ -1,6 +1,9 @@
 export const menuEndpoints = {
-  menuSections: '/api/rbac/menu-sections',
-  menuSection: (id: string) => `/api/rbac/menu-sections/${id}`,
-  menuItems: '/api/rbac/menu-items',
-  menuItem: (id: string) => `/api/rbac/menu-items/${id}`,
+  menus: '/api/system/menus',
+  menuTree: '/api/system/menus/tree',
+  treeSelect: '/api/system/menus/tree-select',
+  roleTreeSelect: (id: string) => `/api/system/menus/role-tree-select/${id}`,
+  menu: (id: string) => `/api/system/menus/${id}`,
+  sort: (id: string) => `/api/system/menus/${id}/sort`,
+  sortBatch: '/api/system/menus/sort',
 } as const;

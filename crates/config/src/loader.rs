@@ -49,10 +49,6 @@ impl Settings {
         required_config_value("jwt.secret", &self.jwt.secret)
     }
 
-    pub fn admin_password_hash(&self) -> Result<String, SettingsError> {
-        required_config_value("admin.password_hash", &self.admin.password_hash)
-    }
-
     pub fn redis_url(&self) -> Result<String, SettingsError> {
         if let Some(url) = non_empty_url(self.redis.url.as_deref()) {
             return Ok(url.to_owned());

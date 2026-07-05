@@ -29,10 +29,13 @@ const SECTION_KEY_BY_TITLE: Record<string, string> = {
 const ITEM_KEY_BY_CODE: Record<string, string> = {
   dashboard_home: 'nav.dashboard',
   system_management: 'nav.systemManagement',
-  admin_users: 'nav.users',
-  admin_roles: 'nav.roles',
-  admin_apis: 'nav.apis',
-  admin_menus: 'nav.menus',
+  '100': 'nav.users',
+  '101': 'nav.roles',
+  '102': 'nav.menus',
+  '103': 'nav.depts',
+  '104': 'nav.posts',
+  '105': 'nav.dicts',
+  '106': 'nav.configs',
 };
 
 const ITEM_KEY_BY_PATH: Record<string, string> = {
@@ -40,8 +43,11 @@ const ITEM_KEY_BY_PATH: Record<string, string> = {
   '/dashboard/admin': 'nav.systemManagement',
   '/dashboard/admin/users': 'nav.users',
   '/dashboard/admin/roles': 'nav.roles',
-  '/dashboard/admin/apis': 'nav.apis',
   '/dashboard/admin/menus': 'nav.menus',
+  '/dashboard/admin/depts': 'nav.depts',
+  '/dashboard/admin/posts': 'nav.posts',
+  '/dashboard/admin/dicts': 'nav.dicts',
+  '/dashboard/admin/configs': 'nav.configs',
 };
 
 export function translateNavData(data: NavData, t: TranslateFn): NavData {

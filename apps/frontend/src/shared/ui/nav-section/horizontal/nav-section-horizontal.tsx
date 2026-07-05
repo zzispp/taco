@@ -9,6 +9,7 @@ import { useTheme } from '@mui/material/styles';
 import { NavList } from './nav-list';
 import { Scrollbar } from '../../scrollbar';
 import { Nav, NavUl, NavLi } from '../components';
+import { navItemKey, navGroupKey } from '../nav-key';
 import { navSectionClasses, navSectionCssVars } from '../styles';
 
 // ----------------------------------------------------------------------
@@ -49,9 +50,9 @@ export function NavSectionHorizontal({
         {...other}
       >
         <NavUl sx={{ flexDirection: 'row', gap: 'var(--nav-item-gap)' }}>
-          {data.map((group) => (
+          {data.map((group, index) => (
             <Group
-              key={group.subheader ?? group.items[0].title}
+              key={navGroupKey(group, index)}
               render={render}
               cssVars={cssVars}
               items={group.items}
@@ -79,9 +80,9 @@ function Group({
   return (
     <NavLi>
       <NavUl sx={{ flexDirection: 'row', gap: 'var(--nav-item-gap)' }}>
-        {items.map((list) => (
+        {items.map((list, index) => (
           <NavList
-            key={list.title}
+            key={navItemKey(list, index)}
             depth={1}
             data={list}
             render={render}

@@ -49,18 +49,28 @@ export function AuthProvider({ children }: Props) {
       return;
     }
 
-    const res = await axios.get(AUTH_ME_ENDPOINT);
-    const { user } = res.data as MeResponse;
+    try {
+      const res = await axios.get(AUTH_ME_ENDPOINT);
+      const { user } = res.data as MeResponse;
 
-    setState({
-      user: {
-        ...user,
-        access_token: session.access_token,
-        displayName: user.username,
-      },
-      error: null,
-      loading: false,
-    });
+      setState({
+        user: {
+          ...user,
+          access_token: session.access_token,
+          displayName: user.nick_name || user.username,
+          photoURL: user.avatar ?? undefined,
+        },
+        error: null,
+        loading: false,
+      });
+    } catch (error) {
+      if (isAuthSessionRejected(error)) {
+        await setSession(null);
+        setState({ user: null, error: null, loading: false });
+        return;
+      }
+      throw error;
+    }
   }, [setState]);
 
   useEffect(() => {
@@ -79,7 +89,7 @@ export function AuthProvider({ children }: Props) {
 
   const memoizedValue = useMemo(
     () => ({
-      user: state.user ? { ...state.user, role: state.user?.role ?? 'admin' } : null,
+      user: state.user,
       checkUserSession,
       error: state.error,
       loading: status === 'loading',
@@ -110,10 +120,27 @@ async function resolveSession() {
     return null;
   }
 
-  const res = await axios.post(AUTH_REFRESH_ENDPOINT, { refresh_token });
-  const session = res.data as TokenPairResponse;
+  try {
+    const res = await axios.post(AUTH_REFRESH_ENDPOINT, { refresh_token });
+    const session = res.data as TokenPairResponse;
 
-  await setSession(session);
+    await setSession(session);
 
-  return session;
+    return session;
+  } catch (error) {
+    if (isAuthSessionRejected(error)) {
+      await setSession(null);
+      return null;
+    }
+    throw error;
+  }
+}
+
+function isAuthSessionRejected(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const status = (error as Error & { status?: number }).status;
+  return status === 401 || error.message === 'username or password is incorrect';
 }

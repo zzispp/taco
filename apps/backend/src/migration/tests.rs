@@ -5,12 +5,12 @@ use std::{
 
 use sqlx::{PgPool, postgres::PgPoolOptions, query, query_scalar};
 
-use super::{down, ensure_runtime_schema_ready, fresh, refresh, reset, status, up};
+use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, refresh, reset, status, up};
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
 const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
 const MIGRATION_TOTAL: usize = 2;
-const USERS_TABLE_REGCLASS: &str = "public.users";
+const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -44,6 +44,7 @@ async fn migrations_support_full_up_down_cycle() {
     fresh(pool).await.unwrap();
     assert_status_counts(pool, MIGRATION_TOTAL, 0).await;
     assert!(users_table_exists(pool).await);
+    assert_seed_data_exists(pool).await;
 
     database.drop().await;
 }
@@ -60,14 +61,99 @@ async fn runtime_schema_readiness_fails_when_migrations_are_pending() {
 }
 
 #[tokio::test]
+async fn runtime_schema_preparation_auto_migrates_fresh_database() {
+    let database = TestDatabase::create().await;
+
+    prepare_runtime_schema(database.pool(), true).await.unwrap();
+
+    assert_status_counts(database.pool(), MIGRATION_TOTAL, 0).await;
+    assert!(users_table_exists(database.pool()).await);
+    assert_seed_data_exists(database.pool()).await;
+
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn runtime_schema_preparation_is_idempotent_after_migration() {
+    let database = TestDatabase::create().await;
+
+    prepare_runtime_schema(database.pool(), true).await.unwrap();
+    prepare_runtime_schema(database.pool(), true).await.unwrap();
+
+    assert_status_counts(database.pool(), MIGRATION_TOTAL, 0).await;
+    assert_eq!(applied_migration_count(database.pool()).await, MIGRATION_TOTAL as i64);
+
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn runtime_schema_preparation_does_not_auto_migrate_when_disabled() {
+    let database = TestDatabase::create().await;
+
+    let error = prepare_runtime_schema(database.pool(), false).await.unwrap_err();
+
+    assert!(error.to_string().contains("pending migrations"), "unexpected error: {error}");
+    assert_status_counts(database.pool(), 0, MIGRATION_TOTAL).await;
+
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn runtime_schema_preparation_fails_when_migration_is_dirty() {
+    let database = TestDatabase::create().await;
+    up(database.pool(), None).await.unwrap();
+    insert_dirty_migration(database.pool()).await;
+
+    let auto_error = prepare_runtime_schema(database.pool(), true).await.unwrap_err();
+    let manual_error = prepare_runtime_schema(database.pool(), false).await.unwrap_err();
+
+    assert!(auto_error.to_string().contains("dirty at migration 999"), "unexpected error: {auto_error}");
+    assert!(manual_error.to_string().contains("dirty at migration 999"), "unexpected error: {manual_error}");
+
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn runtime_schema_preparation_fails_on_checksum_mismatch() {
+    let database = TestDatabase::create().await;
+    up(database.pool(), None).await.unwrap();
+    query("UPDATE _sqlx_migrations SET checksum = decode('00', 'hex') WHERE version = 20260508000001")
+        .execute(database.pool())
+        .await
+        .unwrap();
+
+    let error = prepare_runtime_schema(database.pool(), true).await.unwrap_err();
+
+    assert!(
+        error.to_string().contains("checksum mismatch at version 20260508000001"),
+        "unexpected error: {error}"
+    );
+
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn runtime_schema_preparation_fails_when_applied_migration_file_is_missing() {
+    let database = TestDatabase::create().await;
+    up(database.pool(), None).await.unwrap();
+    insert_missing_local_migration(database.pool()).await;
+
+    let error = prepare_runtime_schema(database.pool(), true).await.unwrap_err();
+
+    assert!(error.to_string().contains("applied migration 99999999999999"), "unexpected error: {error}");
+
+    database.drop().await;
+}
+
+#[tokio::test]
 async fn runtime_schema_readiness_fails_when_a_managed_table_is_missing() {
     let database = TestDatabase::create().await;
     up(database.pool(), None).await.unwrap();
-    query("DROP TABLE roles").execute(database.pool()).await.unwrap();
+    query("DROP TABLE sys_role CASCADE").execute(database.pool()).await.unwrap();
 
     let error = ensure_runtime_schema_ready(database.pool()).await.unwrap_err();
 
-    assert!(error.to_string().contains("missing managed tables [roles]"), "unexpected error: {error}");
+    assert!(error.to_string().contains("missing managed tables [sys_role]"), "unexpected error: {error}");
 
     database.drop().await;
 }
@@ -135,6 +221,49 @@ async fn users_table_exists(pool: &PgPool) -> bool {
         .fetch_one(pool)
         .await
         .unwrap()
+}
+
+async fn applied_migration_count(pool: &PgPool) -> i64 {
+    query_scalar::<_, i64>("SELECT COUNT(*) FROM _sqlx_migrations WHERE success = TRUE")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn insert_dirty_migration(pool: &PgPool) {
+    query("INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) VALUES (999, 'dirty_test', FALSE, decode('00', 'hex'), 0)")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn insert_missing_local_migration(pool: &PgPool) {
+    query("INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) VALUES (99999999999999, 'missing_local_test', TRUE, decode('00', 'hex'), 0)")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn assert_seed_data_exists(pool: &PgPool) {
+    assert_eq!(table_count(pool, "sys_role").await, 2);
+    assert_eq!(table_count(pool, "sys_menu").await, 43);
+    assert_eq!(table_count(pool, "sys_dept").await, 10);
+    assert_eq!(table_count(pool, "sys_post").await, 4);
+    assert_eq!(table_count(pool, "sys_dict_type").await, 5);
+    assert_eq!(table_count(pool, "sys_config").await, 5);
+}
+
+async fn table_count(pool: &PgPool, table: &str) -> i64 {
+    let sql = match table {
+        "sys_role" => "SELECT COUNT(*) FROM sys_role",
+        "sys_menu" => "SELECT COUNT(*) FROM sys_menu",
+        "sys_dept" => "SELECT COUNT(*) FROM sys_dept",
+        "sys_post" => "SELECT COUNT(*) FROM sys_post",
+        "sys_dict_type" => "SELECT COUNT(*) FROM sys_dict_type",
+        "sys_config" => "SELECT COUNT(*) FROM sys_config",
+        _ => panic!("unexpected table: {table}"),
+    };
+    query_scalar::<_, i64>(sql).fetch_one(pool).await.unwrap()
 }
 
 fn test_database_name() -> String {

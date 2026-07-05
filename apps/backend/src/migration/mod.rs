@@ -8,18 +8,25 @@ use sqlx::{
 };
 
 mod readiness;
+#[cfg(test)]
 pub use readiness::ensure_runtime_schema_ready;
+pub use readiness::prepare_runtime_schema;
 
 pub static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
 const MANAGED_TABLES: &[&str] = &[
-    "role_menu_permissions",
-    "role_api_permissions",
-    "menu_items",
-    "menu_sections",
-    "api_permissions",
-    "roles",
-    "users",
+    "sys_user_post",
+    "sys_role_dept",
+    "sys_role_menu",
+    "sys_user_role",
+    "sys_config",
+    "sys_dict_data",
+    "sys_dict_type",
+    "sys_menu",
+    "sys_post",
+    "sys_user",
+    "sys_role",
+    "sys_dept",
 ];
 
 #[derive(Debug)]

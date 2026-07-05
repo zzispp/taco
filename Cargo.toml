@@ -5,7 +5,9 @@ members = [
     "crates/constants",
     "crates/kernel",
     "crates/rbac",
+    "crates/rbac_macros",
     "crates/storage",
+    "crates/system",
     "crates/tracing",
     "crates/types",
     "crates/user",
@@ -21,6 +23,7 @@ argon2 = "0.5.3"
 async-trait = "0.1.89"
 axum = "0.8.9"
 http-body-util = "0.1.3"
+inventory = "0.3.21"
 config_rs = { package = "config", version = "0.15.22", default-features = false, features = ["yaml"] }
 configuration = { path = "crates/config" }
 constants = { path = "crates/constants" }
@@ -30,12 +33,17 @@ jsonwebtoken = "9.3.1"
 matchit = "0.8.4"
 metrics = "0.24.2"
 metrics-exporter-prometheus = "0.17.2"
+proc-macro2 = "1.0.103"
+quote = "1.0.42"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 rbac = { path = "crates/rbac" }
+rbac_macros = { path = "crates/rbac_macros" }
 redis = { version = "1.2.1", default-features = false, features = ["tokio-comp", "connection-manager"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 storage = { path = "crates/storage" }
+syn = { version = "2.0.111", features = ["full"] }
+system = { path = "crates/system" }
 tempfile = "3.23.0"
 testcontainers = "0.27.3"
 thiserror = "2.0.17"

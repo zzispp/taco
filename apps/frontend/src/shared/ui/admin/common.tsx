@@ -67,6 +67,10 @@ export function EnabledLabel({ enabled }: { enabled: boolean }) {
   );
 }
 
+export function StatusLabel({ status }: { status: string }) {
+  return <EnabledLabel enabled={status === '0'} />;
+}
+
 export function BooleanLabel({ enabled, trueText, falseText }: { enabled: boolean; trueText: string; falseText: string }) {
   return (
     <Label color={enabled ? 'info' : 'default'} variant="soft">
@@ -115,8 +119,29 @@ export function TableLoadingRows({
   );
 }
 
-export function ManagementTableHead({ head }: { head: TableHeadCellProps[] }) {
-  return <TableHeadCustom headCells={head} />;
+export function ManagementTableHead({
+  head,
+  rowCount,
+  numSelected,
+  onSelectAllRows,
+}: {
+  head: TableHeadCellProps[];
+  rowCount?: number;
+  numSelected?: number;
+  onSelectAllRows?: (checked: boolean) => void;
+}) {
+  return (
+    <TableHeadCustom
+      headCells={head}
+      rowCount={rowCount}
+      numSelected={numSelected}
+      onSelectAllRows={onSelectAllRows}
+    />
+  );
+}
+
+export function withSelectionHead(head: TableHeadCellProps[]): TableHeadCellProps[] {
+  return [{ id: 'select', width: 48 }, ...head];
 }
 
 export function TextFieldRow({
@@ -129,6 +154,7 @@ export function TextFieldRow({
   children,
   helperText,
   disabled,
+  multiline,
 }: {
   label: string;
   value: string | number;
@@ -139,6 +165,7 @@ export function TextFieldRow({
   children?: React.ReactNode;
   helperText?: React.ReactNode;
   disabled?: boolean;
+  multiline?: boolean;
 }) {
   return (
     <TextField
@@ -149,6 +176,8 @@ export function TextFieldRow({
       label={label}
       value={value}
       disabled={disabled}
+      multiline={multiline}
+      minRows={multiline ? 3 : undefined}
       helperText={helperText}
       onChange={(event) => onChange(event.target.value)}
     >

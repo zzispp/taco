@@ -30,8 +30,9 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     const message = error?.response?.data?.message || error?.message || 'Something went wrong!';
-    console.error('Axios error:', message);
-    return Promise.reject(new Error(message));
+    const normalizedError = new Error(message);
+    Object.assign(normalizedError, { status: error?.response?.status });
+    return Promise.reject(normalizedError);
   }
 );
 

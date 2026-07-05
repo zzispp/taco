@@ -13,15 +13,21 @@ pub(super) fn validate_credentials(input: &Credentials) -> AppResult<()> {
 pub(super) fn validate_new_user(input: &NewUser) -> AppResult<()> {
     validate_username(&input.username)?;
     validate_password(&input.password)?;
+    reject_blank("nick_name", &input.nick_name)?;
     reject_blank("email", &input.email)?;
-    reject_blank("role", &input.role)
+    reject_blank("status", &input.status)?;
+    reject_empty_ids("role_ids", &input.role_ids)
 }
 
 pub(super) fn validate_replace_user(input: &ReplaceUser) -> AppResult<()> {
     validate_username(&input.username)?;
-    validate_password(&input.password)?;
+    if let Some(password) = &input.password {
+        validate_password(password)?;
+    }
+    reject_blank("nick_name", &input.nick_name)?;
     reject_blank("email", &input.email)?;
-    reject_blank("role", &input.role)
+    reject_blank("status", &input.status)?;
+    reject_empty_ids("role_ids", &input.role_ids)
 }
 
 pub(super) fn validate_page(page: PageRequest) -> AppResult<()> {
@@ -48,19 +54,31 @@ pub(super) fn sanitize_new_user(input: NewUser) -> NewUser {
     NewUser {
         username: input.username.trim().into(),
         password: input.password.trim().into(),
+        nick_name: trim_required(input.nick_name),
+        dept_id: trim_optional(input.dept_id),
         email: input.email.trim().into(),
-        role: input.role,
-        is_active: input.is_active,
+        phonenumber: trim_optional(input.phonenumber),
+        sex: trim_required(input.sex),
+        status: trim_required(input.status),
+        remark: trim_optional(input.remark),
+        role_ids: trim_ids(input.role_ids),
+        post_ids: trim_ids(input.post_ids),
     }
 }
 
 pub(super) fn sanitize_replace_user(input: ReplaceUser) -> ReplaceUser {
     ReplaceUser {
         username: input.username.trim().into(),
-        password: input.password.trim().into(),
+        password: input.password.map(|password| password.trim().into()),
+        nick_name: trim_required(input.nick_name),
+        dept_id: trim_optional(input.dept_id),
         email: input.email.trim().into(),
-        role: input.role,
-        is_active: input.is_active,
+        phonenumber: trim_optional(input.phonenumber),
+        sex: trim_required(input.sex),
+        status: trim_required(input.status),
+        remark: trim_optional(input.remark),
+        role_ids: trim_ids(input.role_ids),
+        post_ids: trim_ids(input.post_ids),
     }
 }
 
@@ -106,4 +124,23 @@ fn reject_blank(field: &str, value: &str) -> AppResult<()> {
         return Err(AppError::InvalidInput(format!("{field} cannot be blank")));
     }
     Ok(())
+}
+
+fn reject_empty_ids(field: &str, values: &[String]) -> AppResult<()> {
+    if values.is_empty() {
+        return Err(AppError::InvalidInput(format!("{field} cannot be empty")));
+    }
+    Ok(())
+}
+
+fn trim_ids(values: Vec<String>) -> Vec<String> {
+    values.into_iter().map(trim_required).filter(|value| !value.is_empty()).collect()
+}
+
+fn trim_optional(value: Option<String>) -> Option<String> {
+    value.map(trim_required).filter(|value| !value.is_empty())
+}
+
+fn trim_required(value: String) -> String {
+    value.trim().into()
 }

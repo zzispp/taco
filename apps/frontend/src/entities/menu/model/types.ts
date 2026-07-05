@@ -1,41 +1,36 @@
-export type MenuSection = {
-  id: string;
-  code: string;
-  subheader: string;
-  sort_order: number;
-  enabled: boolean;
-};
-
-export type MenuSectionInput = {
-  code: string;
-  subheader: string;
-  sort_order: number;
-  enabled: boolean;
-};
-
-export type MenuItem = {
-  id: string;
-  section_id: string;
-  parent_id: string | null;
-  code: string;
-  title: string;
+export type Menu = {
+  menu_id: string;
+  menu_name: string;
+  parent_id: string;
+  order_num: number;
   path: string;
-  icon: string | null;
-  caption: string | null;
-  deep_match: boolean;
-  sort_order: number;
-  enabled: boolean;
+  component: string | null;
+  query: string | null;
+  route_name: string;
+  is_frame: boolean;
+  is_cache: boolean;
+  menu_type: string;
+  visible: string;
+  status: string;
+  perms: string | null;
+  icon: string;
+  remark: string | null;
 };
 
-export type MenuItemInput = {
-  section_id: string;
-  parent_id: string | null;
-  code: string;
-  title: string;
+export type MenuInput = {
+  menu_name: string;
+  parent_id: string;
+  order_num: number;
   path: string;
-  icon: string | null;
-  caption: string | null;
-  deep_match: boolean;
-  sort_order: number;
-  enabled: boolean;
+  component: string | null;
+  query: string | null;
+  route_name: string;
+  is_frame: boolean;
+  is_cache: boolean;
+  menu_type: string;
+  visible: string;
+  status: string;
+  perms: string | null;
+  icon: string;
+  remark: string | null;
 };

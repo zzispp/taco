@@ -41,18 +41,13 @@ fn database_url_errors_without_password_when_url_is_missing() {
 }
 
 #[test]
-fn secrets_and_hashes_trim_config_values() {
+fn jwt_secret_trims_config_value() {
     let jwt = settings_with_jwt(JwtSettings {
         secret: "  secret-from-config  ".into(),
         ..jwt_settings()
     });
-    let admin = settings_with_admin(AdminSettings {
-        password_hash: "  hash-from-config  ".into(),
-        ..admin_settings()
-    });
 
     assert_eq!(jwt.jwt_secret().unwrap(), "secret-from-config");
-    assert_eq!(admin.admin_password_hash().unwrap(), "hash-from-config");
 }
 
 #[test]
@@ -120,4 +115,82 @@ fn explicit_config_path_errors_without_value() {
 fn default_config_paths_are_ordered() {
     assert_eq!(crate::loader::MODULE_CONFIG_PATH, "config/config.yaml");
     assert_eq!(crate::loader::ROOT_CONFIG_PATH, "config.yaml");
+}
+
+#[test]
+fn database_auto_migrate_defaults_to_false() {
+    let settings: Settings = config_rs::Config::builder()
+        .add_source(config_rs::File::from_str(&minimal_config_without_auto_migrate(), config_rs::FileFormat::Yaml))
+        .build()
+        .unwrap()
+        .try_deserialize()
+        .unwrap();
+
+    assert!(!settings.database.auto_migrate);
+}
+
+#[test]
+fn database_auto_migrate_reads_explicit_true() {
+    let settings: Settings = config_rs::Config::builder()
+        .add_source(config_rs::File::from_str(
+            &minimal_config_without_auto_migrate().replace("database:\n", "database:\n  auto_migrate: true\n"),
+            config_rs::FileFormat::Yaml,
+        ))
+        .build()
+        .unwrap()
+        .try_deserialize()
+        .unwrap();
+
+    assert!(settings.database.auto_migrate);
+}
+
+fn minimal_config_without_auto_migrate() -> String {
+    r#"
+server:
+  host: "127.0.0.1"
+  port: 3000
+database:
+  url:
+  scheme: "postgres"
+  host: "localhost"
+  port: 5433
+  username: "postgres"
+  password: "123456"
+  name: "postgres"
+jwt:
+  secret: "jwt-secret-from-config"
+  access_token_ttl_seconds: 900
+  refresh_token_ttl_seconds: 604800
+auth:
+  whitelist: []
+cors:
+  allowed_origins: ["*"]
+  allowed_methods: ["*"]
+  allowed_headers: ["*"]
+  exposed_headers: ["*"]
+  allow_credentials: false
+  max_age_seconds:
+http:
+  request_timeout_ms: 30000
+  compression_enabled: true
+metrics:
+  enabled: true
+redis:
+  url: "redis://default:@localhost:6380?protocol=resp3"
+  scheme: "redis"
+  host: "localhost"
+  port: 6380
+  username: "default"
+  password: ""
+  database:
+  protocol: "resp3"
+  key_prefix: "hook"
+tracing:
+  log_level: "info"
+  file:
+    enabled: false
+    directory: "logs"
+    prefix: "hook.log"
+"#
+    .into()
 }

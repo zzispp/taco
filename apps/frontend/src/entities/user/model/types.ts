@@ -1,18 +1,48 @@
+import type { Post, TreeSelectNode } from 'src/entities/system';
+import type { RoleOption, RoleSummary } from 'src/entities/role';
+
 export type SystemUser = {
-  id: string;
+  user_id: string;
   username: string;
+  nick_name: string;
+  dept_id: string | null;
   email: string;
-  role: string;
+  phonenumber: string | null;
+  sex: string;
+  avatar: string | null;
+  status: string;
   is_active: boolean;
   auth_source: string;
   email_verified: boolean;
   system: boolean;
+  remark: string | null;
+  roles: RoleSummary[];
+  role_ids: string[];
+  post_ids: string[];
+  permissions: string[];
+  create_time: string;
 };
 
 export type UserInput = {
   username: string;
-  password: string;
+  password?: string;
+  nick_name: string;
+  dept_id: string | null;
   email: string;
-  role: string;
-  is_active: boolean;
+  phonenumber: string | null;
+  sex: string;
+  status: string;
+  remark: string | null;
+  role_ids: string[];
+  post_ids: string[];
+};
+
+export type UserFormOptions = {
+  roles: RoleOption[];
+  posts: Post[];
+  depts: TreeSelectNode[];
+};
+
+export type UserRolesPayload = {
+  role_ids: string[];
 };

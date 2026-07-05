@@ -11,7 +11,6 @@ pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
         },
         database,
         jwt: jwt_settings(),
-        admin: admin_settings(),
         auth: AuthSettings { whitelist: vec![] },
         cors: cors_settings(),
         http: http_settings(),
@@ -24,13 +23,6 @@ pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
 pub(super) fn settings_with_jwt(jwt: JwtSettings) -> Settings {
     Settings {
         jwt,
-        ..settings_with_database(database_parts())
-    }
-}
-
-pub(super) fn settings_with_admin(admin: AdminSettings) -> Settings {
-    Settings {
-        admin,
         ..settings_with_database(database_parts())
     }
 }
@@ -65,6 +57,7 @@ pub(super) fn settings_with_http(http: HttpSettings) -> Settings {
 
 pub(super) fn database_parts() -> DatabaseSettings {
     DatabaseSettings {
+        auto_migrate: false,
         url: None,
         scheme: "postgres".into(),
         host: "localhost".into(),
@@ -80,17 +73,6 @@ pub(super) fn jwt_settings() -> JwtSettings {
         secret: "jwt-secret-from-config".into(),
         access_token_ttl_seconds: 900,
         refresh_token_ttl_seconds: 604800,
-    }
-}
-
-pub(super) fn admin_settings() -> AdminSettings {
-    AdminSettings {
-        id: "00000000-0000-7000-8000-000000000000".into(),
-        username: "admin".into(),
-        email: "admin@example.com".into(),
-        role: "admin".into(),
-        is_active: true,
-        password_hash: "admin-password-hash-from-config".into(),
     }
 }
 

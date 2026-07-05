@@ -5,7 +5,6 @@ pub struct Settings {
     pub server: ServerSettings,
     pub database: DatabaseSettings,
     pub jwt: JwtSettings,
-    pub admin: AdminSettings,
     pub auth: AuthSettings,
     pub cors: CorsSettings,
     pub http: HttpSettings,
@@ -22,6 +21,8 @@ pub struct ServerSettings {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct DatabaseSettings {
+    #[serde(default)]
+    pub auto_migrate: bool,
     pub url: Option<String>,
     pub scheme: String,
     pub host: String,
@@ -36,16 +37,6 @@ pub struct JwtSettings {
     pub secret: String,
     pub access_token_ttl_seconds: u64,
     pub refresh_token_ttl_seconds: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-pub struct AdminSettings {
-    pub id: String,
-    pub username: String,
-    pub email: String,
-    pub role: String,
-    pub is_active: bool,
-    pub password_hash: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

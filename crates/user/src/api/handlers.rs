@@ -1,17 +1,19 @@
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State},
     http::{HeaderMap, header::AUTHORIZATION},
 };
-use constants::auth::{DEFAULT_USER_IS_ACTIVE, DEFAULT_USER_ROLE};
-use types::http::RequestJson;
+use rbac::api::CurrentUser;
+use rbac_macros::{data_scope, require_perms};
+use types::rbac::DataScopeFilter;
+use types::{http::RequestJson, system::BatchIdsInput};
 
 use crate::{
     api::{
         ApiState, TokenPair,
         dto::{
-            AuthSessionResponse, ListUsersQuery, MeResponse, RefreshTokenPayload, SignInPayload, SignUpPayload, TokenPairResponse, UserPayload, UserResponse,
-            UsersPageResponse,
+            AuthSessionResponse, ListUsersQuery, MeResponse, RefreshTokenPayload, ResetPasswordPayload, SignInPayload, SignUpPayload, StatusPayload,
+            TokenPairResponse, UserFormOptionsResponse, UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
         },
         error::ApiError,
     },
@@ -46,11 +48,13 @@ pub async fn me(State(state): State<ApiState>, headers: HeaderMap) -> ApiResult<
     Ok(ok(MeResponse { user: user.into() }))
 }
 
+#[require_perms("system:user:add")]
 pub async fn create_user(State(state): State<ApiState>, RequestJson(payload): RequestJson<UserPayload>) -> ApiResult<ApiJson<UserResponse>> {
     let user = state.users.create_user(payload.into()).await?;
     Ok(ok(user.into()))
 }
 
+#[require_perms("system:user:edit")]
 pub async fn replace_user(
     State(state): State<ApiState>,
     Path(id): Path<String>,
@@ -60,13 +64,84 @@ pub async fn replace_user(
     Ok(ok(user.into()))
 }
 
+#[require_perms("system:user:remove")]
 pub async fn delete_user(State(state): State<ApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
     state.users.delete_user(UserId(id)).await?;
     Ok(ok(()))
 }
 
-pub async fn list_users(State(state): State<ApiState>, Query(query): Query<ListUsersQuery>) -> ApiResult<ApiJson<UsersPageResponse>> {
-    let page = state.users.list_users(query.into()).await?;
+#[require_perms("system:user:remove")]
+pub async fn delete_users(State(state): State<ApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
+    state.users.delete_users(payload.ids.into_iter().map(UserId).collect()).await?;
+    Ok(ok(()))
+}
+
+#[require_perms("system:user:query")]
+pub async fn get_user(State(state): State<ApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<UserResponse>> {
+    let user = state.users.get_user(UserId(id)).await?;
+    Ok(ok(user.into()))
+}
+
+#[require_perms("system:user:resetPwd")]
+pub async fn reset_user_password(
+    State(state): State<ApiState>,
+    Path(id): Path<String>,
+    RequestJson(payload): RequestJson<ResetPasswordPayload>,
+) -> ApiResult<ApiJson<()>> {
+    state.users.reset_password(UserId(id), payload.password).await?;
+    Ok(ok(()))
+}
+
+#[require_perms("system:user:edit")]
+pub async fn update_user_status(
+    State(state): State<ApiState>,
+    Path(id): Path<String>,
+    RequestJson(payload): RequestJson<StatusPayload>,
+) -> ApiResult<ApiJson<UserResponse>> {
+    let user = state.users.update_status(UserId(id), payload.status).await?;
+    Ok(ok(user.into()))
+}
+
+#[require_perms("system:user:query")]
+pub async fn user_roles(State(state): State<ApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<UserRolesPayload>> {
+    let user = state.users.get_user(UserId(id)).await?;
+    Ok(ok(UserRolesPayload { role_ids: user.role_ids }))
+}
+
+#[require_perms("system:user:edit")]
+pub async fn replace_user_roles(
+    State(state): State<ApiState>,
+    Path(id): Path<String>,
+    RequestJson(payload): RequestJson<UserRolesPayload>,
+) -> ApiResult<ApiJson<UserResponse>> {
+    let user = state.users.replace_roles(UserId(id), payload.role_ids).await?;
+    Ok(ok(user.into()))
+}
+
+#[require_perms("system:user:list")]
+pub async fn user_form_options(State(state): State<ApiState>) -> ApiResult<ApiJson<UserFormOptionsResponse>> {
+    let response: UserFormOptionsResponse = state.users.form_options().await?.into();
+    Ok(ok(response))
+}
+
+#[require_perms("system:user:list")]
+pub async fn user_dept_tree(State(state): State<ApiState>) -> ApiResult<ApiJson<Vec<types::system::TreeSelectNode>>> {
+    Ok(ok(state.users.form_options().await?.depts))
+}
+
+#[require_perms("system:user:list")]
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn list_users(
+    State(state): State<ApiState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Extension(data_scope): Extension<DataScopeFilter>,
+    Query(query): Query<ListUsersQuery>,
+) -> ApiResult<ApiJson<UsersPageResponse>> {
+    let page = if current_user.admin {
+        state.users.list_users(query.into()).await?
+    } else {
+        state.users.list_users_scoped(query.into(), data_scope).await?
+    };
     Ok(ok(page.into()))
 }
 
@@ -76,11 +151,17 @@ fn ok<T>(data: T) -> ApiJson<T> {
 
 fn new_sign_up_user(payload: SignUpPayload) -> NewUser {
     NewUser {
+        nick_name: payload.username.clone(),
         username: payload.username,
         password: payload.password,
+        dept_id: None,
         email: payload.email,
-        role: DEFAULT_USER_ROLE.into(),
-        is_active: DEFAULT_USER_IS_ACTIVE,
+        phonenumber: None,
+        sex: "2".into(),
+        status: "0".into(),
+        remark: None,
+        role_ids: vec!["2".into()],
+        post_ids: vec![],
     }
 }
 

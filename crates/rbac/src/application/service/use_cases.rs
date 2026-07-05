@@ -1,11 +1,16 @@
 use async_trait::async_trait;
-use kernel::pagination::{Page, PageRequest};
+use kernel::pagination::Page;
 
-use crate::application::{ApiCheckRequest, AuthorizationConfig, RbacAdminUseCase, RbacCache, RbacRepository, RbacResult, RbacService, RbacUseCase};
-use crate::domain::{
-    ApiPermission, ApiPermissionInput, MenuItem, MenuItemInput, MenuSection, MenuSectionInput, NavResponse, Role, RoleApiBindingInput, RoleInput,
-    RoleMenuBindingInput,
+use crate::api::CurrentUser;
+use crate::application::{
+    ApiCheckRequest, AuthorizationConfig, MenuListFilter, RbacAdminUseCase, RbacCache, RbacRepository, RbacResult, RbacService, RbacUseCase, RoleListFilter,
+    RoleUserListFilter,
 };
+use crate::domain::{
+    DataScopeFilter, Menu, MenuInput, NavResponse, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleOption, RoleUser,
+    RoleUserBindingInput,
+};
+use types::system::SortBatchInput;
 
 #[async_trait]
 impl<R, C> RbacUseCase for RbacService<R, C>
@@ -13,12 +18,24 @@ where
     R: RbacRepository,
     C: RbacCache,
 {
-    async fn navbar(&self, role_code: &str) -> RbacResult<NavResponse> {
-        self.navbar(role_code).await
+    async fn navbar(&self, current_user: &CurrentUser) -> RbacResult<NavResponse> {
+        self.navbar(current_user).await
     }
 
     async fn authorize_api(&self, config: &AuthorizationConfig, request: ApiCheckRequest) -> RbacResult<()> {
         self.authorize_api(config, request).await
+    }
+
+    async fn data_scope_filter(&self, current_user: &CurrentUser) -> RbacResult<DataScopeFilter> {
+        self.data_scope_filter(current_user).await
+    }
+
+    fn validate_protected_handlers(&self, config: &AuthorizationConfig) -> RbacResult<()> {
+        self.validate_protected_handlers(config)
+    }
+
+    fn validate_data_scope_handlers(&self, handlers: &[&str]) -> RbacResult<()> {
+        self.validate_data_scope_handlers(handlers)
     }
 
     fn is_whitelisted(&self, config: &AuthorizationConfig, method: &str, path: &str) -> RbacResult<bool> {
@@ -36,79 +53,103 @@ where
         self.create_role(input).await
     }
 
-    async fn replace_role(&self, code: &str, input: RoleInput) -> RbacResult<Role> {
-        self.replace_role(code, input).await
+    async fn replace_role(&self, role_id: &str, input: RoleInput) -> RbacResult<Role> {
+        self.replace_role(role_id, input).await
     }
 
-    async fn delete_role(&self, code: &str) -> RbacResult<()> {
-        self.delete_role(code).await
+    async fn update_role_status(&self, role_id: &str, status: String) -> RbacResult<Role> {
+        self.update_role_status(role_id, status).await
     }
 
-    async fn page_roles(&self, page: PageRequest) -> RbacResult<Page<Role>> {
-        self.page_roles(page).await
+    async fn update_role_data_scope(&self, role_id: &str, input: RoleDataScopeInput) -> RbacResult<Role> {
+        self.update_role_data_scope(role_id, input).await
     }
 
-    async fn create_api(&self, input: ApiPermissionInput) -> RbacResult<ApiPermission> {
-        self.create_api(input).await
+    async fn delete_role(&self, role_id: &str) -> RbacResult<()> {
+        self.delete_role(role_id).await
     }
 
-    async fn replace_api(&self, id: &str, input: ApiPermissionInput) -> RbacResult<ApiPermission> {
-        self.replace_api(id, input).await
+    async fn delete_roles(&self, role_ids: Vec<String>) -> RbacResult<()> {
+        self.delete_roles(role_ids).await
     }
 
-    async fn delete_api(&self, id: &str) -> RbacResult<()> {
-        self.delete_api(id).await
+    async fn get_role(&self, role_id: &str) -> RbacResult<Role> {
+        self.get_role(role_id).await
     }
 
-    async fn page_apis(&self, page: PageRequest) -> RbacResult<Page<ApiPermission>> {
-        self.page_apis(page).await
+    async fn page_roles(&self, filter: RoleListFilter) -> RbacResult<Page<Role>> {
+        self.page_roles(filter).await
     }
 
-    async fn create_menu_section(&self, input: MenuSectionInput) -> RbacResult<MenuSection> {
-        self.create_menu_section(input).await
+    async fn page_roles_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<Page<Role>> {
+        self.page_roles_scoped(filter, scope).await
     }
 
-    async fn replace_menu_section(&self, id: &str, input: MenuSectionInput) -> RbacResult<MenuSection> {
-        self.replace_menu_section(id, input).await
+    async fn role_options(&self) -> RbacResult<Vec<RoleOption>> {
+        self.role_options().await
     }
 
-    async fn delete_menu_section(&self, id: &str) -> RbacResult<()> {
-        self.delete_menu_section(id).await
+    async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<Page<RoleUser>> {
+        self.page_role_users(filter, scope).await
     }
 
-    async fn page_menu_sections(&self, page: PageRequest) -> RbacResult<Page<MenuSection>> {
-        self.page_menu_sections(page).await
+    async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()> {
+        self.replace_role_users(role_id, input).await
     }
 
-    async fn create_menu_item(&self, input: MenuItemInput) -> RbacResult<MenuItem> {
-        self.create_menu_item(input).await
+    async fn delete_role_user(&self, role_id: &str, user_id: &str) -> RbacResult<()> {
+        self.delete_role_user(role_id, user_id).await
     }
 
-    async fn replace_menu_item(&self, id: &str, input: MenuItemInput) -> RbacResult<MenuItem> {
-        self.replace_menu_item(id, input).await
+    async fn delete_role_users(&self, role_id: &str, user_ids: Vec<String>) -> RbacResult<()> {
+        self.delete_role_users(role_id, user_ids).await
     }
 
-    async fn delete_menu_item(&self, id: &str) -> RbacResult<()> {
-        self.delete_menu_item(id).await
+    async fn create_menu(&self, input: MenuInput) -> RbacResult<Menu> {
+        self.create_menu(input).await
     }
 
-    async fn page_menu_items(&self, page: PageRequest) -> RbacResult<Page<MenuItem>> {
-        self.page_menu_items(page).await
+    async fn replace_menu(&self, menu_id: &str, input: MenuInput) -> RbacResult<Menu> {
+        self.replace_menu(menu_id, input).await
     }
 
-    async fn replace_role_apis(&self, role_code: &str, input: RoleApiBindingInput) -> RbacResult<()> {
-        self.replace_role_apis(role_code, input.api_permission_ids).await
+    async fn update_menu_sort(&self, menu_id: &str, order_num: i64) -> RbacResult<Menu> {
+        self.update_menu_sort(menu_id, order_num).await
     }
 
-    async fn replace_role_menus(&self, role_code: &str, input: RoleMenuBindingInput) -> RbacResult<()> {
-        self.replace_role_menus(role_code, input).await
+    async fn update_menu_sorts(&self, input: SortBatchInput) -> RbacResult<Vec<Menu>> {
+        self.update_menu_sorts(input).await
     }
 
-    async fn role_api_ids(&self, role_code: &str) -> RbacResult<Vec<String>> {
-        Ok(self.role_api_bindings(role_code).await?.api_permission_ids)
+    async fn delete_menu(&self, menu_id: &str) -> RbacResult<()> {
+        self.delete_menu(menu_id).await
     }
 
-    async fn role_menu_item_ids(&self, role_code: &str) -> RbacResult<Vec<String>> {
-        Ok(self.role_menu_bindings(role_code).await?.menu_item_ids)
+    async fn get_menu(&self, menu_id: &str) -> RbacResult<Menu> {
+        self.get_menu(menu_id).await
+    }
+
+    async fn page_menus(&self, filter: MenuListFilter) -> RbacResult<Page<Menu>> {
+        self.page_menus(filter).await
+    }
+
+    async fn list_menus(&self) -> RbacResult<Vec<Menu>> {
+        self.list_menus().await
+    }
+
+    async fn replace_role_menus(&self, role_id: &str, input: RoleMenuBindingInput) -> RbacResult<()> {
+        self.replace_role_menus(role_id, input).await
+    }
+
+    async fn replace_role_depts(&self, role_id: &str, input: RoleDeptBindingInput) -> RbacResult<()> {
+        self.replace_role_depts(role_id, input).await
+    }
+
+    async fn role_menu_ids(&self, role_id: &str) -> RbacResult<Vec<String>> {
+        self.role_menu_ids(role_id).await
+    }
+
+    async fn role_dept_ids(&self, role_id: &str) -> RbacResult<Vec<String>> {
+        self.role_dept_ids(role_id).await
     }
 }

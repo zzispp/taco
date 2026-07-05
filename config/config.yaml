@@ -3,6 +3,7 @@ server:
   port: 3000
 
 database:
+  auto_migrate: true
   url:
   scheme: "postgres"
   host: "localhost"
@@ -15,14 +16,6 @@ jwt:
   secret: "hook-local-development-jwt-secret-change-before-deploy"
   access_token_ttl_seconds: 1440
   refresh_token_ttl_seconds: 604800
-
-admin:
-  id: "00000000-0000-7000-8000-000000000000"
-  username: "admin"
-  email: "admin@example.com"
-  role: "admin"
-  is_active: true
-  password_hash: "$argon2id$v=19$m=19456,t=2,p=1$FpN5fcXCVNOVBGybU6xVBA$1y5zUgTGlohI/RVCXKyckyv1CCyuzVhVMagjJux9rUA"
 
 auth:
   whitelist:

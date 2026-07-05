@@ -51,6 +51,8 @@ pub async fn auth_middleware(State(state): State<AuthState>, mut request: Reques
 
     let current_user = authenticate_current_user(&state, request.headers()).await?;
     authorize_request(&state, &method, &path, &current_user).await?;
+    let data_scope = state.rbac.data_scope_filter(&current_user).await?;
+    request.extensions_mut().insert(data_scope);
     request.extensions_mut().insert(current_user);
     Ok(next.run(request).await)
 }
@@ -73,17 +75,23 @@ fn user_check_request(method: &str, path: &str, current_user: &CurrentUser) -> A
     ApiCheckRequest {
         method: method.into(),
         path: path.into(),
-        role_code: current_user.role.clone(),
-        system: current_user.system,
+        role_keys: current_user.role_keys.clone(),
+        permissions: current_user.permissions.clone(),
+        admin: current_user.admin,
     }
 }
 
 fn current_user(user: User) -> CurrentUser {
+    let role_keys = user.roles.iter().map(|role| role.role_key.clone()).collect::<Vec<_>>();
+    let admin = user.system || role_keys.iter().any(|role_key| role_key == "admin");
     CurrentUser {
         system: user.system,
         id: user.id.0,
         username: user.username,
-        role: user.role,
+        role_keys,
+        permissions: user.permissions,
+        dept_id: user.dept_id,
+        admin,
     }
 }
 

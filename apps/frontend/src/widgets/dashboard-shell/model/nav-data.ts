@@ -1,4 +1,4 @@
-import type { MenuItem } from 'src/entities/menu/model/types';
+import type { Menu } from 'src/entities/menu/model/types';
 import type { NavSectionProps } from 'src/shared/ui/nav-section';
 
 import useSWR from 'swr';
@@ -51,14 +51,13 @@ export function useNavbar() {
   );
 }
 
-export function mapMenuItemToNav(item: MenuItem): NavSectionProps['data'][number]['items'][number] {
+export function mapMenuItemToNav(item: Menu): NavSectionProps['data'][number]['items'][number] {
   return {
-    code: item.code,
-    title: item.title,
+    code: item.menu_id,
+    title: item.menu_name,
     path: item.path,
     icon: item.icon ?? undefined,
-    caption: item.caption ?? undefined,
-    deepMatch: item.deep_match,
+    deepMatch: true,
   };
 }
 

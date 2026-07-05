@@ -104,7 +104,7 @@ async fn delete_user_rejects_system_user_id() {
 async fn list_users_prepends_system_user_to_first_page() {
     let service = service_with_system_user(users_repository());
 
-    let page = service.list_users(PageRequest { page: 1, page_size: 2 }).await.unwrap();
+    let page = service.list_users(user_filter(1, 2)).await.unwrap();
 
     let usernames = page.items.iter().map(|user| user.username.as_str()).collect::<Vec<_>>();
     assert_eq!(usernames, vec!["admin", "alice"]);
@@ -116,11 +116,36 @@ async fn list_users_prepends_system_user_to_first_page() {
 async fn list_users_offsets_database_page_after_system_user() {
     let service = service_with_system_user(users_repository());
 
-    let page = service.list_users(PageRequest { page: 2, page_size: 2 }).await.unwrap();
+    let page = service.list_users(user_filter(2, 2)).await.unwrap();
 
     let usernames = page.items.iter().map(|user| user.username.as_str()).collect::<Vec<_>>();
     assert_eq!(usernames, vec!["bob", "carol"]);
     assert_eq!(page.total, 4);
+}
+
+#[tokio::test]
+async fn list_users_applies_dept_filter_when_system_user_is_configured() {
+    let repository = MemoryUserRepository::with_users(vec![
+        stored_user(1, "alice", "hashed:secret123").with_dept_id("103"),
+        stored_user(2, "bob", "hashed:secret123").with_dept_id("105"),
+    ]);
+    let service = service_with_system_user(repository);
+
+    let page = service.list_users(user_filter_by_dept("105")).await.unwrap();
+
+    let usernames = page.items.iter().map(|user| user.username.as_str()).collect::<Vec<_>>();
+    assert_eq!(usernames, vec!["bob"]);
+    assert_eq!(page.total, 1);
+}
+
+#[tokio::test]
+async fn list_users_returns_empty_for_unmatched_dept_filter_when_system_user_is_configured() {
+    let service = service_with_system_user(users_repository());
+
+    let page = service.list_users(user_filter_by_dept("106")).await.unwrap();
+
+    assert!(page.items.is_empty());
+    assert_eq!(page.total, 0);
 }
 
 fn service_with_system_user(
@@ -135,4 +160,23 @@ fn users_repository() -> MemoryUserRepository {
         stored_user(2, "bob", "hashed:secret123"),
         stored_user(3, "carol", "hashed:secret123"),
     ])
+}
+
+fn user_filter(page: u64, page_size: u64) -> crate::application::UserListFilter {
+    crate::application::UserListFilter {
+        page: PageRequest { page, page_size },
+        username: None,
+        phonenumber: None,
+        status: None,
+        dept_id: None,
+        begin_time: None,
+        end_time: None,
+    }
+}
+
+fn user_filter_by_dept(dept_id: &str) -> crate::application::UserListFilter {
+    crate::application::UserListFilter {
+        dept_id: Some(dept_id.into()),
+        ..user_filter(1, 10)
+    }
 }

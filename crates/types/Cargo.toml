@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 axum.workspace = true
+inventory.workspace = true
 jiff.workspace = true
 kernel.workspace = true
 rust_decimal.workspace = true

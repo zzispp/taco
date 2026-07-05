@@ -6,9 +6,9 @@ use axum::{
 use super::{
     CurrentUser,
     handlers::{
-        create_api, create_menu_item, create_menu_section, create_role, delete_api, delete_menu_item, delete_menu_section, delete_role, list_apis,
-        list_menu_items, list_menu_sections, list_roles, navbar, replace_api, replace_menu_item, replace_menu_section, replace_role, replace_role_apis,
-        replace_role_menus, role_api_bindings, role_menu_bindings,
+        create_menu, create_role, delete_menu, delete_role, delete_role_user, delete_role_users, delete_roles, get_menu, get_role, list_menu_tree, list_menus,
+        list_roles, menu_tree_select, navbar, replace_menu, replace_role, replace_role_depts, replace_role_menus, replace_role_users, role_dept_bindings,
+        role_menu_bindings, role_menu_tree_select, role_options, role_users, update_menu_sort, update_menu_sorts, update_role_data_scope, update_role_status,
     },
     state::RbacApiState,
 };
@@ -16,16 +16,24 @@ use super::{
 pub fn create_router(state: RbacApiState) -> Router {
     Router::new()
         .route("/navbar", get(navbar_route))
-        .route("/rbac/roles", get(list_roles).post(create_role))
-        .route("/rbac/roles/{code}", put(replace_role).delete(delete_role))
-        .route("/rbac/roles/{code}/apis", get(role_api_bindings).put(replace_role_apis))
-        .route("/rbac/roles/{code}/menus", get(role_menu_bindings).put(replace_role_menus))
-        .route("/rbac/apis", get(list_apis).post(create_api))
-        .route("/rbac/apis/{id}", put(replace_api).delete(delete_api))
-        .route("/rbac/menu-sections", get(list_menu_sections).post(create_menu_section))
-        .route("/rbac/menu-sections/{id}", put(replace_menu_section).delete(delete_menu_section))
-        .route("/rbac/menu-items", get(list_menu_items).post(create_menu_item))
-        .route("/rbac/menu-items/{id}", put(replace_menu_item).delete(delete_menu_item))
+        .route("/system/roles", get(list_roles).post(create_role))
+        .route("/system/roles/options", get(role_options))
+        .route("/system/roles/batch", axum::routing::delete(delete_roles))
+        .route("/system/roles/{id}", get(get_role).put(replace_role).delete(delete_role))
+        .route("/system/roles/{id}/status", put(update_role_status))
+        .route("/system/roles/{id}/data-scope", put(update_role_data_scope))
+        .route("/system/roles/{id}/menus", get(role_menu_bindings).put(replace_role_menus))
+        .route("/system/roles/{id}/depts", get(role_dept_bindings).put(replace_role_depts))
+        .route("/system/roles/{id}/users", get(role_users).put(replace_role_users))
+        .route("/system/roles/{id}/users/batch", axum::routing::delete(delete_role_users))
+        .route("/system/roles/{id}/users/{user_id}", axum::routing::delete(delete_role_user))
+        .route("/system/menus", get(list_menus).post(create_menu))
+        .route("/system/menus/tree", get(list_menu_tree))
+        .route("/system/menus/tree-select", get(menu_tree_select))
+        .route("/system/menus/role-tree-select/{id}", get(role_menu_tree_select))
+        .route("/system/menus/sort", put(update_menu_sorts))
+        .route("/system/menus/{id}", get(get_menu).put(replace_menu).delete(delete_menu))
+        .route("/system/menus/{id}/sort", put(update_menu_sort))
         .with_state(state)
 }
 
@@ -33,5 +41,5 @@ async fn navbar_route(
     state: axum::extract::State<RbacApiState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<axum::Json<crate::domain::NavResponse>, super::RbacApiError> {
-    navbar(state, current_user.role).await
+    navbar(state, current_user).await
 }

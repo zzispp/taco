@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use sqlx::{PgPool, query_scalar};
+use sqlx::{PgPool, query_as, query_scalar};
 
 use crate::BackendResult;
 
@@ -11,18 +11,35 @@ const MIGRATION_REFRESH_COMMAND: &str = "cargo run -p backend -- migration refre
 const MIGRATIONS_TABLE: &str = "_sqlx_migrations";
 const PUBLIC_SCHEMA: &str = "public";
 
+pub async fn prepare_runtime_schema(pool: &PgPool, auto_migrate: bool) -> BackendResult<()> {
+    if let Some(version) = dirty_migration_version(pool).await? {
+        return Err(dirty_schema_error(version).into());
+    }
+
+    validate_applied_migration_sources(pool).await?;
+
+    let pending_versions = pending_migration_versions(pool).await?;
+    log_pending_state(&pending_versions, auto_migrate);
+
+    if auto_migrate && !pending_versions.is_empty() {
+        MIGRATOR.run(pool).await?;
+        hook_tracing::info_with_fields!("database auto migration completed", applied = pending_versions.join(","));
+    }
+
+    ensure_runtime_schema_ready(pool).await
+}
+
 pub async fn ensure_runtime_schema_ready(pool: &PgPool) -> BackendResult<()> {
+    if let Some(version) = dirty_migration_version(pool).await? {
+        return Err(dirty_schema_error(version).into());
+    }
+
+    validate_applied_migration_sources(pool).await?;
+
     let pending_versions = pending_migration_versions(pool).await?;
     if !pending_versions.is_empty() {
         let versions = pending_versions.join(", ");
         return Err(format!("database schema is not ready: pending migrations [{versions}]. Run `{MIGRATION_UP_COMMAND}` before starting backend.").into());
-    }
-
-    if let Some(version) = dirty_migration_version(pool).await? {
-        return Err(format!(
-            "database schema is dirty at migration {version}. Run `{MIGRATION_REFRESH_COMMAND}` or repair the migration state before starting backend."
-        )
-        .into());
     }
 
     let missing_tables = missing_managed_tables(pool).await?;
@@ -32,6 +49,27 @@ pub async fn ensure_runtime_schema_ready(pool: &PgPool) -> BackendResult<()> {
 
     let tables = missing_tables.join(", ");
     Err(format!("database schema is incomplete: missing managed tables [{tables}]. Run `{MIGRATION_REFRESH_COMMAND}` before starting backend.").into())
+}
+
+async fn validate_applied_migration_sources(pool: &PgPool) -> BackendResult<()> {
+    if !managed_table_exists(pool, MIGRATIONS_TABLE).await? {
+        return Ok(());
+    }
+
+    let rows = query_as::<_, (i64, Vec<u8>)>("SELECT version, checksum FROM _sqlx_migrations WHERE success = TRUE ORDER BY version")
+        .fetch_all(pool)
+        .await?;
+
+    for (version, checksum) in rows {
+        let migration = MIGRATOR.iter().find(|item| item.version == version && item.migration_type.is_up_migration());
+        match migration {
+            Some(item) if item.checksum.as_ref() == checksum.as_slice() => {}
+            Some(_) => return Err(format!("database schema migration checksum mismatch at version {version}").into()),
+            None => return Err(format!("database schema contains applied migration {version} but the local migration file is missing").into()),
+        }
+    }
+
+    Ok(())
 }
 
 async fn pending_migration_versions(pool: &PgPool) -> BackendResult<Vec<String>> {
@@ -83,4 +121,21 @@ async fn managed_table_exists(pool: &PgPool, table: &str) -> BackendResult<bool>
         .fetch_one(pool)
         .await
         .map_err(Into::into)
+}
+
+fn log_pending_state(pending_versions: &[String], auto_migrate: bool) {
+    if pending_versions.is_empty() {
+        hook_tracing::info_with_fields!("database schema already up to date", auto_migrate = auto_migrate);
+        return;
+    }
+
+    hook_tracing::info_with_fields!(
+        "database pending migrations detected",
+        auto_migrate = auto_migrate,
+        versions = pending_versions.join(",")
+    );
+}
+
+fn dirty_schema_error(version: i64) -> String {
+    format!("database schema is dirty at migration {version}. Run `{MIGRATION_REFRESH_COMMAND}` or repair the migration state before starting backend.")
 }

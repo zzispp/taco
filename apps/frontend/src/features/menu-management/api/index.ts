@@ -1,4 +1,5 @@
-import type { MenuItem, MenuSection, MenuItemInput, MenuSectionInput } from 'src/entities/menu/model/types';
+import type { TreeSelectNode } from 'src/entities/system';
+import type { Menu, MenuInput } from 'src/entities/menu/model/types';
 
 import { mutate } from 'swr';
 
@@ -9,42 +10,41 @@ import { menuEndpoints } from 'src/entities/menu/api/endpoints';
 
 const NAVBAR_ENDPOINT = '/api/navbar';
 
-export async function createMenuSection(payload: MenuSectionInput) {
-  const section = await requestData<MenuSection>(axios.post(menuEndpoints.menuSections, payload));
-  await mutate((key) => isEndpointKey(key, menuEndpoints.menuSections));
-  await mutate(NAVBAR_ENDPOINT);
-  return section;
+export async function createMenu(payload: MenuInput) {
+  const menu = await requestData<Menu>(axios.post(menuEndpoints.menus, payload));
+  await refreshMenus();
+  return menu;
 }
 
-export async function updateMenuSection(id: string, payload: MenuSectionInput) {
-  const section = await requestData<MenuSection>(axios.put(menuEndpoints.menuSection(id), payload));
-  await mutate((key) => isEndpointKey(key, menuEndpoints.menuSections));
-  await mutate(NAVBAR_ENDPOINT);
-  return section;
+export async function updateMenu(id: string, payload: MenuInput) {
+  const menu = await requestData<Menu>(axios.put(menuEndpoints.menu(id), payload));
+  await refreshMenus();
+  return menu;
 }
 
-export async function deleteMenuSection(id: string) {
-  await axios.delete(menuEndpoints.menuSection(id));
-  await mutate((key) => isEndpointKey(key, menuEndpoints.menuSections));
-  await mutate(NAVBAR_ENDPOINT);
+export async function updateMenuSort(id: string, orderNum: number) {
+  const menu = await requestData<Menu>(axios.put(menuEndpoints.sort(id), { order_num: orderNum }));
+  await refreshMenus();
+  return menu;
 }
 
-export async function createMenuItem(payload: MenuItemInput) {
-  const item = await requestData<MenuItem>(axios.post(menuEndpoints.menuItems, payload));
-  await mutate((key) => isEndpointKey(key, menuEndpoints.menuItems));
-  await mutate(NAVBAR_ENDPOINT);
-  return item;
+
+export function getMenuTreeSelect() {
+  return requestData<TreeSelectNode[]>(axios.get(menuEndpoints.treeSelect));
 }
 
-export async function updateMenuItem(id: string, payload: MenuItemInput) {
-  const item = await requestData<MenuItem>(axios.put(menuEndpoints.menuItem(id), payload));
-  await mutate((key) => isEndpointKey(key, menuEndpoints.menuItems));
-  await mutate(NAVBAR_ENDPOINT);
-  return item;
+export async function updateMenuSorts(items: { id: string; order_num: number }[]) {
+  const menus = await requestData<Menu[]>(axios.put(menuEndpoints.sortBatch, { items }));
+  await refreshMenus();
+  return menus;
 }
 
-export async function deleteMenuItem(id: string) {
-  await axios.delete(menuEndpoints.menuItem(id));
-  await mutate((key) => isEndpointKey(key, menuEndpoints.menuItems));
+export async function deleteMenu(id: string) {
+  await axios.delete(menuEndpoints.menu(id));
+  await refreshMenus();
+}
+
+async function refreshMenus() {
+  await mutate((key) => isEndpointKey(key, menuEndpoints.menus));
   await mutate(NAVBAR_ENDPOINT);
 }

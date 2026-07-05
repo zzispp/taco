@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use axum::{
     Router,
     body::{Body, to_bytes},
     http::{Method, Request, Response, StatusCode, header},
 };
+use rbac::application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacResult, RbacUseCase};
 use serde_json::{Value, json};
 use tower::ServiceExt;
+use types::rbac::{DataScopeFilter, NavResponse};
 
 use super::create_router;
 use crate::{
@@ -59,7 +62,8 @@ async fn sign_up_accepts_public_payload_and_sets_backend_fields() {
         .unwrap();
     let body = response_json(response).await;
 
-    assert_eq!(body["user"]["role"], "user");
+    assert_eq!(body["user"]["role_ids"], json!(["2"]));
+    assert_eq!(body["user"]["status"], "0");
     assert_eq!(body["user"]["is_active"], true);
     assert_eq!(body["user"]["auth_source"], "local");
     assert_eq!(body["user"]["email_verified"], false);
@@ -152,7 +156,40 @@ struct SessionTokens {
 fn test_router() -> Router {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
     let users = UserService::new(repository, TestPasswordHasher);
-    Router::new().nest("/api", create_router(ApiState::new(Arc::new(users), token_service())))
+    Router::new().nest("/api", create_router(ApiState::new(Arc::new(users), token_service(), Arc::new(UnusedRbac))))
+}
+
+struct UnusedRbac;
+
+#[async_trait]
+impl RbacUseCase for UnusedRbac {
+    async fn navbar(&self, _current_user: &rbac::api::CurrentUser) -> RbacResult<NavResponse> {
+        Err(unused_rbac_error())
+    }
+
+    async fn authorize_api(&self, _config: &AuthorizationConfig, _request: ApiCheckRequest) -> RbacResult<()> {
+        Err(unused_rbac_error())
+    }
+
+    async fn data_scope_filter(&self, _current_user: &rbac::api::CurrentUser) -> RbacResult<DataScopeFilter> {
+        Err(unused_rbac_error())
+    }
+
+    fn validate_protected_handlers(&self, _config: &AuthorizationConfig) -> RbacResult<()> {
+        Err(unused_rbac_error())
+    }
+
+    fn validate_data_scope_handlers(&self, _handlers: &[&str]) -> RbacResult<()> {
+        Err(unused_rbac_error())
+    }
+
+    fn is_whitelisted(&self, _config: &AuthorizationConfig, _method: &str, _path: &str) -> RbacResult<bool> {
+        Err(unused_rbac_error())
+    }
+}
+
+fn unused_rbac_error() -> RbacError {
+    RbacError::Infrastructure("rbac should not be called by auth route tests".into())
 }
 
 fn token_service() -> TokenService {

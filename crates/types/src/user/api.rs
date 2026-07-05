@@ -7,10 +7,16 @@ use super::{Credentials, NewUser, ReplaceUser, User};
 #[derive(Debug, Deserialize)]
 pub struct UserPayload {
     pub username: String,
-    pub password: String,
+    pub password: Option<String>,
+    pub nick_name: String,
+    pub dept_id: Option<String>,
     pub email: String,
-    pub role: String,
-    pub is_active: bool,
+    pub phonenumber: Option<String>,
+    pub sex: String,
+    pub status: String,
+    pub remark: Option<String>,
+    pub role_ids: Vec<String>,
+    pub post_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,14 +45,25 @@ pub struct ListUsersQuery {
 
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
-    pub id: String,
+    pub user_id: String,
     pub username: String,
+    pub nick_name: String,
+    pub dept_id: Option<String>,
     pub email: String,
-    pub role: String,
+    pub phonenumber: Option<String>,
+    pub sex: String,
+    pub avatar: Option<String>,
+    pub status: String,
     pub is_active: bool,
     pub auth_source: String,
     pub email_verified: bool,
     pub system: bool,
+    pub remark: Option<String>,
+    pub roles: Vec<crate::rbac::RoleSummary>,
+    pub role_ids: Vec<String>,
+    pub post_ids: Vec<String>,
+    pub permissions: Vec<String>,
+    pub create_time: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,24 +76,38 @@ pub struct UsersPageResponse {
 
 impl From<UserPayload> for NewUser {
     fn from(value: UserPayload) -> Self {
+        let status = value.status;
         Self {
             username: value.username,
-            password: value.password,
+            password: value.password.unwrap_or_default(),
+            nick_name: value.nick_name,
+            dept_id: value.dept_id,
             email: value.email,
-            role: value.role,
-            is_active: value.is_active,
+            phonenumber: value.phonenumber,
+            sex: value.sex,
+            status,
+            remark: value.remark,
+            role_ids: value.role_ids,
+            post_ids: value.post_ids,
         }
     }
 }
 
 impl From<UserPayload> for ReplaceUser {
     fn from(value: UserPayload) -> Self {
+        let status = value.status;
         Self {
             username: value.username,
-            password: value.password,
+            password: value.password.filter(|password| !password.trim().is_empty()),
+            nick_name: value.nick_name,
+            dept_id: value.dept_id,
             email: value.email,
-            role: value.role,
-            is_active: value.is_active,
+            phonenumber: value.phonenumber,
+            sex: value.sex,
+            status,
+            remark: value.remark,
+            role_ids: value.role_ids,
+            post_ids: value.post_ids,
         }
     }
 }
@@ -102,14 +133,25 @@ impl From<ListUsersQuery> for PageRequest {
 impl From<User> for UserResponse {
     fn from(value: User) -> Self {
         Self {
-            id: value.id.0,
+            user_id: value.id.0,
             username: value.username,
+            nick_name: value.nick_name,
+            dept_id: value.dept_id,
             email: value.email,
-            role: value.role,
-            is_active: value.is_active,
+            phonenumber: value.phonenumber,
+            sex: value.sex,
+            avatar: value.avatar,
+            status: value.status.clone(),
+            is_active: value.status == "0",
             auth_source: value.auth_source,
             email_verified: value.email_verified,
             system: value.system,
+            remark: value.remark,
+            roles: value.roles,
+            role_ids: value.role_ids,
+            post_ids: value.post_ids,
+            permissions: value.permissions,
+            create_time: value.create_time,
         }
     }
 }

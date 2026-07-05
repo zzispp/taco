@@ -1,7 +1,7 @@
 use constants::pagination::MIN_PAGE_NUMBER;
 use kernel::pagination::{Page, PageRequest, PageSliceRequest};
 
-use crate::application::{AppError, AppResult, SystemUserProvider, SystemUserRecord, UserAuthRecord, UserRepository};
+use crate::application::{AppError, AppResult, SystemUserProvider, SystemUserRecord, UserAuthRecord, UserListFilter, UserRepository};
 use crate::domain::{User, UserId};
 
 pub(super) fn reject_conflicting_system_user<S: SystemUserProvider>(system_users: &S, username: &str, email: &str) -> AppResult<()> {
@@ -17,6 +17,13 @@ pub(super) fn reject_system_user_id<S: SystemUserProvider>(system_users: &S, id:
         return Err(AppError::Conflict("system user cannot be changed".into()));
     }
     Ok(())
+}
+
+pub(super) fn reject_protected_user_id<S: SystemUserProvider>(system_users: &S, id: &UserId) -> AppResult<()> {
+    if id.0 == constants::system::SUPER_ADMIN_USER_ID {
+        return Err(AppError::Conflict("system user cannot be changed".into()));
+    }
+    reject_system_user_id(system_users, id)
 }
 
 pub(super) fn system_user_by_id<S: SystemUserProvider>(system_users: &S, id: &UserId) -> Option<SystemUserRecord> {
@@ -37,13 +44,31 @@ where
     repository.find_auth_by_email(identifier).await
 }
 
-pub(super) async fn list_with_system_user<R: UserRepository>(repository: &R, page: PageRequest, system_user: User) -> AppResult<Page<User>> {
-    let mut users = repository.list_slice(system_user_slice(page)).await?;
+pub(super) async fn list_with_system_user<R: UserRepository>(repository: &R, filter: UserListFilter, system_user: User) -> AppResult<Page<User>> {
+    let page = filter.page;
+    let matched = system_user_matches(&system_user, &filter);
+    if !matched {
+        return repository.list(filter).await;
+    }
+
+    let mut users = repository.list_slice(filter, system_user_slice(page)).await?;
+    users.total += 1;
     if page.page == MIN_PAGE_NUMBER {
         users.items.insert(0, system_user);
     }
-    users.total += 1;
     Ok(users)
+}
+
+fn system_user_matches(user: &User, filter: &UserListFilter) -> bool {
+    contains_filter(&user.username, &filter.username) && exact_filter(&user.status, &filter.status) && filter.phonenumber.is_none() && filter.dept_id.is_none()
+}
+
+fn contains_filter(value: &str, filter: &Option<String>) -> bool {
+    filter.as_ref().is_none_or(|needle| value.contains(needle))
+}
+
+fn exact_filter(value: &str, filter: &Option<String>) -> bool {
+    filter.as_ref().is_none_or(|expected| value == expected)
 }
 
 fn system_auth_by_identifier<S: SystemUserProvider>(system_users: &S, identifier: &str) -> Option<UserAuthRecord> {

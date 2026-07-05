@@ -22,8 +22,11 @@ export const paths = {
       root: `${ROOTS.DASHBOARD}/admin`,
       users: `${ROOTS.DASHBOARD}/admin/users`,
       roles: `${ROOTS.DASHBOARD}/admin/roles`,
-      apis: `${ROOTS.DASHBOARD}/admin/apis`,
       menus: `${ROOTS.DASHBOARD}/admin/menus`,
+      depts: `${ROOTS.DASHBOARD}/admin/depts`,
+      posts: `${ROOTS.DASHBOARD}/admin/posts`,
+      dicts: `${ROOTS.DASHBOARD}/admin/dicts`,
+      configs: `${ROOTS.DASHBOARD}/admin/configs`,
     },
   },
 };

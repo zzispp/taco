@@ -1,29 +1,16 @@
+import type { Menu } from '../model/types';
 import type { AdminT } from 'src/shared/ui/admin/common';
-import type { MenuItem, MenuSection } from '../model/types';
 
-export function translatedMenuSection(section: MenuSection, t: AdminT) {
-  const keyByCode: Record<string, string> = {
-    overview: 'nav.overview',
-    account: 'nav.account',
-    resources: 'nav.resources',
-    system_management: 'nav.systemManagement',
+export function translatedMenuItem(item: Menu, t: AdminT) {
+  const keyByPerms: Record<string, string> = {
+    'system:user:list': 'nav.users',
+    'system:role:list': 'nav.roles',
+    'system:menu:list': 'nav.menus',
+    'system:dept:list': 'nav.depts',
+    'system:post:list': 'nav.posts',
+    'system:dict:list': 'nav.dicts',
+    'system:config:list': 'nav.configs',
   };
-
-  const key = keyByCode[section.code];
-
-  return key ? t(key) : section.subheader;
-}
-
-export function translatedMenuItem(item: MenuItem, t: AdminT) {
-  const keyByCode: Record<string, string> = {
-    dashboard_home: 'nav.dashboard',
-    admin_users: 'nav.users',
-    admin_roles: 'nav.roles',
-    admin_apis: 'nav.apis',
-    admin_menus: 'nav.menus',
-  };
-
-  const key = keyByCode[item.code];
-
-  return key ? t(key) : item.title;
+  const key = item.perms ? keyByPerms[item.perms] : undefined;
+  return key ? t(key) : item.menu_name;
 }

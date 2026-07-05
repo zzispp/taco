@@ -9,6 +9,7 @@ import { isActiveLink, isExternalLink } from 'minimal-shared/utils';
 import { usePathname } from 'src/shared/routes/hooks';
 
 import { NavItem } from './nav-item';
+import { navItemKey } from '../nav-key';
 import { navSectionClasses } from '../styles';
 import { NavUl, NavLi, NavCollapse } from '../components';
 
@@ -116,9 +117,9 @@ function NavSubList({
 }: NavSubListProps) {
   return (
     <NavUl sx={{ gap: 'var(--nav-item-gap)' }}>
-      {data.map((list) => (
+      {data.map((list, index) => (
         <NavList
-          key={list.title}
+          key={navItemKey(list, index)}
           data={list}
           render={render}
           depth={depth + 1}
