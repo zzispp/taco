@@ -10,7 +10,7 @@ use crate::{
 
 use super::{mapping::config, page, record::ConfigRecord};
 
-const COLUMNS: &str = "config_id,config_name,config_key,config_value,config_type,remark,create_time::text AS create_time";
+const COLUMNS: &str = "config_id,config_name,config_key,config_value,config_type,public_read,remark,create_time::text AS create_time";
 
 #[derive(Clone)]
 pub struct ConfigQueries {
@@ -65,6 +65,7 @@ impl ConfigQueries {
             .bind(input.config_key)
             .bind(input.config_value)
             .bind(input.config_type)
+            .bind(input.public_read)
             .bind(input.remark)
             .bind(OffsetDateTime::now_utc())
             .execute(self.database.pool())
@@ -79,6 +80,7 @@ impl ConfigQueries {
             .bind(input.config_key)
             .bind(input.config_value)
             .bind(input.config_type)
+            .bind(input.public_read)
             .bind(input.remark)
             .execute(self.database.pool())
             .await?;
@@ -110,6 +112,15 @@ impl ConfigQueries {
             .map_err(StorageError::from)
     }
 
+    pub async fn find_by_key(&self, key: &str) -> StorageResult<Option<ConfigItem>> {
+        query_as::<_, ConfigRecord>(&format!("SELECT {COLUMNS} FROM sys_config WHERE config_key = $1"))
+            .bind(key)
+            .fetch_optional(self.database.pool())
+            .await
+            .map(|row| row.map(config))
+            .map_err(StorageError::from)
+    }
+
     pub async fn value_by_key(&self, key: &str) -> StorageResult<Option<String>> {
         query_scalar::<_, String>("SELECT config_value FROM sys_config WHERE config_key=$1")
             .bind(key)
@@ -135,10 +146,10 @@ fn total_sql() -> String {
     format!("SELECT COUNT(*) FROM sys_config WHERE {}", predicate())
 }
 fn insert_sql() -> &'static str {
-    "INSERT INTO sys_config (config_id,config_name,config_key,config_value,config_type,remark,create_time) VALUES ($1,$2,$3,$4,$5,$6,$7)"
+    "INSERT INTO sys_config (config_id,config_name,config_key,config_value,config_type,public_read,remark,create_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)"
 }
 fn update_sql() -> &'static str {
-    "UPDATE sys_config SET config_name=$2,config_key=$3,config_value=$4,config_type=$5,remark=$6,update_time=CURRENT_TIMESTAMP WHERE config_id=$1"
+    "UPDATE sys_config SET config_name=$2,config_key=$3,config_value=$4,config_type=$5,public_read=$6,remark=$7,update_time=CURRENT_TIMESTAMP WHERE config_id=$1"
 }
 fn ensure_rows(rows: u64) -> StorageResult<()> {
     if rows == 0 {

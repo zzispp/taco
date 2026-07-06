@@ -2,7 +2,7 @@
 
 import type { SettingsState, SettingsDrawerProps } from '../types';
 
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { hasKeys, varAlpha } from 'minimal-shared/utils';
 
 import Box from '@mui/material/Box';
@@ -31,8 +31,9 @@ import { NavColorOptions, NavLayoutOptions } from './nav-layout-option';
 
 // ----------------------------------------------------------------------
 
-export function SettingsDrawer({ sx, defaultSettings }: SettingsDrawerProps) {
+export function SettingsDrawer({ sx, defaultSettings: propDefaults }: SettingsDrawerProps) {
   const settings = useSettingsContext();
+  const defaultSettings = propDefaults ?? settings.defaultSettings;
   const { mode, setMode, colorScheme } = useColorScheme();
 
   // Visible options by default settings
@@ -47,12 +48,6 @@ export function SettingsDrawer({ sx, defaultSettings }: SettingsDrawerProps) {
     primaryColor: hasKeys(defaultSettings, ['primaryColor']),
     compactLayout: hasKeys(defaultSettings, ['compactLayout']),
   };
-
-  useEffect(() => {
-    if (mode !== undefined && mode !== settings.state.mode) {
-      settings.setState({ mode });
-    }
-  }, [mode, settings]);
 
   const handleReset = useCallback(() => {
     settings.onReset();

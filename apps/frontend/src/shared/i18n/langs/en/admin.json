@@ -107,7 +107,11 @@
     "batchAuth": "Batch authorize",
     "refreshCache": "Refresh cache",
     "addDictData": "Add dictionary data",
-    "saveSort": "Save sort"
+    "saveSort": "Save sort",
+    "import": "Import",
+    "export": "Export",
+    "downloadTemplate": "Download template",
+    "selectFile": "Select file"
   },
   "fields": {
     "deepMatch": "Deep match",
@@ -161,7 +165,9 @@
     "beginTime": "Begin time",
     "endTime": "End time",
     "createTime": "Create time",
-    "deptTree": "Department tree"
+    "deptTree": "Department tree",
+    "publicRead": "Public read",
+    "updateSupport": "Update existing users"
   },
   "dialogs": {
     "createMenuItem": "Create menu item",
@@ -179,12 +185,15 @@
     "roleDataScope": "Data permissions: {{name}}",
     "assignRoles": "Assign roles: {{name}}",
     "resetPassword": "Reset password: {{name}}",
-    "authorizedUsers": "Authorized users: {{name}}"
+    "authorizedUsers": "Authorized users: {{name}}",
+    "importUser": "Import users"
   },
   "helper": {
     "deepMatch": "Deep match controls subpath highlighting.",
     "pathPatternExample": "Example: /api/users/{id}",
-    "updatePasswordRequired": "Backend currently requires a password on update."
+    "updatePasswordRequired": "Backend currently requires a password on update.",
+    "emptyPasswordUsesDefault": "Leave blank to use the system default initial password.",
+    "userImportTemplate": "The import template contains department ID, login name, display name, email, phone, sex, and status. It does not contain role or post columns."
   },
   "messages": {
     "deleteFailed": "Delete failed",
@@ -207,7 +216,10 @@
     "deleted": "Deleted",
     "cacheRefreshed": "Cache refreshed",
     "sortSaved": "Sort saved",
-    "selectedCount": "{{count}} selected"
+    "selectedCount": "{{count}} selected",
+    "importSuccess": "Import succeeded",
+    "importFailed": "Import failed",
+    "exportFailed": "Export failed"
   },
   "roles": {
     "admin": {
@@ -242,17 +254,7 @@
     "viewAll": "View all",
     "markComplete": "Mark complete",
     "share": "Share",
-    "months": [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep"
-    ],
+    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"],
     "regions": {
       "america": "America",
       "asia": "Asia",

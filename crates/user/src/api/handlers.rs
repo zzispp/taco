@@ -1,35 +1,48 @@
 use axum::{
     Extension, Json,
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::{HeaderMap, header::AUTHORIZATION},
+    response::Response,
 };
 use rbac::api::CurrentUser;
 use rbac_macros::{data_scope, require_perms};
 use types::rbac::DataScopeFilter;
-use types::{http::RequestJson, system::BatchIdsInput};
+use types::{
+    http::{RequestJson, xlsx_attachment},
+    system::BatchIdsInput,
+};
 
 use crate::{
     api::{
         ApiState, TokenPair,
         dto::{
             AuthSessionResponse, ListUsersQuery, MeResponse, RefreshTokenPayload, ResetPasswordPayload, SignInPayload, SignUpPayload, StatusPayload,
-            TokenPairResponse, UserFormOptionsResponse, UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
+            TokenPairResponse, UserExportQuery, UserFormOptionsResponse, UserImportResponse, UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
         },
         error::ApiError,
+        import_export::{export_query_page, export_users_xlsx, import_template_xlsx, parse_import_rows},
     },
-    domain::{NewUser, UserId},
+    application::{AppError, UserImportInput},
+    domain::{NewUser, User, UserId},
 };
 
 type ApiResult<T> = Result<T, ApiError>;
 type ApiJson<T> = Json<T>;
 
+const REGISTER_USER_KEY: &str = "sys.account.registerUser";
+const INIT_PASSWORD_KEY: &str = "sys.user.initPassword";
+const EXPORT_PAGE_SIZE: u64 = 100;
+
 pub async fn sign_up(State(state): State<ApiState>, RequestJson(payload): RequestJson<SignUpPayload>) -> ApiResult<ApiJson<AuthSessionResponse>> {
+    reject_disabled_registration(&state).await?;
+    verify_account_captcha(&state, payload.captcha_token.as_deref()).await?;
     let user = state.users.sign_up(new_sign_up_user(payload)).await?;
     let tokens = state.tokens.issue_pair(user.id.clone())?;
     Ok(ok(AuthSessionResponse::new(user.into(), tokens)))
 }
 
 pub async fn sign_in(State(state): State<ApiState>, RequestJson(payload): RequestJson<SignInPayload>) -> ApiResult<ApiJson<AuthSessionResponse>> {
+    verify_account_captcha(&state, payload.captcha_token.as_deref()).await?;
     let user = state.users.sign_in(payload.into()).await?;
     let tokens = state.tokens.issue_pair(user.id.clone())?;
     Ok(ok(AuthSessionResponse::new(user.into(), tokens)))
@@ -48,9 +61,43 @@ pub async fn me(State(state): State<ApiState>, headers: HeaderMap) -> ApiResult<
     Ok(ok(MeResponse { user: user.into() }))
 }
 
+#[require_perms("system:user:export")]
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn export_users(
+    State(state): State<ApiState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Extension(data_scope): Extension<DataScopeFilter>,
+    Query(query): Query<UserExportQuery>,
+) -> ApiResult<Response> {
+    let users = all_export_users(&state, &current_user, data_scope, &query).await?;
+    let bytes = export_users_xlsx(&users)?;
+    Ok(xlsx_attachment("users.xlsx", bytes))
+}
+
+#[require_perms("system:user:import")]
+pub async fn import_users(State(state): State<ApiState>, multipart: Multipart) -> ApiResult<ApiJson<UserImportResponse>> {
+    let form = user_import_form(multipart).await?;
+    let default_password = state.config.config_by_key(INIT_PASSWORD_KEY).await?;
+    let rows = parse_import_rows(&form.file)?;
+    let report = state
+        .users
+        .import_users(UserImportInput {
+            rows,
+            update_support: form.update_support,
+            default_password,
+        })
+        .await?;
+    Ok(ok(report.into()))
+}
+
+#[require_perms("system:user:import")]
+pub async fn user_import_template() -> ApiResult<Response> {
+    Ok(xlsx_attachment("user_template.xlsx", import_template_xlsx()?))
+}
+
 #[require_perms("system:user:add")]
 pub async fn create_user(State(state): State<ApiState>, RequestJson(payload): RequestJson<UserPayload>) -> ApiResult<ApiJson<UserResponse>> {
-    let user = state.users.create_user(payload.into()).await?;
+    let user = state.users.create_user(new_admin_user(&state, payload).await?).await?;
     Ok(ok(user.into()))
 }
 
@@ -145,8 +192,85 @@ pub async fn list_users(
     Ok(ok(page.into()))
 }
 
+async fn all_export_users(state: &ApiState, current_user: &CurrentUser, data_scope: DataScopeFilter, query: &UserExportQuery) -> ApiResult<Vec<User>> {
+    let mut page = 1;
+    let mut users = Vec::new();
+    loop {
+        let filter = export_query_page(query, page, EXPORT_PAGE_SIZE);
+        let current = if current_user.admin {
+            state.users.list_users(filter).await?
+        } else {
+            state.users.list_users_scoped(filter, data_scope.clone()).await?
+        };
+        let is_last = current.items.is_empty() || users.len() + current.items.len() >= current.total as usize;
+        users.extend(current.items);
+        if is_last {
+            return Ok(users);
+        }
+        page += 1;
+    }
+}
+
+struct UserImportForm {
+    file: Vec<u8>,
+    update_support: bool,
+}
+
+async fn user_import_form(mut multipart: Multipart) -> ApiResult<UserImportForm> {
+    let mut file = None;
+    let mut update_support = false;
+    while let Some(field) = multipart.next_field().await.map_err(multipart_error)? {
+        let name = field.name().unwrap_or_default().to_owned();
+        let bytes = field.bytes().await.map_err(multipart_error)?;
+        match name.as_str() {
+            "file" => file = Some(bytes.to_vec()),
+            "update_support" | "updateSupport" => update_support = parse_bool(&bytes)?,
+            _ => {}
+        }
+    }
+    Ok(UserImportForm {
+        file: file.ok_or_else(|| ApiError(AppError::InvalidInput("file is required".into())))?,
+        update_support,
+    })
+}
+
+fn parse_bool(bytes: &[u8]) -> ApiResult<bool> {
+    let value = std::str::from_utf8(bytes).map_err(|error| ApiError(AppError::InvalidInput(error.to_string())))?;
+    Ok(matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "y"))
+}
+
+fn multipart_error(error: axum::extract::multipart::MultipartError) -> ApiError {
+    ApiError(AppError::InvalidInput(error.to_string()))
+}
+
 fn ok<T>(data: T) -> ApiJson<T> {
     Json(data)
+}
+
+async fn verify_account_captcha(state: &ApiState, token: Option<&str>) -> ApiResult<()> {
+    state.captcha.verify_account(token).await.map_err(captcha_error)
+}
+
+fn captcha_error(error: captcha::application::CaptchaError) -> ApiError {
+    match error {
+        captcha::application::CaptchaError::InvalidInput(message) => ApiError(AppError::InvalidInput(message)),
+        captcha::application::CaptchaError::Infrastructure(message) => ApiError(AppError::Infrastructure(message)),
+    }
+}
+
+async fn reject_disabled_registration(state: &ApiState) -> ApiResult<()> {
+    if !state.config.config_by_key(REGISTER_USER_KEY).await?.trim().eq_ignore_ascii_case("true") {
+        return Err(ApiError(crate::application::AppError::Forbidden("registration is disabled".into())));
+    }
+    Ok(())
+}
+
+async fn new_admin_user(state: &ApiState, payload: UserPayload) -> ApiResult<NewUser> {
+    let mut user: NewUser = payload.into();
+    if user.password.trim().is_empty() {
+        user.password = state.config.config_by_key(INIT_PASSWORD_KEY).await?;
+    }
+    Ok(user)
 }
 
 fn new_sign_up_user(payload: SignUpPayload) -> NewUser {

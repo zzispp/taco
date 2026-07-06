@@ -1,29 +1,52 @@
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
+    response::Response,
 };
 use kernel::pagination::{Page, PageRequest};
 use rbac::api::CurrentUser;
 use rbac_macros::{data_scope, require_perms};
 use serde::Deserialize;
-use types::http::RequestJson;
+use types::http::{RequestJson, xlsx_attachment};
 use types::rbac::{DataScopeFilter, RoleDeptTreeSelect};
 use types::system::BatchIdsInput;
 
 use crate::{
-    api::{SystemApiError, SystemApiState},
+    api::{
+        SystemApiError, SystemApiState,
+        export::{
+            config_export_page, dict_data_export_page, dict_type_export_page, export_configs_xlsx, export_dict_data_xlsx, export_dict_types_xlsx,
+            export_posts_xlsx, post_export_page,
+        },
+    },
     application::{ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter},
     domain::{ConfigInput, ConfigItem, Dept, DeptInput, DictData, DictDataInput, DictType, DictTypeInput, Post, PostInput, SortBatchInput, TreeSelectNode},
 };
 
 type ApiJson<T> = Json<T>;
 type ApiResult<T> = Result<T, SystemApiError>;
+const EXPORT_PAGE_SIZE: u64 = 100;
 
 #[derive(Debug, Deserialize)]
 pub struct SystemListQuery {
     pub page: u64,
     pub page_size: u64,
     pub dept_name: Option<String>,
+    pub post_code: Option<String>,
+    pub post_name: Option<String>,
+    pub dict_name: Option<String>,
+    pub dict_type: Option<String>,
+    pub dict_label: Option<String>,
+    pub config_name: Option<String>,
+    pub config_key: Option<String>,
+    pub config_type: Option<String>,
+    pub status: Option<String>,
+    pub begin_time: Option<String>,
+    pub end_time: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct SystemExportQuery {
     pub post_code: Option<String>,
     pub post_name: Option<String>,
     pub dict_name: Option<String>,
@@ -48,6 +71,18 @@ pub struct DeptTreeQuery {
 #[derive(Debug, Deserialize)]
 pub struct SortPayload {
     pub order_num: i64,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct PublicConfigQuery {
+    pub keys: Option<String>,
+}
+
+pub async fn public_configs(
+    State(state): State<SystemApiState>,
+    Query(query): Query<PublicConfigQuery>,
+) -> ApiResult<ApiJson<std::collections::BTreeMap<String, String>>> {
+    Ok(ok(state.system.public_configs(config_keys(query)).await?))
 }
 
 #[require_perms("system:dept:list")]
@@ -131,6 +166,12 @@ pub async fn delete_dept(State(state): State<SystemApiState>, Path(id): Path<Str
     Ok(ok(()))
 }
 
+#[require_perms("system:post:export")]
+pub async fn export_posts(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_posts(&state, &query).await?;
+    Ok(xlsx_attachment("posts.xlsx", export_posts_xlsx(&items)?))
+}
+
 #[require_perms("system:post:list")]
 pub async fn list_posts(State(state): State<SystemApiState>, Query(query): Query<SystemListQuery>) -> ApiResult<ApiJson<Page<Post>>> {
     Ok(ok(state.system.page_posts(query.into()).await?))
@@ -169,6 +210,12 @@ pub async fn delete_post(State(state): State<SystemApiState>, Path(id): Path<Str
 pub async fn delete_posts(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
     state.system.delete_posts(payload.ids).await?;
     Ok(ok(()))
+}
+
+#[require_perms("system:dict:export")]
+pub async fn export_dict_types(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_dict_types(&state, &query).await?;
+    Ok(xlsx_attachment("dict_types.xlsx", export_dict_types_xlsx(&items)?))
 }
 
 #[require_perms("system:dict:list")]
@@ -217,6 +264,12 @@ pub async fn delete_dict_types(State(state): State<SystemApiState>, RequestJson(
     Ok(ok(()))
 }
 
+#[require_perms("system:dict:export")]
+pub async fn export_dict_data(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_dict_data(&state, &query).await?;
+    Ok(xlsx_attachment("dict_data.xlsx", export_dict_data_xlsx(&items)?))
+}
+
 #[require_perms("system:dict:list")]
 pub async fn list_dict_data(State(state): State<SystemApiState>, Query(query): Query<SystemListQuery>) -> ApiResult<ApiJson<Page<DictData>>> {
     Ok(ok(state.system.page_dict_data(query.into()).await?))
@@ -255,6 +308,12 @@ pub async fn delete_dict_data(State(state): State<SystemApiState>, Path(id): Pat
 pub async fn delete_dict_data_batch(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
     state.system.delete_dict_data_batch(payload.ids).await?;
     Ok(ok(()))
+}
+
+#[require_perms("system:config:export")]
+pub async fn export_configs(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_configs(&state, &query).await?;
+    Ok(xlsx_attachment("configs.xlsx", export_configs_xlsx(&items)?))
 }
 
 #[require_perms("system:config:list")]
@@ -375,6 +434,62 @@ impl From<SystemListQuery> for ConfigListFilter {
     }
 }
 
+async fn all_export_posts(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<Post>> {
+    let mut page = 1;
+    let mut items = Vec::new();
+    loop {
+        let current = state.system.page_posts(post_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
+        items.extend(current.items);
+        if is_last {
+            return Ok(items);
+        }
+        page += 1;
+    }
+}
+
+async fn all_export_dict_types(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<DictType>> {
+    let mut page = 1;
+    let mut items = Vec::new();
+    loop {
+        let current = state.system.page_dict_types(dict_type_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
+        items.extend(current.items);
+        if is_last {
+            return Ok(items);
+        }
+        page += 1;
+    }
+}
+
+async fn all_export_dict_data(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<DictData>> {
+    let mut page = 1;
+    let mut items = Vec::new();
+    loop {
+        let current = state.system.page_dict_data(dict_data_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
+        items.extend(current.items);
+        if is_last {
+            return Ok(items);
+        }
+        page += 1;
+    }
+}
+
+async fn all_export_configs(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<ConfigItem>> {
+    let mut page = 1;
+    let mut items = Vec::new();
+    loop {
+        let current = state.system.page_configs(config_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
+        items.extend(current.items);
+        if is_last {
+            return Ok(items);
+        }
+        page += 1;
+    }
+}
+
 fn page(page: u64, page_size: u64) -> PageRequest {
     PageRequest { page, page_size }
 }
@@ -404,6 +519,10 @@ fn tree_leaf_contains(tree: &[TreeSelectNode], key: &str) -> bool {
         }
         tree_leaf_contains(&node.children, key)
     })
+}
+
+fn config_keys(query: PublicConfigQuery) -> Vec<String> {
+    query.keys.unwrap_or_default().split(',').map(str::to_owned).collect()
 }
 
 fn ok<T>(data: T) -> ApiJson<T> {

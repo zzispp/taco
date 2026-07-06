@@ -1,9 +1,15 @@
-import type { UserInput, SystemUser, UserRolesPayload } from 'src/entities/user/model/types';
+import type {
+  UserInput,
+  SystemUser,
+  UserImportResult,
+  UserRolesPayload,
+} from 'src/entities/user/model/types';
 
 import { mutate } from 'swr';
 
 import axios from 'src/shared/api/http-client';
-import { requestData, isEndpointKey } from 'src/shared/api/pagination';
+import { downloadBlobResponse } from 'src/shared/api/download';
+import { requestData, isEndpointKey, compactParams } from 'src/shared/api/pagination';
 
 import { userEndpoints } from 'src/entities/user/api/endpoints';
 
@@ -29,6 +35,34 @@ export async function deleteUsers(ids: string[]) {
   await refreshUsers();
 }
 
+export async function exportUsers(filters: Record<string, string>) {
+  const response = await axios.post<Blob>(userEndpoints.exportUsers, null, {
+    params: compactParams(filters),
+    responseType: 'blob',
+  });
+  downloadBlobResponse(response, 'users.xlsx');
+}
+
+export async function importUsers(file: File, updateSupport: boolean) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('update_support', String(updateSupport));
+  const result = await requestData<UserImportResult>(
+    axios.post(userEndpoints.importUsers, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  );
+  await refreshUsers();
+  return result;
+}
+
+export async function downloadUserImportTemplate() {
+  const response = await axios.post<Blob>(userEndpoints.importTemplate, null, {
+    responseType: 'blob',
+  });
+  downloadBlobResponse(response, 'user_template.xlsx');
+}
+
 export async function updateUserStatus(id: string, status: string) {
   const user = await requestData<SystemUser>(axios.put(userEndpoints.status(id), { status }));
   await refreshUsers();
@@ -44,7 +78,9 @@ export function getUserRoles(id: string) {
 }
 
 export async function updateUserRoles(id: string, roleIds: string[]) {
-  const user = await requestData<SystemUser>(axios.put(userEndpoints.roles(id), { role_ids: roleIds }));
+  const user = await requestData<SystemUser>(
+    axios.put(userEndpoints.roles(id), { role_ids: roleIds })
+  );
   await refreshUsers();
   return user;
 }

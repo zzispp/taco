@@ -68,6 +68,7 @@ pub fn config(record: ConfigRecord) -> ConfigItem {
         config_key: record.config_key,
         config_value: record.config_value,
         config_type: record.config_type,
+        public_read: record.public_read,
         remark: record.remark,
         create_time: record.create_time,
     }

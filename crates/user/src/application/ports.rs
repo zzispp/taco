@@ -43,6 +43,30 @@ pub struct SystemUserRecord {
     pub password_hash: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UserImportRow {
+    pub dept_id: Option<String>,
+    pub username: String,
+    pub nick_name: String,
+    pub email: String,
+    pub phonenumber: Option<String>,
+    pub sex: String,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UserImportInput {
+    pub rows: Vec<UserImportRow>,
+    pub update_support: bool,
+    pub default_password: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UserImportReport {
+    pub success_count: usize,
+    pub message: String,
+}
+
 pub trait SystemUserProvider: Send + Sync + 'static {
     fn system_user(&self) -> Option<SystemUserRecord>;
 }
@@ -74,6 +98,11 @@ pub trait PasswordHasher: Send + Sync + 'static {
 }
 
 #[async_trait]
+pub trait SystemConfigProvider: Send + Sync + 'static {
+    async fn config_by_key(&self, key: &str) -> AppResult<String>;
+}
+
+#[async_trait]
 pub trait UserUseCase: Send + Sync + 'static {
     async fn sign_up(&self, input: NewUser) -> AppResult<User>;
     async fn sign_in(&self, input: Credentials) -> AppResult<User>;
@@ -88,5 +117,6 @@ pub trait UserUseCase: Send + Sync + 'static {
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User>;
     async fn list_users(&self, filter: UserListFilter) -> AppResult<Page<User>>;
     async fn list_users_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<Page<User>>;
+    async fn import_users(&self, input: UserImportInput) -> AppResult<UserImportReport>;
     async fn form_options(&self) -> AppResult<UserFormOptions>;
 }

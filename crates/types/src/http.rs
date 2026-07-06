@@ -81,6 +81,14 @@ impl IntoResponse for RequestJsonRejection {
     }
 }
 
+pub fn xlsx_attachment(file_name: &str, bytes: Vec<u8>) -> Response {
+    let headers = [
+        ("content-type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_owned()),
+        ("content-disposition", format!("attachment; filename=\"{file_name}\"")),
+    ];
+    (headers, bytes).into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use axum::extract::Json;

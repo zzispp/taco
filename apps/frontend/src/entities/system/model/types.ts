@@ -66,6 +66,7 @@ export type ConfigItem = {
   config_key: string;
   config_value: string;
   config_type: string;
+  public_read: boolean;
   remark: string | null;
   create_time: string;
 };

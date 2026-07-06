@@ -107,7 +107,11 @@
     "batchAuth": "批量授权",
     "refreshCache": "刷新缓存",
     "addDictData": "新增字典数据",
-    "saveSort": "保存排序"
+    "saveSort": "保存排序",
+    "import": "导入",
+    "export": "导出",
+    "downloadTemplate": "下载模板",
+    "selectFile": "选择文件"
   },
   "fields": {
     "deepMatch": "深度匹配",
@@ -161,7 +165,9 @@
     "beginTime": "开始时间",
     "endTime": "结束时间",
     "createTime": "创建时间",
-    "deptTree": "部门树"
+    "deptTree": "部门树",
+    "publicRead": "公开读取",
+    "updateSupport": "更新已存在用户"
   },
   "dialogs": {
     "createMenuItem": "创建菜单项",
@@ -179,12 +185,15 @@
     "roleDataScope": "数据权限：{{name}}",
     "assignRoles": "分配角色：{{name}}",
     "resetPassword": "重置密码：{{name}}",
-    "authorizedUsers": "授权用户：{{name}}"
+    "authorizedUsers": "授权用户：{{name}}",
+    "importUser": "导入用户"
   },
   "helper": {
     "deepMatch": "深度匹配用于控制子路径高亮。",
     "pathPatternExample": "示例：/api/users/{id}",
-    "updatePasswordRequired": "后端当前要求更新用户时填写密码。"
+    "updatePasswordRequired": "后端当前要求更新用户时填写密码。",
+    "emptyPasswordUsesDefault": "不填写则使用系统默认初始密码。",
+    "userImportTemplate": "导入模板包含部门编号、登录名称、用户名称、邮箱、手机、性别、状态，不包含角色/岗位列。"
   },
   "messages": {
     "deleteFailed": "删除失败",
@@ -207,7 +216,10 @@
     "deleted": "删除成功",
     "cacheRefreshed": "缓存已刷新",
     "sortSaved": "排序已保存",
-    "selectedCount": "已选 {{count}} 项"
+    "selectedCount": "已选 {{count}} 项",
+    "importSuccess": "导入成功",
+    "importFailed": "导入失败",
+    "exportFailed": "导出失败"
   },
   "roles": {
     "admin": {
@@ -242,17 +254,7 @@
     "viewAll": "查看全部",
     "markComplete": "标记完成",
     "share": "分享",
-    "months": [
-      "1月",
-      "2月",
-      "3月",
-      "4月",
-      "5月",
-      "6月",
-      "7月",
-      "8月",
-      "9月"
-    ],
+    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
     "regions": {
       "america": "美洲",
       "asia": "亚洲",

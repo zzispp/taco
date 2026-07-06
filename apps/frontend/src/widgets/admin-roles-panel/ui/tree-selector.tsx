@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
@@ -31,13 +31,19 @@ type TreeSelectorProps = {
   strict: boolean;
   onChange: (selected: string[]) => void;
   onStrictChange: (value: boolean) => void;
+  onResolvedSelectionChange?: (selected: string[]) => void;
 };
 
-export function TreeSelector({ items, selected, strict, onChange, onStrictChange }: TreeSelectorProps) {
+export function TreeSelector({ items, selected, strict, onChange, onStrictChange, onResolvedSelectionChange }: TreeSelectorProps) {
   const tree = useMemo(() => buildTree(items), [items]);
   const allIds = useMemo(() => items.map((item) => item.id), [items]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const [expanded, setExpanded] = useState<string[]>(() => tree.map((node) => node.id));
+  const resolvedSelection = useMemo(() => selectedWithAncestors(selected, items), [items, selected]);
+
+  useEffect(() => {
+    onResolvedSelectionChange?.(resolvedSelection);
+  }, [onResolvedSelectionChange, resolvedSelection]);
 
   const toggleExpanded = useCallback((id: string) => {
     setExpanded((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -61,6 +67,20 @@ export function TreeSelector({ items, selected, strict, onChange, onStrictChange
       </List>
     </Box>
   );
+}
+
+export function selectedWithAncestors(selected: string[], items: TreeOption[]) {
+  const selectedSet = new Set(selected);
+  const parentById = new Map(items.map((item) => [item.id, item.parentId]));
+  selected.forEach((id) => addAncestors(id, parentById, selectedSet));
+  return items.map((item) => item.id).filter((id) => selectedSet.has(id));
+}
+
+function addAncestors(id: string, parentById: Map<string, string>, selected: Set<string>) {
+  const parentId = parentById.get(id);
+  if (!parentId || !parentById.has(parentId) || selected.has(parentId)) return;
+  selected.add(parentId);
+  addAncestors(parentId, parentById, selected);
 }
 
 function SelectorToolbar({ selectedCount, strict, onExpandAll, onCollapseAll, onSelectAll, onUnselectAll, onStrictChange }: { selectedCount: number; strict: boolean; onExpandAll: () => void; onCollapseAll: () => void; onSelectAll: () => void; onUnselectAll: () => void; onStrictChange: (value: boolean) => void }) {

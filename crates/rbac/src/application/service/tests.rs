@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest};
 
 use super::*;
-use crate::domain::RolePermissionSnapshot;
+use crate::{application::AuthWhitelistRule, domain::RolePermissionSnapshot};
 
 #[derive(Clone, Default)]
 struct MemoryRepository;
@@ -37,6 +37,13 @@ async fn authorize_api_allows_taco_wildcard_permission() {
 async fn authorize_api_allows_admin_without_permission() {
     let service = test_service(snapshot(vec![]));
     let result = service.authorize_api(&config(), request(vec![], true)).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn authorize_api_allows_whitelisted_me_without_permission() {
+    let service = test_service(snapshot(vec![]));
+    let result = service.authorize_api(&auth_me_config(), auth_me_request()).await;
     assert!(result.is_ok());
 }
 
@@ -88,6 +95,16 @@ fn config() -> AuthorizationConfig {
     }
 }
 
+fn auth_me_config() -> AuthorizationConfig {
+    AuthorizationConfig {
+        whitelist: vec![AuthWhitelistRule {
+            methods: vec!["GET".into()],
+            path_pattern: "/api/auth/me".into(),
+        }],
+        route_permissions: vec![],
+    }
+}
+
 fn request(permissions: Vec<&str>, admin: bool) -> ApiCheckRequest {
     ApiCheckRequest {
         method: "GET".into(),
@@ -95,6 +112,16 @@ fn request(permissions: Vec<&str>, admin: bool) -> ApiCheckRequest {
         role_keys: vec!["common".into()],
         permissions: permissions.into_iter().map(String::from).collect(),
         admin,
+    }
+}
+
+fn auth_me_request() -> ApiCheckRequest {
+    ApiCheckRequest {
+        method: "GET".into(),
+        path: "/api/auth/me".into(),
+        role_keys: vec!["common".into()],
+        permissions: vec![],
+        admin: false,
     }
 }
 

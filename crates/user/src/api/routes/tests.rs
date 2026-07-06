@@ -6,6 +6,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Method, Request, Response, StatusCode, header},
 };
+use captcha::application::{CaptchaConfigResponse, CaptchaResult, CaptchaUseCase};
 use rbac::application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacResult, RbacUseCase};
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -14,13 +15,15 @@ use types::rbac::{DataScopeFilter, NavResponse};
 use super::create_router;
 use crate::{
     api::{ApiState, TokenService, TokenSettings},
-    application::UserService,
+    application::{AppResult, SystemConfigProvider, UserService},
     test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, stored_user},
 };
 
 const TEST_SECRET: &str = "test-secret-with-enough-entropy";
 const ACCESS_TTL_SECONDS: u64 = 900;
 const REFRESH_TTL_SECONDS: u64 = 604800;
+const DEFAULT_INIT_PASSWORD: &str = "12345678";
+const VALID_CAPTCHA_TOKEN: &str = "valid-captcha-token";
 
 #[tokio::test]
 async fn sign_in_accepts_email_identifier_and_returns_token_pair() {
@@ -68,6 +71,149 @@ async fn sign_up_accepts_public_payload_and_sets_backend_fields() {
     assert_eq!(body["user"]["auth_source"], "local");
     assert_eq!(body["user"]["email_verified"], false);
     assert_non_empty_string(&body["access_token"]);
+}
+
+#[tokio::test]
+async fn sign_up_rejects_when_registration_is_disabled() {
+    let app = test_router_with_config(TestConfig::new(false));
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/auth/sign-up",
+            json!({
+                "username": "bob",
+                "email": "bob@example.com",
+                "password": VALID_PASSWORD
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body = json_body(response).await;
+
+    assert_eq!(body["code"], "forbidden");
+}
+
+#[tokio::test]
+async fn sign_in_rejects_missing_captcha_when_enabled() {
+    let app = test_router_with_captcha(TestCaptcha::enabled());
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/auth/sign-in",
+            json!({
+                "identifier": "alice@example.com",
+                "password": VALID_PASSWORD
+            }),
+        ))
+        .await
+        .unwrap();
+    let body = json_body(response).await;
+
+    assert_eq!(body["code"], "invalid_input");
+    assert_eq!(body["details"], "captcha verification is required");
+}
+
+#[tokio::test]
+async fn sign_in_accepts_captcha_token_when_enabled() {
+    let app = test_router_with_captcha(TestCaptcha::enabled());
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/auth/sign-in",
+            json!({
+                "identifier": "alice@example.com",
+                "password": VALID_PASSWORD,
+                "captcha_token": VALID_CAPTCHA_TOKEN
+            }),
+        ))
+        .await
+        .unwrap();
+    let body = response_json(response).await;
+
+    assert_eq!(body["user"]["username"], "alice");
+    assert_non_empty_string(&body["access_token"]);
+    assert_non_empty_string(&body["refresh_token"]);
+}
+
+#[tokio::test]
+async fn sign_up_rejects_missing_captcha_when_enabled() {
+    let app = test_router_with_captcha(TestCaptcha::enabled());
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/auth/sign-up",
+            json!({
+                "username": "bob",
+                "email": "bob@example.com",
+                "password": VALID_PASSWORD
+            }),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = json_body(response).await;
+    assert_eq!(body["code"], "invalid_input");
+    assert_eq!(body["details"], "captcha verification is required");
+}
+
+#[tokio::test]
+async fn sign_up_accepts_captcha_token_when_enabled() {
+    let app = test_router_with_captcha(TestCaptcha::enabled());
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/auth/sign-up",
+            json!({
+                "username": "bob",
+                "email": "bob@example.com",
+                "password": VALID_PASSWORD,
+                "captcha_token": VALID_CAPTCHA_TOKEN
+            }),
+        ))
+        .await
+        .unwrap();
+    let body = response_json(response).await;
+
+    assert_eq!(body["user"]["username"], "bob");
+    assert_non_empty_string(&body["access_token"]);
+}
+
+#[tokio::test]
+async fn create_user_uses_default_password_when_payload_password_is_empty() {
+    let repository = base_repository();
+    let app = test_router_with_repository(repository.clone(), TestConfig::new(true));
+
+    let response = app
+        .oneshot(json_request(
+            Method::POST,
+            "/api/system/users",
+            json!({
+                "username": "charlie",
+                "password": "",
+                "nick_name": "Charlie",
+                "dept_id": null,
+                "email": "charlie@example.com",
+                "phonenumber": null,
+                "sex": "2",
+                "status": "0",
+                "remark": null,
+                "role_ids": ["2"],
+                "post_ids": []
+            }),
+        ))
+        .await
+        .unwrap();
+    let body = response_json(response).await;
+
+    assert_eq!(body["username"], "charlie");
+    assert_eq!(repository.created_records()[0].password_hash.as_deref(), Some("hashed:12345678"));
 }
 
 #[tokio::test]
@@ -154,12 +300,96 @@ struct SessionTokens {
 }
 
 fn test_router() -> Router {
-    let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
+    test_router_with_config(TestConfig::new(true))
+}
+
+fn test_router_with_config(config: TestConfig) -> Router {
+    test_router_with_repository(base_repository(), config)
+}
+
+fn test_router_with_captcha(captcha: TestCaptcha) -> Router {
+    test_router_with_repository_and_captcha(base_repository(), TestConfig::new(true), captcha)
+}
+
+fn test_router_with_repository(repository: MemoryUserRepository, config: TestConfig) -> Router {
+    test_router_with_repository_and_captcha(repository, config, TestCaptcha::disabled())
+}
+
+fn test_router_with_repository_and_captcha(repository: MemoryUserRepository, config: TestConfig, captcha: TestCaptcha) -> Router {
     let users = UserService::new(repository, TestPasswordHasher);
-    Router::new().nest("/api", create_router(ApiState::new(Arc::new(users), token_service(), Arc::new(UnusedRbac))))
+    let state = ApiState::new(Arc::new(users), token_service(), Arc::new(UnusedRbac), Arc::new(config), Arc::new(captcha));
+    Router::new().nest("/api", create_router(state))
+}
+
+fn base_repository() -> MemoryUserRepository {
+    MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"))
+}
+
+struct TestCaptcha {
+    enabled: bool,
+}
+
+impl TestCaptcha {
+    fn enabled() -> Self {
+        Self { enabled: true }
+    }
+
+    fn disabled() -> Self {
+        Self { enabled: false }
+    }
+}
+
+#[async_trait]
+impl CaptchaUseCase for TestCaptcha {
+    async fn config(&self) -> CaptchaResult<CaptchaConfigResponse> {
+        Ok(CaptchaConfigResponse {
+            enabled: self.enabled,
+            provider: "cap".into(),
+            public_config: json!({}),
+        })
+    }
+
+    async fn challenge(&self) -> CaptchaResult<Value> {
+        unimplemented!("auth route tests do not call captcha challenge")
+    }
+
+    async fn redeem(&self, _payload: Value) -> CaptchaResult<Value> {
+        unimplemented!("auth route tests do not call captcha redeem")
+    }
+
+    async fn verify_account(&self, token: Option<&str>) -> CaptchaResult<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        match token {
+            Some(VALID_CAPTCHA_TOKEN) => Ok(()),
+            Some(_) => Err(captcha::application::CaptchaError::InvalidInput("captcha verification failed".into())),
+            None => Err(captcha::application::CaptchaError::InvalidInput("captcha verification is required".into())),
+        }
+    }
 }
 
 struct UnusedRbac;
+struct TestConfig {
+    register_enabled: bool,
+}
+
+impl TestConfig {
+    fn new(register_enabled: bool) -> Self {
+        Self { register_enabled }
+    }
+}
+
+#[async_trait]
+impl SystemConfigProvider for TestConfig {
+    async fn config_by_key(&self, key: &str) -> AppResult<String> {
+        match key {
+            "sys.account.registerUser" => Ok(self.register_enabled.to_string()),
+            "sys.user.initPassword" => Ok(DEFAULT_INIT_PASSWORD.into()),
+            _ => Err(crate::application::AppError::NotFound),
+        }
+    }
+}
 
 #[async_trait]
 impl RbacUseCase for UnusedRbac {

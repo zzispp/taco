@@ -8,7 +8,7 @@ export type ThemeConfig = {
   direction: Direction;
   classesPrefix: string;
   cssVariables: ThemeCssVariables;
-  defaultMode: ThemeProviderProps<Theme>['defaultMode'];
+  defaultMode: NonNullable<ThemeProviderProps<Theme>['defaultMode']>;
   modeStorageKey: ThemeProviderProps<Theme>['modeStorageKey'];
   fontFamily: Record<'primary' | 'secondary', string>;
   palette: Record<PaletteColorKey, PaletteColorNoChannels> & {

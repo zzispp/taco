@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest};
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 use crate::domain::{
@@ -13,6 +14,8 @@ pub type SystemResult<T> = Result<T, SystemError>;
 pub enum SystemError {
     #[error("resource not found")]
     NotFound,
+    #[error("forbidden: {0}")]
+    Forbidden(String),
     #[error("resource conflict: {0}")]
     Conflict(String),
     #[error("invalid input: {0}")]
@@ -103,6 +106,7 @@ pub trait SystemUseCase: Send + Sync + 'static {
     async fn page_configs(&self, filter: ConfigListFilter) -> SystemResult<Page<ConfigItem>>;
     async fn get_config(&self, id: &str) -> SystemResult<ConfigItem>;
     async fn config_by_key(&self, key: &str) -> SystemResult<String>;
+    async fn public_configs(&self, keys: Vec<String>) -> SystemResult<BTreeMap<String, String>>;
     async fn create_config(&self, input: ConfigInput) -> SystemResult<ConfigItem>;
     async fn replace_config(&self, id: &str, input: ConfigInput) -> SystemResult<ConfigItem>;
     async fn delete_config(&self, id: &str) -> SystemResult<()>;
@@ -154,6 +158,7 @@ pub trait SystemRepository: Send + Sync + 'static {
     async fn page_configs(&self, filter: ConfigListFilter) -> SystemResult<Page<ConfigItem>>;
     async fn list_configs(&self, filter: ConfigListFilter) -> SystemResult<Vec<ConfigItem>>;
     async fn find_config(&self, id: &str) -> SystemResult<Option<ConfigItem>>;
+    async fn find_config_by_key(&self, key: &str) -> SystemResult<Option<ConfigItem>>;
     async fn config_by_key(&self, key: &str) -> SystemResult<Option<String>>;
     async fn create_config(&self, input: ConfigInput) -> SystemResult<ConfigItem>;
     async fn replace_config(&self, id: &str, input: ConfigInput) -> SystemResult<ConfigItem>;
@@ -432,6 +437,7 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
                 config_key: key.into(),
                 config_value: value.clone(),
                 config_type: String::new(),
+                public_read: false,
                 remark: None,
                 create_time: String::new(),
             })
@@ -439,7 +445,21 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
         Ok(value)
     }
 
+    async fn public_configs(&self, keys: Vec<String>) -> SystemResult<BTreeMap<String, String>> {
+        let keys = clean_config_keys(keys)?;
+        let mut values = BTreeMap::new();
+        for key in keys {
+            let item = self.repository.find_config_by_key(&key).await?.ok_or(SystemError::NotFound)?;
+            if !item.public_read {
+                return Err(SystemError::Forbidden(format!("config key {key} is not public")));
+            }
+            values.insert(item.config_key, item.config_value);
+        }
+        Ok(values)
+    }
+
     async fn create_config(&self, input: ConfigInput) -> SystemResult<ConfigItem> {
+        reject_sensitive_public_config(&input.config_key, input.public_read)?;
         reject_duplicate_config_key(&self.repository, &input, None).await?;
         let item = self.repository.create_config(input).await?;
         self.cache.write_config(&item).await?;
@@ -447,6 +467,9 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
     }
 
     async fn replace_config(&self, id: &str, input: ConfigInput) -> SystemResult<ConfigItem> {
+        let current = self.get_config(id).await?;
+        reject_builtin_config_identity_change(&current, &input)?;
+        reject_sensitive_public_config(&input.config_key, input.public_read)?;
         reject_duplicate_config_key(&self.repository, &input, Some(id)).await?;
         let item = self.repository.replace_config(id, input).await?;
         self.refresh_config_cache().await?;
@@ -454,12 +477,16 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
     }
 
     async fn delete_config(&self, id: &str) -> SystemResult<()> {
+        reject_builtin_config_delete(&self.get_config(id).await?)?;
         self.repository.delete_config(id).await?;
         self.refresh_config_cache().await
     }
 
     async fn delete_configs(&self, ids: Vec<String>) -> SystemResult<()> {
         reject_empty_ids(&ids)?;
+        for id in &ids {
+            reject_builtin_config_delete(&self.get_config(id).await?)?;
+        }
         self.repository.delete_configs(&ids).await?;
         self.refresh_config_cache().await
     }
@@ -559,6 +586,45 @@ async fn reject_duplicate_config_key<R: SystemRepository>(repository: &R, input:
         .any(|item| item.config_key == input.config_key && Some(item.config_id.as_str()) != current_id)
     {
         return Err(SystemError::Conflict("config key already exists".into()));
+    }
+    Ok(())
+}
+
+fn clean_config_keys(keys: Vec<String>) -> SystemResult<Vec<String>> {
+    let keys = keys
+        .into_iter()
+        .map(|key| key.trim().to_owned())
+        .filter(|key| !key.is_empty())
+        .collect::<Vec<_>>();
+    if keys.is_empty() {
+        return Err(SystemError::InvalidInput("keys are required".into()));
+    }
+    Ok(keys)
+}
+
+fn reject_builtin_config_delete(item: &ConfigItem) -> SystemResult<()> {
+    if item.config_type == "Y" {
+        return Err(SystemError::Conflict("built-in config cannot be deleted".into()));
+    }
+    Ok(())
+}
+
+fn reject_builtin_config_identity_change(current: &ConfigItem, input: &ConfigInput) -> SystemResult<()> {
+    if current.config_type == "Y" && current.config_key != input.config_key {
+        return Err(SystemError::Conflict("built-in config key cannot be changed".into()));
+    }
+    if current.config_type == "Y" && input.config_type != "Y" {
+        return Err(SystemError::Conflict("built-in config type cannot be changed".into()));
+    }
+    Ok(())
+}
+
+fn reject_sensitive_public_config(key: &str, public_read: bool) -> SystemResult<()> {
+    if key == "sys.user.initPassword" && public_read {
+        return Err(SystemError::Conflict("initial password config cannot be public".into()));
+    }
+    if key == "sys.account.captchaPrivateConfig" && public_read {
+        return Err(SystemError::Conflict("captcha private config cannot be public".into()));
     }
     Ok(())
 }

@@ -21,7 +21,7 @@ struct State {
     dept: Option<Dept>,
     dict_type: Option<DictType>,
     dict_type_has_data: bool,
-    config_values: HashMap<String, String>,
+    configs: HashMap<String, ConfigItem>,
     duplicate_post_code: bool,
     duplicate_post_name: bool,
     dept_has_children: bool,
@@ -45,7 +45,12 @@ impl MemoryRepository {
         self
     }
     pub(crate) fn with_config(self, key: &str, value: &str) -> Self {
-        self.state.lock().unwrap().config_values.insert(key.into(), value.into());
+        self.state.lock().unwrap().configs.insert(key.into(), config_item(key, value, "N", false));
+        self
+    }
+
+    pub(crate) fn with_config_item(self, item: ConfigItem) -> Self {
+        self.state.lock().unwrap().configs.insert(item.config_key.clone(), item);
         self
     }
     pub(crate) fn with_duplicate_post_code(self, exists: bool) -> Self {
@@ -207,35 +212,33 @@ impl SystemRepository for MemoryRepository {
         Ok(empty_page(filter.page))
     }
     async fn list_configs(&self, _filter: ConfigListFilter) -> system::application::SystemResult<Vec<ConfigItem>> {
-        Ok(self
-            .state
-            .lock()
-            .unwrap()
-            .config_values
-            .iter()
-            .map(|(key, value)| config_item(key, value))
-            .collect())
+        Ok(self.state.lock().unwrap().configs.values().cloned().collect())
     }
-    async fn find_config(&self, _id: &str) -> system::application::SystemResult<Option<ConfigItem>> {
-        Ok(None)
+    async fn find_config(&self, id: &str) -> system::application::SystemResult<Option<ConfigItem>> {
+        Ok(self.state.lock().unwrap().configs.values().find(|item| item.config_id == id).cloned())
+    }
+    async fn find_config_by_key(&self, key: &str) -> system::application::SystemResult<Option<ConfigItem>> {
+        Ok(self.state.lock().unwrap().configs.get(key).cloned())
     }
     async fn config_by_key(&self, key: &str) -> system::application::SystemResult<Option<String>> {
-        Ok(self.state.lock().unwrap().config_values.get(key).cloned())
+        Ok(self.state.lock().unwrap().configs.get(key).map(|item| item.config_value.clone()))
     }
-    async fn create_config(&self, _input: ConfigInput) -> system::application::SystemResult<ConfigItem> {
-        unimplemented!("create_config")
+    async fn create_config(&self, input: ConfigInput) -> system::application::SystemResult<ConfigItem> {
+        let item = config_from_input("created", input);
+        self.state.lock().unwrap().configs.insert(item.config_key.clone(), item.clone());
+        Ok(item)
     }
-    async fn replace_config(&self, _id: &str, _input: ConfigInput) -> system::application::SystemResult<ConfigItem> {
-        unimplemented!("replace_config")
+    async fn replace_config(&self, id: &str, input: ConfigInput) -> system::application::SystemResult<ConfigItem> {
+        let item = config_from_input(id, input);
+        self.state.lock().unwrap().configs.insert(item.config_key.clone(), item.clone());
+        Ok(item)
     }
-    async fn delete_config(&self, _id: &str) -> system::application::SystemResult<()> {
+    async fn delete_config(&self, id: &str) -> system::application::SystemResult<()> {
+        self.state.lock().unwrap().configs.retain(|_, item| item.config_id != id);
         Ok(())
     }
     async fn delete_configs(&self, ids: &[String]) -> system::application::SystemResult<()> {
-        let mut state = self.state.lock().unwrap();
-        for id in ids {
-            state.config_values.remove(id);
-        }
+        self.state.lock().unwrap().configs.retain(|_, item| !ids.contains(&item.config_id));
         Ok(())
     }
 }
@@ -291,14 +294,27 @@ fn post(id: &str, code: &str, name: &str) -> Post {
         create_time: "2026-01-01 00:00:00".into(),
     }
 }
-fn config_item(key: &str, value: &str) -> ConfigItem {
+pub(crate) fn config_item(key: &str, value: &str, config_type: &str, public_read: bool) -> ConfigItem {
     ConfigItem {
         config_id: key.into(),
         config_name: key.into(),
         config_key: key.into(),
         config_value: value.into(),
-        config_type: "N".into(),
+        config_type: config_type.into(),
+        public_read,
         remark: None,
+        create_time: "2026-01-01 00:00:00".into(),
+    }
+}
+fn config_from_input(id: &str, input: ConfigInput) -> ConfigItem {
+    ConfigItem {
+        config_id: id.into(),
+        config_name: input.config_name,
+        config_key: input.config_key,
+        config_value: input.config_value,
+        config_type: input.config_type,
+        public_read: input.public_read,
+        remark: input.remark,
         create_time: "2026-01-01 00:00:00".into(),
     }
 }

@@ -19,6 +19,7 @@ import TextField from '@mui/material/TextField';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 import { toast } from 'src/shared/ui/snackbar';
 import { Iconify } from 'src/shared/ui/iconify';
@@ -44,10 +45,14 @@ import { DashboardContent } from 'src/widgets/dashboard-shell';
 export type CrudField<T> = {
   key: keyof T;
   label: string;
-  type?: 'text' | 'number' | 'select' | 'textarea' | 'switch';
+  type?: 'text' | 'number' | 'select' | 'textarea' | 'switch' | 'boolean';
   format?: 'dateTime';
   width?: TableHeadCellProps['width'];
   options?: { value: string; label: string }[];
+  disabled?: (context: {
+    form: Record<string, unknown>;
+    editing: Record<string, unknown> | null;
+  }) => boolean;
   hiddenInTable?: boolean;
   hiddenInForm?: boolean;
 };
@@ -85,7 +90,10 @@ export type CrudPanelProps<T extends Record<string, unknown>, I extends Record<s
   onAfterSave?: () => void;
 };
 
-export function SystemCrudPanel<T extends Record<string, unknown>, I extends Record<string, unknown>>({
+export function SystemCrudPanel<
+  T extends Record<string, unknown>,
+  I extends Record<string, unknown>,
+>({
   title,
   addLabel,
   idKey,
@@ -158,7 +166,6 @@ export function SystemCrudPanel<T extends Record<string, unknown>, I extends Rec
     }
   }, [deleteItem, deleteTarget, idKey, t]);
 
-
   const confirmBatchDelete = useCallback(async () => {
     if (!batchDeleteItems || selected.length === 0) return;
     try {
@@ -171,14 +178,27 @@ export function SystemCrudPanel<T extends Record<string, unknown>, I extends Rec
     }
   }, [batchDeleteItems, selected, t]);
 
-  const toggleAll = useCallback((checked: boolean) => {
-    setSelected(checked ? selectableRows.map((row) => String(row[idKey])) : []);
-  }, [idKey, selectableRows]);
+  const toggleAll = useCallback(
+    (checked: boolean) => {
+      setSelected(checked ? selectableRows.map((row) => String(row[idKey])) : []);
+    },
+    [idKey, selectableRows]
+  );
 
-  const breadcrumbAction = toolbarAction || canAdd || hasBatchDelete ? (
+  const hasToolbarActions = Boolean(toolbarAction) || canAdd || hasBatchDelete;
+  const breadcrumbAction = hasToolbarActions ? (
     <Stack direction="row" spacing={1}>
       {toolbarAction}
-      {hasBatchDelete && <Button variant="outlined" color="error" disabled={selected.length === 0} onClick={() => setBatchDeleteOpen(true)}>{t('common.delete')}</Button>}
+      {hasBatchDelete && (
+        <Button
+          variant="outlined"
+          color="error"
+          disabled={selected.length === 0}
+          onClick={() => setBatchDeleteOpen(true)}
+        >
+          {t('common.delete')}
+        </Button>
+      )}
       {canAdd && <AddButton onClick={() => setCreating(true)}>{addLabel}</AddButton>}
     </Stack>
   ) : null;
@@ -197,61 +217,267 @@ export function SystemCrudPanel<T extends Record<string, unknown>, I extends Rec
               onSelectAllRows={hasBatchDelete ? toggleAll : undefined}
             />
             <TableBody>
-              {resource.isLoading ? <TableLoadingRows head={bodyHead} rows={rowsPerPage} /> : resource.items.map((row) => (
-                <TableRow key={String(row[idKey])} hover>
-                  {hasBatchDelete && <TableCell padding="checkbox"><Checkbox disabled={!isRowSelectable(row)} checked={selected.includes(String(row[idKey]))} onChange={() => setSelected(toggle(selected, String(row[idKey])))} /></TableCell>}
-                  {fields.filter((field) => !field.hiddenInTable).map((field) => <TableCell key={String(field.key)} sx={fieldCellSx(field)}>{displayField(row[field.key as keyof T], field)}</TableCell>)}
-                  <TableCell align="right"><TableActions permissionPrefix={permissionPrefix} extra={extraActions?.(row)} onEdit={() => { setForm(formFromRow<T, I>(row, fields)); setEditing(row); }} onDelete={() => setDeleteTarget(row)} /></TableCell>
-                </TableRow>
-              ))}
-              <TableNoData title={t('common.noData')} notFound={!resource.isLoading && resource.items.length === 0} />
+              {resource.isLoading ? (
+                <TableLoadingRows head={bodyHead} rows={rowsPerPage} />
+              ) : (
+                resource.items.map((row) => (
+                  <TableRow key={String(row[idKey])} hover>
+                    {hasBatchDelete && (
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          disabled={!isRowSelectable(row)}
+                          checked={selected.includes(String(row[idKey]))}
+                          onChange={() => setSelected(toggle(selected, String(row[idKey])))}
+                        />
+                      </TableCell>
+                    )}
+                    {fields
+                      .filter((field) => !field.hiddenInTable)
+                      .map((field) => (
+                        <TableCell key={String(field.key)} sx={fieldCellSx(field)}>
+                          {displayField(row[field.key as keyof T], field)}
+                        </TableCell>
+                      ))}
+                    <TableCell align="right">
+                      <TableActions
+                        permissionPrefix={permissionPrefix}
+                        extra={extraActions?.(row)}
+                        deleteDisabled={!isRowSelectable(row)}
+                        onEdit={() => {
+                          setForm(formFromRow<T, I>(row, fields));
+                          setEditing(row);
+                        }}
+                        onDelete={() => setDeleteTarget(row)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+              <TableNoData
+                title={t('common.noData')}
+                notFound={!resource.isLoading && resource.items.length === 0}
+              />
             </TableBody>
           </Table>
         </Scrollbar>
-        <TablePaginationCustom page={page} count={resource.total} rowsPerPage={rowsPerPage} onPageChange={onPageChange} onRowsPerPageChange={onRowsPerPageChange} />
+        <TablePaginationCustom
+          page={page}
+          count={resource.total}
+          rowsPerPage={rowsPerPage}
+          onPageChange={onPageChange}
+          onRowsPerPageChange={onRowsPerPageChange}
+        />
       </Card>
-      <ManagementDialog open={creating || !!editing} title={editing ? t('common.edit') : t('common.create')} submitting={submitting} onClose={closeDialog} onSubmit={submit}>
-        {fields.filter((field) => !field.hiddenInForm).map((field) => <CrudFieldControl key={String(field.key)} field={field as unknown as CrudField<I>} form={form} setForm={setForm} />)}
+      <ManagementDialog
+        open={creating || !!editing}
+        title={editing ? t('common.edit') : t('common.create')}
+        submitting={submitting}
+        onClose={closeDialog}
+        onSubmit={submit}
+      >
+        {fields
+          .filter((field) => !field.hiddenInForm)
+          .map((field) => (
+            <CrudFieldControl
+              key={String(field.key)}
+              field={field as unknown as CrudField<I>}
+              editing={editing as Record<string, unknown> | null}
+              form={form}
+              setForm={setForm}
+            />
+          ))}
       </ManagementDialog>
-      <ConfirmDialog open={batchDeleteOpen} onClose={() => setBatchDeleteOpen(false)} title={t('common.delete')} content={t('dialogs.deleteContent', { name: String(selected.length) })} cancelText={t('common.cancel')} action={<Button variant="contained" color="error" onClick={confirmBatchDelete}>{t('common.delete')}</Button>} />
-      <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={t('common.delete')} content={t('dialogs.deleteContent', { name: deleteTarget ? String(deleteTarget[nameKey]) : '' })} cancelText={t('common.cancel')} action={<Button variant="contained" color="error" onClick={confirmDelete}>{t('common.delete')}</Button>} />
+      <ConfirmDialog
+        open={batchDeleteOpen}
+        onClose={() => setBatchDeleteOpen(false)}
+        title={t('common.delete')}
+        content={t('dialogs.deleteContent', { name: String(selected.length) })}
+        cancelText={t('common.cancel')}
+        action={
+          <Button variant="contained" color="error" onClick={confirmBatchDelete}>
+            {t('common.delete')}
+          </Button>
+        }
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title={t('common.delete')}
+        content={t('dialogs.deleteContent', {
+          name: deleteTarget ? String(deleteTarget[nameKey]) : '',
+        })}
+        cancelText={t('common.cancel')}
+        action={
+          <Button variant="contained" color="error" onClick={confirmDelete}>
+            {t('common.delete')}
+          </Button>
+        }
+      />
     </DashboardContent>
   );
 }
 
-function CrudFilters({ filters, values, onChange }: { filters: CrudFilter[]; values: Record<string, string>; onChange?: (filters: Record<string, string>) => void }) {
+function CrudFilters({
+  filters,
+  values,
+  onChange,
+}: {
+  filters: CrudFilter[];
+  values: Record<string, string>;
+  onChange?: (filters: Record<string, string>) => void;
+}) {
   const { t } = useTranslate('admin');
   if (filters.length === 0 || !onChange) return null;
   const write = (key: string, value: string) => onChange({ ...values, [key]: value });
-  return <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>{filters.map((filter) => <TextField key={filter.key} select={filter.type === 'select'} type={filter.type === 'date' ? 'date' : 'text'} size="small" label={filter.label} value={values[filter.key] ?? ''} InputLabelProps={filter.type === 'date' ? { shrink: true } : undefined} sx={{ minWidth: filter.type === 'select' ? 140 : filter.type === 'date' ? 170 : undefined }} onChange={(event) => write(filter.key, event.target.value)}>{filter.options?.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}</TextField>)}<Button variant="outlined" onClick={() => onChange(Object.fromEntries(filters.map((filter) => [filter.key, ''])))}>{t('common.reset')}</Button></Stack>;
+  return (
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>
+      {filters.map((filter) => (
+        <TextField
+          key={filter.key}
+          select={filter.type === 'select'}
+          type={filter.type === 'date' ? 'date' : 'text'}
+          size="small"
+          label={filter.label}
+          value={values[filter.key] ?? ''}
+          InputLabelProps={filter.type === 'date' ? { shrink: true } : undefined}
+          sx={{
+            minWidth: filter.type === 'select' ? 140 : filter.type === 'date' ? 170 : undefined,
+          }}
+          onChange={(event) => write(filter.key, event.target.value)}
+        >
+          {filter.options?.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </TextField>
+      ))}
+      <Button
+        variant="outlined"
+        onClick={() => onChange(Object.fromEntries(filters.map((filter) => [filter.key, ''])))}
+      >
+        {t('common.reset')}
+      </Button>
+    </Stack>
+  );
 }
 
-function CrudFieldControl<I extends Record<string, unknown>>({ field, form, setForm }: { field: CrudField<I>; form: I; setForm: React.Dispatch<React.SetStateAction<I>> }) {
+function CrudFieldControl<I extends Record<string, unknown>>({
+  field,
+  editing,
+  form,
+  setForm,
+}: {
+  field: CrudField<I>;
+  editing: Record<string, unknown> | null;
+  form: I;
+  setForm: React.Dispatch<React.SetStateAction<I>>;
+}) {
   const value = form[field.key] ?? '';
-  const writeValue = (next: string | boolean) => setForm((current) => ({ ...current, [field.key]: normalizeValue(next, field.type) }));
-  if (field.type === 'switch') return <Switch checked={String(value) === '0'} onChange={(event) => writeValue(event.target.checked ? '0' : '1')} />;
-  return <TextFieldRow label={field.label} type={field.type === 'number' ? 'number' : 'text'} select={field.type === 'select'} multiline={field.type === 'textarea'} value={String(value)} onChange={writeValue}>{field.options?.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}</TextFieldRow>;
+  const disabled = field.disabled?.({ form, editing }) ?? false;
+  const writeValue = (next: string | boolean) =>
+    setForm((current) => ({ ...current, [field.key]: normalizeValue(next, field.type) }));
+  if (field.type === 'switch')
+    return (
+      <Switch
+        checked={String(value) === '0'}
+        onChange={(event) => writeValue(event.target.checked ? '0' : '1')}
+      />
+    );
+  if (field.type === 'boolean')
+    return (
+      <FormControlLabel
+        control={
+          <Switch
+            checked={Boolean(value)}
+            disabled={disabled}
+            onChange={(event) => writeValue(event.target.checked)}
+          />
+        }
+        label={field.label}
+      />
+    );
+  return (
+    <TextFieldRow
+      disabled={disabled}
+      label={field.label}
+      type={field.type === 'number' ? 'number' : 'text'}
+      select={field.type === 'select'}
+      multiline={field.type === 'textarea'}
+      value={String(value)}
+      onChange={writeValue}
+    >
+      {field.options?.map((option) => (
+        <MenuItem key={option.value} value={option.value}>
+          {option.label}
+        </MenuItem>
+      ))}
+    </TextFieldRow>
+  );
 }
 
-function TableActions({ permissionPrefix, extra, onEdit, onDelete }: { permissionPrefix: string; extra?: React.ReactNode; onEdit: () => void; onDelete: () => void }) {
+function TableActions({
+  permissionPrefix,
+  extra,
+  deleteDisabled,
+  onEdit,
+  onDelete,
+}: {
+  permissionPrefix: string;
+  extra?: React.ReactNode;
+  deleteDisabled?: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const { t } = useTranslate('admin');
   const canEdit = useHasPermission(`${permissionPrefix}:edit`);
   const canDelete = useHasPermission(`${permissionPrefix}:remove`);
-  return <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>{extra}<Tooltip title={t('common.edit')}><span><IconButton disabled={!canEdit} onClick={onEdit}><Iconify icon="solar:pen-bold" /></IconButton></span></Tooltip><Tooltip title={t('common.delete')}><span><IconButton color="error" disabled={!canDelete} onClick={onDelete}><Iconify icon="solar:trash-bin-trash-bold" /></IconButton></span></Tooltip></Box>;
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {extra}
+      <Tooltip title={t('common.edit')}>
+        <span>
+          <IconButton disabled={!canEdit} onClick={onEdit}>
+            <Iconify icon="solar:pen-bold" />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title={t('common.delete')}>
+        <span>
+          <IconButton color="error" disabled={!canDelete || deleteDisabled} onClick={onDelete}>
+            <Iconify icon="solar:trash-bin-trash-bold" />
+          </IconButton>
+        </span>
+      </Tooltip>
+    </Box>
+  );
 }
 
 const TABLE_HEAD_SX = { whiteSpace: 'nowrap' } as const;
 const DATE_TIME_CELL_SX = { whiteSpace: 'nowrap' } as const;
 
-function tableHead<T>(fields: CrudField<T>[], hasExtra: boolean, hasSelection: boolean, actionLabel: string): TableHeadCellProps[] {
+function tableHead<T>(
+  fields: CrudField<T>[],
+  hasExtra: boolean,
+  hasSelection: boolean,
+  actionLabel: string
+): TableHeadCellProps[] {
   return [
-    ...fields.filter((field) => !field.hiddenInTable).map((field) => ({
-      id: String(field.key),
-      label: field.label,
-      width: field.width ?? (isDateTimeField(field) ? 190 : undefined),
+    ...fields
+      .filter((field) => !field.hiddenInTable)
+      .map((field) => ({
+        id: String(field.key),
+        label: field.label,
+        width: field.width ?? (isDateTimeField(field) ? 190 : undefined),
+        sx: TABLE_HEAD_SX,
+      })),
+    {
+      id: 'actions',
+      label: actionLabel,
+      align: 'right',
+      width: hasExtra || hasSelection ? 144 : 96,
       sx: TABLE_HEAD_SX,
-    })),
-    { id: 'actions', label: actionLabel, align: 'right', width: hasExtra || hasSelection ? 144 : 96, sx: TABLE_HEAD_SX },
+    },
   ];
 }
 
@@ -259,14 +485,20 @@ function toggle(values: string[], value: string) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function formFromRow<T extends Record<string, unknown>, I extends Record<string, unknown>>(row: T, fields: CrudField<T>[]) {
-  return Object.fromEntries(fields.filter((field) => !field.hiddenInForm).map((field) => [field.key, row[field.key] ?? ''])) as I;
+function formFromRow<T extends Record<string, unknown>, I extends Record<string, unknown>>(
+  row: T,
+  fields: CrudField<T>[]
+) {
+  return Object.fromEntries(
+    fields.filter((field) => !field.hiddenInForm).map((field) => [field.key, row[field.key] ?? ''])
+  ) as I;
 }
 
 function displayField<T>(value: unknown, field: CrudField<T>) {
   if (value === null || value === undefined || value === '') return '-';
   if (isDateTimeField(field)) return fAdminDateTime(String(value)) || '-';
-  if (field.type === 'switch') return <Switch size="small" checked={String(value) === '0'} disabled />;
+  if (field.type === 'switch')
+    return <Switch size="small" checked={String(value) === '0'} disabled />;
   if (typeof value === 'boolean') return value ? '是' : '否';
   return String(value);
 }
@@ -279,8 +511,12 @@ function isDateTimeField<T>(field: CrudField<T>) {
   return field.format === 'dateTime' || String(field.key) === 'create_time';
 }
 
-function normalizeValue(value: string | boolean, type?: CrudField<Record<string, unknown>>['type']) {
+function normalizeValue(
+  value: string | boolean,
+  type?: CrudField<Record<string, unknown>>['type']
+) {
   if (type === 'number') return Number(value);
+  if (type === 'boolean') return Boolean(value);
   if (typeof value === 'boolean') return value ? '0' : '1';
   return value;
 }
@@ -294,5 +530,13 @@ export type ActionIconProps = {
 };
 
 export function ActionIcon({ title, icon, disabled, color, onClick }: ActionIconProps) {
-  return <Tooltip title={title}><span><IconButton color={color} disabled={disabled} onClick={onClick}><Iconify icon={icon} /></IconButton></span></Tooltip>;
+  return (
+    <Tooltip title={title}>
+      <span>
+        <IconButton color={color} disabled={disabled} onClick={onClick}>
+          <Iconify icon={icon} />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
 }

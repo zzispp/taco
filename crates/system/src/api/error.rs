@@ -21,7 +21,7 @@ impl From<RbacError> for SystemApiError {
     fn from(value: RbacError) -> Self {
         Self(match value {
             RbacError::Unauthorized => SystemError::Infrastructure("unauthorized".into()),
-            RbacError::Forbidden => SystemError::Infrastructure("forbidden".into()),
+            RbacError::Forbidden => SystemError::Forbidden("forbidden".into()),
             RbacError::NotFound => SystemError::NotFound,
             RbacError::Conflict(message) => SystemError::Conflict(message),
             RbacError::InvalidInput(message) => SystemError::InvalidInput(message),
@@ -39,6 +39,7 @@ impl IntoResponse for SystemApiError {
 fn status_code(error: &SystemError) -> StatusCode {
     match error {
         SystemError::NotFound => StatusCode::NOT_FOUND,
+        SystemError::Forbidden(_) => StatusCode::FORBIDDEN,
         SystemError::Conflict(_) => StatusCode::CONFLICT,
         SystemError::InvalidInput(_) => StatusCode::BAD_REQUEST,
         SystemError::Infrastructure(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -48,6 +49,7 @@ fn status_code(error: &SystemError) -> StatusCode {
 fn error_response(error: &SystemError) -> ApiErrorResponse {
     match error {
         SystemError::NotFound => ApiErrorResponse::new("not_found", "resource not found"),
+        SystemError::Forbidden(message) => ApiErrorResponse::new("forbidden", message.clone()),
         SystemError::Conflict(message) => ApiErrorResponse::with_details("conflict", "resource conflict", message.clone()),
         SystemError::InvalidInput(message) => ApiErrorResponse::with_details("invalid_input", "invalid input", message.clone()),
         SystemError::Infrastructure(message) => ApiErrorResponse::with_details("infrastructure_error", "infrastructure error", message.clone()),

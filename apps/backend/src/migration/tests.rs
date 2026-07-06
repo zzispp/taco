@@ -9,7 +9,7 @@ use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, re
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
 const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
-const MIGRATION_TOTAL: usize = 2;
+const MIGRATION_TOTAL: usize = 6;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
@@ -30,7 +30,7 @@ async fn migrations_support_full_up_down_cycle() {
     assert!(users_table_exists(pool).await);
 
     down(pool, Some(1)).await.unwrap();
-    assert_status_counts(pool, 1, MIGRATION_TOTAL - 1).await;
+    assert_status_counts(pool, MIGRATION_TOTAL - 1, 1).await;
     assert!(users_table_exists(pool).await);
 
     refresh(pool).await.unwrap();
@@ -250,7 +250,50 @@ async fn assert_seed_data_exists(pool: &PgPool) {
     assert_eq!(table_count(pool, "sys_dept").await, 10);
     assert_eq!(table_count(pool, "sys_post").await, 4);
     assert_eq!(table_count(pool, "sys_dict_type").await, 5);
-    assert_eq!(table_count(pool, "sys_config").await, 5);
+    assert_eq!(table_count(pool, "sys_config").await, 8);
+    assert_eq!(public_config_count(pool).await, 6);
+    assert_eq!(captcha_public_config(pool).await["cloudflare_turnstile"]["site_key"], "");
+    assert_eq!(captcha_private_config(pool).await["cloudflare_turnstile"]["secret_key"], "");
+    assert_eq!(initial_password(pool).await, "12345678");
+    assert_eq!(mode_theme(pool).await, "theme-light");
+}
+
+async fn initial_password(pool: &PgPool) -> String {
+    query_scalar::<_, String>("SELECT config_value FROM sys_config WHERE config_key = 'sys.user.initPassword'")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn mode_theme(pool: &PgPool) -> String {
+    query_scalar::<_, String>("SELECT config_value FROM sys_config WHERE config_key = 'sys.index.modeTheme'")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn public_config_count(pool: &PgPool) -> i64 {
+    query_scalar::<_, i64>("SELECT COUNT(*) FROM sys_config WHERE public_read = TRUE")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn captcha_public_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.account.captchaPublicConfig").await
+}
+
+async fn captcha_private_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.account.captchaPrivateConfig").await
+}
+
+async fn config_json(pool: &PgPool, key: &str) -> serde_json::Value {
+    let value: String = query_scalar("SELECT config_value FROM sys_config WHERE config_key = $1")
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    serde_json::from_str(&value).unwrap()
 }
 
 async fn table_count(pool: &PgPool, table: &str) -> i64 {

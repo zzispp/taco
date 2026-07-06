@@ -11,7 +11,7 @@ export type SettingsState = {
   compactLayout: boolean;
   contrast: 'default' | 'high';
   primaryColor: ThemeColorPreset;
-  mode: ThemeConfig['defaultMode'];
+  mode: NonNullable<ThemeConfig['defaultMode']>;
   navColor: 'integrate' | 'apparent';
   direction: ThemeConfig['direction'];
   navLayout: 'vertical' | 'horizontal' | 'mini';
@@ -19,6 +19,7 @@ export type SettingsState = {
 
 export type SettingsContextValue = {
   state: SettingsState;
+  defaultSettings: SettingsState;
   canReset: boolean;
   onReset: () => void;
   setState: (updateValue: Partial<SettingsState>) => void;
@@ -37,5 +38,5 @@ export type SettingsProviderProps = {
 
 export type SettingsDrawerProps = {
   sx?: SxProps<Theme>;
-  defaultSettings: SettingsState;
+  defaultSettings?: SettingsState;
 };

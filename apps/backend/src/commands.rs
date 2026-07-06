@@ -26,7 +26,7 @@ fn init_tracing(settings: &Settings) -> BackendResult<Option<tracing_appender::n
 
 async fn run_migration(settings: Settings, command: MigrationCommand) -> BackendResult<()> {
     let database = connect_database(&settings.database_url()?).await?;
-    let rebuild_rbac_cache = command.rebuilds_rbac_cache();
+    let rebuild_caches = command.rebuilds_caches();
     let pool = database.pool();
     match command {
         MigrationCommand::Up(steps) => migration::up(pool, steps).await?,
@@ -36,8 +36,8 @@ async fn run_migration(settings: Settings, command: MigrationCommand) -> Backend
         MigrationCommand::Refresh => migration::refresh(pool).await?,
         MigrationCommand::Reset => migration::reset(pool).await?,
     }
-    if rebuild_rbac_cache {
-        rebuild_rbac_cache_after_migration(&settings, database).await?;
+    if rebuild_caches {
+        rebuild_caches_after_migration(&settings, database).await?;
     }
     Ok(())
 }
@@ -48,8 +48,9 @@ fn print_status(rows: Vec<migration::MigrationStatusRow>) {
     }
 }
 
-async fn rebuild_rbac_cache_after_migration(settings: &Settings, database: storage::Database) -> BackendResult<()> {
-    composition::rebuild_rbac_cache(settings, database).await
+async fn rebuild_caches_after_migration(settings: &Settings, database: storage::Database) -> BackendResult<()> {
+    composition::rebuild_rbac_cache(settings, database.clone()).await?;
+    composition::rebuild_persistent_system_cache(settings, database).await
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,7 +70,7 @@ enum MigrationCommand {
 }
 
 impl MigrationCommand {
-    fn rebuilds_rbac_cache(&self) -> bool {
+    fn rebuilds_caches(&self) -> bool {
         matches!(self, Self::Up(_) | Self::Fresh | Self::Refresh)
     }
 }

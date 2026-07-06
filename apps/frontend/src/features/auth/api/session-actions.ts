@@ -12,12 +12,14 @@ const AUTH_SIGN_UP_ENDPOINT = '/api/auth/sign-up';
 export type SignInParams = {
   identifier: string;
   password: string;
+  captchaToken?: string;
 };
 
 export type SignUpParams = {
   username: string;
   email: string;
   password: string;
+  captchaToken?: string;
 };
 
 type AuthSessionResponse = {
@@ -28,11 +30,16 @@ type AuthSessionResponse = {
 /** **************************************
  * Sign in
  *************************************** */
-export const signInWithPassword = async ({ identifier, password }: SignInParams): Promise<void> => {
+export const signInWithPassword = async ({
+  identifier,
+  password,
+  captchaToken,
+}: SignInParams): Promise<void> => {
   try {
     const params = {
       identifier: trimCredential(identifier),
       password: trimCredential(password),
+      ...(captchaToken ? { captcha_token: captchaToken.trim() } : {}),
     };
 
     const res = await axios.post(AUTH_SIGN_IN_ENDPOINT, params);
@@ -51,11 +58,13 @@ export const signUp = async ({
   username,
   email,
   password,
+  captchaToken,
 }: SignUpParams): Promise<void> => {
   const params = {
     username: trimCredential(username),
     email: trimCredential(email),
     password: trimCredential(password),
+    ...(captchaToken ? { captcha_token: captchaToken.trim() } : {}),
   };
 
   try {

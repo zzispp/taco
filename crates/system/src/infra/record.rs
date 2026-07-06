@@ -57,6 +57,7 @@ pub struct ConfigRecord {
     pub config_key: String,
     pub config_value: String,
     pub config_type: String,
+    pub public_read: bool,
     pub remark: Option<String>,
     pub create_time: String,
 }

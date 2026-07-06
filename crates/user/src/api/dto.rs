@@ -26,12 +26,16 @@ pub struct SignUpPayload {
     pub username: String,
     pub password: String,
     pub email: String,
+    #[serde(default)]
+    pub captcha_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SignInPayload {
     pub identifier: String,
     pub password: String,
+    #[serde(default)]
+    pub captcha_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +47,16 @@ pub struct RefreshTokenPayload {
 pub struct ListUsersQuery {
     pub page: u64,
     pub page_size: u64,
+    pub username: Option<String>,
+    pub phonenumber: Option<String>,
+    pub status: Option<String>,
+    pub dept_id: Option<String>,
+    pub begin_time: Option<String>,
+    pub end_time: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct UserExportQuery {
     pub username: Option<String>,
     pub phonenumber: Option<String>,
     pub status: Option<String>,
@@ -120,6 +134,12 @@ pub struct UserFormOptionsResponse {
     pub roles: Vec<types::rbac::RoleOption>,
     pub posts: Vec<types::system::Post>,
     pub depts: Vec<types::system::TreeSelectNode>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserImportResponse {
+    pub success_count: usize,
+    pub message: String,
 }
 
 impl From<UserPayload> for NewUser {
@@ -227,6 +247,15 @@ impl From<UserFormOptions> for UserFormOptionsResponse {
             roles: value.roles,
             posts: value.posts,
             depts: value.depts,
+        }
+    }
+}
+
+impl From<crate::application::UserImportReport> for UserImportResponse {
+    fn from(value: crate::application::UserImportReport) -> Self {
+        Self {
+            success_count: value.success_count,
+            message: value.message,
         }
     }
 }

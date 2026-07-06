@@ -2,10 +2,20 @@ use std::sync::Arc;
 
 use ::system::{
     api::{SystemApiState, create_router as create_system_router},
-    application::{SystemService, SystemUseCase},
+    application::{SystemError, SystemService, SystemUseCase},
     infra::{RedisSystemCache, StorageSystemRepository},
 };
+use async_trait::async_trait;
 use axum::{Router, middleware};
+use captcha::{
+    api::{CaptchaApiState, create_router as create_captcha_router},
+    application::{CaptchaError, CaptchaProvider, CaptchaService, CaptchaSettingsReader, CaptchaUseCase},
+    infra::RedisCaptchaStore,
+    providers::{
+        cap::CapProvider,
+        cloudflare_turnstile::{CloudflareTurnstileProvider, ReqwestTurnstileVerifier},
+    },
+};
 use configuration::Settings;
 use rbac::{
     api::{RbacApiState, create_router as create_rbac_router},
@@ -13,6 +23,7 @@ use rbac::{
     domain::RoutePermissionRule,
     infra::{RedisRbacCache, StorageRbacRepository},
 };
+use serde_json::Value;
 use storage::{Database, connect_database};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
@@ -20,7 +31,7 @@ use tower_http::{
 };
 use user::{
     api::{ApiState, TokenService, TokenSettings, create_router as create_user_router},
-    application::{UserService, UserUseCase},
+    application::{AppError, SystemConfigProvider, UserService, UserUseCase},
     infra::{Argon2PasswordHasher, StorageUserRepository},
 };
 
@@ -36,6 +47,68 @@ struct RbacServices {
     admin: Arc<dyn RbacAdminUseCase>,
 }
 
+struct UserSystemConfig {
+    system: Arc<dyn SystemUseCase>,
+}
+
+impl UserSystemConfig {
+    fn new(system: Arc<dyn SystemUseCase>) -> Self {
+        Self { system }
+    }
+}
+
+#[async_trait]
+impl SystemConfigProvider for UserSystemConfig {
+    async fn config_by_key(&self, key: &str) -> Result<String, AppError> {
+        self.system.config_by_key(key).await.map_err(user_config_error)
+    }
+}
+
+const CAPTCHA_ENABLED_KEY: &str = "sys.account.captchaEnabled";
+const CAPTCHA_PROVIDER_KEY: &str = "sys.account.captchaProvider";
+const CAPTCHA_PUBLIC_CONFIG_KEY: &str = "sys.account.captchaPublicConfig";
+const CAPTCHA_PRIVATE_CONFIG_KEY: &str = "sys.account.captchaPrivateConfig";
+const DEFAULT_CAPTCHA_PROVIDER: &str = "cap";
+
+struct CaptchaSystemConfig {
+    system: Arc<dyn SystemUseCase>,
+}
+
+impl CaptchaSystemConfig {
+    fn new(system: Arc<dyn SystemUseCase>) -> Self {
+        Self { system }
+    }
+
+    async fn config(&self, key: &str) -> Result<String, CaptchaError> {
+        self.system.config_by_key(key).await.map_err(captcha_config_error)
+    }
+
+    async fn json_config(&self, key: &str) -> Result<Value, CaptchaError> {
+        let value = self.config(key).await?;
+        serde_json::from_str(&value).map_err(|error| CaptchaError::InvalidInput(format!("invalid captcha config JSON for {key}: {error}")))
+    }
+}
+
+#[async_trait]
+impl CaptchaSettingsReader for CaptchaSystemConfig {
+    async fn enabled(&self) -> Result<bool, CaptchaError> {
+        Ok(self.config(CAPTCHA_ENABLED_KEY).await?.trim().eq_ignore_ascii_case("true"))
+    }
+
+    async fn provider(&self) -> Result<String, CaptchaError> {
+        let provider = self.config(CAPTCHA_PROVIDER_KEY).await?.trim().to_owned();
+        Ok(if provider.is_empty() { DEFAULT_CAPTCHA_PROVIDER.into() } else { provider })
+    }
+
+    async fn public_config(&self) -> Result<Value, CaptchaError> {
+        self.json_config(CAPTCHA_PUBLIC_CONFIG_KEY).await
+    }
+
+    async fn private_config(&self) -> Result<Value, CaptchaError> {
+        self.json_config(CAPTCHA_PRIVATE_CONFIG_KEY).await
+    }
+}
+
 pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let database = connect_database(&settings.database_url()?).await?;
     migration::prepare_runtime_schema(database.pool(), settings.database.auto_migrate).await?;
@@ -46,7 +119,9 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let users: Arc<dyn UserUseCase> = Arc::new(UserService::new(StorageUserRepository::new(database.clone()), Argon2PasswordHasher));
     let tokens = TokenService::new(token_settings(settings)?);
     let system_cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
-    let system: Arc<dyn SystemUseCase> = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database), system_cache));
+    let system: Arc<dyn SystemUseCase> = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database.clone()), system_cache));
+    rebuild_system_cache(&system).await?;
+    let captcha = build_captcha_service(settings, system.clone()).await?;
 
     Ok(AppState {
         users,
@@ -54,6 +129,7 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         rbac: rbac.use_case,
         rbac_admin: rbac.admin,
         system,
+        captcha,
         authorization,
     })
 }
@@ -70,9 +146,17 @@ pub(crate) fn build_public_router(settings: &Settings, metrics_handle: hook_trac
 }
 
 pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tracing::MetricsHandle) -> BackendResult<Router> {
-    let user_state = ApiState::new(state.users.clone(), state.tokens.clone(), state.rbac.clone());
+    let user_config = Arc::new(UserSystemConfig::new(state.system.clone()));
+    let user_state = ApiState::new(
+        state.users.clone(),
+        state.tokens.clone(),
+        state.rbac.clone(),
+        user_config,
+        state.captcha.clone(),
+    );
     let rbac_state = RbacApiState::new(state.rbac.clone(), state.rbac_admin.clone());
-    let system_state = SystemApiState::new(state.system, state.rbac.clone(), state.rbac_admin.clone());
+    let system_state = SystemApiState::new(state.system.clone(), state.rbac.clone(), state.rbac_admin.clone());
+    let captcha_state = CaptchaApiState::new(state.captcha.clone());
     let auth_state = AuthState::new(AuthStateParts {
         users: state.users,
         tokens: state.tokens,
@@ -83,7 +167,8 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tra
     let api_router = Router::new()
         .merge(create_user_router(user_state))
         .merge(create_rbac_router(rbac_state))
-        .merge(create_system_router(system_state));
+        .merge(create_system_router(system_state))
+        .merge(create_captcha_router(captcha_state));
 
     let app = public_routes().nest("/api", api_router);
     let app = attach_metrics(app, metrics_handle);
@@ -133,18 +218,52 @@ pub async fn rebuild_rbac_cache(settings: &Settings, database: Database) -> Back
     Ok(())
 }
 
+pub async fn rebuild_persistent_system_cache(settings: &Settings, database: Database) -> BackendResult<()> {
+    let cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+    let system: Arc<dyn SystemUseCase> = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database), cache));
+    rebuild_system_cache(&system).await
+}
+
+async fn rebuild_system_cache(system: &Arc<dyn SystemUseCase>) -> BackendResult<()> {
+    system.refresh_config_cache().await?;
+    system.refresh_dict_cache().await?;
+    Ok(())
+}
+
 fn authorization_config(settings: &Settings) -> AuthorizationConfig {
     AuthorizationConfig {
-        whitelist: settings
-            .auth
-            .whitelist
-            .iter()
-            .map(|rule| AuthWhitelistRule {
-                methods: rule.methods.clone(),
-                path_pattern: rule.path_pattern.clone(),
-            })
-            .collect(),
+        whitelist: auth_whitelist(settings),
         route_permissions: route_permissions(),
+    }
+}
+
+fn auth_whitelist(settings: &Settings) -> Vec<AuthWhitelistRule> {
+    let mut rules = settings
+        .auth
+        .whitelist
+        .iter()
+        .map(|rule| AuthWhitelistRule {
+            methods: rule.methods.clone(),
+            path_pattern: rule.path_pattern.clone(),
+        })
+        .collect::<Vec<_>>();
+    ensure_auth_whitelist_rule(&mut rules, "GET", "/api/app/configs");
+    ensure_auth_whitelist_rule(&mut rules, "GET", "/api/auth/me");
+    ensure_auth_whitelist_rule(&mut rules, "GET", "/api/captcha/config");
+    ensure_auth_whitelist_rule(&mut rules, "POST", "/api/captcha/challenge");
+    ensure_auth_whitelist_rule(&mut rules, "POST", "/api/captcha/redeem");
+    rules
+}
+
+fn ensure_auth_whitelist_rule(rules: &mut Vec<AuthWhitelistRule>, method: &str, path_pattern: &str) {
+    let exists = rules
+        .iter()
+        .any(|rule| rule.path_pattern == path_pattern && rule.methods.iter().any(|item| item.eq_ignore_ascii_case(method)));
+    if !exists {
+        rules.push(AuthWhitelistRule {
+            methods: vec![method.into()],
+            path_pattern: path_pattern.into(),
+        });
     }
 }
 
@@ -152,6 +271,9 @@ fn route_permissions() -> Vec<RoutePermissionRule> {
     vec![
         route_rule(&["GET"], "/api/system/users", "system:user:list", "list_users"),
         route_rule(&["POST"], "/api/system/users", "system:user:add", "create_user"),
+        route_rule(&["POST"], "/api/system/users/export", "system:user:export", "export_users"),
+        route_rule(&["POST"], "/api/system/users/import", "system:user:import", "import_users"),
+        route_rule(&["POST"], "/api/system/users/import-template", "system:user:import", "user_import_template"),
         route_rule(&["GET"], "/api/system/users/dept-tree", "system:user:list", "user_dept_tree"),
         route_rule(&["GET"], "/api/system/users/form-options", "system:user:list", "user_form_options"),
         route_rule(&["GET"], "/api/system/users/{id}", "system:user:query", "get_user"),
@@ -164,6 +286,7 @@ fn route_permissions() -> Vec<RoutePermissionRule> {
         route_rule(&["PUT"], "/api/system/users/{id}/roles", "system:user:edit", "replace_user_roles"),
         route_rule(&["GET"], "/api/system/roles", "system:role:list", "list_roles"),
         route_rule(&["POST"], "/api/system/roles", "system:role:add", "create_role"),
+        route_rule(&["POST"], "/api/system/roles/export", "system:role:export", "export_roles"),
         route_rule(&["GET"], "/api/system/roles/options", "system:role:list", "role_options"),
         route_rule(&["GET"], "/api/system/roles/{id}", "system:role:query", "get_role"),
         route_rule(&["PUT"], "/api/system/roles/{id}", "system:role:edit", "replace_role"),
@@ -211,6 +334,7 @@ fn route_permissions() -> Vec<RoutePermissionRule> {
         ),
         route_rule(&["GET"], "/api/system/posts", "system:post:list", "list_posts"),
         route_rule(&["POST"], "/api/system/posts", "system:post:add", "create_post"),
+        route_rule(&["POST"], "/api/system/posts/export", "system:post:export", "export_posts"),
         route_rule(&["GET"], "/api/system/posts/options", "system:post:list", "post_options"),
         route_rule(&["GET"], "/api/system/posts/{id}", "system:post:query", "get_post"),
         route_rule(&["PUT"], "/api/system/posts/{id}", "system:post:edit", "replace_post"),
@@ -218,6 +342,7 @@ fn route_permissions() -> Vec<RoutePermissionRule> {
         route_rule(&["DELETE"], "/api/system/posts/batch", "system:post:remove", "delete_posts"),
         route_rule(&["GET"], "/api/system/dict-types", "system:dict:list", "list_dict_types"),
         route_rule(&["POST"], "/api/system/dict-types", "system:dict:add", "create_dict_type"),
+        route_rule(&["POST"], "/api/system/dict-types/export", "system:dict:export", "export_dict_types"),
         route_rule(&["GET"], "/api/system/dict-types/options", "system:dict:list", "dict_type_options"),
         route_rule(&["DELETE"], "/api/system/dict-types/cache", "system:dict:remove", "refresh_dict_cache"),
         route_rule(&["GET"], "/api/system/dict-types/{id}", "system:dict:query", "get_dict_type"),
@@ -226,6 +351,7 @@ fn route_permissions() -> Vec<RoutePermissionRule> {
         route_rule(&["DELETE"], "/api/system/dict-types/batch", "system:dict:remove", "delete_dict_types"),
         route_rule(&["GET"], "/api/system/dict-data", "system:dict:list", "list_dict_data"),
         route_rule(&["POST"], "/api/system/dict-data", "system:dict:add", "create_dict_data"),
+        route_rule(&["POST"], "/api/system/dict-data/export", "system:dict:export", "export_dict_data"),
         route_rule(&["GET"], "/api/system/dict-data/type/{dict_type}", "system:dict:list", "dict_data_by_type"),
         route_rule(&["GET"], "/api/system/dict-data/{id}", "system:dict:query", "get_dict_data"),
         route_rule(&["PUT"], "/api/system/dict-data/{id}", "system:dict:edit", "replace_dict_data"),
@@ -233,6 +359,7 @@ fn route_permissions() -> Vec<RoutePermissionRule> {
         route_rule(&["DELETE"], "/api/system/dict-data/batch", "system:dict:remove", "delete_dict_data_batch"),
         route_rule(&["GET"], "/api/system/configs", "system:config:list", "list_configs"),
         route_rule(&["POST"], "/api/system/configs", "system:config:add", "create_config"),
+        route_rule(&["POST"], "/api/system/configs/export", "system:config:export", "export_configs"),
         route_rule(&["DELETE"], "/api/system/configs/cache", "system:config:remove", "refresh_config_cache"),
         route_rule(&["GET"], "/api/system/configs/key/{key}", "system:config:query", "config_by_key"),
         route_rule(&["GET"], "/api/system/configs/{id}", "system:config:query", "get_config"),
@@ -243,7 +370,24 @@ fn route_permissions() -> Vec<RoutePermissionRule> {
 }
 
 fn data_scope_handlers() -> Vec<&'static str> {
-    vec!["list_users", "list_roles", "role_users", "list_depts", "dept_tree_select"]
+    vec![
+        "list_users",
+        "export_users",
+        "list_roles",
+        "export_roles",
+        "role_users",
+        "list_depts",
+        "dept_tree_select",
+    ]
+}
+
+async fn build_captcha_service(settings: &Settings, system: Arc<dyn SystemUseCase>) -> BackendResult<Arc<dyn CaptchaUseCase>> {
+    let store = RedisCaptchaStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+    let providers: Vec<Arc<dyn CaptchaProvider>> = vec![
+        Arc::new(CapProvider::new(store)),
+        Arc::new(CloudflareTurnstileProvider::new(ReqwestTurnstileVerifier::new())),
+    ];
+    Ok(Arc::new(CaptchaService::new(CaptchaSystemConfig::new(system), providers)))
 }
 
 fn route_rule(methods: &[&str], path_pattern: &str, permission: &str, handler: &'static str) -> RoutePermissionRule {
@@ -263,6 +407,24 @@ fn token_settings(settings: &Settings) -> BackendResult<TokenSettings> {
     })
 }
 
+fn captcha_config_error(error: SystemError) -> CaptchaError {
+    match error {
+        SystemError::NotFound => CaptchaError::Infrastructure("required captcha system config not found".into()),
+        SystemError::Forbidden(message) | SystemError::Conflict(message) | SystemError::InvalidInput(message) => CaptchaError::InvalidInput(message),
+        SystemError::Infrastructure(message) => CaptchaError::Infrastructure(message),
+    }
+}
+
+fn user_config_error(error: SystemError) -> AppError {
+    match error {
+        SystemError::NotFound => AppError::Infrastructure("required system config not found".into()),
+        SystemError::Forbidden(message) => AppError::Forbidden(message),
+        SystemError::Conflict(message) => AppError::Conflict(message),
+        SystemError::InvalidInput(message) => AppError::InvalidInput(message),
+        SystemError::Infrastructure(message) => AppError::Infrastructure(message),
+    }
+}
+
 async fn build_rbac_service(
     repository: StorageRbacRepository,
     cache: RedisRbacCache,
@@ -270,4 +432,21 @@ async fn build_rbac_service(
     let service = Arc::new(RbacService::new(repository, cache));
     service.rebuild_cache().await?;
     Ok(service)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_auth_whitelist_rule;
+
+    #[test]
+    fn ensure_auth_whitelist_rule_adds_rule_once() {
+        let mut rules = vec![];
+
+        ensure_auth_whitelist_rule(&mut rules, "GET", "/api/auth/me");
+        ensure_auth_whitelist_rule(&mut rules, "GET", "/api/auth/me");
+
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].methods, vec!["GET"]);
+        assert_eq!(rules[0].path_pattern, "/api/auth/me");
+    }
 }

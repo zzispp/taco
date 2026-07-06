@@ -1,6 +1,7 @@
 export const roleEndpoints = {
   roles: '/api/system/roles',
   rolesBatch: '/api/system/roles/batch',
+  exportRoles: '/api/system/roles/export',
   options: '/api/system/roles/options',
   role: (id: string) => `/api/system/roles/${id}`,
   status: (id: string) => `/api/system/roles/${id}/status`,

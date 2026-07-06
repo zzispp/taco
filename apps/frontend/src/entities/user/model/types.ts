@@ -46,3 +46,8 @@ export type UserFormOptions = {
 export type UserRolesPayload = {
   role_ids: string[];
 };
+
+export type UserImportResult = {
+  success_count: number;
+  message: string;
+};

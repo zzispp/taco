@@ -13,6 +13,7 @@ import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
+import { toast } from 'src/shared/ui/snackbar';
 import { paths } from 'src/shared/routes/paths';
 import { Iconify } from 'src/shared/ui/iconify';
 import { useRouter } from 'src/shared/routes/hooks';
@@ -20,12 +21,17 @@ import { Form, Field } from 'src/shared/ui/hook-form';
 import { RouterLink } from 'src/shared/routes/components';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
 
+import { usePublicConfigs, isRegisterEnabled } from 'src/entities/system';
 import { useAuthContext, passwordSchema, identifierSchema } from 'src/entities/session';
 
 import { signInWithPassword } from 'src/features/auth';
 import { FormHead } from 'src/features/auth/ui/form-head';
+import { CaptchaWidget, isCaptchaReady, useCaptchaConfig } from 'src/features/auth/captcha';
 
 // ----------------------------------------------------------------------
+
+const CAPTCHA_REQUIRED_MESSAGE = 'Complete CAPTCHA first';
+const CAPTCHA_LOADING_MESSAGE = 'Captcha config is loading';
 
 export type SignInSchemaType = z.infer<typeof SignInSchema>;
 
@@ -38,21 +44,18 @@ export const SignInSchema = z.object({
 
 export function JwtSignInView() {
   const router = useRouter();
-
   const showPassword = useBoolean();
-
   const { checkUserSession } = useAuthContext();
+  const { data: publicConfigs, isLoading: loadingConfig } = usePublicConfigs();
+  const captcha = useCaptchaConfig();
 
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const defaultValues: SignInSchemaType = {
-    identifier: '',
-    password: '',
-  };
 
   const methods = useForm({
     resolver: zodResolver(SignInSchema),
-    defaultValues,
+    defaultValues: { identifier: '', password: '' },
   });
 
   const {
@@ -60,18 +63,42 @@ export function JwtSignInView() {
     formState: { isSubmitting },
   } = methods;
 
-  const onSubmit = handleSubmit(async (data) => {
-    try {
-      await signInWithPassword({ identifier: data.identifier, password: data.password });
-      await checkUserSession?.();
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaResetKey((value) => value + 1);
+  };
 
+  const onSubmit = handleSubmit(async (data) => {
+    if (!validateCaptcha(captcha, captchaToken, setErrorMessage)) {
+      return;
+    }
+
+    try {
+      await signInWithPassword({
+        identifier: data.identifier,
+        password: data.password,
+        captchaToken: captcha.data?.enabled ? (captchaToken ?? undefined) : undefined,
+      });
+      await checkUserSession?.();
       router.refresh();
     } catch (error) {
       console.error(error);
-      const feedbackMessage = getErrorMessage(error);
-      setErrorMessage(feedbackMessage);
+      setErrorMessage(getErrorMessage(error));
+      if (captcha.data?.enabled) resetCaptcha();
     }
   });
+
+  const handleGetStarted = () => {
+    if (loadingConfig) {
+      toast.info('Registration config is loading');
+      return;
+    }
+    if (!isRegisterEnabled(publicConfigs)) {
+      toast.warning('Registration is disabled');
+      return;
+    }
+    router.push(paths.auth.jwt.signUp);
+  };
 
   const renderForm = () => (
     <Box sx={{ gap: 3, display: 'flex', flexDirection: 'column' }}>
@@ -83,13 +110,7 @@ export function JwtSignInView() {
       />
 
       <Box sx={{ gap: 1.5, display: 'flex', flexDirection: 'column' }}>
-        <Link
-          component={RouterLink}
-          href="#"
-          variant="body2"
-          color="inherit"
-          sx={{ alignSelf: 'flex-end' }}
-        >
+        <Link component={RouterLink} href="#" variant="body2" color="inherit" sx={{ alignSelf: 'flex-end' }}>
           Forgot password?
         </Link>
 
@@ -104,9 +125,7 @@ export function JwtSignInView() {
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton onClick={showPassword.onToggle} edge="end">
-                    <Iconify
-                      icon={showPassword.value ? 'solar:eye-bold' : 'solar:eye-closed-bold'}
-                    />
+                    <Iconify icon={showPassword.value ? 'solar:eye-bold' : 'solar:eye-closed-bold'} />
                   </IconButton>
                 </InputAdornment>
               ),
@@ -115,14 +134,19 @@ export function JwtSignInView() {
         />
       </Box>
 
+      <CaptchaWidget config={captcha.data} resetKey={captchaResetKey} onTokenChange={setCaptchaToken} />
+
+      {captcha.error ? <Alert severity="error">{getErrorMessage(captcha.error)}</Alert> : null}
+
       <Button
         fullWidth
         color="inherit"
         size="large"
         type="submit"
         variant="contained"
-        loading={isSubmitting}
-        loadingIndicator="Sign in..."
+        loading={isSubmitting || captcha.isLoading}
+        disabled={!!captcha.error}
+        loadingIndicator={captcha.isLoading ? 'Loading captcha...' : 'Sign in...'}
       >
         Sign in
       </Button>
@@ -136,7 +160,7 @@ export function JwtSignInView() {
         description={
           <>
             {`Don’t have an account? `}
-            <Link component={RouterLink} href={paths.auth.jwt.signUp} variant="subtitle2">
+            <Link component="button" type="button" variant="subtitle2" onClick={handleGetStarted}>
               Get started
             </Link>
           </>
@@ -155,4 +179,24 @@ export function JwtSignInView() {
       </Form>
     </>
   );
+}
+
+function validateCaptcha(
+  captcha: ReturnType<typeof useCaptchaConfig>,
+  token: string | null,
+  setErrorMessage: (message: string) => void
+) {
+  if (captcha.error) {
+    setErrorMessage(getErrorMessage(captcha.error));
+    return false;
+  }
+  if (captcha.isLoading) {
+    setErrorMessage(CAPTCHA_LOADING_MESSAGE);
+    return false;
+  }
+  if (!isCaptchaReady(captcha.data, token)) {
+    setErrorMessage(CAPTCHA_REQUIRED_MESSAGE);
+    return false;
+  }
+  return true;
 }

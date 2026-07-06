@@ -16,6 +16,16 @@ use user::{
     domain::User,
 };
 
+const AUTHENTICATED_ONLY_ROUTES: &[AuthenticatedOnlyRoute] = &[AuthenticatedOnlyRoute {
+    method: "GET",
+    path: "/api/navbar",
+}];
+
+struct AuthenticatedOnlyRoute {
+    method: &'static str,
+    path: &'static str,
+}
+
 #[derive(Clone)]
 pub struct AuthState {
     users: Arc<dyn UserUseCase>,
@@ -50,11 +60,22 @@ pub async fn auth_middleware(State(state): State<AuthState>, mut request: Reques
     }
 
     let current_user = authenticate_current_user(&state, request.headers()).await?;
+    if is_authenticated_only_route(&method, &path) {
+        request.extensions_mut().insert(current_user);
+        return Ok(next.run(request).await);
+    }
+
     authorize_request(&state, &method, &path, &current_user).await?;
     let data_scope = state.rbac.data_scope_filter(&current_user).await?;
     request.extensions_mut().insert(data_scope);
     request.extensions_mut().insert(current_user);
     Ok(next.run(request).await)
+}
+
+fn is_authenticated_only_route(method: &str, path: &str) -> bool {
+    AUTHENTICATED_ONLY_ROUTES
+        .iter()
+        .any(|route| route.path == path && route.method.eq_ignore_ascii_case(method))
 }
 
 async fn authenticate_current_user(state: &AuthState, headers: &HeaderMap) -> Result<CurrentUser, RbacError> {
@@ -106,6 +127,19 @@ fn bearer_token(headers: &HeaderMap) -> Result<&str, RbacError> {
 fn user_error(error: AppError) -> RbacError {
     match error {
         AppError::Infrastructure(message) => RbacError::Infrastructure(message),
-        AppError::InvalidInput(_) | AppError::Unauthorized | AppError::Conflict(_) | AppError::NotFound => RbacError::Unauthorized,
+        AppError::InvalidInput(_) | AppError::Unauthorized | AppError::Forbidden(_) | AppError::Conflict(_) | AppError::NotFound => RbacError::Unauthorized,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_authenticated_only_route;
+
+    #[test]
+    fn authenticated_only_route_matches_navbar() {
+        assert!(is_authenticated_only_route("GET", "/api/navbar"));
+        assert!(is_authenticated_only_route("get", "/api/navbar"));
+        assert!(!is_authenticated_only_route("POST", "/api/navbar"));
+        assert!(!is_authenticated_only_route("GET", "/api/system/users"));
     }
 }

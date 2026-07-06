@@ -5,7 +5,7 @@ import type { SettingsState, SettingsProviderProps } from '../types';
 import { isEqual } from 'es-toolkit';
 import { getStorage } from 'minimal-shared/utils';
 import { useLocalStorage } from 'minimal-shared/hooks';
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 
 import { SettingsContext } from './settings-context';
 import { SETTINGS_STORAGE_KEY } from '../settings-config';
@@ -24,6 +24,7 @@ export function SettingsProvider({
   defaultSettings,
   storageKey = SETTINGS_STORAGE_KEY,
 }: SettingsProviderProps) {
+  const useDefaultState = useRef(!getStorage<SettingsState>(storageKey));
   const { state, setState, resetState, setField } = useLocalStorage<SettingsState>(
     storageKey,
     defaultSettings
@@ -64,8 +65,15 @@ export function SettingsProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (useDefaultState.current) {
+      resetState(defaultSettings);
+    }
+  }, [defaultSettings, resetState]);
+
   const memoizedValue = useMemo(
     () => ({
+      defaultSettings,
       canReset,
       onReset,
       openDrawer,
@@ -75,7 +83,7 @@ export function SettingsProvider({
       setState,
       setField,
     }),
-    [canReset, onReset, openDrawer, onCloseDrawer, onToggleDrawer, state, setField, setState]
+    [canReset, defaultSettings, onReset, openDrawer, onCloseDrawer, onToggleDrawer, state, setField, setState]
   );
 
   return <SettingsContext value={memoizedValue}>{children}</SettingsContext>;

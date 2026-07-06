@@ -13,7 +13,8 @@ import type {
 import { mutate } from 'swr';
 
 import axios from 'src/shared/api/http-client';
-import { requestData, isEndpointKey } from 'src/shared/api/pagination';
+import { downloadBlobResponse } from 'src/shared/api/download';
+import { requestData, isEndpointKey, compactParams } from 'src/shared/api/pagination';
 
 import { roleEndpoints } from 'src/entities/role/api/endpoints';
 
@@ -39,6 +40,14 @@ export async function deleteRole(id: string) {
 export async function deleteRoles(ids: string[]) {
   await axios.delete(roleEndpoints.rolesBatch, { data: { ids } });
   await refreshRoles();
+}
+
+export async function exportRoles(filters: Record<string, string>) {
+  const response = await axios.post<Blob>(roleEndpoints.exportRoles, null, {
+    params: compactParams(filters),
+    responseType: 'blob',
+  });
+  downloadBlobResponse(response, 'roles.xlsx');
 }
 
 export async function updateRoleStatus(id: string, status: string) {

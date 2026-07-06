@@ -105,6 +105,9 @@ INSERT INTO sys_config (config_id, config_name, config_key, config_value, config
 VALUES
     ('1', '主框架页-默认皮肤样式名称', 'sys.index.skinName', 'skin-blue', 'Y', 'admin', CURRENT_TIMESTAMP, '蓝色 skin-blue、绿色 skin-green、紫色 skin-purple、红色 skin-red、黄色 skin-yellow'),
     ('2', '用户管理-账号初始密码', 'sys.user.initPassword', '123456', 'Y', 'admin', CURRENT_TIMESTAMP, '初始化密码 123456'),
-    ('3', '主框架页-侧边栏主题', 'sys.index.sideTheme', 'theme-dark', 'Y', 'admin', CURRENT_TIMESTAMP, '深色主题theme-dark，浅色主题theme-light'),
+    ('3', '主框架页-默认主题', 'sys.index.modeTheme', 'theme-light', 'Y', 'admin', CURRENT_TIMESTAMP, '深色主题theme-dark，浅色主题theme-light'),
     ('4', '账号自助-验证码开关', 'sys.account.captchaEnabled', 'true', 'Y', 'admin', CURRENT_TIMESTAMP, '是否开启验证码功能'),
-    ('5', '账号自助-是否开启用户注册功能', 'sys.account.registerUser', 'false', 'Y', 'admin', CURRENT_TIMESTAMP, '是否开启注册用户功能');
+    ('5', '账号自助-是否开启用户注册功能', 'sys.account.registerUser', 'false', 'Y', 'admin', CURRENT_TIMESTAMP, '是否开启注册用户功能'),
+    ('6', '账号自助-验证码类型', 'sys.account.captchaProvider', 'cap', 'Y', 'admin', CURRENT_TIMESTAMP, '当前验证码提供方。可选值：cap（内置 PoW 验证码）、cloudflare_turnstile（Cloudflare Turnstile）。切换 provider 后需同步填写对应 JSON 配置。'),
+    ('7', '账号自助-验证码公开配置', 'sys.account.captchaPublicConfig', '{"cap":{},"cloudflare_turnstile":{"site_key":"","theme":"auto","size":"normal"}}', 'Y', 'admin', CURRENT_TIMESTAMP, '验证码公开配置 JSON，前端可读取。cap 使用 {}；cloudflare_turnstile 填写 {"site_key":"Cloudflare Turnstile Site Key","theme":"auto|light|dark","size":"normal|compact|flexible"}。'),
+    ('8', '账号自助-验证码私有配置', 'sys.account.captchaPrivateConfig', '{"cap":{},"cloudflare_turnstile":{"secret_key":""}}', 'Y', 'admin', CURRENT_TIMESTAMP, '验证码私有配置 JSON，仅后端读取，不会公开。cap 使用 {}；cloudflare_turnstile 填写 {"secret_key":"Cloudflare Turnstile Secret Key"}。');

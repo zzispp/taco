@@ -15,7 +15,8 @@ import type {
 import { mutate } from 'swr';
 
 import axios from 'src/shared/api/http-client';
-import { requestData, isEndpointKey } from 'src/shared/api/pagination';
+import { downloadBlobResponse } from 'src/shared/api/download';
+import { requestData, isEndpointKey, compactParams } from 'src/shared/api/pagination';
 
 import { systemEndpoints } from 'src/entities/system';
 
@@ -29,19 +30,32 @@ export const systemMutations = {
   updatePost: crudUpdate<Post, PostInput>(systemEndpoints.posts, systemEndpoints.post),
   deletePost: crudDelete(systemEndpoints.posts, systemEndpoints.post),
   deletePosts: crudDeleteBatch(systemEndpoints.posts, systemEndpoints.postsBatch),
+  exportPosts: exportItems(systemEndpoints.postsExport, 'posts.xlsx'),
   createDictType: crudCreate<DictType, DictTypeInput>(systemEndpoints.dictTypes),
-  updateDictType: crudUpdate<DictType, DictTypeInput>(systemEndpoints.dictTypes, systemEndpoints.dictType),
+  updateDictType: crudUpdate<DictType, DictTypeInput>(
+    systemEndpoints.dictTypes,
+    systemEndpoints.dictType
+  ),
   deleteDictType: crudDelete(systemEndpoints.dictTypes, systemEndpoints.dictType),
   deleteDictTypes: crudDeleteBatch(systemEndpoints.dictTypes, systemEndpoints.dictTypesBatch),
+  exportDictTypes: exportItems(systemEndpoints.dictTypesExport, 'dict_types.xlsx'),
   refreshDictCache,
   createDictData: crudCreate<DictData, DictDataInput>(systemEndpoints.dictData),
-  updateDictData: crudUpdate<DictData, DictDataInput>(systemEndpoints.dictData, systemEndpoints.dictDatum),
+  updateDictData: crudUpdate<DictData, DictDataInput>(
+    systemEndpoints.dictData,
+    systemEndpoints.dictDatum
+  ),
   deleteDictData: crudDelete(systemEndpoints.dictData, systemEndpoints.dictDatum),
   deleteDictDataBatch: crudDeleteBatch(systemEndpoints.dictData, systemEndpoints.dictDataBatch),
+  exportDictData: exportItems(systemEndpoints.dictDataExport, 'dict_data.xlsx'),
   createConfig: crudCreate<ConfigItem, ConfigInput>(systemEndpoints.configs),
-  updateConfig: crudUpdate<ConfigItem, ConfigInput>(systemEndpoints.configs, systemEndpoints.config),
+  updateConfig: crudUpdate<ConfigItem, ConfigInput>(
+    systemEndpoints.configs,
+    systemEndpoints.config
+  ),
   deleteConfig: crudDelete(systemEndpoints.configs, systemEndpoints.config),
   deleteConfigs: crudDeleteBatch(systemEndpoints.configs, systemEndpoints.configsBatch),
+  exportConfigs: exportItems(systemEndpoints.configsExport, 'configs.xlsx'),
   refreshConfigCache,
 };
 
@@ -75,8 +89,20 @@ function crudDeleteBatch(collection: string, endpoint: string) {
   };
 }
 
+function exportItems(endpoint: string, defaultFileName: string) {
+  return async (filters: Record<string, string> = {}) => {
+    const response = await axios.post<Blob>(endpoint, null, {
+      params: compactParams(filters),
+      responseType: 'blob',
+    });
+    downloadBlobResponse(response, defaultFileName);
+  };
+}
+
 async function updateDeptSort(id: string, orderNum: number) {
-  const item = await requestData<Dept>(axios.put(systemEndpoints.deptSort(id), { order_num: orderNum }));
+  const item = await requestData<Dept>(
+    axios.put(systemEndpoints.deptSort(id), { order_num: orderNum })
+  );
   await mutate((key) => isEndpointKey(key, systemEndpoints.depts));
   return item;
 }

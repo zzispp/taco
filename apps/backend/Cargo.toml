@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+captcha.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 configuration.workspace = true
 constants.workspace = true

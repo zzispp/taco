@@ -210,6 +210,10 @@ impl SystemRepository for StorageSystemRepository {
         self.configs.find(id).await.map_err(storage_error)
     }
 
+    async fn find_config_by_key(&self, key: &str) -> SystemResult<Option<ConfigItem>> {
+        self.configs.find_by_key(key).await.map_err(storage_error)
+    }
+
     async fn config_by_key(&self, key: &str) -> SystemResult<Option<String>> {
         self.configs.value_by_key(key).await.map_err(storage_error)
     }

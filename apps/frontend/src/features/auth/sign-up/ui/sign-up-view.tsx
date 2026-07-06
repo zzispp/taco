@@ -20,13 +20,18 @@ import { Form, Field } from 'src/shared/ui/hook-form';
 import { RouterLink } from 'src/shared/routes/components';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
 
+import { usePublicConfigs, isRegisterEnabled } from 'src/entities/system';
 import { emailSchema, useAuthContext, passwordSchema, usernameSchema } from 'src/entities/session';
 
 import { signUp } from 'src/features/auth';
 import { FormHead } from 'src/features/auth/ui/form-head';
 import { SignUpTerms } from 'src/features/auth/ui/sign-up-terms';
+import { CaptchaWidget, isCaptchaReady, useCaptchaConfig } from 'src/features/auth/captcha';
 
 // ----------------------------------------------------------------------
+
+const CAPTCHA_REQUIRED_MESSAGE = 'Complete CAPTCHA first';
+const CAPTCHA_LOADING_MESSAGE = 'Captcha config is loading';
 
 export type SignUpSchemaType = z.infer<typeof SignUpSchema>;
 
@@ -40,22 +45,18 @@ export const SignUpSchema = z.object({
 
 export function JwtSignUpView() {
   const router = useRouter();
-
   const showPassword = useBoolean();
-
   const { checkUserSession } = useAuthContext();
+  const { data: publicConfigs, error: configError, isLoading: loadingConfig } = usePublicConfigs();
+  const captcha = useCaptchaConfig();
 
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const defaultValues: SignUpSchemaType = {
-    username: '',
-    email: '',
-    password: '',
-  };
 
   const methods = useForm({
     resolver: zodResolver(SignUpSchema),
-    defaultValues,
+    defaultValues: { username: '', email: '', password: '' },
   });
 
   const {
@@ -63,20 +64,29 @@ export function JwtSignUpView() {
     formState: { isSubmitting },
   } = methods;
 
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaResetKey((value) => value + 1);
+  };
+
   const onSubmit = handleSubmit(async (data) => {
+    if (!validateCaptcha(captcha, captchaToken, setErrorMessage)) {
+      return;
+    }
+
     try {
       await signUp({
         username: data.username,
         email: data.email,
         password: data.password,
+        captchaToken: captcha.data?.enabled ? (captchaToken ?? undefined) : undefined,
       });
       await checkUserSession?.();
-
       router.refresh();
     } catch (error) {
       console.error(error);
-      const feedbackMessage = getErrorMessage(error);
-      setErrorMessage(feedbackMessage);
+      setErrorMessage(getErrorMessage(error));
+      if (captcha.data?.enabled) resetCaptcha();
     }
   });
 
@@ -115,6 +125,8 @@ export function JwtSignUpView() {
         }}
       />
 
+      <CaptchaWidget config={captcha.data} resetKey={captchaResetKey} onTokenChange={setCaptchaToken} />
+
       <Button
         fullWidth
         color="inherit"
@@ -128,6 +140,29 @@ export function JwtSignUpView() {
       </Button>
     </Box>
   );
+
+  if (loadingConfig || captcha.isLoading) {
+    return <Alert severity="info">Loading registration config...</Alert>;
+  }
+
+  if (configError || captcha.error) {
+    return <Alert severity="error">{getErrorMessage(configError ?? captcha.error)}</Alert>;
+  }
+
+  if (!isRegisterEnabled(publicConfigs)) {
+    return (
+      <>
+        <FormHead
+          title="Registration is disabled"
+          description="Account self-registration is currently closed."
+          sx={{ textAlign: { xs: 'center', md: 'left' } }}
+        />
+        <Button component={RouterLink} href={paths.auth.jwt.signIn} fullWidth variant="contained" color="inherit">
+          Back to sign in
+        </Button>
+      </>
+    );
+  }
 
   return (
     <>
@@ -157,4 +192,24 @@ export function JwtSignUpView() {
       <SignUpTerms />
     </>
   );
+}
+
+function validateCaptcha(
+  captcha: ReturnType<typeof useCaptchaConfig>,
+  token: string | null,
+  setErrorMessage: (message: string) => void
+) {
+  if (captcha.error) {
+    setErrorMessage(getErrorMessage(captcha.error));
+    return false;
+  }
+  if (captcha.isLoading) {
+    setErrorMessage(CAPTCHA_LOADING_MESSAGE);
+    return false;
+  }
+  if (!isCaptchaReady(captcha.data, token)) {
+    setErrorMessage(CAPTCHA_REQUIRED_MESSAGE);
+    return false;
+  }
+  return true;
 }

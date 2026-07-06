@@ -12,10 +12,10 @@ import { detectLanguage } from 'src/shared/i18n/server';
 import { ProgressBar } from 'src/shared/ui/progress-bar';
 import { I18nProvider } from 'src/shared/i18n/i18n-provider';
 import { MotionLazy } from 'src/shared/ui/animate/motion-lazy';
+import { SettingsDrawer, defaultSettings } from 'src/shared/ui/settings';
 import { themeConfig, ThemeProvider, primary as primaryColor } from 'src/shared/theme';
-import { SettingsDrawer, defaultSettings, SettingsProvider } from 'src/shared/ui/settings';
 
-import { AuthProvider } from 'src/app/providers/auth-provider';
+import { AuthProvider, AppSettingsProvider } from 'src/app/providers';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -71,7 +71,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 
         <I18nProvider lang={appConfig.i18nLang}>
           <AuthProvider>
-            <SettingsProvider defaultSettings={defaultSettings}>
+            <AppSettingsProvider>
               <LocalizationProvider>
                 <AppRouterCacheProvider options={{ key: 'css' }}>
                   <ThemeProvider
@@ -81,13 +81,13 @@ export default async function RootLayout({ children }: RootLayoutProps) {
                     <MotionLazy>
                       <Snackbar />
                       <ProgressBar />
-                      <SettingsDrawer defaultSettings={defaultSettings} />
+                      <SettingsDrawer />
                       {children}
                     </MotionLazy>
                   </ThemeProvider>
                 </AppRouterCacheProvider>
               </LocalizationProvider>
-            </SettingsProvider>
+            </AppSettingsProvider>
           </AuthProvider>
         </I18nProvider>
       </body>

@@ -1,17 +1,21 @@
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
+    response::Response,
 };
 use kernel::pagination::{Page, PageRequest};
 use rbac_macros::{data_scope, require_perms};
 use serde::Deserialize;
 use types::{
-    http::RequestJson,
+    http::{RequestJson, xlsx_attachment},
     rbac::DataScopeFilter,
     system::{BatchIdsInput, SortBatchInput},
 };
 
-use crate::api::{CurrentUser, RbacApiError, RbacApiState};
+use crate::api::{
+    CurrentUser, RbacApiError, RbacApiState,
+    export::{export_roles_xlsx, role_export_page},
+};
 use crate::{
     application::{MenuListFilter, RoleListFilter, RoleUserListFilter},
     domain::{
@@ -22,6 +26,7 @@ use crate::{
 
 type ApiJson<T> = Json<T>;
 type ApiResult<T> = Result<T, RbacApiError>;
+const EXPORT_PAGE_SIZE: u64 = 100;
 
 #[derive(Debug, Deserialize)]
 pub struct RbacListQuery {
@@ -30,6 +35,15 @@ pub struct RbacListQuery {
     pub role_name: Option<String>,
     pub role_key: Option<String>,
     pub menu_name: Option<String>,
+    pub status: Option<String>,
+    pub begin_time: Option<String>,
+    pub end_time: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct RoleExportQuery {
+    pub role_name: Option<String>,
+    pub role_key: Option<String>,
     pub status: Option<String>,
     pub begin_time: Option<String>,
     pub end_time: Option<String>,
@@ -56,6 +70,18 @@ pub struct SortPayload {
 
 pub async fn navbar(State(state): State<RbacApiState>, current_user: CurrentUser) -> ApiResult<ApiJson<NavResponse>> {
     Ok(ok(state.rbac.navbar(&current_user).await?))
+}
+
+#[require_perms("system:role:export")]
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn export_roles(
+    State(state): State<RbacApiState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Extension(data_scope): Extension<DataScopeFilter>,
+    Query(query): Query<RoleExportQuery>,
+) -> ApiResult<Response> {
+    let roles = all_export_roles(&state, &current_user, data_scope, &query).await?;
+    Ok(xlsx_attachment("roles.xlsx", export_roles_xlsx(&roles)?))
 }
 
 #[require_perms("system:role:list")]
@@ -331,6 +357,25 @@ fn tree_leaf_contains(tree: &[types::system::TreeSelectNode], key: &str) -> bool
         }
         tree_leaf_contains(&node.children, key)
     })
+}
+
+async fn all_export_roles(state: &RbacApiState, current_user: &CurrentUser, data_scope: DataScopeFilter, query: &RoleExportQuery) -> ApiResult<Vec<Role>> {
+    let mut page = 1;
+    let mut roles = Vec::new();
+    loop {
+        let filter = role_export_page(query, page, EXPORT_PAGE_SIZE);
+        let current = if current_user.admin {
+            state.rbac_admin.page_roles(filter).await?
+        } else {
+            state.rbac_admin.page_roles_scoped(filter, data_scope.clone()).await?
+        };
+        let is_last = current.items.is_empty() || roles.len() + current.items.len() >= current.total as usize;
+        roles.extend(current.items);
+        if is_last {
+            return Ok(roles);
+        }
+        page += 1;
+    }
 }
 
 fn ok<T>(data: T) -> ApiJson<T> {

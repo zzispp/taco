@@ -1,12 +1,15 @@
 use async_trait::async_trait;
 
 use crate::application::{
-    AppError, AppResult, PasswordHasher, ReplaceUserRecord, SystemUserProvider, SystemUserRecord, UserAuthRecord, UserListFilter, UserRepository, UserUseCase,
+    AppError, AppResult, PasswordHasher, ReplaceUserRecord, SystemUserProvider, SystemUserRecord, UserAuthRecord, UserImportInput, UserImportReport,
+    UserImportRow, UserListFilter, UserRepository, UserUseCase,
 };
 use kernel::pagination::Page;
 
 use crate::domain::{Credentials, NewUser, ReplaceUser, User, UserFormOptions, UserId};
 use types::rbac::DataScopeFilter;
+
+const IMPORTED_USER_ROLE_ID: &str = "2";
 
 use self::{
     system_user::{find_auth_by_identifier, list_with_system_user, reject_conflicting_system_user, reject_protected_user_id, system_user_by_id},
@@ -230,9 +233,93 @@ where
         self.repository.list_scoped(filter, scope).await
     }
 
+    async fn import_users(&self, input: UserImportInput) -> AppResult<UserImportReport> {
+        if input.rows.is_empty() {
+            return Err(AppError::InvalidInput("import user data cannot be empty".into()));
+        }
+        let mut successes = Vec::new();
+        let mut failures = Vec::new();
+        for row in input.rows {
+            match self.import_user_row(row, input.update_support, &input.default_password).await {
+                Ok(message) => successes.push(message),
+                Err(error) => failures.push(error.to_string()),
+            }
+        }
+        if !failures.is_empty() {
+            return Err(AppError::InvalidInput(format!("user import failed: {}", failures.join("; "))));
+        }
+        Ok(UserImportReport {
+            success_count: successes.len(),
+            message: format!("用户导入成功，共 {} 条。{}", successes.len(), successes.join("；")),
+        })
+    }
+
     async fn form_options(&self) -> AppResult<UserFormOptions> {
         self.repository.form_options().await
     }
+}
+
+impl<R, H, S> UserService<R, H, S>
+where
+    R: UserRepository,
+    H: PasswordHasher,
+    S: SystemUserProvider,
+{
+    async fn import_user_row(&self, row: UserImportRow, update_support: bool, default_password: &str) -> AppResult<String> {
+        let username = row.username.trim().to_owned();
+        let found = self.repository.find_auth_by_username(&username).await?;
+        match found {
+            None => self.create_imported_user(row, default_password).await,
+            Some(existing) if update_support => self.update_imported_user(row, existing.user).await,
+            Some(_) => Err(AppError::Conflict(format!("account {username} already exists"))),
+        }
+    }
+
+    async fn create_imported_user(&self, row: UserImportRow, default_password: &str) -> AppResult<String> {
+        let username = row.username.trim().to_owned();
+        self.create_unique_user(NewUser {
+            username: username.clone(),
+            password: default_password.to_owned(),
+            nick_name: row.nick_name,
+            dept_id: row.dept_id,
+            email: row.email,
+            phonenumber: row.phonenumber,
+            sex: default_if_blank(row.sex, "2"),
+            status: default_if_blank(row.status, "0"),
+            remark: None,
+            role_ids: vec![IMPORTED_USER_ROLE_ID.into()],
+            post_ids: vec![],
+        })
+        .await?;
+        Ok(format!("账号 {username} 导入成功"))
+    }
+
+    async fn update_imported_user(&self, row: UserImportRow, existing: User) -> AppResult<String> {
+        let username = row.username.trim().to_owned();
+        self.replace_user(
+            existing.id.clone(),
+            ReplaceUser {
+                username: username.clone(),
+                password: None,
+                nick_name: row.nick_name,
+                dept_id: existing.dept_id,
+                email: row.email,
+                phonenumber: row.phonenumber,
+                sex: default_if_blank(row.sex, "2"),
+                status: default_if_blank(row.status, "0"),
+                remark: existing.remark,
+                role_ids: existing.role_ids,
+                post_ids: existing.post_ids,
+            },
+        )
+        .await?;
+        Ok(format!("账号 {username} 更新成功"))
+    }
+}
+
+fn default_if_blank(value: String, default: &str) -> String {
+    let value = value.trim();
+    if value.is_empty() { default.into() } else { value.into() }
 }
 
 fn sanitize_filter(input: UserListFilter) -> UserListFilter {

@@ -27,6 +27,7 @@ fn status_code(error: &AppError) -> StatusCode {
     match error {
         AppError::InvalidInput(_) => StatusCode::BAD_REQUEST,
         AppError::Unauthorized => StatusCode::UNAUTHORIZED,
+        AppError::Forbidden(_) => StatusCode::FORBIDDEN,
         AppError::Conflict(_) => StatusCode::CONFLICT,
         AppError::NotFound => StatusCode::NOT_FOUND,
         AppError::Infrastructure(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -37,6 +38,7 @@ fn error_response(error: &AppError) -> ApiErrorResponse {
     match error {
         AppError::InvalidInput(message) => ApiErrorResponse::with_details("invalid_input", "invalid input", message.clone()),
         AppError::Unauthorized => ApiErrorResponse::new("unauthorized", "username or password is incorrect"),
+        AppError::Forbidden(message) => ApiErrorResponse::new("forbidden", message.clone()),
         AppError::Conflict(message) => ApiErrorResponse::with_details("conflict", "resource conflict", message.clone()),
         AppError::NotFound => ApiErrorResponse::new("not_found", "user not found"),
         AppError::Infrastructure(message) => ApiErrorResponse::with_details("infrastructure_error", "infrastructure error", message.clone()),

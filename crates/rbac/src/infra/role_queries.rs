@@ -10,6 +10,7 @@ use crate::{
     application::{RoleListFilter, RoleUserListFilter},
     domain::{DataScopeFilter, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleOption, RoleUser, RoleUserBindingInput},
 };
+use types::rbac::DATA_SCOPE_CUSTOM;
 
 use super::{
     mapping::{role, role_option, role_user},
@@ -77,6 +78,7 @@ impl RoleQueries {
     }
 
     pub async fn update_data_scope(&self, id: &str, input: RoleDataScopeInput) -> StorageResult<Role> {
+        let dept_ids = normalize_data_scope_dept_ids(self.database.pool(), &input).await?;
         let mut tx = self.database.pool().begin().await?;
         let result = query("UPDATE sys_role SET data_scope=$2,dept_check_strictly=$3,update_time=CURRENT_TIMESTAMP WHERE role_id=$1 AND del_flag='0'")
             .bind(id)
@@ -86,7 +88,7 @@ impl RoleQueries {
             .await?;
         ensure_rows_affected(result.rows_affected())?;
         query("DELETE FROM sys_role_dept WHERE role_id=$1").bind(id).execute(&mut *tx).await?;
-        insert_ids(&mut tx, "sys_role_dept", "dept_id", id, input.dept_ids).await?;
+        insert_ids(&mut tx, "sys_role_dept", "dept_id", id, dept_ids).await?;
         tx.commit().await.map_err(StorageError::from)?;
         self.find(id).await?.ok_or(StorageError::NotFound)
     }
@@ -228,7 +230,8 @@ impl RoleQueries {
     }
 
     pub async fn replace_menus(&self, role_id: &str, input: RoleMenuBindingInput) -> StorageResult<()> {
-        replace_ids(self.database.pool(), "sys_role_menu", "menu_id", role_id, input.menu_ids).await
+        let menu_ids = normalize_menu_ids(self.database.pool(), &input.menu_ids).await?;
+        replace_ids(self.database.pool(), "sys_role_menu", "menu_id", role_id, menu_ids).await
     }
 
     pub async fn replace_depts(&self, role_id: &str, input: RoleDeptBindingInput) -> StorageResult<()> {
@@ -290,6 +293,62 @@ async fn replace_ids(pool: &sqlx::PgPool, table: &str, id_column: &str, role_id:
         .await?;
     insert_ids(&mut tx, table, id_column, role_id, ids).await?;
     tx.commit().await.map_err(StorageError::from)
+}
+
+async fn normalize_data_scope_dept_ids(pool: &sqlx::PgPool, input: &RoleDataScopeInput) -> StorageResult<Vec<String>> {
+    if input.data_scope != DATA_SCOPE_CUSTOM || !input.dept_check_strictly {
+        return Ok(unique_ids(&input.dept_ids));
+    }
+    let rows = query_as::<_, (String, String)>("SELECT dept_id, ancestors FROM sys_dept WHERE dept_id = ANY($1) AND del_flag = '0'")
+        .bind(&input.dept_ids)
+        .fetch_all(pool)
+        .await?;
+    let mut ids = Vec::new();
+    for (_, ancestors) in rows {
+        for ancestor in ancestors.split(',').filter(|id| !id.is_empty() && *id != "0") {
+            push_unique(&mut ids, ancestor.to_owned());
+        }
+    }
+    for id in &input.dept_ids {
+        push_unique(&mut ids, id.clone());
+    }
+    Ok(ids)
+}
+
+async fn normalize_menu_ids(pool: &sqlx::PgPool, menu_ids: &[String]) -> StorageResult<Vec<String>> {
+    let rows = query_as::<_, (String, String)>("SELECT menu_id, parent_id FROM sys_menu")
+        .fetch_all(pool)
+        .await?;
+    let parent_by_id = rows.into_iter().collect::<std::collections::HashMap<_, _>>();
+    let mut ids = Vec::new();
+    for id in menu_ids {
+        push_menu_ancestors(&parent_by_id, &mut ids, id);
+        push_unique(&mut ids, id.clone());
+    }
+    Ok(ids)
+}
+
+fn push_menu_ancestors(parent_by_id: &std::collections::HashMap<String, String>, ids: &mut Vec<String>, id: &str) {
+    let Some(parent_id) = parent_by_id.get(id) else { return };
+    if parent_id == "0" || !parent_by_id.contains_key(parent_id) {
+        return;
+    }
+    push_menu_ancestors(parent_by_id, ids, parent_id);
+    push_unique(ids, parent_id.clone());
+}
+
+fn unique_ids(ids: &[String]) -> Vec<String> {
+    let mut unique = Vec::new();
+    for id in ids {
+        push_unique(&mut unique, id.clone());
+    }
+    unique
+}
+
+fn push_unique(ids: &mut Vec<String>, id: String) {
+    if !ids.contains(&id) {
+        ids.push(id);
+    }
 }
 
 async fn insert_ids(tx: &mut sqlx::Transaction<'_, Postgres>, table: &str, column: &str, role_id: &str, ids: Vec<String>) -> StorageResult<()> {
