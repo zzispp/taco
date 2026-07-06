@@ -1,44 +1,22 @@
 'use client';
 
-import type { Role, RoleInput } from 'src/entities/role';
+import type { Role } from 'src/entities/role';
 import type { TreeSelectNode } from 'src/entities/system';
-import type { TableHeadCellProps } from 'src/shared/ui/table';
 
 import { useMemo, useState, useCallback } from 'react';
 
-import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
-import Button from '@mui/material/Button';
-import Switch from '@mui/material/Switch';
-import Tooltip from '@mui/material/Tooltip';
-import Checkbox from '@mui/material/Checkbox';
-import MenuItem from '@mui/material/MenuItem';
-import TableRow from '@mui/material/TableRow';
-import TextField from '@mui/material/TextField';
 import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import IconButton from '@mui/material/IconButton';
 
 import { toast } from 'src/shared/ui/snackbar';
-import { Iconify } from 'src/shared/ui/iconify';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { fAdminDateTime } from 'src/shared/lib/admin-time';
-import { ConfirmDialog } from 'src/shared/ui/custom-dialog';
 import { useTable, TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import {
-  AddButton,
-  BooleanLabel,
-  AdminBreadcrumbs,
-  TableLoadingRows,
-  withSelectionHead,
-  ManagementTableHead,
-} from 'src/shared/ui/admin';
+import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/shared/ui/admin';
 
+import { useRoles } from 'src/entities/role';
 import { useHasPermission } from 'src/entities/session';
-import { useRoles, translatedRoleName } from 'src/entities/role';
 
 import {
   createRole,
@@ -51,32 +29,24 @@ import {
   updateRoleMenus,
   updateRoleStatus,
   updateRoleDataScope,
-} from 'src/features/role-management/api';
+} from 'src/features/role-management';
 
+import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
 
-import { RoleBindingDialog } from './binding-dialog';
-import { RoleUsersDialog } from './role-users-dialog';
-import { RoleDialog, dataScopeLabel } from './role-dialog';
-
-const DEFAULT_FORM: RoleInput = {
-  role_name: '',
-  role_key: '',
-  role_sort: 0,
-  data_scope: '5',
-  menu_check_strictly: true,
-  dept_check_strictly: true,
-  status: '0',
-  remark: '',
-};
-const DEFAULT_FILTERS = { role_name: '', role_key: '', status: '', begin_time: '', end_time: '' };
+import { RoleRow } from './role-row';
+import { RoleFilters } from './filters';
+import { RoleToolbar } from './toolbar';
+import { RoleManagementDialogs } from './dialogs';
+import { DEFAULT_FORM, DEFAULT_FILTERS } from './constants';
+import { toggle, toInput, roleHead, showError, deptBindingIds } from './helpers';
 
 export function RoleManagementView() {
   const { t } = useTranslate('admin');
   const table = useTable({ defaultRowsPerPage: 10 });
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const roles = useRoles(table.page, table.rowsPerPage, filters);
-  const [form, setForm] = useState<RoleInput>(DEFAULT_FORM);
+  const [form, setForm] = useState(DEFAULT_FORM);
   const [editing, setEditing] = useState<Role | null>(null);
   const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -162,12 +132,16 @@ export function RoleManagementView() {
     if (!bindingTarget) return;
     setSubmitting(true);
     try {
-      if (bindingType === 'menus') await updateRoleMenus(bindingTarget.role_id, resolvedDeptBindings);
+      if (bindingType === 'menus')
+        await updateRoleMenus(bindingTarget.role_id, resolvedDeptBindings);
       else
         await updateRoleDataScope(bindingTarget.role_id, {
           data_scope: bindingDataScope,
           dept_check_strictly: bindingStrict,
-          dept_ids: bindingDataScope === '2' ? deptBindingIds(selectedBindings, resolvedDeptBindings, bindingStrict) : [],
+          dept_ids:
+            bindingDataScope === '2'
+              ? deptBindingIds(selectedBindings, resolvedDeptBindings, bindingStrict)
+              : [],
         });
       toast.success(t('messages.rolePermissionsUpdated'));
       setBindingTarget(null);
@@ -176,7 +150,15 @@ export function RoleManagementView() {
     } finally {
       setSubmitting(false);
     }
-  }, [bindingDataScope, bindingStrict, bindingTarget, bindingType, resolvedDeptBindings, selectedBindings, t]);
+  }, [
+    bindingDataScope,
+    bindingStrict,
+    bindingTarget,
+    bindingType,
+    resolvedDeptBindings,
+    selectedBindings,
+    t,
+  ]);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -219,35 +201,7 @@ export function RoleManagementView() {
 
   return (
     <DashboardContent>
-      <AdminBreadcrumbs
-        heading={t('pages.roleManagement')}
-        action={
-          canDelete || canAdd || canExport ? (
-            <Stack direction="row" spacing={1}>
-              {canExport && (
-                <Button
-                  variant="outlined"
-                  startIcon={<Iconify icon="solar:export-bold" />}
-                  onClick={submitExport}
-                >
-                  {t('actions.export')}
-                </Button>
-              )}
-              {canDelete && (
-                <Button
-                  variant="outlined"
-                  color="error"
-                  disabled={selected.length === 0}
-                  onClick={() => setBatchDeleteOpen(true)}
-                >
-                  {t('common.delete')}
-                </Button>
-              )}
-              {canAdd && <AddButton onClick={openCreate}>{t('actions.addRole')}</AddButton>}
-            </Stack>
-          ) : null
-        }
-      />
+      <AdminBreadcrumbs heading={t('pages.roleManagement')} action={toolbarAction()} />
       <Card>
         <RoleFilters filters={filters} onChange={setFilters} />
         <Scrollbar>
@@ -293,277 +247,61 @@ export function RoleManagementView() {
           onRowsPerPageChange={table.onChangeRowsPerPage}
         />
       </Card>
-      <RoleDialog
-        open={creating || !!editing}
-        editing={!!editing}
-        submitting={submitting}
-        form={form}
-        setForm={setForm}
-        onClose={closeDialog}
-        onSubmit={submitRole}
-      />
-      <RoleBindingDialog
-        role={bindingTarget}
-        type={bindingType}
-        nodes={bindingNodes}
-        selected={selectedBindings}
-        strict={bindingStrict}
-        dataScope={bindingDataScope}
-        loading={bindingLoading}
-        submitting={submitting}
-        onSelectedChange={setSelectedBindings}
-        onStrictChange={setBindingStrict}
-        onDataScopeChange={setBindingDataScope}
-        onResolvedSelectionChange={setResolvedDeptBindings}
-        onClose={() => setBindingTarget(null)}
-        onSubmit={saveBindings}
-      />
-      <RoleUsersDialog role={usersTarget} onClose={() => setUsersTarget(null)} />
-      <ConfirmDialog
-        open={batchDeleteOpen}
-        onClose={() => setBatchDeleteOpen(false)}
-        title={t('dialogs.deleteRole')}
-        content={t('dialogs.deleteContent', { name: String(selected.length) })}
-        cancelText={t('common.cancel')}
-        action={
-          <Button variant="contained" color="error" onClick={confirmBatchDelete}>
-            {t('common.delete')}
-          </Button>
-        }
-      />
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        title={t('dialogs.deleteRole')}
-        content={t('dialogs.deleteContent', { name: deleteTarget?.role_name ?? '' })}
-        cancelText={t('common.cancel')}
-        action={
-          <Button variant="contained" color="error" onClick={confirmDelete}>
-            {t('common.delete')}
-          </Button>
-        }
-      />
+      {dialogs()}
     </DashboardContent>
   );
-}
 
-function deptBindingIds(selected: string[], resolved: string[], strict: boolean) {
-  return strict ? resolved : selected;
-}
-
-function RoleFilters({
-  filters,
-  onChange,
-}: {
-  filters: typeof DEFAULT_FILTERS;
-  onChange: (filters: typeof DEFAULT_FILTERS) => void;
-}) {
-  const { t } = useTranslate('admin');
-  const write = (key: keyof typeof DEFAULT_FILTERS, value: string) =>
-    onChange({ ...filters, [key]: value });
-  return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>
-      <TextField
-        size="small"
-        label={t('fields.roleName')}
-        value={filters.role_name}
-        onChange={(event) => write('role_name', event.target.value)}
+  function toolbarAction() {
+    return (
+      <RoleToolbar
+        t={t}
+        canAdd={canAdd}
+        canDelete={canDelete}
+        canExport={canExport}
+        selectedCount={selected.length}
+        onCreate={openCreate}
+        onBatchDelete={() => setBatchDeleteOpen(true)}
+        onExport={submitExport}
       />
-      <TextField
-        size="small"
-        label={t('fields.roleKey')}
-        value={filters.role_key}
-        onChange={(event) => write('role_key', event.target.value)}
-      />
-      <TextField
-        select
-        size="small"
-        label={t('common.status')}
-        value={filters.status}
-        sx={{ minWidth: 140 }}
-        onChange={(event) => write('status', event.target.value)}
-      >
-        <MenuItem value="">{t('common.all')}</MenuItem>
-        <MenuItem value="0">{t('common.enabled')}</MenuItem>
-        <MenuItem value="1">{t('common.disabled')}</MenuItem>
-      </TextField>
-      <TextField
-        size="small"
-        type="date"
-        label={t('fields.beginTime')}
-        value={filters.begin_time}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('begin_time', event.target.value)}
-      />
-      <TextField
-        size="small"
-        type="date"
-        label={t('fields.endTime')}
-        value={filters.end_time}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('end_time', event.target.value)}
-      />
-      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
-        {t('common.reset')}
-      </Button>
-    </Stack>
-  );
-}
+    );
+  }
 
-function RoleRow({
-  row,
-  selected,
-  onToggleSelected,
-  onEdit,
-  onDelete,
-  onBind,
-  onUsers,
-  onStatusChange,
-}: {
-  row: Role;
-  selected: boolean;
-  onToggleSelected: (id: string) => void;
-  onEdit: (role: Role) => void;
-  onDelete: (role: Role) => void;
-  onBind: (role: Role, type: 'menus' | 'depts') => void;
-  onUsers: (role: Role) => void;
-  onStatusChange: (status: string) => void;
-}) {
-  const { t } = useTranslate('admin');
-  const canEdit = useHasPermission('system:role:edit');
-  const canDelete = useHasPermission('system:role:remove');
-  return (
-    <TableRow hover>
-      {canDelete && (
-        <TableCell padding="checkbox">
-          <Checkbox
-            disabled={row.system}
-            checked={selected}
-            onChange={() => onToggleSelected(row.role_id)}
-          />
-        </TableCell>
-      )}
-      <TableCell>{translatedRoleName(row, t)}</TableCell>
-      <TableCell sx={{ fontFamily: 'monospace' }}>{row.role_key}</TableCell>
-      <TableCell>{row.role_sort}</TableCell>
-      <TableCell>{dataScopeLabel(row.data_scope, t)}</TableCell>
-      <TableCell>
-        <Switch
-          size="small"
-          checked={row.status === '0'}
-          disabled={row.system || !canEdit}
-          onChange={(event) => onStatusChange(event.target.checked ? '0' : '1')}
-        />
-      </TableCell>
-      <TableCell>
-        <BooleanLabel
-          enabled={row.system}
-          trueText={t('common.system')}
-          falseText={t('common.custom')}
-        />
-      </TableCell>
-      <TableCell sx={DATE_TIME_CELL_SX}>{fAdminDateTime(row.create_time) || '-'}</TableCell>
-      <TableCell align="right">
-        <RoleActions
-          system={row.system}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          onMenu={() => onBind(row, 'menus')}
-          onDept={() => onBind(row, 'depts')}
-          onUsers={() => onUsers(row)}
-          onEdit={() => onEdit(row)}
-          onDelete={() => onDelete(row)}
-        />
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function RoleActions({
-  system,
-  canEdit,
-  canDelete,
-  onMenu,
-  onDept,
-  onUsers,
-  onEdit,
-  onDelete,
-}: {
-  system: boolean;
-  canEdit: boolean;
-  canDelete: boolean;
-  onMenu: () => void;
-  onDept: () => void;
-  onUsers: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const { t } = useTranslate('admin');
-  return (
-    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-      <Tooltip title={t('actions.menuPermissions')}>
-        <IconButton disabled={!canEdit} onClick={onMenu}>
-          <Iconify icon="solar:shield-keyhole-bold-duotone" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={t('actions.dataPermissions')}>
-        <IconButton disabled={!canEdit} onClick={onDept}>
-          <Iconify icon="solar:notes-bold-duotone" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={t('actions.authorizedUsers')}>
-        <IconButton disabled={!canEdit} onClick={onUsers}>
-          <Iconify icon="solar:user-id-bold" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title={t('common.edit')}>
-        <span>
-          <IconButton disabled={system || !canEdit} onClick={onEdit}>
-            <Iconify icon="solar:pen-bold" />
-          </IconButton>
-        </span>
-      </Tooltip>
-      <Tooltip title={t('common.delete')}>
-        <span>
-          <IconButton color="error" disabled={system || !canDelete} onClick={onDelete}>
-            <Iconify icon="solar:trash-bin-trash-bold" />
-          </IconButton>
-        </span>
-      </Tooltip>
-    </Box>
-  );
-}
-
-function toInput(role: Role): RoleInput {
-  return {
-    role_name: role.role_name,
-    role_key: role.role_key,
-    role_sort: role.role_sort,
-    data_scope: role.data_scope,
-    menu_check_strictly: role.menu_check_strictly,
-    dept_check_strictly: role.dept_check_strictly,
-    status: role.status,
-    remark: role.remark,
-  };
-}
-function showError(t: ReturnType<typeof useTranslate>['t']) {
-  return (error: unknown) =>
-    toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
-}
-const TABLE_HEAD_SX = { whiteSpace: 'nowrap' } as const;
-const DATE_TIME_CELL_SX = { whiteSpace: 'nowrap' } as const;
-function roleHead(t: ReturnType<typeof useTranslate>['t']): TableHeadCellProps[] {
-  return [
-    { id: 'role_name', label: t('fields.roleName') },
-    { id: 'role_key', label: t('fields.roleKey') },
-    { id: 'role_sort', label: t('fields.roleSort') },
-    { id: 'data_scope', label: t('fields.dataScope') },
-    { id: 'status', label: t('common.status') },
-    { id: 'system', label: t('common.type') },
-    { id: 'create_time', label: t('fields.createTime'), width: 190, sx: TABLE_HEAD_SX },
-    { id: 'actions', label: t('common.actions'), align: 'right', width: 220, sx: TABLE_HEAD_SX },
-  ];
-}
-function toggle(values: string[], value: string) {
-  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+  function dialogs() {
+    return (
+      <RoleManagementDialogs
+        t={t}
+        form={form}
+        creating={creating}
+        editing={editing}
+        submitting={submitting}
+        binding={{
+          target: bindingTarget,
+          type: bindingType,
+          nodes: bindingNodes,
+          selected: selectedBindings,
+          strict: bindingStrict,
+          dataScope: bindingDataScope,
+          loading: bindingLoading,
+          onSelectedChange: setSelectedBindings,
+          onStrictChange: setBindingStrict,
+          onDataScopeChange: setBindingDataScope,
+          onResolvedSelectionChange: setResolvedDeptBindings,
+        }}
+        usersTarget={usersTarget}
+        deleteTarget={deleteTarget}
+        batchDeleteOpen={batchDeleteOpen}
+        selectedCount={selected.length}
+        setForm={setForm}
+        onDialogClose={closeDialog}
+        onRoleSubmit={submitRole}
+        onBindingSubmit={saveBindings}
+        onBindingClose={() => setBindingTarget(null)}
+        onUsersClose={() => setUsersTarget(null)}
+        onBatchDeleteClose={() => setBatchDeleteOpen(false)}
+        onBatchDeleteConfirm={confirmBatchDelete}
+        onDeleteClose={() => setDeleteTarget(null)}
+        onDeleteConfirm={confirmDelete}
+      />
+    );
+  }
 }

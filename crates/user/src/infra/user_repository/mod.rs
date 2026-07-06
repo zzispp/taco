@@ -10,7 +10,7 @@ use storage::Database;
 
 use crate::{
     application::{AppResult, ReplaceUserRecord, UserAuthRecord, UserListFilter, UserRepository},
-    domain::{User, UserId},
+    domain::{ProfileUpdate, User, UserId, UserProfileGroups},
 };
 use types::rbac::DataScopeFilter;
 
@@ -78,6 +78,14 @@ impl UserRepository for StorageUserRepository {
             .map_err(storage_error)
     }
 
+    async fn find_auth_by_id(&self, id: UserId) -> AppResult<Option<UserAuthRecord>> {
+        self.queries
+            .find_auth_by_id(id)
+            .await
+            .map(|record| record.map(user_auth_record))
+            .map_err(storage_error)
+    }
+
     async fn record_login(&self, id: UserId) -> AppResult<()> {
         self.queries.record_login(id).await.map_err(storage_error)
     }
@@ -98,12 +106,24 @@ impl UserRepository for StorageUserRepository {
         self.queries.update_password(id, password_hash).await.map_err(storage_error)
     }
 
+    async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> AppResult<User> {
+        self.queries.update_profile(id, profile).await.map_err(storage_error)
+    }
+
+    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User> {
+        self.queries.update_avatar(id, avatar).await.map_err(storage_error)
+    }
+
     async fn update_status(&self, id: UserId, status: String) -> AppResult<User> {
         self.queries.update_status(id, status).await.map_err(storage_error)
     }
 
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User> {
         self.queries.replace_roles(id, role_ids).await.map_err(storage_error)
+    }
+
+    async fn profile_groups(&self, id: UserId) -> AppResult<UserProfileGroups> {
+        self.queries.profile_groups(id).await.map_err(storage_error)
     }
 
     async fn form_options(&self) -> AppResult<crate::domain::UserFormOptions> {

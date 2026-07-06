@@ -48,7 +48,10 @@ export function CloudflareTurnstile({ config, resetKey, onTokenChange }: Cloudfl
 
   useEffect(() => removeWidget(widgetIdRef), []);
   useEffect(() => resetWidget(widgetIdRef, onTokenChange), [onTokenChange, resetKey]);
-  useEffect(() => renderWidget({ config, containerRef, widgetIdRef, scriptReady, onTokenChange }), [config, scriptReady, onTokenChange]);
+  useEffect(
+    () => renderWidget({ config, containerRef, widgetIdRef, scriptReady, onTokenChange }),
+    [config, scriptReady, onTokenChange]
+  );
 
   if (!config.site_key) {
     return <Alert severity="error">Cloudflare Turnstile site_key is required</Alert>;
@@ -56,7 +59,11 @@ export function CloudflareTurnstile({ config, resetKey, onTokenChange }: Cloudfl
 
   return (
     <Box sx={{ width: 1 }}>
-      <Script src={config.script_url} strategy="afterInteractive" onReady={() => setScriptReady(true)} />
+      <Script
+        src={config.script_url}
+        strategy="afterInteractive"
+        onReady={() => setScriptReady(true)}
+      />
       <Box id={containerId.current} ref={containerRef} sx={{ minHeight: 65 }} />
     </Box>
   );
@@ -78,12 +85,18 @@ function renderWidget(options: RenderWidgetOptions) {
   }
 
   options.onTokenChange(null);
-  options.widgetIdRef.current = turnstile.render(container, renderOptions(options.config, options.onTokenChange));
+  options.widgetIdRef.current = turnstile.render(
+    container,
+    renderOptions(options.config, options.onTokenChange)
+  );
 
   return () => removeWidget(options.widgetIdRef)();
 }
 
-function renderOptions(config: TurnstilePublicConfig, onTokenChange: (token: string | null) => void) {
+function renderOptions(
+  config: TurnstilePublicConfig,
+  onTokenChange: (token: string | null) => void
+) {
   const resetToken = () => onTokenChange(null);
 
   return {
@@ -97,7 +110,10 @@ function renderOptions(config: TurnstilePublicConfig, onTokenChange: (token: str
   } satisfies TurnstileRenderOptions;
 }
 
-function resetWidget(widgetIdRef: React.MutableRefObject<TurnstileWidgetId | null>, onTokenChange: (token: string | null) => void) {
+function resetWidget(
+  widgetIdRef: React.MutableRefObject<TurnstileWidgetId | null>,
+  onTokenChange: (token: string | null) => void
+) {
   const widgetId = widgetIdRef.current;
   if (widgetId) {
     window.turnstile?.reset(widgetId);

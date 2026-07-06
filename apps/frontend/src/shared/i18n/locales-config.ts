@@ -4,16 +4,20 @@ import type { Theme, Components } from '@mui/material/styles';
 import resourcesToBackend from 'i18next-resources-to-backend';
 
 // MUI Core Locales
-import { zhCN as zhCNCore } from '@mui/material/locale';
+import { zhCN as zhCNCore, zhTW as zhTWCore } from '@mui/material/locale';
 // MUI Date Pickers Locales
-import { enUS as enUSDate, zhCN as zhCNDate } from '@mui/x-date-pickers/locales';
+import { enUS as enUSDate, zhCN as zhCNDate, zhTW as zhTWDate } from '@mui/x-date-pickers/locales';
 // MUI Data Grid Locales
-import { enUS as enUSDataGrid, zhCN as zhCNDataGrid } from '@mui/x-data-grid/locales';
+import {
+  enUS as enUSDataGrid,
+  zhCN as zhCNDataGrid,
+  zhTW as zhTWDataGrid,
+} from '@mui/x-data-grid/locales';
 
 // ----------------------------------------------------------------------
 
 // Supported languages
-export const supportedLngs = ['en', 'cn'] as const;
+export const supportedLngs = ['en', 'cn', 'tw'] as const;
 export type LangCode = (typeof supportedLngs)[number];
 
 // Fallback and default namespace
@@ -61,6 +65,16 @@ export const allLangs: LangOption[] = [
     numberFormat: { code: 'zh-CN', currency: 'CNY' },
     systemValue: {
       components: { ...zhCNCore.components, ...zhCNDate.components, ...zhCNDataGrid.components },
+    },
+  },
+  {
+    value: 'tw',
+    label: '繁體中文',
+    countryCode: 'TW',
+    adapterLocale: 'zh-tw',
+    numberFormat: { code: 'zh-TW', currency: 'TWD' },
+    systemValue: {
+      components: { ...zhTWCore.components, ...zhTWDate.components, ...zhTWDataGrid.components },
     },
   },
 ];

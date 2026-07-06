@@ -3,24 +3,18 @@ mod pow;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+use constants::captcha::{CAP_CHALLENGE_COUNT, CAP_CHALLENGE_DIFFICULTY, CAP_CHALLENGE_SIZE, CAP_CHALLENGE_TTL_SECONDS, CAP_REDEEMED_TOKEN_TTL_SECONDS};
+use kernel::error::LocalizedError;
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::{
-    application::{CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings},
-    providers::config::provider_config,
-};
+use crate::application::{CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings};
 
 use self::pow::solution_matches;
 
 const PROVIDER_NAME: &str = "cap";
-const CHALLENGE_COUNT: usize = 50;
-const CHALLENGE_SIZE: usize = 32;
-const CHALLENGE_DIFFICULTY: usize = 4;
-const CHALLENGE_TTL_SECONDS: u64 = 10 * 60;
-const REDEEMED_TOKEN_TTL_SECONDS: u64 = 20 * 60;
 const CHALLENGE_TOKEN_BYTES: usize = 25;
 const REDEEMED_ID_BYTES: usize = 8;
 const REDEEMED_SECRET_BYTES: usize = 15;
@@ -66,7 +60,7 @@ struct CapRedeemResponse {
     error: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct CapOptions {
     pub challenge_count: usize,
     pub challenge_size: usize,
@@ -91,11 +85,11 @@ pub trait CapStore: Send + Sync + 'static {
 impl Default for CapOptions {
     fn default() -> Self {
         Self {
-            challenge_count: CHALLENGE_COUNT,
-            challenge_size: CHALLENGE_SIZE,
-            challenge_difficulty: CHALLENGE_DIFFICULTY,
-            challenge_ttl_seconds: CHALLENGE_TTL_SECONDS,
-            redeemed_token_ttl_seconds: REDEEMED_TOKEN_TTL_SECONDS,
+            challenge_count: CAP_CHALLENGE_COUNT,
+            challenge_size: CAP_CHALLENGE_SIZE,
+            challenge_difficulty: CAP_CHALLENGE_DIFFICULTY,
+            challenge_ttl_seconds: CAP_CHALLENGE_TTL_SECONDS,
+            redeemed_token_ttl_seconds: CAP_REDEEMED_TOKEN_TTL_SECONDS,
         }
     }
 }
@@ -108,11 +102,11 @@ where
         Self {
             store,
             options: CapOptions {
-                challenge_count: CHALLENGE_COUNT,
-                challenge_size: CHALLENGE_SIZE,
-                challenge_difficulty: CHALLENGE_DIFFICULTY,
-                challenge_ttl_seconds: CHALLENGE_TTL_SECONDS,
-                redeemed_token_ttl_seconds: REDEEMED_TOKEN_TTL_SECONDS,
+                challenge_count: CAP_CHALLENGE_COUNT,
+                challenge_size: CAP_CHALLENGE_SIZE,
+                challenge_difficulty: CAP_CHALLENGE_DIFFICULTY,
+                challenge_ttl_seconds: CAP_CHALLENGE_TTL_SECONDS,
+                redeemed_token_ttl_seconds: CAP_REDEEMED_TOKEN_TTL_SECONDS,
             },
         }
     }
@@ -121,22 +115,30 @@ where
         Self { store, options }
     }
 
-    async fn redeem_cap_payload(&self, payload: CapRedeemPayload) -> CaptchaResult<CapRedeemResponse> {
+    async fn redeem_cap_payload(&self, settings: &CaptchaSettings, payload: CapRedeemPayload) -> CaptchaResult<CapRedeemResponse> {
         let Some(record) = self.store.consume_challenge(&payload.token).await? else {
             return Ok(CapRedeemResponse::failure("invalid_or_expired_challenge"));
         };
         if !solutions_match(&payload.token, &record.challenge, &payload.solutions) {
             return Ok(CapRedeemResponse::failure("invalid_solution"));
         }
-        self.save_redeemed_token().await
+        self.save_redeemed_token(&self.options(settings)?).await
     }
 
-    async fn save_redeemed_token(&self) -> CaptchaResult<CapRedeemResponse> {
+    async fn save_redeemed_token(&self, options: &CapOptions) -> CaptchaResult<CapRedeemResponse> {
         let token = redeemed_token();
         let key = redeemed_token_key(&token)?;
-        let expires = expires_at(self.options.redeemed_token_ttl_seconds);
-        self.store.save_redeemed(&key, expires, self.options.redeemed_token_ttl_seconds).await?;
+        let expires = expires_at(options.redeemed_token_ttl_seconds);
+        self.store.save_redeemed(&key, expires, options.redeemed_token_ttl_seconds).await?;
         Ok(CapRedeemResponse::success(token, expires))
+    }
+
+    fn options(&self, settings: &CaptchaSettings) -> CaptchaResult<CapOptions> {
+        let config = settings.provider_config(PROVIDER_NAME)?;
+        if config.as_object().is_some_and(serde_json::Map::is_empty) {
+            return Ok(self.options.clone());
+        }
+        serde_json::from_value(config.clone()).map_err(invalid_cap_config)
     }
 }
 
@@ -150,24 +152,25 @@ where
     }
 
     async fn public_config(&self, settings: &CaptchaSettings) -> CaptchaResult<Value> {
-        Ok(provider_config(&settings.public_config, PROVIDER_NAME).clone())
+        Ok(settings.provider_config(PROVIDER_NAME)?.clone())
     }
 
-    async fn challenge(&self, _settings: &CaptchaSettings) -> CaptchaResult<Value> {
-        let challenge = challenge(&self.options);
+    async fn challenge(&self, settings: &CaptchaSettings) -> CaptchaResult<Value> {
+        let options = self.options(settings)?;
+        let challenge = challenge(&options);
         let token = random_hex(CHALLENGE_TOKEN_BYTES);
-        let expires = expires_at(self.options.challenge_ttl_seconds);
+        let expires = expires_at(options.challenge_ttl_seconds);
         let record = CapChallengeRecord {
             challenge: challenge.clone(),
             expires,
         };
-        self.store.save_challenge(&token, &record, self.options.challenge_ttl_seconds).await?;
+        self.store.save_challenge(&token, &record, options.challenge_ttl_seconds).await?;
         to_value(CapChallengeResponse { challenge, token, expires })
     }
 
-    async fn redeem(&self, _settings: &CaptchaSettings, payload: Value) -> CaptchaResult<Value> {
+    async fn redeem(&self, settings: &CaptchaSettings, payload: Value) -> CaptchaResult<Value> {
         let payload = serde_json::from_value(payload).map_err(invalid_redeem_payload)?;
-        to_value(self.redeem_cap_payload(payload).await?)
+        to_value(self.redeem_cap_payload(settings, payload).await?)
     }
 
     async fn verify(&self, _settings: &CaptchaSettings, token: Option<&str>) -> CaptchaResult<()> {
@@ -176,7 +179,7 @@ where
         if self.store.consume_redeemed(&key).await? {
             return Ok(());
         }
-        Err(CaptchaError::InvalidInput("captcha verification failed".into()))
+        Err(CaptchaError::InvalidInput(localized("errors.captcha.verification_failed")))
     }
 }
 
@@ -232,10 +235,10 @@ fn redeemed_token() -> String {
 
 fn redeemed_token_key(token: &str) -> CaptchaResult<String> {
     let Some((id, secret)) = token.split_once(':') else {
-        return Err(CaptchaError::InvalidInput("captcha token is invalid".into()));
+        return Err(CaptchaError::InvalidInput(localized("errors.captcha.token_invalid")));
     };
     if id.is_empty() || secret.is_empty() {
-        return Err(CaptchaError::InvalidInput("captcha token is invalid".into()));
+        return Err(CaptchaError::InvalidInput(localized("errors.captcha.token_invalid")));
     }
     let hash = Sha256::digest(secret.as_bytes());
     Ok(format!("{id}:{}", hex::encode(hash)))
@@ -257,11 +260,17 @@ fn now_ms() -> i64 {
 }
 
 fn required_error() -> CaptchaError {
-    CaptchaError::InvalidInput("captcha verification is required".into())
+    CaptchaError::InvalidInput(localized("errors.captcha.verification_required"))
 }
 
 fn invalid_redeem_payload(error: serde_json::Error) -> CaptchaError {
-    CaptchaError::InvalidInput(format!("invalid captcha redeem payload: {error}"))
+    let _ = error;
+    CaptchaError::InvalidInput(localized("errors.captcha.invalid_redeem_payload"))
+}
+
+fn invalid_cap_config(error: serde_json::Error) -> CaptchaError {
+    let _ = error;
+    CaptchaError::InvalidInput(localized("errors.captcha.invalid_provider_config"))
 }
 
 fn to_value<T: Serialize>(value: T) -> CaptchaResult<Value> {
@@ -270,4 +279,8 @@ fn to_value<T: Serialize>(value: T) -> CaptchaResult<Value> {
 
 fn json_error(error: serde_json::Error) -> CaptchaError {
     CaptchaError::Infrastructure(format!("captcha json error: {error}"))
+}
+
+fn localized(key: &'static str) -> LocalizedError {
+    LocalizedError::new(key)
 }

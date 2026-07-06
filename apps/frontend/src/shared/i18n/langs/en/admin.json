@@ -327,5 +327,30 @@
     "directory": "Directory",
     "menu": "Menu",
     "button": "Button"
+  },
+  "profile": {
+    "personalCenter": "Profile",
+    "personalInfo": "Personal info",
+    "basicInfo": "Basic info",
+    "changePassword": "Change password",
+    "changeAvatar": "Change avatar",
+    "selectAvatarFirst": "Select an image to crop your avatar",
+    "zoom": "Zoom",
+    "avatarImageOnly": "Please upload an image file",
+    "deptAndPost": "Department / Post",
+    "roleGroup": "Roles",
+    "oldPassword": "Old password",
+    "confirmPassword": "Confirm password",
+    "passwordRule": "Password must be between 8 and 128 characters",
+    "passwordRuleDynamic": "Password must be between {{min}} and {{max}} characters",
+    "passwordRequired": "Old password, new password, and confirmation are required",
+    "passwordMismatch": "The two passwords do not match",
+    "passwordSame": "New password cannot be the same as old password",
+    "requiredProfileFields": "Nickname and email are required",
+    "invalidEmail": "Email format is invalid",
+    "invalidPhone": "Mobile phone format is invalid",
+    "logout": "Logout",
+    "logoutFailed": "Unable to logout",
+    "authorizedNavigation": "Authorized navigation"
   }
 }

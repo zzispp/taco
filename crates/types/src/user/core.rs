@@ -37,6 +37,21 @@ pub struct UserFormOptions {
     pub depts: Vec<TreeSelectNode>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct UserProfile {
+    pub user: User,
+    pub role_group: String,
+    pub post_group: String,
+    pub dept_name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UserProfileGroups {
+    pub role_group: String,
+    pub post_group: String,
+    pub dept_name: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NewUser {
     pub username: String,
@@ -65,6 +80,14 @@ pub struct ReplaceUser {
     pub remark: Option<String>,
     pub role_ids: Vec<String>,
     pub post_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProfileUpdate {
+    pub nick_name: String,
+    pub phonenumber: Option<String>,
+    pub email: String,
+    pub sex: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

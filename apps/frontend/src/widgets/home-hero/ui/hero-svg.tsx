@@ -185,9 +185,12 @@ export function PlusIcon() {
 
 // ----------------------------------------------------------------------
 
-const TEXT = 'Hook Gateway Console';
+type TextsProps = BoxProps &
+  MotionProps & {
+    text: string;
+  };
 
-export function Texts({ sx, ...other }: BoxProps & MotionProps) {
+export function Texts({ sx, text, ...other }: TextsProps) {
   return (
     <Box
       component={m.div}
@@ -230,7 +233,7 @@ export function Texts({ sx, ...other }: BoxProps & MotionProps) {
           animate={{ x: ['0%', '-50%'] }}
           transition={{ duration: 64, ease: 'linear', repeat: Infinity }}
         >
-          {Array(2).fill(TEXT).join(' ')}
+          {Array(2).fill(text).join(' ')}
         </m.text>
       </Box>
     </Box>

@@ -10,6 +10,8 @@ pub struct Settings {
     pub http: HttpSettings,
     pub metrics: MetricsSettings,
     pub redis: RedisSettings,
+    #[serde(default)]
+    pub uploads: UploadSettings,
     pub tracing: TracingSettings,
 }
 
@@ -35,8 +37,6 @@ pub struct DatabaseSettings {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct JwtSettings {
     pub secret: String,
-    pub access_token_ttl_seconds: u64,
-    pub refresh_token_ttl_seconds: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -88,6 +88,20 @@ pub struct RedisSettings {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct UploadSettings {
+    #[serde(default = "default_avatar_directory")]
+    pub avatar_directory: String,
+}
+
+impl Default for UploadSettings {
+    fn default() -> Self {
+        Self {
+            avatar_directory: default_avatar_directory(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct TracingSettings {
     pub log_level: String,
     #[serde(default)]
@@ -136,4 +150,8 @@ fn default_tracing_file_directory() -> String {
 
 fn default_tracing_file_prefix() -> String {
     "hook.log".to_owned()
+}
+
+fn default_avatar_directory() -> String {
+    "storage/uploads/avatars".to_owned()
 }

@@ -51,3 +51,17 @@ export type UserImportResult = {
   success_count: number;
   message: string;
 };
+
+export type AccountProfile = {
+  user: SystemUser;
+  role_group: string;
+  post_group: string;
+  dept_name: string | null;
+};
+
+export type ProfileInput = {
+  nick_name: string;
+  phonenumber: string | null;
+  email: string;
+  sex: string;
+};

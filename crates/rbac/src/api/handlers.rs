@@ -26,7 +26,6 @@ use crate::{
 
 type ApiJson<T> = Json<T>;
 type ApiResult<T> = Result<T, RbacApiError>;
-const EXPORT_PAGE_SIZE: u64 = 100;
 
 #[derive(Debug, Deserialize)]
 pub struct RbacListQuery {
@@ -333,7 +332,7 @@ fn menu_node(menu: &Menu, menus: &[Menu]) -> types::system::TreeSelectNode {
         id: menu.menu_id.clone(),
         label: menu.menu_name.clone(),
         parent_id: menu.parent_id.clone(),
-        disabled: menu.status != types::rbac::STATUS_NORMAL,
+        disabled: menu.status != constants::system::STATUS_NORMAL,
         children: menus
             .iter()
             .filter(|child| child.parent_id == menu.menu_id)
@@ -360,10 +359,11 @@ fn tree_leaf_contains(tree: &[types::system::TreeSelectNode], key: &str) -> bool
 }
 
 async fn all_export_roles(state: &RbacApiState, current_user: &CurrentUser, data_scope: DataScopeFilter, query: &RoleExportQuery) -> ApiResult<Vec<Role>> {
+    let export_page_size = state.export_config.export_batch_config().await?;
     let mut page = 1;
     let mut roles = Vec::new();
     loop {
-        let filter = role_export_page(query, page, EXPORT_PAGE_SIZE);
+        let filter = role_export_page(query, page, export_page_size.page_size);
         let current = if current_user.admin {
             state.rbac_admin.page_roles(filter).await?
         } else {

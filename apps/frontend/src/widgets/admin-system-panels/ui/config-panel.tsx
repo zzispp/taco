@@ -15,7 +15,7 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useConfigs } from 'src/entities/system';
 import { useHasPermission } from 'src/entities/session';
 
-import { systemMutations } from 'src/features/system-management/api';
+import { systemMutations } from 'src/features/system-management';
 
 import { SystemCrudPanel } from 'src/widgets/system-crud-panel';
 
@@ -43,13 +43,30 @@ export function ConfigManagementPanel() {
   const canExport = useHasPermission('system:config:export');
   const fields = useMemo(
     () => [
-      { key: 'config_name' as const, label: t('fields.configName') },
-      { key: 'config_key' as const, label: t('fields.configKey'), disabled: builtInFieldDisabled },
-      { key: 'config_value' as const, label: t('fields.configValue') },
+      {
+        key: 'config_name' as const,
+        label: t('fields.configName'),
+        width: 180,
+        ellipsis: true,
+      },
+      {
+        key: 'config_key' as const,
+        label: t('fields.configKey'),
+        width: 260,
+        ellipsis: true,
+        disabled: builtInFieldDisabled,
+      },
+      {
+        key: 'config_value' as const,
+        label: t('fields.configValue'),
+        width: 360,
+        ellipsis: true,
+      },
       {
         key: 'config_type' as const,
         label: t('fields.configType'),
         type: 'select' as const,
+        width: 120,
         options: configTypeOptions(t),
         disabled: builtInFieldDisabled,
       },
@@ -57,12 +74,20 @@ export function ConfigManagementPanel() {
         key: 'public_read' as const,
         label: t('fields.publicRead'),
         type: 'boolean' as const,
+        width: 120,
         disabled: publicReadDisabled,
       },
-      { key: 'remark' as const, label: t('common.remark'), type: 'textarea' as const },
+      {
+        key: 'remark' as const,
+        label: t('common.remark'),
+        type: 'textarea' as const,
+        width: 280,
+        ellipsis: true,
+      },
       {
         key: 'create_time' as const,
         label: t('fields.createTime'),
+        width: 190,
         format: 'dateTime' as const,
         hiddenInForm: true,
       },

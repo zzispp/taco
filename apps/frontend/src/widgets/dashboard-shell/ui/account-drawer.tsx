@@ -27,14 +27,19 @@ import { AccountButton } from './account-button';
 // ----------------------------------------------------------------------
 
 export type AccountDrawerProps = IconButtonProps & {
-  data?: {
-    label: string;
-    href: string;
-    icon?: React.ReactNode;
-  }[];
+  data?: AccountLink[];
+  navTitle?: string;
 };
 
-export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
+export type AccountLink = {
+  key: string;
+  label: string;
+  href: string;
+  depth?: number;
+  icon?: React.ReactNode;
+};
+
+export function AccountDrawer({ data = [], navTitle, sx, ...other }: AccountDrawerProps) {
   const { user } = useSessionUser();
   const { value: open, onFalse: onClose, onTrue: onOpen } = useBoolean();
 
@@ -67,7 +72,7 @@ export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
             email={user?.email}
             photoURL={user?.photoURL}
           />
-          <AccountLinks data={data} onClose={onClose} />
+          <AccountLinks data={data} title={navTitle} onClose={onClose} />
         </Scrollbar>
 
         <Box sx={{ p: 2.5 }}>
@@ -111,14 +116,15 @@ function AccountIdentity({
 
 function AccountLinks({
   data,
+  title,
   onClose,
 }: {
   data: NonNullable<AccountDrawerProps['data']>;
+  title?: string;
   onClose: () => void;
 }) {
   return (
-    <MenuList
-      disablePadding
+    <Box
       sx={[
         (theme) => ({
           py: 3,
@@ -129,32 +135,39 @@ function AccountLinks({
         }),
       ]}
     >
-      {data.map((option) => (
-        <MenuItem key={option.label}>
-          <Link
-            component={RouterLink}
-            href={option.href}
-            color="inherit"
-            underline="none"
-            onClick={onClose}
-            sx={{
-              p: 1,
-              width: 1,
-              display: 'flex',
-              typography: 'body2',
-              alignItems: 'center',
-              color: 'text.secondary',
-              '& svg': { width: 24, height: 24 },
-              '&:hover': { color: 'text.primary' },
-            }}
-          >
-            {option.icon}
-            <Box component="span" sx={{ ml: 2 }}>
-              {option.label}
-            </Box>
-          </Link>
-        </MenuItem>
-      ))}
-    </MenuList>
+      {title ? (
+        <Typography variant="overline" sx={{ px: 1, color: 'text.disabled' }}>
+          {title}
+        </Typography>
+      ) : null}
+      <MenuList disablePadding>
+        {data.map((option) => (
+          <MenuItem key={option.key}>
+            <Link
+              component={RouterLink}
+              href={option.href}
+              color="inherit"
+              underline="none"
+              onClick={onClose}
+              sx={{
+                p: 1,
+                width: 1,
+                display: 'flex',
+                typography: 'body2',
+                alignItems: 'center',
+                color: 'text.secondary',
+                '& svg': { width: 24, height: 24 },
+                '&:hover': { color: 'text.primary' },
+              }}
+            >
+              {option.icon}
+              <Box component="span" sx={{ ml: 2 + (option.depth ?? 0) * 1.5 }}>
+                {option.label}
+              </Box>
+            </Link>
+          </MenuItem>
+        ))}
+      </MenuList>
+    </Box>
   );
 }

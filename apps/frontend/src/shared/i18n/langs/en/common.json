@@ -1,6 +1,29 @@
 {
   "demo": {
     "lang": "English",
-    "description": "Hook is the backend control plane for authentication, RBAC, API permissions, and menu governance."
+    "description": "Backend control plane for authentication, RBAC, API permissions, and menu governance."
+  },
+  "settings": {
+    "title": "Settings",
+    "resetAll": "Reset all",
+    "close": "Close",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
+    "mode": "Mode",
+    "system": "System",
+    "contrast": "Contrast",
+    "rightToLeft": "Right to left",
+    "compact": "Compact",
+    "compactTooltip": "Dashboard only and available at large resolutions > 1600px (xl)",
+    "presets": "Presets",
+    "nav": "Nav",
+    "dashboardOnly": "Dashboard only",
+    "layout": "Layout",
+    "color": "Color",
+    "integrate": "Integrate",
+    "apparent": "Apparent",
+    "font": "Font",
+    "family": "Family",
+    "size": "Size"
   }
 }

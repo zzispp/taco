@@ -1,11 +1,15 @@
 use axum::{
     Json,
     extract::{FromRequest, Request, rejection::JsonRejection},
-    http::StatusCode,
+    http::{StatusCode, header::ACCEPT_LANGUAGE},
     response::{IntoResponse, Response},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use utoipa::ToSchema;
+
+mod locale;
+
+pub use locale::{ApiErrorKind, Locale, current_locale, locale_middleware, localized_error_response, translate_error};
 
 #[derive(Debug, PartialEq, Eq, Serialize, ToSchema)]
 pub struct ApiErrorResponse {
@@ -44,10 +48,11 @@ where
     type Rejection = RequestJsonRejection;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let locale = Locale::from_header_value(req.headers().get(ACCEPT_LANGUAGE));
         Json::<T>::from_request(req, state)
             .await
             .map(|Json(value)| Self(value))
-            .map_err(RequestJsonRejection::from)
+            .map_err(|error| RequestJsonRejection::from_parts(error, locale))
     }
 }
 
@@ -59,19 +64,54 @@ pub struct RequestJsonRejection {
 
 impl From<JsonRejection> for RequestJsonRejection {
     fn from(value: JsonRejection) -> Self {
+        Self::from_parts(value, current_locale())
+    }
+}
+
+impl RequestJsonRejection {
+    fn from_parts(value: JsonRejection, locale: Locale) -> Self {
         let status = value.status();
         let details = value.body_text();
         let body = match value {
-            JsonRejection::MissingJsonContentType(_) => {
-                ApiErrorResponse::with_details("unsupported_media_type", "expected application/json content type", details)
-            }
-            JsonRejection::JsonSyntaxError(_) | JsonRejection::JsonDataError(_) => {
-                ApiErrorResponse::with_details("invalid_json", "invalid JSON payload", details)
-            }
-            JsonRejection::BytesRejection(_) => ApiErrorResponse::with_details("invalid_body", "failed to read request body", details),
-            _ => ApiErrorResponse::with_details("invalid_json", "invalid JSON payload", details),
+            JsonRejection::MissingJsonContentType(_) => localized_error_response(
+                locale,
+                ApiErrorKind::UnsupportedMediaType,
+                Some(&kernel::error::LocalizedError::new("errors.http.expected_json_content_type")),
+            )
+            .with_raw_details(details),
+            JsonRejection::JsonSyntaxError(_) | JsonRejection::JsonDataError(_) => localized_error_response(
+                locale,
+                ApiErrorKind::InvalidJson,
+                Some(&kernel::error::LocalizedError::new("errors.http.invalid_json_payload")),
+            )
+            .with_raw_details(details),
+            JsonRejection::BytesRejection(_) => localized_error_response(
+                locale,
+                ApiErrorKind::InvalidBody,
+                Some(&kernel::error::LocalizedError::new("errors.http.failed_to_read_body")),
+            )
+            .with_raw_details(details),
+            _ => localized_error_response(
+                locale,
+                ApiErrorKind::InvalidJson,
+                Some(&kernel::error::LocalizedError::new("errors.http.invalid_json_payload")),
+            )
+            .with_raw_details(details),
         };
         Self { status, body }
+    }
+}
+
+trait ErrorResponseDetails {
+    fn with_raw_details(self, raw_details: String) -> Self;
+}
+
+impl ErrorResponseDetails for ApiErrorResponse {
+    fn with_raw_details(mut self, raw_details: String) -> Self {
+        if self.details.is_none() {
+            self.details = Some(raw_details);
+        }
+        self
     }
 }
 
@@ -92,10 +132,11 @@ pub fn xlsx_attachment(file_name: &str, bytes: Vec<u8>) -> Response {
 #[cfg(test)]
 mod tests {
     use axum::extract::Json;
+    use axum::http::HeaderValue;
     use axum::response::IntoResponse;
     use serde_json::json;
 
-    use super::{ApiErrorResponse, RequestJsonRejection};
+    use super::{ApiErrorResponse, Locale, RequestJsonRejection};
 
     #[test]
     fn api_error_response_serializes_without_envelope() {
@@ -119,5 +160,22 @@ mod tests {
         let response = rejection.into_response();
 
         assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn locale_parses_accept_language_candidates() {
+        assert_eq!(Locale::from_header("zh-CN,zh;q=0.9,en;q=0.8"), Locale::ZhCn);
+        assert_eq!(Locale::from_header("zh-Hans"), Locale::ZhCn);
+        assert_eq!(Locale::from_header("zh-TW,zh;q=0.9"), Locale::ZhTw);
+        assert_eq!(Locale::from_header("zh-Hant"), Locale::ZhTw);
+        assert_eq!(Locale::from_header("en-US,en;q=0.9"), Locale::En);
+        assert_eq!(Locale::from_header("fr-FR"), Locale::ZhCn);
+    }
+
+    #[test]
+    fn locale_parses_header_value() {
+        let value = HeaderValue::from_static("zh-HK,zh;q=0.9");
+
+        assert_eq!(Locale::from_header_value(Some(&value)), Locale::ZhTw);
     }
 }

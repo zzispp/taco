@@ -1,4 +1,4 @@
-import type { Menu } from 'src/entities/menu/model/types';
+import type { Menu } from 'src/entities/menu';
 import type { NavSectionProps } from 'src/shared/ui/nav-section';
 
 import useSWR from 'swr';

@@ -1,7 +1,7 @@
 'use client';
 
 import * as z from 'zod';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useBoolean } from 'minimal-shared/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,9 +19,21 @@ import { useRouter } from 'src/shared/routes/hooks';
 import { Form, Field } from 'src/shared/ui/hook-form';
 import { RouterLink } from 'src/shared/routes/components';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
+import { useSiteDisplay } from 'src/shared/config/site-display-context';
+import { SiteDocumentTitle } from 'src/shared/config/site-document-title';
+import { formatPageDocumentTitle } from 'src/shared/i18n/document-title-format';
 
-import { usePublicConfigs, isRegisterEnabled } from 'src/entities/system';
-import { emailSchema, useAuthContext, passwordSchema, usernameSchema } from 'src/entities/session';
+import {
+  emailSchema,
+  useAuthContext,
+  usernameSchema,
+  createPasswordSchema,
+} from 'src/entities/session';
+import {
+  usePublicConfigs,
+  isRegisterEnabled,
+  passwordPolicyFromPublicConfigs,
+} from 'src/entities/system';
 
 import { signUp } from 'src/features/auth';
 import { FormHead } from 'src/features/auth/ui/form-head';
@@ -33,29 +45,48 @@ import { CaptchaWidget, isCaptchaReady, useCaptchaConfig } from 'src/features/au
 const CAPTCHA_REQUIRED_MESSAGE = 'Complete CAPTCHA first';
 const CAPTCHA_LOADING_MESSAGE = 'Captcha config is loading';
 
-export type SignUpSchemaType = z.infer<typeof SignUpSchema>;
-
-export const SignUpSchema = z.object({
+const DefaultSignUpSchema = z.object({
   username: usernameSchema,
   email: emailSchema,
-  password: passwordSchema,
+  password: createPasswordSchema(),
 });
+
+export type SignUpSchemaType = z.infer<typeof DefaultSignUpSchema>;
 
 // ----------------------------------------------------------------------
 
 export function JwtSignUpView() {
   const router = useRouter();
   const showPassword = useBoolean();
+  const { siteName } = useSiteDisplay();
+  const documentTitle = formatPageDocumentTitle('Sign up', siteName);
   const { checkUserSession } = useAuthContext();
   const { data: publicConfigs, error: configError, isLoading: loadingConfig } = usePublicConfigs();
   const captcha = useCaptchaConfig();
+  const passwordPolicy = useMemo(
+    () => passwordPolicyFromPublicConfigs(publicConfigs),
+    [publicConfigs]
+  );
+  const signUpSchema = useMemo(() => {
+    const passwordSchema = createPasswordSchema(passwordPolicy);
+    return DefaultSignUpSchema.extend({ password: passwordSchema }).superRefine((data, context) => {
+      if (!passwordContainsUsername(data.password, data.username, passwordPolicy)) {
+        return;
+      }
+      context.addIssue({
+        code: 'custom',
+        path: ['password'],
+        message: 'Password cannot contain username',
+      });
+    });
+  }, [passwordPolicy]);
 
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const methods = useForm({
-    resolver: zodResolver(SignUpSchema),
+    resolver: zodResolver(signUpSchema),
     defaultValues: { username: '', email: '', password: '' },
   });
 
@@ -125,7 +156,11 @@ export function JwtSignUpView() {
         }}
       />
 
-      <CaptchaWidget config={captcha.data} resetKey={captchaResetKey} onTokenChange={setCaptchaToken} />
+      <CaptchaWidget
+        config={captcha.data}
+        resetKey={captchaResetKey}
+        onTokenChange={setCaptchaToken}
+      />
 
       <Button
         fullWidth
@@ -142,22 +177,40 @@ export function JwtSignUpView() {
   );
 
   if (loadingConfig || captcha.isLoading) {
-    return <Alert severity="info">Loading registration config...</Alert>;
+    return (
+      <>
+        <SiteDocumentTitle title={documentTitle} />
+        <Alert severity="info">Loading registration config...</Alert>
+      </>
+    );
   }
 
   if (configError || captcha.error) {
-    return <Alert severity="error">{getErrorMessage(configError ?? captcha.error)}</Alert>;
+    return (
+      <>
+        <SiteDocumentTitle title={documentTitle} />
+        <Alert severity="error">{getErrorMessage(configError ?? captcha.error)}</Alert>
+      </>
+    );
   }
 
   if (!isRegisterEnabled(publicConfigs)) {
     return (
       <>
+        <SiteDocumentTitle title={documentTitle} />
+
         <FormHead
           title="Registration is disabled"
           description="Account self-registration is currently closed."
           sx={{ textAlign: { xs: 'center', md: 'left' } }}
         />
-        <Button component={RouterLink} href={paths.auth.jwt.signIn} fullWidth variant="contained" color="inherit">
+        <Button
+          component={RouterLink}
+          href={paths.auth.jwt.signIn}
+          fullWidth
+          variant="contained"
+          color="inherit"
+        >
           Back to sign in
         </Button>
       </>
@@ -166,6 +219,8 @@ export function JwtSignUpView() {
 
   return (
     <>
+      <SiteDocumentTitle title={documentTitle} />
+
       <FormHead
         title="Get started absolutely free"
         description={
@@ -212,4 +267,16 @@ function validateCaptcha(
     return false;
   }
   return true;
+}
+
+function passwordContainsUsername(
+  password: string,
+  username: string,
+  policy: ReturnType<typeof passwordPolicyFromPublicConfigs>
+) {
+  if (!policy?.forbid_username_contains) {
+    return false;
+  }
+  const normalizedUsername = username.trim().toLowerCase();
+  return !!normalizedUsername && password.toLowerCase().includes(normalizedUsername);
 }

@@ -1,1 +1,1 @@
-pub use types::user::{Credentials, NewUser, ReplaceUser, User, UserFormOptions, UserId};
+pub use types::user::{Credentials, NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfile, UserProfileGroups};

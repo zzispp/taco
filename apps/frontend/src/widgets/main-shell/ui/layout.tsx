@@ -3,7 +3,11 @@
 import type { Breakpoint } from '@mui/material/styles';
 import type { FooterProps } from './footer';
 import type { NavMainProps } from './nav/types';
-import type { MainSectionProps, HeaderSectionProps, LayoutSectionProps } from 'src/shared/ui/layout';
+import type {
+  MainSectionProps,
+  HeaderSectionProps,
+  LayoutSectionProps,
+} from 'src/shared/ui/layout';
 
 import { useBoolean } from 'minimal-shared/hooks';
 

@@ -21,9 +21,9 @@ const SECTION_KEY_BY_TITLE: Record<string, string> = {
   Overview: 'nav.overview',
   Resources: 'nav.resources',
   'System Management': 'nav.systemManagement',
-  '概览': 'nav.overview',
-  '系统管理': 'nav.systemManagement',
-  '资源': 'nav.resources',
+  概览: 'nav.overview',
+  系统管理: 'nav.systemManagement',
+  资源: 'nav.resources',
 };
 
 const ITEM_KEY_BY_CODE: Record<string, string> = {

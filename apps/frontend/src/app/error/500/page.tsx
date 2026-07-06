@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/shared/config';
+import { formatErrorDocumentTitle } from 'src/shared/i18n/document-title-format';
 
 import { Error500Page } from 'src/pages-layer/error-500';
 
 // ----------------------------------------------------------------------
 
 export const metadata: Metadata = {
-  title: `500 Internal server error! | Error - ${CONFIG.appName}`,
+  title: formatErrorDocumentTitle('500 Internal server error!'),
 };
 
 export default function Page() {

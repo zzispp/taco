@@ -8,10 +8,14 @@ use axum::{
     Router,
     routing::{get, put},
 };
+use kernel::{
+    error::LocalizedError,
+    runtime_config::{ExportBatchConfig, ExportConfigProvider},
+};
 
 use rbac::application::{RbacAdminUseCase, RbacUseCase};
 
-use crate::application::SystemUseCase;
+use crate::application::{SystemError, SystemUseCase};
 
 use self::handlers::{
     config_by_key, create_config, create_dept, create_dict_data, create_dict_type, create_post, delete_config, delete_configs, delete_dept, delete_dict_data,
@@ -28,11 +32,33 @@ pub struct SystemApiState {
     pub system: Arc<dyn SystemUseCase>,
     pub rbac: Arc<dyn RbacUseCase>,
     pub rbac_admin: Arc<dyn RbacAdminUseCase>,
+    pub export_config: Arc<dyn ExportConfigProvider<Error = SystemError>>,
 }
 
 impl SystemApiState {
     pub fn new(system: Arc<dyn SystemUseCase>, rbac: Arc<dyn RbacUseCase>, rbac_admin: Arc<dyn RbacAdminUseCase>) -> Self {
-        Self { system, rbac, rbac_admin }
+        Self {
+            system,
+            rbac,
+            rbac_admin,
+            export_config: Arc::new(DisabledExportConfigProvider),
+        }
+    }
+
+    pub fn with_export_config(mut self, export_config: Arc<dyn ExportConfigProvider<Error = SystemError>>) -> Self {
+        self.export_config = export_config;
+        self
+    }
+}
+
+struct DisabledExportConfigProvider;
+
+#[async_trait::async_trait]
+impl ExportConfigProvider for DisabledExportConfigProvider {
+    type Error = SystemError;
+
+    async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
+        Err(SystemError::InvalidInput(LocalizedError::new("errors.system.export_config_unconfigured")))
     }
 }
 

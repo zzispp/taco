@@ -14,8 +14,6 @@ database:
 
 jwt:
   secret: "hook-local-development-jwt-secret-change-before-deploy"
-  access_token_ttl_seconds: 1440
-  refresh_token_ttl_seconds: 604800
 
 auth:
   whitelist:
@@ -69,6 +67,9 @@ redis:
   database:
   protocol: "resp3"
   key_prefix: "hook"
+
+uploads:
+  avatar_directory: "storage/uploads/avatars"
 
 tracing:
   log_level: "info"

@@ -16,40 +16,19 @@ import DialogContent from '@mui/material/DialogContent';
 import FormControlLabel from '@mui/material/FormControlLabel';
 
 import { Label } from 'src/shared/ui/label';
-import { paths } from 'src/shared/routes/paths';
 import { Iconify } from 'src/shared/ui/iconify';
 import { TableHeadCustom } from 'src/shared/ui/table';
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { CustomBreadcrumbs } from 'src/shared/ui/custom-breadcrumbs';
 
 export const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
-export type AdminT = ReturnType<typeof useTranslate>['t'];
-
-export function AdminBreadcrumbs({
-  heading,
-  action,
+export function AddButton({
+  onClick,
+  children,
 }: {
-  heading: string;
-  action?: React.ReactNode;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
-  const { t } = useTranslate('admin');
-
-  return (
-    <CustomBreadcrumbs
-      heading={heading}
-      links={[
-        { name: t('nav.dashboard'), href: paths.dashboard.root },
-        { name: t('nav.systemManagement') },
-        { name: heading },
-      ]}
-      action={action}
-      sx={{ mb: { xs: 3, md: 5 } }}
-    />
-  );
-}
-
-export function AddButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <Button variant="contained" startIcon={<Iconify icon="mingcute:add-line" />} onClick={onClick}>
       {children}
@@ -71,7 +50,15 @@ export function StatusLabel({ status }: { status: string }) {
   return <EnabledLabel enabled={status === '0'} />;
 }
 
-export function BooleanLabel({ enabled, trueText, falseText }: { enabled: boolean; trueText: string; falseText: string }) {
+export function BooleanLabel({
+  enabled,
+  trueText,
+  falseText,
+}: {
+  enabled: boolean;
+  trueText: string;
+  falseText: string;
+}) {
   return (
     <Label color={enabled ? 'info' : 'default'} variant="soft">
       {enabled ? trueText : falseText}
@@ -109,7 +96,10 @@ export function TableLoadingRows({
       {Array.from({ length: rows }).map((_, rowIndex) => (
         <TableRow key={rowIndex}>
           {head.map((cell) => (
-            <TableCell key={cell.id || cell.label?.toString() || 'action'} sx={{ color: 'text.disabled' }}>
+            <TableCell
+              key={cell.id || cell.label?.toString() || 'action'}
+              sx={{ color: 'text.disabled' }}
+            >
               {t('common.loading')}
             </TableCell>
           ))}

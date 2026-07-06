@@ -13,7 +13,7 @@ export default function Layout({ children }: Props) {
     <GuestGuard>
       <AuthSplitLayout
         slotProps={{
-          section: { title: 'Resume your Hook workspace' },
+          section: { variant: 'sign-in' },
         }}
       >
         {children}

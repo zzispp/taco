@@ -11,9 +11,7 @@ type Props = {
 export default function Layout({ children }: Props) {
   return (
     <GuestGuard>
-      <AuthSplitLayout slotProps={{ section: { title: 'Create your Hook workspace' } }}>
-        {children}
-      </AuthSplitLayout>
+      <AuthSplitLayout slotProps={{ section: { variant: 'sign-up' } }}>{children}</AuthSplitLayout>
     </GuestGuard>
   );
 }

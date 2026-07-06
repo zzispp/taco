@@ -1,7 +1,7 @@
 'use client';
 
-import type { AdminT } from 'src/shared/ui/admin/common';
-import type { Menu } from 'src/entities/menu/model/types';
+import type { Menu } from '../model/types';
+import type { TranslateFn } from 'src/shared/i18n';
 import type { NavSectionProps } from 'src/shared/ui/nav-section';
 
 import { CONFIG } from 'src/shared/config';
@@ -39,7 +39,7 @@ export const NAV_ICONS: NonNullable<NavSectionProps['render']>['navIcon'] = {
   'icon.user': icon('ic-user'),
 };
 
-export function translatedMenuItem(item: Menu, t: AdminT) {
+export function translatedMenuItem(item: Menu, t: TranslateFn) {
   const keyByPerms: Record<string, string> = {
     'system:user:list': 'nav.users',
     'system:role:list': 'nav.roles',

@@ -151,7 +151,7 @@ CREATE TABLE sys_config (
     config_id VARCHAR(36) PRIMARY KEY,
     config_name VARCHAR(100) NOT NULL DEFAULT '',
     config_key VARCHAR(100) NOT NULL DEFAULT '',
-    config_value VARCHAR(500) NOT NULL DEFAULT '',
+    config_value TEXT NOT NULL DEFAULT '',
     config_type CHAR(1) NOT NULL DEFAULT 'N',
     create_by VARCHAR(64) NOT NULL DEFAULT '',
     create_time TIMESTAMPTZ NOT NULL,

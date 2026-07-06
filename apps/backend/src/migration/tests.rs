@@ -9,7 +9,7 @@ use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, re
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
 const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
-const MIGRATION_TOTAL: usize = 6;
+const MIGRATION_TOTAL: usize = 7;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
@@ -250,10 +250,18 @@ async fn assert_seed_data_exists(pool: &PgPool) {
     assert_eq!(table_count(pool, "sys_dept").await, 10);
     assert_eq!(table_count(pool, "sys_post").await, 4);
     assert_eq!(table_count(pool, "sys_dict_type").await, 5);
-    assert_eq!(table_count(pool, "sys_config").await, 8);
-    assert_eq!(public_config_count(pool).await, 6);
-    assert_eq!(captcha_public_config(pool).await["cloudflare_turnstile"]["site_key"], "");
-    assert_eq!(captcha_private_config(pool).await["cloudflare_turnstile"]["secret_key"], "");
+    assert_eq!(table_count(pool, "sys_config").await, 14);
+    assert_eq!(public_config_count(pool).await, 5);
+    let captcha = captcha_config(pool).await;
+    assert_eq!(captcha["provider"], "cap");
+    assert_eq!(captcha["providers"]["cap"]["challenge_difficulty"], 4);
+    assert_eq!(captcha["providers"]["cloudflare_turnstile"]["site_key"], "");
+    assert_eq!(captcha["providers"]["cloudflare_turnstile"]["secret_key"], "");
+    assert_eq!(token_config(pool).await["refresh_token_ttl_seconds"], 604800);
+    assert_eq!(password_policy(pool).await["min_length"], 8);
+    assert_eq!(avatar_config(pool).await["max_bytes"], 2097152);
+    assert_eq!(export_batch_config(pool).await["page_size"], 100);
+    assert_eq!(site_display_config(pool).await["site_name"], "taco");
     assert_eq!(initial_password(pool).await, "12345678");
     assert_eq!(mode_theme(pool).await, "theme-light");
 }
@@ -279,12 +287,28 @@ async fn public_config_count(pool: &PgPool) -> i64 {
         .unwrap()
 }
 
-async fn captcha_public_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.account.captchaPublicConfig").await
+async fn captcha_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.account.captchaConfig").await
 }
 
-async fn captcha_private_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.account.captchaPrivateConfig").await
+async fn token_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.auth.tokenConfig").await
+}
+
+async fn password_policy(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.user.passwordPolicy").await
+}
+
+async fn avatar_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.upload.avatarConfig").await
+}
+
+async fn export_batch_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.export.batchConfig").await
+}
+
+async fn site_display_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.site.displayConfig").await
 }
 
 async fn config_json(pool: &PgPool, key: &str) -> serde_json::Value {

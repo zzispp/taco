@@ -1,7 +1,7 @@
+import type { TranslateFn } from 'src/shared/i18n';
 import type { Role, RoleSummary } from '../model/types';
-import type { AdminT } from 'src/shared/ui/admin/common';
 
-export function translatedRoleName(role: RoleSummary, t: AdminT) {
+export function translatedRoleName(role: RoleSummary, t: TranslateFn) {
   const keyByCode: Record<string, string> = {
     admin: 'roles.admin.name',
     common: 'roles.common.name',
@@ -12,7 +12,7 @@ export function translatedRoleName(role: RoleSummary, t: AdminT) {
   return key ? t(key) : role.role_name;
 }
 
-export function translatedRoleDescription(role: Role, t: AdminT) {
+export function translatedRoleDescription(role: Role, t: TranslateFn) {
   const keyByCode: Record<string, string> = {
     admin: 'roles.admin.description',
     common: 'roles.common.description',

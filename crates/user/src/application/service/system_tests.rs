@@ -2,6 +2,7 @@ use kernel::pagination::PageRequest;
 
 use super::tests::WithPassword;
 use crate::{
+    application::service::StaticPasswordPolicyProvider,
     application::{AppError, UserService, UserUseCase},
     domain::Credentials,
     test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user, system_user, user_id},
@@ -150,8 +151,8 @@ async fn list_users_returns_empty_for_unmatched_dept_filter_when_system_user_is_
 
 fn service_with_system_user(
     repository: MemoryUserRepository,
-) -> UserService<MemoryUserRepository, TestPasswordHasher, crate::test_support::TestSystemUserProvider> {
-    UserService::with_system_user(repository, TestPasswordHasher, system_user())
+) -> UserService<MemoryUserRepository, TestPasswordHasher, StaticPasswordPolicyProvider, crate::test_support::TestSystemUserProvider> {
+    UserService::with_system_user(repository, TestPasswordHasher, StaticPasswordPolicyProvider, system_user())
 }
 
 fn users_repository() -> MemoryUserRepository {

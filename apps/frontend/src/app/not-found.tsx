@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/shared/config';
+import { formatErrorDocumentTitle } from 'src/shared/i18n/document-title-format';
 
 import { Error404Page } from 'src/pages-layer/error-404';
 
 // ----------------------------------------------------------------------
 
-export const metadata: Metadata = { title: `404 page not found! | Error - ${CONFIG.appName}` };
+export const metadata: Metadata = { title: formatErrorDocumentTitle('404 page not found!') };
 
 export default function Page() {
   return <Error404Page />;

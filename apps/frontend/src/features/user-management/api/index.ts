@@ -1,9 +1,4 @@
-import type {
-  UserInput,
-  SystemUser,
-  UserImportResult,
-  UserRolesPayload,
-} from 'src/entities/user/model/types';
+import type { UserInput, SystemUser, UserImportResult, UserRolesPayload } from 'src/entities/user';
 
 import { mutate } from 'swr';
 
@@ -11,7 +6,7 @@ import axios from 'src/shared/api/http-client';
 import { downloadBlobResponse } from 'src/shared/api/download';
 import { requestData, isEndpointKey, compactParams } from 'src/shared/api/pagination';
 
-import { userEndpoints } from 'src/entities/user/api/endpoints';
+import { userEndpoints } from 'src/entities/user';
 
 export async function createUser(payload: UserInput) {
   const user = await requestData<SystemUser>(axios.post(userEndpoints.users, payload));

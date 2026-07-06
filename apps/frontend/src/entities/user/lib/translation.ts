@@ -1,6 +1,6 @@
-import type { AdminT } from 'src/shared/ui/admin/common';
+import type { TranslateFn } from 'src/shared/i18n';
 
-export function translatedAuthSource(source: string, t: AdminT) {
+export function translatedAuthSource(source: string, t: TranslateFn) {
   const key = `authSources.${source.toLowerCase()}`;
   const translated = t(key);
 

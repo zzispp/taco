@@ -3,7 +3,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use types::http::ApiErrorResponse;
+use kernel::error::LocalizedError;
+use types::http::{ApiErrorKind, ApiErrorResponse, current_locale, localized_error_response};
 
 use crate::application::CaptchaError;
 
@@ -31,8 +32,13 @@ fn status_code(error: &CaptchaError) -> StatusCode {
 }
 
 fn error_response(error: &CaptchaError) -> ApiErrorResponse {
+    let locale = current_locale();
     match error {
-        CaptchaError::InvalidInput(message) => ApiErrorResponse::with_details("invalid_input", "invalid input", message.clone()),
-        CaptchaError::Infrastructure(message) => ApiErrorResponse::with_details("infrastructure_error", "infrastructure error", message.clone()),
+        CaptchaError::InvalidInput(message) => localized_error_response(locale, ApiErrorKind::InvalidInput, Some(message)),
+        CaptchaError::Infrastructure(_) => localized_error_response(
+            locale,
+            ApiErrorKind::Infrastructure,
+            Some(&LocalizedError::new("errors.common.service_unavailable")),
+        ),
     }
 }

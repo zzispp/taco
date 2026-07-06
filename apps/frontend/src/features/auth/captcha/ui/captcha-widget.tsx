@@ -28,11 +28,23 @@ export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: Captc
   }
 
   if (config.provider === CAPTCHA_PROVIDER_CAP) {
-    return <CapCaptcha resetKey={resetKey} onTokenChange={onTokenChange} labels={labels ?? DEFAULT_LABELS} />;
+    return (
+      <CapCaptcha
+        resetKey={resetKey}
+        onTokenChange={onTokenChange}
+        labels={labels ?? DEFAULT_LABELS}
+      />
+    );
   }
 
   if (config.provider === CAPTCHA_PROVIDER_CLOUDFLARE_TURNSTILE) {
-    return <CloudflareTurnstile config={turnstileConfig(config)} resetKey={resetKey} onTokenChange={onTokenChange} />;
+    return (
+      <CloudflareTurnstile
+        config={turnstileConfig(config)}
+        resetKey={resetKey}
+        onTokenChange={onTokenChange}
+      />
+    );
   }
 
   return <Alert severity="error">Unsupported captcha provider: {config.provider}</Alert>;

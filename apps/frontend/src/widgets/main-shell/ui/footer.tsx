@@ -11,6 +11,7 @@ import Typography from '@mui/material/Typography';
 import { Logo } from 'src/shared/ui/logo';
 import { paths } from 'src/shared/routes/paths';
 import { RouterLink } from 'src/shared/routes/components';
+import { useSiteDisplay } from 'src/shared/config/site-display-context';
 
 // ----------------------------------------------------------------------
 
@@ -44,6 +45,7 @@ export function Footer({
   layoutQuery = 'md',
   ...other
 }: FooterProps & { layoutQuery?: Breakpoint }) {
+  const { siteName, footerText } = useSiteDisplay();
   return (
     <FooterRoot sx={sx} {...other}>
       <Divider />
@@ -52,22 +54,25 @@ export function Footer({
         <Grid container sx={footerGridSx(layoutQuery)}>
           <Grid size={{ xs: 12, [layoutQuery]: 4 }}>
             <Typography variant="body2" sx={footerTextSx(layoutQuery)}>
-              Hook is the management console for authentication, RBAC, API permissions, and menu
-              governance in one backend control plane.
+              {footerText}
             </Typography>
           </Grid>
           <Grid size={{ xs: 12, [layoutQuery]: 5 }}>
             <Grid container spacing={3}>
               {LINKS.map((group) => (
                 <Grid key={group.headline} size={{ xs: 12, sm: 6 }}>
-                  <FooterColumn headline={group.headline} links={group.children} layoutQuery={layoutQuery} />
+                  <FooterColumn
+                    headline={group.headline}
+                    links={group.children}
+                    layoutQuery={layoutQuery}
+                  />
                 </Grid>
               ))}
             </Grid>
           </Grid>
         </Grid>
         <Typography variant="body2" sx={{ mt: 10 }}>
-          © Hook. All rights reserved.
+          © {siteName}. All rights reserved.
         </Typography>
       </Container>
     </FooterRoot>
@@ -75,11 +80,15 @@ export function Footer({
 }
 
 export function HomeFooter({ sx, ...other }: FooterProps) {
+  const { footerText } = useSiteDisplay();
   return (
-    <FooterRoot sx={[{ py: 5, textAlign: 'center' }, ...(Array.isArray(sx) ? sx : [sx])]} {...other}>
+    <FooterRoot
+      sx={[{ py: 5, textAlign: 'center' }, ...(Array.isArray(sx) ? sx : [sx])]}
+      {...other}
+    >
       <Container>
         <Logo />
-        <Box sx={{ mt: 1, typography: 'caption' }}>Hook backend control plane.</Box>
+        <Box sx={{ mt: 1, typography: 'caption' }}>{footerText}</Box>
       </Container>
     </FooterRoot>
   );
@@ -100,7 +109,13 @@ function FooterColumn({
         {headline}
       </Typography>
       {links.map((link) => (
-        <Link key={link.name} component={RouterLink} href={link.href} color="inherit" variant="body2">
+        <Link
+          key={link.name}
+          component={RouterLink}
+          href={link.href}
+          color="inherit"
+          variant="body2"
+        >
           {link.name}
         </Link>
       ))}

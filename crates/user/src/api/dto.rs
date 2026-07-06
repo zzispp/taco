@@ -75,6 +75,20 @@ pub struct StatusPayload {
     pub status: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ProfilePayload {
+    pub nick_name: String,
+    pub phonenumber: Option<String>,
+    pub email: String,
+    pub sex: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordPayload {
+    pub old_password: String,
+    pub new_password: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserRolesPayload {
     pub role_ids: Vec<String>,
@@ -137,6 +151,20 @@ pub struct UserFormOptionsResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ProfileResponse {
+    pub user: UserResponse,
+    pub role_group: String,
+    pub post_group: String,
+    pub dept_name: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AvatarResponse {
+    pub img_url: String,
+    pub user: UserResponse,
+}
+
+#[derive(Debug, Serialize)]
 pub struct UserImportResponse {
     pub success_count: usize,
     pub message: String,
@@ -174,6 +202,17 @@ impl From<UserPayload> for ReplaceUser {
             remark: value.remark,
             role_ids: value.role_ids,
             post_ids: value.post_ids,
+        }
+    }
+}
+
+impl From<ProfilePayload> for types::user::ProfileUpdate {
+    fn from(value: ProfilePayload) -> Self {
+        Self {
+            nick_name: value.nick_name,
+            phonenumber: value.phonenumber,
+            email: value.email,
+            sex: value.sex,
         }
     }
 }
@@ -247,6 +286,17 @@ impl From<UserFormOptions> for UserFormOptionsResponse {
             roles: value.roles,
             posts: value.posts,
             depts: value.depts,
+        }
+    }
+}
+
+impl From<types::user::UserProfile> for ProfileResponse {
+    fn from(value: types::user::UserProfile) -> Self {
+        Self {
+            user: value.user.into(),
+            role_group: value.role_group,
+            post_group: value.post_group,
+            dept_name: value.dept_name,
         }
     }
 }

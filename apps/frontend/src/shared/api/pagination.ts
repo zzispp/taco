@@ -7,7 +7,12 @@ export const pageQuery = (page: number, pageSize: number, params: QueryParams = 
     ...params,
   });
 
-export function pageKey(endpoint: string, page: number, pageSize: number, params: QueryParams = {}) {
+export function pageKey(
+  endpoint: string,
+  page: number,
+  pageSize: number,
+  params: QueryParams = {}
+) {
   return [endpoint, { params: pageQuery(page, pageSize, params) }] as const;
 }
 
@@ -22,6 +27,8 @@ export function isEndpointKey(key: unknown, endpoint: string) {
 
 export function compactParams(params: QueryParams) {
   return Object.fromEntries(
-    Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    Object.entries(params).filter(
+      ([, value]) => value !== '' && value !== null && value !== undefined
+    )
   );
 }

@@ -16,7 +16,6 @@ export type CaptchaLabels = {
   error: string;
 };
 
-
 export type TurnstilePublicConfig = {
   site_key: string;
   script_url: string;

@@ -2,8 +2,13 @@
 
 import type { Breakpoint } from '@mui/material/styles';
 import type { NavSectionProps } from 'src/shared/ui/nav-section';
-import type { MainSectionProps, HeaderSectionProps, LayoutSectionProps } from 'src/shared/ui/layout';
+import type {
+  MainSectionProps,
+  HeaderSectionProps,
+  LayoutSectionProps,
+} from 'src/shared/ui/layout';
 
+import { useMemo } from 'react';
 import { merge } from 'es-toolkit';
 import { useBoolean } from 'minimal-shared/hooks';
 
@@ -25,8 +30,8 @@ import { NAV_ICONS } from 'src/entities/menu';
 
 import { Searchbar } from 'src/widgets/dashboard-shell/ui/searchbar';
 import { useNavbar } from 'src/widgets/dashboard-shell/model/nav-data';
-import { _account } from 'src/widgets/dashboard-shell/model/account-links';
 import { AccountDrawer } from 'src/widgets/dashboard-shell/ui/account-drawer';
+import { accountLinksFromNavData } from 'src/widgets/dashboard-shell/model/account-links';
 
 import { NavMobile } from './nav-mobile';
 import { VerticalDivider } from './content';
@@ -69,6 +74,10 @@ export function DashboardLayout({
   const sourceNavData = slotProps?.nav?.data ?? navbar.data;
   const routeGuardNavData = slotProps?.nav?.data ?? navbar.data;
   const navData = translateNavData(sourceNavData, t);
+  const accountLinks = useMemo(
+    () => accountLinksFromNavData(navData, t('profile.personalCenter')),
+    [navData, t]
+  );
 
   const isNavMini = settings.state.navLayout === 'mini';
   const isNavHorizontal = settings.state.navLayout === 'horizontal';
@@ -136,7 +145,7 @@ export function DashboardLayout({
           <Searchbar data={navData} />
           <LanguagePopover data={allLangs} />
           <SettingsButton />
-          <AccountDrawer data={_account} />
+          <AccountDrawer data={accountLinks} navTitle={t('profile.authorizedNavigation')} />
         </Box>
       ),
     };

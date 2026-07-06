@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use kernel::error::LocalizedError;
 use kernel::pagination::{Page, PageRequest};
 use matchit::Router;
 
@@ -68,7 +69,7 @@ where
 
     pub async fn delete_roles(&self, ids: Vec<String>) -> RbacResult<()> {
         if ids.is_empty() {
-            return Err(RbacError::InvalidInput("ids are required".into()));
+            return Err(RbacError::InvalidInput(localized("errors.rbac.ids_required")));
         }
         for id in &ids {
             reject_system_role_update(&self.repository, id).await?;
@@ -240,7 +241,7 @@ fn data_scope_filter(user: &CurrentUser, snapshot: &PermissionSnapshot) -> DataS
     let roles = snapshot
         .roles
         .iter()
-        .filter(|role| role.status == types::rbac::STATUS_NORMAL && user.role_keys.contains(&role.role_key));
+        .filter(|role| role.status == constants::system::STATUS_NORMAL && user.role_keys.contains(&role.role_key));
     let data_scope = roles.clone().map(|role| role.data_scope.as_str()).min().unwrap_or("5");
     let dept_ids = roles.flat_map(|role| role.dept_ids.clone()).collect::<HashSet<_>>();
     DataScopeFilter {
@@ -258,7 +259,11 @@ fn validate_protected_handlers(config: &AuthorizationConfig) -> RbacResult<()> {
         .collect::<HashSet<_>>();
     for rule in &config.route_permissions {
         if !declared.contains(&(rule.handler, rule.permission.as_str())) {
-            return Err(RbacError::InvalidInput(format!("missing #[require_perms] for {}", rule.handler)));
+            return Err(RbacError::InvalidInput(localized_param(
+                "errors.rbac.missing_handler_permission",
+                "handler",
+                rule.handler,
+            )));
         }
     }
     Ok(())
@@ -271,7 +276,7 @@ fn validate_data_scope_handlers(handlers: &[&str]) -> RbacResult<()> {
         .collect::<HashSet<_>>();
     for handler in handlers {
         if !declared.contains(handler) {
-            return Err(RbacError::InvalidInput(format!("missing #[data_scope] for {handler}")));
+            return Err(RbacError::InvalidInput(localized_param("errors.rbac.missing_data_scope", "handler", *handler)));
         }
     }
     Ok(())
@@ -305,7 +310,9 @@ fn is_whitelisted(config: &AuthorizationConfig, method: &str, path: &str) -> Rba
 
 fn path_matches(pattern: &str, path: &str) -> RbacResult<bool> {
     let mut router = Router::new();
-    router.insert(pattern, ()).map_err(|error| RbacError::InvalidInput(error.to_string()))?;
+    router
+        .insert(pattern, ())
+        .map_err(|error| RbacError::InvalidInput(localized_param("errors.rbac.invalid_route_pattern", "error", error.to_string())))?;
     Ok(router.at(path).is_ok())
 }
 
@@ -391,14 +398,14 @@ fn clean_ids(ids: Vec<String>) -> Vec<String> {
 
 fn reject_empty_ids(ids: &[String]) -> RbacResult<()> {
     if ids.is_empty() {
-        return Err(RbacError::InvalidInput("ids cannot be empty".into()));
+        return Err(RbacError::InvalidInput(localized("errors.rbac.ids_empty")));
     }
     Ok(())
 }
 
 fn validate_page(page: PageRequest) -> RbacResult<()> {
     if page.page == 0 || page.page_size == 0 {
-        return Err(RbacError::InvalidInput("page and page_size must be greater than 0".into()));
+        return Err(RbacError::InvalidInput(localized("errors.validation.page_and_size_positive")));
     }
     Ok(())
 }
@@ -407,34 +414,42 @@ fn required(field: &str, value: String) -> RbacResult<String> {
     let trimmed = value.trim();
     (!trimmed.is_empty())
         .then(|| trimmed.into())
-        .ok_or_else(|| RbacError::InvalidInput(format!("{field} cannot be blank")))
+        .ok_or_else(|| RbacError::InvalidInput(localized_param("errors.validation.field_blank", "field", field)))
 }
 
 fn trim_optional(value: Option<String>) -> Option<String> {
     value.map(|item| item.trim().into()).filter(|item: &String| !item.is_empty())
 }
 
+fn localized(key: &'static str) -> LocalizedError {
+    LocalizedError::new(key)
+}
+
+fn localized_param(key: &'static str, param: &'static str, value: impl Into<String>) -> LocalizedError {
+    LocalizedError::new(key).with_param(param, value)
+}
+
 async fn reject_system_role_update<R: RbacRepository>(repository: &R, id: &str) -> RbacResult<()> {
     let role = repository.find_role(id).await?.ok_or(RbacError::NotFound)?;
     if role.system {
-        return Err(RbacError::Conflict("system role cannot be changed".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.system_role_immutable")));
     }
     Ok(())
 }
 
 async fn reject_role_in_use<R: RbacRepository>(repository: &R, id: &str) -> RbacResult<()> {
     if repository.role_has_users(id).await? {
-        return Err(RbacError::Conflict("role is still assigned to users".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.role_assigned_to_users")));
     }
     Ok(())
 }
 
 async fn reject_duplicate_role<R: RbacRepository>(repository: &R, input: &RoleInput, current_id: Option<&str>) -> RbacResult<()> {
     if repository.role_name_exists(&input.role_name, current_id).await? {
-        return Err(RbacError::Conflict("role name already exists".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.role_name_exists")));
     }
     if repository.role_key_exists(&input.role_key, current_id).await? {
-        return Err(RbacError::Conflict("role key already exists".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.role_key_exists")));
     }
     Ok(())
 }
@@ -442,7 +457,7 @@ async fn reject_duplicate_role<R: RbacRepository>(repository: &R, input: &RoleIn
 async fn reject_menu_delete<R: RbacRepository>(repository: &R, id: &str) -> RbacResult<()> {
     ensure_menu_exists(repository, id).await?;
     if repository.menu_has_children(id).await? || repository.menu_has_role_bindings(id).await? {
-        return Err(RbacError::Conflict("menu still has children or role bindings".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.menu_has_children_or_bindings")));
     }
     Ok(())
 }
@@ -455,14 +470,14 @@ async fn reject_invalid_menu<R: RbacRepository>(repository: &R, input: &MenuInpu
 
 fn reject_menu_parent(input: &MenuInput, current_id: Option<&str>) -> RbacResult<()> {
     if current_id.is_some_and(|id| input.parent_id == id) {
-        return Err(RbacError::Conflict("menu parent cannot be itself".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.menu_parent_self")));
     }
     Ok(())
 }
 
 fn reject_external_link(input: &MenuInput) -> RbacResult<()> {
     if input.is_frame && !input.path.starts_with("http://") && !input.path.starts_with("https://") {
-        return Err(RbacError::InvalidInput("external link must start with http:// or https://".into()));
+        return Err(RbacError::InvalidInput(localized("errors.rbac.external_link_scheme")));
     }
     Ok(())
 }
@@ -470,13 +485,13 @@ fn reject_external_link(input: &MenuInput) -> RbacResult<()> {
 async fn reject_duplicate_menu<R: RbacRepository>(repository: &R, input: &MenuInput, current_id: Option<&str>) -> RbacResult<()> {
     let menus = repository.list_menus().await?;
     if menus.iter().any(|menu| same_parent_name(menu, input, current_id)) {
-        return Err(RbacError::Conflict("menu name already exists under same parent".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.menu_name_exists")));
     }
     if menus.iter().any(|menu| same_parent_path(menu, input, current_id)) {
-        return Err(RbacError::Conflict("menu path already exists under same parent".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.menu_path_exists")));
     }
     if menus.iter().any(|menu| same_route_name(menu, input, current_id)) {
-        return Err(RbacError::Conflict("route name already exists".into()));
+        return Err(RbacError::Conflict(localized("errors.rbac.route_name_exists")));
     }
     Ok(())
 }

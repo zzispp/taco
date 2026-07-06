@@ -4,6 +4,8 @@ use axum::{
     http::{HeaderMap, header::AUTHORIZATION},
     response::Response,
 };
+use constants::system_config::{INIT_PASSWORD_KEY, REGISTER_USER_KEY};
+use kernel::error::LocalizedError;
 use rbac::api::CurrentUser;
 use rbac_macros::{data_scope, require_perms};
 use types::rbac::DataScopeFilter;
@@ -16,40 +18,37 @@ use crate::{
     api::{
         ApiState, TokenPair,
         dto::{
-            AuthSessionResponse, ListUsersQuery, MeResponse, RefreshTokenPayload, ResetPasswordPayload, SignInPayload, SignUpPayload, StatusPayload,
-            TokenPairResponse, UserExportQuery, UserFormOptionsResponse, UserImportResponse, UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
+            AuthSessionResponse, AvatarResponse, ChangePasswordPayload, ListUsersQuery, MeResponse, ProfilePayload, ProfileResponse, RefreshTokenPayload,
+            ResetPasswordPayload, SignInPayload, SignUpPayload, StatusPayload, TokenPairResponse, UserExportQuery, UserFormOptionsResponse, UserImportResponse,
+            UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
         },
         error::ApiError,
         import_export::{export_query_page, export_users_xlsx, import_template_xlsx, parse_import_rows},
     },
-    application::{AppError, UserImportInput},
+    application::{AppError, AvatarFile, UserImportInput},
     domain::{NewUser, User, UserId},
 };
 
 type ApiResult<T> = Result<T, ApiError>;
 type ApiJson<T> = Json<T>;
 
-const REGISTER_USER_KEY: &str = "sys.account.registerUser";
-const INIT_PASSWORD_KEY: &str = "sys.user.initPassword";
-const EXPORT_PAGE_SIZE: u64 = 100;
-
 pub async fn sign_up(State(state): State<ApiState>, RequestJson(payload): RequestJson<SignUpPayload>) -> ApiResult<ApiJson<AuthSessionResponse>> {
     reject_disabled_registration(&state).await?;
     verify_account_captcha(&state, payload.captcha_token.as_deref()).await?;
     let user = state.users.sign_up(new_sign_up_user(payload)).await?;
-    let tokens = state.tokens.issue_pair(user.id.clone())?;
+    let tokens = state.tokens.issue_pair(user.id.clone()).await?;
     Ok(ok(AuthSessionResponse::new(user.into(), tokens)))
 }
 
 pub async fn sign_in(State(state): State<ApiState>, RequestJson(payload): RequestJson<SignInPayload>) -> ApiResult<ApiJson<AuthSessionResponse>> {
     verify_account_captcha(&state, payload.captcha_token.as_deref()).await?;
     let user = state.users.sign_in(payload.into()).await?;
-    let tokens = state.tokens.issue_pair(user.id.clone())?;
+    let tokens = state.tokens.issue_pair(user.id.clone()).await?;
     Ok(ok(AuthSessionResponse::new(user.into(), tokens)))
 }
 
 pub async fn refresh(State(state): State<ApiState>, RequestJson(payload): RequestJson<RefreshTokenPayload>) -> ApiResult<ApiJson<TokenPairResponse>> {
-    let (user_id, tokens) = state.tokens.refresh(&payload.refresh_token)?;
+    let (user_id, tokens) = state.tokens.refresh(&payload.refresh_token).await?;
     state.users.authenticated_user(user_id).await?;
     Ok(ok(tokens.into()))
 }
@@ -59,6 +58,44 @@ pub async fn me(State(state): State<ApiState>, headers: HeaderMap) -> ApiResult<
     let user_id = state.tokens.validate_access(access_token)?;
     let user = state.users.authenticated_user(user_id).await?;
     Ok(ok(MeResponse { user: user.into() }))
+}
+
+pub async fn account_profile(State(state): State<ApiState>, Extension(current_user): Extension<CurrentUser>) -> ApiResult<ApiJson<ProfileResponse>> {
+    let profile = state.users.profile(UserId(current_user.id)).await?;
+    Ok(ok(profile.into()))
+}
+
+pub async fn update_account_profile(
+    State(state): State<ApiState>,
+    Extension(current_user): Extension<CurrentUser>,
+    RequestJson(payload): RequestJson<ProfilePayload>,
+) -> ApiResult<ApiJson<UserResponse>> {
+    let user = state.users.update_profile(UserId(current_user.id), payload.into()).await?;
+    Ok(ok(user.into()))
+}
+
+pub async fn change_account_password(
+    State(state): State<ApiState>,
+    Extension(current_user): Extension<CurrentUser>,
+    RequestJson(payload): RequestJson<ChangePasswordPayload>,
+) -> ApiResult<ApiJson<()>> {
+    state
+        .users
+        .change_password(UserId(current_user.id), payload.old_password, payload.new_password)
+        .await?;
+    Ok(ok(()))
+}
+
+pub async fn upload_account_avatar(
+    State(state): State<ApiState>,
+    Extension(current_user): Extension<CurrentUser>,
+    multipart: Multipart,
+) -> ApiResult<ApiJson<AvatarResponse>> {
+    let avatar = avatar_file(multipart).await?;
+    let max_bytes = state.avatar_config.avatar_config().await?.max_bytes;
+    let img_url = state.avatar_storage.store_avatar(avatar, max_bytes).await?;
+    let user = state.users.update_avatar(UserId(current_user.id), img_url.clone()).await?;
+    Ok(ok(AvatarResponse { img_url, user: user.into() }))
 }
 
 #[require_perms("system:user:export")]
@@ -193,10 +230,11 @@ pub async fn list_users(
 }
 
 async fn all_export_users(state: &ApiState, current_user: &CurrentUser, data_scope: DataScopeFilter, query: &UserExportQuery) -> ApiResult<Vec<User>> {
+    let export_page_size = state.export_config.export_batch_config().await?.page_size;
     let mut page = 1;
     let mut users = Vec::new();
     loop {
-        let filter = export_query_page(query, page, EXPORT_PAGE_SIZE);
+        let filter = export_query_page(query, page, export_page_size);
         let current = if current_user.admin {
             state.users.list_users(filter).await?
         } else {
@@ -216,6 +254,23 @@ struct UserImportForm {
     update_support: bool,
 }
 
+async fn avatar_file(mut multipart: Multipart) -> ApiResult<AvatarFile> {
+    while let Some(field) = multipart.next_field().await.map_err(multipart_error)? {
+        if field.name() != Some("avatarfile") {
+            continue;
+        }
+        let filename = field.file_name().map(str::to_owned);
+        let content_type = field.content_type().map(str::to_owned);
+        let bytes = field.bytes().await.map_err(multipart_error)?;
+        return Ok(AvatarFile {
+            filename,
+            content_type,
+            bytes: bytes.to_vec(),
+        });
+    }
+    Err(ApiError(AppError::InvalidInput(localized("errors.user.avatarfile_required"))))
+}
+
 async fn user_import_form(mut multipart: Multipart) -> ApiResult<UserImportForm> {
     let mut file = None;
     let mut update_support = false;
@@ -229,18 +284,19 @@ async fn user_import_form(mut multipart: Multipart) -> ApiResult<UserImportForm>
         }
     }
     Ok(UserImportForm {
-        file: file.ok_or_else(|| ApiError(AppError::InvalidInput("file is required".into())))?,
+        file: file.ok_or_else(|| ApiError(AppError::InvalidInput(localized("errors.user.file_required"))))?,
         update_support,
     })
 }
 
 fn parse_bool(bytes: &[u8]) -> ApiResult<bool> {
-    let value = std::str::from_utf8(bytes).map_err(|error| ApiError(AppError::InvalidInput(error.to_string())))?;
+    let value = std::str::from_utf8(bytes).map_err(|_| ApiError(AppError::InvalidInput(localized("errors.user.invalid_form_value"))))?;
     Ok(matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "y"))
 }
 
 fn multipart_error(error: axum::extract::multipart::MultipartError) -> ApiError {
-    ApiError(AppError::InvalidInput(error.to_string()))
+    let _ = error;
+    ApiError(AppError::InvalidInput(localized("errors.user.invalid_multipart")))
 }
 
 fn ok<T>(data: T) -> ApiJson<T> {
@@ -248,21 +304,20 @@ fn ok<T>(data: T) -> ApiJson<T> {
 }
 
 async fn verify_account_captcha(state: &ApiState, token: Option<&str>) -> ApiResult<()> {
-    state.captcha.verify_account(token).await.map_err(captcha_error)
-}
-
-fn captcha_error(error: captcha::application::CaptchaError) -> ApiError {
-    match error {
-        captcha::application::CaptchaError::InvalidInput(message) => ApiError(AppError::InvalidInput(message)),
-        captcha::application::CaptchaError::Infrastructure(message) => ApiError(AppError::Infrastructure(message)),
-    }
+    state.account_verifier.verify_account(token).await.map_err(ApiError)
 }
 
 async fn reject_disabled_registration(state: &ApiState) -> ApiResult<()> {
     if !state.config.config_by_key(REGISTER_USER_KEY).await?.trim().eq_ignore_ascii_case("true") {
-        return Err(ApiError(crate::application::AppError::Forbidden("registration is disabled".into())));
+        return Err(ApiError(crate::application::AppError::Forbidden(localized(
+            "errors.user.registration_disabled",
+        ))));
     }
     Ok(())
+}
+
+fn localized(key: &'static str) -> LocalizedError {
+    LocalizedError::new(key)
 }
 
 async fn new_admin_user(state: &ApiState, payload: UserPayload) -> ApiResult<NewUser> {

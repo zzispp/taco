@@ -2,7 +2,11 @@
 
 import type { Breakpoint } from '@mui/material/styles';
 import type { SimpleCompactContentProps } from './content';
-import type { MainSectionProps, HeaderSectionProps, LayoutSectionProps } from 'src/shared/ui/layout';
+import type {
+  MainSectionProps,
+  HeaderSectionProps,
+  LayoutSectionProps,
+} from 'src/shared/ui/layout';
 
 import { merge } from 'es-toolkit';
 

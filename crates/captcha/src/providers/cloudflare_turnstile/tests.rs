@@ -4,10 +4,9 @@ use async_trait::async_trait;
 use serde_json::json;
 
 use crate::{
-    application::{CaptchaProvider, CaptchaResult, CaptchaSettings},
+    application::{CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings},
     providers::cloudflare_turnstile::{
-        CloudflareTurnstileProvider, CloudflareTurnstileVerifier, CloudflareTurnstileVerifyRequest, CloudflareTurnstileVerifyResponse,
-        default_private_config_template, default_public_config_template,
+        CloudflareTurnstileProvider, CloudflareTurnstileVerifier, CloudflareTurnstileVerifyRequest, CloudflareTurnstileVerifyResponse, default_config_template,
     },
 };
 
@@ -42,7 +41,7 @@ async fn verify_rejects_missing_token() {
 
     let error = provider.verify(&settings(), None).await.expect_err("missing token must fail");
 
-    assert_eq!(error.to_string(), "captcha verification is required");
+    assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_required"));
 }
 
 #[tokio::test]
@@ -54,7 +53,7 @@ async fn verify_maps_failed_token_to_invalid_input() {
 
     let error = provider.verify(&settings(), Some("bad-token")).await.expect_err("invalid token must fail");
 
-    assert_eq!(error.to_string(), "cloudflare turnstile verification failed: invalid-input-response");
+    assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_failed"));
 }
 
 #[tokio::test]
@@ -75,15 +74,15 @@ fn provider(response: CloudflareTurnstileVerifyResponse) -> CloudflareTurnstileP
 }
 
 fn settings() -> CaptchaSettings {
-    let mut public_config = default_public_config_template();
-    public_config["cloudflare_turnstile"]["site_key"] = json!("site-key-1");
-    let mut private_config = default_private_config_template();
-    private_config["cloudflare_turnstile"]["secret_key"] = json!("secret-key-1");
+    let mut config = default_config_template();
+    config["site_key"] = json!("site-key-1");
+    config["secret_key"] = json!("secret-key-1");
     CaptchaSettings {
         enabled: true,
         provider: "cloudflare_turnstile".into(),
-        public_config,
-        private_config,
+        providers: json!({
+            "cloudflare_turnstile": config
+        }),
     }
 }
 

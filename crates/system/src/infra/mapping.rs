@@ -1,3 +1,4 @@
+use kernel::error::LocalizedError;
 use storage::StorageError;
 
 use crate::{
@@ -77,7 +78,7 @@ pub fn config(record: ConfigRecord) -> ConfigItem {
 pub fn storage_error(error: StorageError) -> SystemError {
     match error {
         StorageError::NotFound => SystemError::NotFound,
-        StorageError::Conflict(message) => SystemError::Conflict(message),
+        StorageError::Conflict(_) => SystemError::Conflict(LocalizedError::new("errors.common.conflict")),
         StorageError::Database(message) => SystemError::Infrastructure(message),
     }
 }

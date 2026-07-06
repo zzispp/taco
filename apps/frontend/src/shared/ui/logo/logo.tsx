@@ -8,8 +8,8 @@ import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import { styled } from '@mui/material/styles';
 
-import { CONFIG } from 'src/shared/config';
 import { RouterLink } from 'src/shared/routes/components';
+import { useSiteDisplay } from 'src/shared/config/site-display-context';
 
 import { logoClasses } from './classes';
 
@@ -30,12 +30,13 @@ export function Logo({
   ...other
 }: LogoProps) {
   const size = isSingle ? SINGLE_LOGO_SIZE : FULL_LOGO_SIZE;
+  const { logoUrl, siteName } = useSiteDisplay();
 
   return (
     <LogoRoot
       component={RouterLink}
       href={href}
-      aria-label="Logo"
+      aria-label={`${siteName} logo`}
       underline="none"
       className={mergeClasses([logoClasses.root, className])}
       sx={[
@@ -46,8 +47,8 @@ export function Logo({
     >
       <Box
         component="img"
-        alt="Logo"
-        src={`${CONFIG.assetsDir}/logo/logo.svg`}
+        alt={siteName}
+        src={logoUrl}
         sx={{
           width: '100%',
           height: '100%',

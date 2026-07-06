@@ -25,7 +25,6 @@ use crate::{
 
 type ApiJson<T> = Json<T>;
 type ApiResult<T> = Result<T, SystemApiError>;
-const EXPORT_PAGE_SIZE: u64 = 100;
 
 #[derive(Debug, Deserialize)]
 pub struct SystemListQuery {
@@ -437,8 +436,9 @@ impl From<SystemListQuery> for ConfigListFilter {
 async fn all_export_posts(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<Post>> {
     let mut page = 1;
     let mut items = Vec::new();
+    let page_size = state.export_config.export_batch_config().await?.page_size;
     loop {
-        let current = state.system.page_posts(post_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let current = state.system.page_posts(post_export_page(query, page, page_size)).await?;
         let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
         items.extend(current.items);
         if is_last {
@@ -451,8 +451,9 @@ async fn all_export_posts(state: &SystemApiState, query: &SystemExportQuery) -> 
 async fn all_export_dict_types(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<DictType>> {
     let mut page = 1;
     let mut items = Vec::new();
+    let page_size = state.export_config.export_batch_config().await?.page_size;
     loop {
-        let current = state.system.page_dict_types(dict_type_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let current = state.system.page_dict_types(dict_type_export_page(query, page, page_size)).await?;
         let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
         items.extend(current.items);
         if is_last {
@@ -465,8 +466,9 @@ async fn all_export_dict_types(state: &SystemApiState, query: &SystemExportQuery
 async fn all_export_dict_data(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<DictData>> {
     let mut page = 1;
     let mut items = Vec::new();
+    let page_size = state.export_config.export_batch_config().await?.page_size;
     loop {
-        let current = state.system.page_dict_data(dict_data_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let current = state.system.page_dict_data(dict_data_export_page(query, page, page_size)).await?;
         let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
         items.extend(current.items);
         if is_last {
@@ -479,8 +481,9 @@ async fn all_export_dict_data(state: &SystemApiState, query: &SystemExportQuery)
 async fn all_export_configs(state: &SystemApiState, query: &SystemExportQuery) -> ApiResult<Vec<ConfigItem>> {
     let mut page = 1;
     let mut items = Vec::new();
+    let page_size = state.export_config.export_batch_config().await?.page_size;
     loop {
-        let current = state.system.page_configs(config_export_page(query, page, EXPORT_PAGE_SIZE)).await?;
+        let current = state.system.page_configs(config_export_page(query, page, page_size)).await?;
         let is_last = current.items.is_empty() || items.len() + current.items.len() >= current.total as usize;
         items.extend(current.items);
         if is_last {

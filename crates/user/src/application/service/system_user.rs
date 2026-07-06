@@ -1,4 +1,5 @@
 use constants::pagination::MIN_PAGE_NUMBER;
+use kernel::error::LocalizedError;
 use kernel::pagination::{Page, PageRequest, PageSliceRequest};
 
 use crate::application::{AppError, AppResult, SystemUserProvider, SystemUserRecord, UserAuthRecord, UserListFilter, UserRepository};
@@ -14,14 +15,14 @@ pub(super) fn reject_conflicting_system_user<S: SystemUserProvider>(system_users
 
 pub(super) fn reject_system_user_id<S: SystemUserProvider>(system_users: &S, id: &UserId) -> AppResult<()> {
     if system_user_by_id(system_users, id).is_some() {
-        return Err(AppError::Conflict("system user cannot be changed".into()));
+        return Err(AppError::Conflict(localized("errors.user.system_user_immutable")));
     }
     Ok(())
 }
 
 pub(super) fn reject_protected_user_id<S: SystemUserProvider>(system_users: &S, id: &UserId) -> AppResult<()> {
     if id.0 == constants::system::SUPER_ADMIN_USER_ID {
-        return Err(AppError::Conflict("system user cannot be changed".into()));
+        return Err(AppError::Conflict(localized("errors.user.system_user_immutable")));
     }
     reject_system_user_id(system_users, id)
 }
@@ -102,7 +103,15 @@ fn system_user_slice(page: PageRequest) -> PageSliceRequest {
 
 fn reject_conflicting_field(conflicting: bool, field: &str) -> AppResult<()> {
     if conflicting {
-        return Err(AppError::Conflict(format!("{field} already exists")));
+        return Err(AppError::Conflict(localized_param("errors.user.duplicate_field", "field", field)));
     }
     Ok(())
+}
+
+fn localized(key: &'static str) -> LocalizedError {
+    LocalizedError::new(key)
+}
+
+fn localized_param(key: &'static str, param: &'static str, value: impl Into<String>) -> LocalizedError {
+    LocalizedError::new(key).with_param(param, value)
 }

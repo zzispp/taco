@@ -5,8 +5,9 @@ use axum::{
     Router,
     body::{Body, to_bytes},
     http::{Method, Request, Response, StatusCode, header},
+    middleware,
 };
-use captcha::application::{CaptchaConfigResponse, CaptchaResult, CaptchaUseCase};
+use kernel::error::LocalizedError;
 use rbac::application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacResult, RbacUseCase};
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -14,8 +15,8 @@ use types::rbac::{DataScopeFilter, NavResponse};
 
 use super::create_router;
 use crate::{
-    api::{ApiState, TokenService, TokenSettings},
-    application::{AppResult, SystemConfigProvider, UserService},
+    api::{ApiState, TokenService, TokenSettings, TokenSettingsReader, TokenTtlConfig},
+    application::{AccountVerifier, AppError, AppResult, SystemConfigProvider, UserService},
     test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, stored_user},
 };
 
@@ -113,7 +114,8 @@ async fn sign_in_rejects_missing_captcha_when_enabled() {
     let body = json_body(response).await;
 
     assert_eq!(body["code"], "invalid_input");
-    assert_eq!(body["details"], "captcha verification is required");
+    assert_eq!(body["message"], "参数错误");
+    assert_eq!(body["details"], "请先完成验证码校验");
 }
 
 #[tokio::test]
@@ -159,7 +161,8 @@ async fn sign_up_rejects_missing_captcha_when_enabled() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = json_body(response).await;
     assert_eq!(body["code"], "invalid_input");
-    assert_eq!(body["details"], "captcha verification is required");
+    assert_eq!(body["message"], "参数错误");
+    assert_eq!(body["details"], "请先完成验证码校验");
 }
 
 #[tokio::test]
@@ -290,8 +293,54 @@ async fn sign_in_rejects_malformed_json_with_uniform_error_shape() {
     let body = json_body(response).await;
 
     assert_eq!(body["code"], "invalid_json");
-    assert_eq!(body["message"], "invalid JSON payload");
-    assert!(body["details"].as_str().is_some());
+    assert_eq!(body["message"], "JSON 请求体无效");
+    assert_eq!(body["details"], "JSON 请求体格式或字段类型无效");
+}
+
+#[tokio::test]
+async fn sign_in_error_response_uses_requested_english_locale() {
+    let app = test_router_with_captcha(TestCaptcha::enabled());
+
+    let response = app
+        .oneshot(json_request_with_accept_language(
+            Method::POST,
+            "/api/auth/sign-in",
+            json!({
+                "identifier": "alice@example.com",
+                "password": VALID_PASSWORD
+            }),
+            "en-US,en;q=0.9",
+        ))
+        .await
+        .unwrap();
+    let body = json_body(response).await;
+
+    assert_eq!(body["code"], "invalid_input");
+    assert_eq!(body["message"], "Invalid input");
+    assert_eq!(body["details"], "Complete captcha verification first");
+}
+
+#[tokio::test]
+async fn sign_in_error_response_uses_requested_traditional_chinese_locale() {
+    let app = test_router_with_captcha(TestCaptcha::enabled());
+
+    let response = app
+        .oneshot(json_request_with_accept_language(
+            Method::POST,
+            "/api/auth/sign-in",
+            json!({
+                "identifier": "alice@example.com",
+                "password": VALID_PASSWORD
+            }),
+            "zh-Hant,zh;q=0.9",
+        ))
+        .await
+        .unwrap();
+    let body = json_body(response).await;
+
+    assert_eq!(body["code"], "invalid_input");
+    assert_eq!(body["message"], "參數錯誤");
+    assert_eq!(body["details"], "請先完成驗證碼校驗");
 }
 
 struct SessionTokens {
@@ -318,7 +367,9 @@ fn test_router_with_repository(repository: MemoryUserRepository, config: TestCon
 fn test_router_with_repository_and_captcha(repository: MemoryUserRepository, config: TestConfig, captcha: TestCaptcha) -> Router {
     let users = UserService::new(repository, TestPasswordHasher);
     let state = ApiState::new(Arc::new(users), token_service(), Arc::new(UnusedRbac), Arc::new(config), Arc::new(captcha));
-    Router::new().nest("/api", create_router(state))
+    Router::new()
+        .nest("/api", create_router(state))
+        .layer(middleware::from_fn(types::http::locale_middleware))
 }
 
 fn base_repository() -> MemoryUserRepository {
@@ -340,31 +391,15 @@ impl TestCaptcha {
 }
 
 #[async_trait]
-impl CaptchaUseCase for TestCaptcha {
-    async fn config(&self) -> CaptchaResult<CaptchaConfigResponse> {
-        Ok(CaptchaConfigResponse {
-            enabled: self.enabled,
-            provider: "cap".into(),
-            public_config: json!({}),
-        })
-    }
-
-    async fn challenge(&self) -> CaptchaResult<Value> {
-        unimplemented!("auth route tests do not call captcha challenge")
-    }
-
-    async fn redeem(&self, _payload: Value) -> CaptchaResult<Value> {
-        unimplemented!("auth route tests do not call captcha redeem")
-    }
-
-    async fn verify_account(&self, token: Option<&str>) -> CaptchaResult<()> {
+impl AccountVerifier for TestCaptcha {
+    async fn verify_account(&self, token: Option<&str>) -> AppResult<()> {
         if !self.enabled {
             return Ok(());
         }
         match token {
             Some(VALID_CAPTCHA_TOKEN) => Ok(()),
-            Some(_) => Err(captcha::application::CaptchaError::InvalidInput("captcha verification failed".into())),
-            None => Err(captcha::application::CaptchaError::InvalidInput("captcha verification is required".into())),
+            Some(_) => Err(AppError::InvalidInput(LocalizedError::new("errors.captcha.verification_failed"))),
+            None => Err(AppError::InvalidInput(LocalizedError::new("errors.captcha.verification_required"))),
         }
     }
 }
@@ -423,11 +458,19 @@ fn unused_rbac_error() -> RbacError {
 }
 
 fn token_service() -> TokenService {
-    TokenService::new(TokenSettings {
-        secret: TEST_SECRET.into(),
-        access_token_ttl_seconds: ACCESS_TTL_SECONDS,
-        refresh_token_ttl_seconds: REFRESH_TTL_SECONDS,
-    })
+    TokenService::with_ttl_reader(TokenSettings { secret: TEST_SECRET.into() }, Arc::new(TestTokenSettingsReader))
+}
+
+struct TestTokenSettingsReader;
+
+#[async_trait]
+impl TokenSettingsReader for TestTokenSettingsReader {
+    async fn token_ttl_config(&self) -> AppResult<TokenTtlConfig> {
+        Ok(TokenTtlConfig {
+            access_token_ttl_seconds: ACCESS_TTL_SECONDS,
+            refresh_token_ttl_seconds: REFRESH_TTL_SECONDS,
+        })
+    }
 }
 
 async fn sign_in(app: Router) -> SessionTokens {
@@ -455,6 +498,16 @@ fn json_request(method: Method, uri: &str, body: Value) -> Request<Body> {
         .method(method)
         .uri(uri)
         .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+fn json_request_with_accept_language(method: Method, uri: &str, body: Value, accept_language: &str) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::ACCEPT_LANGUAGE, accept_language)
         .body(Body::from(body.to_string()))
         .unwrap()
 }

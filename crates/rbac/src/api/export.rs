@@ -10,7 +10,7 @@ const ROLE_HEADERS: &[&str] = &["角色序号", "角色名称", "权限字符", 
 
 pub fn export_roles_xlsx(roles: &[Role]) -> RbacResult<Vec<u8>> {
     let rows = roles.iter().map(role_row).collect::<Vec<_>>();
-    write_xlsx("角色数据", ROLE_HEADERS, &rows).map_err(|error| RbacError::Infrastructure(error))
+    write_xlsx("角色数据", ROLE_HEADERS, &rows).map_err(RbacError::Infrastructure)
 }
 
 pub fn role_export_page(query: &RoleExportQuery, page: u64, page_size: u64) -> RoleListFilter {

@@ -1,13 +1,11 @@
 mod verifier;
 
 use async_trait::async_trait;
+use kernel::error::LocalizedError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{
-    application::{CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings},
-    providers::config::provider_config,
-};
+use crate::application::{CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings};
 
 pub use verifier::{CloudflareTurnstileVerifier, CloudflareTurnstileVerifyRequest, CloudflareTurnstileVerifyResponse, ReqwestTurnstileVerifier};
 
@@ -75,15 +73,11 @@ where
     }
 
     async fn challenge(&self, _settings: &CaptchaSettings) -> CaptchaResult<Value> {
-        Err(CaptchaError::InvalidInput(
-            "cloudflare_turnstile does not support captcha challenge endpoint".into(),
-        ))
+        Err(CaptchaError::InvalidInput(localized("errors.captcha.challenge_unsupported")))
     }
 
     async fn redeem(&self, _settings: &CaptchaSettings, _payload: Value) -> CaptchaResult<Value> {
-        Err(CaptchaError::InvalidInput(
-            "cloudflare_turnstile does not support captcha redeem endpoint".into(),
-        ))
+        Err(CaptchaError::InvalidInput(localized("errors.captcha.redeem_unsupported")))
     }
 
     async fn verify(&self, settings: &CaptchaSettings, token: Option<&str>) -> CaptchaResult<()> {
@@ -96,11 +90,11 @@ where
 }
 
 fn public_config(settings: &CaptchaSettings) -> CaptchaResult<TurnstilePublicConfig> {
-    serde_json::from_value(provider_config(&settings.public_config, PROVIDER_NAME).clone()).map_err(invalid_public_config)
+    serde_json::from_value(settings.provider_config(PROVIDER_NAME)?.clone()).map_err(invalid_public_config)
 }
 
 fn private_config(settings: &CaptchaSettings) -> CaptchaResult<TurnstilePrivateConfig> {
-    serde_json::from_value(provider_config(&settings.private_config, PROVIDER_NAME).clone()).map_err(invalid_private_config)
+    serde_json::from_value(settings.provider_config(PROVIDER_NAME)?.clone()).map_err(invalid_private_config)
 }
 
 fn validate_response(response: CloudflareTurnstileVerifyResponse) -> CaptchaResult<()> {
@@ -110,12 +104,13 @@ fn validate_response(response: CloudflareTurnstileVerifyResponse) -> CaptchaResu
     if response.has_secret_error() {
         return Err(CaptchaError::Infrastructure(response.failure_message()));
     }
-    Err(CaptchaError::InvalidInput(response.failure_message()))
+    let _ = response;
+    Err(CaptchaError::InvalidInput(localized("errors.captcha.verification_failed")))
 }
 
 fn required_token(token: Option<&str>) -> CaptchaResult<String> {
     let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Err(CaptchaError::InvalidInput("captcha verification is required".into()));
+        return Err(CaptchaError::InvalidInput(localized("errors.captcha.verification_required")));
     };
     Ok(token.to_owned())
 }
@@ -123,7 +118,9 @@ fn required_token(token: Option<&str>) -> CaptchaResult<String> {
 fn required_value(name: &str, value: &str) -> CaptchaResult<String> {
     let value = value.trim();
     if value.is_empty() {
-        return Err(CaptchaError::InvalidInput(format!("{name} is required")));
+        return Err(CaptchaError::InvalidInput(
+            LocalizedError::new("errors.captcha.field_required").with_param("field", name.to_owned()),
+        ));
     }
     Ok(value.to_owned())
 }
@@ -136,11 +133,13 @@ fn optional_value(value: Option<String>, default: &str) -> String {
 }
 
 fn invalid_public_config(error: serde_json::Error) -> CaptchaError {
-    CaptchaError::InvalidInput(format!("invalid cloudflare turnstile public config: {error}"))
+    let _ = error;
+    CaptchaError::InvalidInput(localized("errors.captcha.invalid_public_config"))
 }
 
 fn invalid_private_config(error: serde_json::Error) -> CaptchaError {
-    CaptchaError::InvalidInput(format!("invalid cloudflare turnstile private config: {error}"))
+    let _ = error;
+    CaptchaError::InvalidInput(localized("errors.captcha.invalid_private_config"))
 }
 
 fn to_value<T: Serialize>(value: T) -> CaptchaResult<Value> {
@@ -151,23 +150,16 @@ fn json_error(error: serde_json::Error) -> CaptchaError {
     CaptchaError::Infrastructure(format!("captcha json error: {error}"))
 }
 
-pub fn default_public_config_template() -> Value {
-    json!({
-        "cap": {},
-        PROVIDER_NAME: {
-            "site_key": "",
-            "theme": DEFAULT_THEME,
-            "size": DEFAULT_SIZE,
-        }
-    })
+fn localized(key: &'static str) -> LocalizedError {
+    LocalizedError::new(key)
 }
 
-pub fn default_private_config_template() -> Value {
+pub fn default_config_template() -> Value {
     json!({
-        "cap": {},
-        PROVIDER_NAME: {
-            "secret_key": ""
-        }
+        "site_key": "",
+        "secret_key": "",
+        "theme": DEFAULT_THEME,
+        "size": DEFAULT_SIZE,
     })
 }
 

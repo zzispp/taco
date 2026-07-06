@@ -1,44 +1,62 @@
-use constants::auth::{PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH};
+use constants::auth::{USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH};
 use constants::pagination::{MAX_PAGE_SIZE, MIN_PAGE_NUMBER, MIN_PAGE_SIZE};
+use kernel::error::LocalizedError;
 use kernel::pagination::PageRequest;
+use regex::Regex;
+use std::sync::LazyLock;
 
-use crate::application::{AppError, AppResult};
-use crate::domain::{Credentials, NewUser, ReplaceUser};
+use crate::application::{AppError, AppResult, PasswordPolicy};
+use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser};
+
+static EMAIL_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").expect("email regex must compile"));
+static PHONE_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^1[3-9]\d{9}$").expect("phone regex must compile"));
 
 pub(super) fn validate_credentials(input: &Credentials) -> AppResult<()> {
     reject_blank("identifier", &input.identifier)?;
-    validate_password(&input.password)
+    reject_blank("password", &input.password)
 }
 
-pub(super) fn validate_new_user(input: &NewUser) -> AppResult<()> {
+pub(super) fn validate_new_user(input: &NewUser, policy: &PasswordPolicy) -> AppResult<()> {
     validate_username(&input.username)?;
-    validate_password(&input.password)?;
+    validate_password(&input.password, policy, Some(&input.username))?;
     reject_blank("nick_name", &input.nick_name)?;
     reject_blank("email", &input.email)?;
     reject_blank("status", &input.status)?;
     reject_empty_ids("role_ids", &input.role_ids)
 }
 
-pub(super) fn validate_replace_user(input: &ReplaceUser) -> AppResult<()> {
+pub(super) fn validate_replace_user(input: &ReplaceUser, policy: &PasswordPolicy) -> AppResult<()> {
     validate_username(&input.username)?;
     if let Some(password) = &input.password {
-        validate_password(password)?;
+        validate_password(password, policy, Some(&input.username))?;
     }
     reject_blank("nick_name", &input.nick_name)?;
     reject_blank("email", &input.email)?;
     reject_blank("status", &input.status)?;
     reject_empty_ids("role_ids", &input.role_ids)
+}
+
+pub(super) fn validate_profile_update(input: &ProfileUpdate) -> AppResult<()> {
+    reject_blank("nick_name", &input.nick_name)?;
+    reject_blank("email", &input.email)?;
+    validate_email(&input.email)?;
+    validate_optional_phone(input.phonenumber.as_deref())?;
+    reject_blank("sex", &input.sex)
 }
 
 pub(super) fn validate_page(page: PageRequest) -> AppResult<()> {
     if page.page < MIN_PAGE_NUMBER {
-        return Err(AppError::InvalidInput("page must be greater than 0".into()));
+        return Err(AppError::InvalidInput(localized("errors.validation.page_positive")));
     }
     if page.page_size < MIN_PAGE_SIZE {
-        return Err(AppError::InvalidInput("page_size must be greater than 0".into()));
+        return Err(AppError::InvalidInput(localized("errors.validation.page_size_positive")));
     }
     if page.page_size > MAX_PAGE_SIZE {
-        return Err(AppError::InvalidInput(format!("page_size must be less than or equal to {MAX_PAGE_SIZE}")));
+        return Err(AppError::InvalidInput(localized_param(
+            "errors.validation.page_size_max",
+            "max",
+            MAX_PAGE_SIZE.to_string(),
+        )));
     }
     Ok(())
 }
@@ -82,29 +100,84 @@ pub(super) fn sanitize_replace_user(input: ReplaceUser) -> ReplaceUser {
     }
 }
 
+pub(super) fn sanitize_profile_update(input: ProfileUpdate) -> ProfileUpdate {
+    ProfileUpdate {
+        nick_name: trim_required(input.nick_name),
+        phonenumber: trim_optional(input.phonenumber),
+        email: input.email.trim().into(),
+        sex: trim_required(input.sex),
+    }
+}
+
 fn validate_username(username: &str) -> AppResult<()> {
     reject_length("username", username, USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH)?;
     if !username.chars().all(is_username_character) {
-        return Err(AppError::InvalidInput(
-            "username can only contain letters, numbers, underscores, and hyphens".into(),
-        ));
+        return Err(AppError::InvalidInput(localized("errors.user.username_chars")));
     }
     if !has_alphanumeric_edges(username) {
-        return Err(AppError::InvalidInput("username must start and end with a letter or number".into()));
+        return Err(AppError::InvalidInput(localized("errors.user.username_edges")));
     }
     Ok(())
 }
 
-pub(super) fn validate_password(password: &str) -> AppResult<()> {
-    reject_length("password", password, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH)
+fn validate_email(email: &str) -> AppResult<()> {
+    if !EMAIL_PATTERN.is_match(email) {
+        return Err(AppError::InvalidInput(localized("errors.validation.email_format")));
+    }
+    Ok(())
+}
+
+fn validate_optional_phone(phone: Option<&str>) -> AppResult<()> {
+    if phone.is_some_and(|value| !PHONE_PATTERN.is_match(value)) {
+        return Err(AppError::InvalidInput(localized("errors.validation.phone_format")));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_password(password: &str, policy: &PasswordPolicy, username: Option<&str>) -> AppResult<()> {
+    reject_length("password", password, policy.min_length, policy.max_length)?;
+    reject_password_character_rules(password, policy)?;
+    reject_password_contains_username(password, username, policy)
+}
+
+fn reject_password_character_rules(password: &str, policy: &PasswordPolicy) -> AppResult<()> {
+    if policy.require_letter && !password.chars().any(|value| value.is_ascii_alphabetic()) {
+        return Err(AppError::InvalidInput(localized("errors.user.password_letter_required")));
+    }
+    if policy.require_number && !password.chars().any(|value| value.is_ascii_digit()) {
+        return Err(AppError::InvalidInput(localized("errors.user.password_number_required")));
+    }
+    if policy.require_symbol && !password.chars().any(is_symbol) {
+        return Err(AppError::InvalidInput(localized("errors.user.password_symbol_required")));
+    }
+    Ok(())
+}
+
+fn reject_password_contains_username(password: &str, username: Option<&str>, policy: &PasswordPolicy) -> AppResult<()> {
+    if !policy.forbid_username_contains {
+        return Ok(());
+    }
+    let username = username.map(str::trim).filter(|value| !value.is_empty());
+    if username.is_some_and(|value| password.to_lowercase().contains(&value.to_lowercase())) {
+        return Err(AppError::InvalidInput(localized("errors.user.password_contains_username")));
+    }
+    Ok(())
 }
 
 fn reject_length(field: &str, value: &str, min: usize, max: usize) -> AppResult<()> {
     let length = value.chars().count();
     if length < min || length > max {
-        return Err(AppError::InvalidInput(format!("{field} must be between {min} and {max} characters")));
+        return Err(AppError::InvalidInput(
+            localized_param("errors.validation.length_between", "field", field)
+                .with_param("min", min.to_string())
+                .with_param("max", max.to_string()),
+        ));
     }
     Ok(())
+}
+
+fn is_symbol(value: char) -> bool {
+    value.is_ascii_punctuation()
 }
 
 fn is_username_character(value: char) -> bool {
@@ -121,14 +194,14 @@ fn has_alphanumeric_edges(value: &str) -> bool {
 
 fn reject_blank(field: &str, value: &str) -> AppResult<()> {
     if value.trim().is_empty() {
-        return Err(AppError::InvalidInput(format!("{field} cannot be blank")));
+        return Err(AppError::InvalidInput(localized_param("errors.validation.field_blank", "field", field)));
     }
     Ok(())
 }
 
 fn reject_empty_ids(field: &str, values: &[String]) -> AppResult<()> {
     if values.is_empty() {
-        return Err(AppError::InvalidInput(format!("{field} cannot be empty")));
+        return Err(AppError::InvalidInput(localized_param("errors.validation.field_empty", "field", field)));
     }
     Ok(())
 }
@@ -143,4 +216,12 @@ fn trim_optional(value: Option<String>) -> Option<String> {
 
 fn trim_required(value: String) -> String {
     value.trim().into()
+}
+
+fn localized(key: &'static str) -> LocalizedError {
+    LocalizedError::new(key)
+}
+
+fn localized_param(key: &'static str, param: &'static str, value: impl Into<String>) -> LocalizedError {
+    LocalizedError::new(key).with_param(param, value)
 }

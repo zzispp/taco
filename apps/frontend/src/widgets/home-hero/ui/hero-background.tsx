@@ -13,7 +13,11 @@ import { Dots, Lines, Texts, Circles, PlusIcon } from './hero-svg';
 
 // ----------------------------------------------------------------------
 
-export function HeroBackground({ sx, ...other }: BoxProps) {
+type HeroBackgroundProps = BoxProps & {
+  text: string;
+};
+
+export function HeroBackground({ sx, text, ...other }: HeroBackgroundProps) {
   const mdUp = useMediaQuery((theme) => theme.breakpoints.up('md'));
 
   const renderSvg = () => (
@@ -125,7 +129,7 @@ export function HeroBackground({ sx, ...other }: BoxProps) {
         {...other}
       >
         <Dots />
-        {mdUp && <Texts />}
+        {mdUp && <Texts text={text} />}
         {renderSvg()}
         {renderBackground()}
       </Box>

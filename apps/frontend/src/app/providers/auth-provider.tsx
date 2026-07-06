@@ -1,17 +1,18 @@
 'use client';
 
-import type { AuthState, SessionUser } from 'src/entities/session/model/types';
-
 import { useSetState } from 'minimal-shared/hooks';
 import { useMemo, useEffect, useCallback } from 'react';
 
 import axios from 'src/shared/api/http-client';
+import { resolveServerAssetUrl } from 'src/shared/lib/asset-url';
 
-import { AuthContext } from 'src/entities/session/model/auth-context';
 import {
   setSession,
+  AuthContext,
   isValidToken,
+  type AuthState,
   JWT_STORAGE_KEY,
+  type SessionUser,
   JWT_REFRESH_STORAGE_KEY,
 } from 'src/entities/session';
 
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: Props) {
           ...user,
           access_token: session.access_token,
           displayName: user.nick_name || user.username,
-          photoURL: user.avatar ?? undefined,
+          photoURL: resolveServerAssetUrl(user.avatar),
         },
         error: null,
         loading: false,
@@ -137,10 +138,10 @@ async function resolveSession() {
 }
 
 function isAuthSessionRejected(error: unknown) {
-  if (!(error instanceof Error)) {
+  if (typeof error !== 'object' || error === null) {
     return false;
   }
 
-  const status = (error as Error & { status?: number }).status;
-  return status === 401 || error.message === 'username or password is incorrect';
+  const { status, code } = error as { status?: number; code?: string };
+  return status === 401 || code === 'unauthorized';
 }

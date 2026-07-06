@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest, PageSliceRequest};
 
-use super::AppResult;
-use crate::domain::{Credentials, NewUser, ReplaceUser, User, UserFormOptions, UserId};
+use super::{AppResult, AvatarConfig, PasswordPolicy};
+use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfile, UserProfileGroups};
 use types::rbac::DataScopeFilter;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,6 +67,13 @@ pub struct UserImportReport {
     pub message: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AvatarFile {
+    pub filename: Option<String>,
+    pub content_type: Option<String>,
+    pub bytes: Vec<u8>,
+}
+
 pub trait SystemUserProvider: Send + Sync + 'static {
     fn system_user(&self) -> Option<SystemUserRecord>;
 }
@@ -82,13 +89,17 @@ pub trait UserRepository: Send + Sync + 'static {
     async fn find_by_phone(&self, phone: &str) -> AppResult<Option<User>>;
     async fn find_auth_by_username(&self, username: &str) -> AppResult<Option<UserAuthRecord>>;
     async fn find_auth_by_email(&self, email: &str) -> AppResult<Option<UserAuthRecord>>;
+    async fn find_auth_by_id(&self, id: UserId) -> AppResult<Option<UserAuthRecord>>;
     async fn record_login(&self, id: UserId) -> AppResult<()>;
     async fn list(&self, filter: UserListFilter) -> AppResult<Page<User>>;
     async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<Page<User>>;
     async fn list_slice(&self, filter: UserListFilter, request: PageSliceRequest) -> AppResult<Page<User>>;
     async fn update_password(&self, id: UserId, password_hash: String) -> AppResult<()>;
+    async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> AppResult<User>;
+    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User>;
     async fn update_status(&self, id: UserId, status: String) -> AppResult<User>;
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User>;
+    async fn profile_groups(&self, id: UserId) -> AppResult<UserProfileGroups>;
     async fn form_options(&self) -> AppResult<UserFormOptions>;
 }
 
@@ -98,8 +109,28 @@ pub trait PasswordHasher: Send + Sync + 'static {
 }
 
 #[async_trait]
+pub trait AvatarStorage: Send + Sync + 'static {
+    async fn store_avatar(&self, file: AvatarFile, max_bytes: usize) -> AppResult<String>;
+}
+
+#[async_trait]
+pub trait AccountVerifier: Send + Sync + 'static {
+    async fn verify_account(&self, token: Option<&str>) -> AppResult<()>;
+}
+
+#[async_trait]
 pub trait SystemConfigProvider: Send + Sync + 'static {
     async fn config_by_key(&self, key: &str) -> AppResult<String>;
+}
+
+#[async_trait]
+pub trait PasswordPolicyProvider: Send + Sync + 'static {
+    async fn password_policy(&self) -> AppResult<PasswordPolicy>;
+}
+
+#[async_trait]
+pub trait AvatarConfigProvider: Send + Sync + 'static {
+    async fn avatar_config(&self) -> AppResult<AvatarConfig>;
 }
 
 #[async_trait]
@@ -107,6 +138,10 @@ pub trait UserUseCase: Send + Sync + 'static {
     async fn sign_up(&self, input: NewUser) -> AppResult<User>;
     async fn sign_in(&self, input: Credentials) -> AppResult<User>;
     async fn authenticated_user(&self, id: UserId) -> AppResult<User>;
+    async fn profile(&self, id: UserId) -> AppResult<UserProfile>;
+    async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> AppResult<User>;
+    async fn change_password(&self, id: UserId, old_password: String, new_password: String) -> AppResult<()>;
+    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User>;
     async fn create_user(&self, input: NewUser) -> AppResult<User>;
     async fn replace_user(&self, id: UserId, input: ReplaceUser) -> AppResult<User>;
     async fn delete_user(&self, id: UserId) -> AppResult<()>;

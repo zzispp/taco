@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use kernel::error::LocalizedError;
 use kernel::excel::{read_xlsx, write_xlsx};
 use kernel::pagination::PageRequest;
 use types::user::User;
@@ -34,8 +35,10 @@ pub fn import_template_xlsx() -> AppResult<Vec<u8>> {
 }
 
 pub fn parse_import_rows(bytes: &[u8]) -> AppResult<Vec<UserImportRow>> {
-    let rows = read_xlsx(bytes).map_err(AppError::InvalidInput)?;
-    let (header, data_rows) = rows.split_first().ok_or_else(|| AppError::InvalidInput("import excel is empty".into()))?;
+    let rows = read_xlsx(bytes).map_err(|_| AppError::InvalidInput(localized("errors.user.import_excel_invalid")))?;
+    let (header, data_rows) = rows
+        .split_first()
+        .ok_or_else(|| AppError::InvalidInput(localized("errors.user.import_excel_empty")))?;
     let columns = import_columns(header)?;
     data_rows.iter().filter(|row| !row_is_blank(row)).map(|row| import_row(row, &columns)).collect()
 }
@@ -72,7 +75,7 @@ fn import_columns(header: &[String]) -> AppResult<HashMap<&'static str, usize>> 
         let index = header
             .iter()
             .position(|value| value.trim() == *expected)
-            .ok_or_else(|| AppError::InvalidInput(format!("missing import column {expected}")))?;
+            .ok_or_else(|| AppError::InvalidInput(localized_param("errors.user.import_missing_column", "column", *expected)))?;
         columns.insert(*expected, index);
     }
     Ok(columns)
@@ -93,7 +96,7 @@ fn import_row(row: &[String], columns: &HashMap<&'static str, usize>) -> AppResu
 fn required_cell(row: &[String], columns: &HashMap<&'static str, usize>, name: &str) -> AppResult<String> {
     let value = cell(row, columns, name).trim().to_owned();
     if value.is_empty() {
-        return Err(AppError::InvalidInput(format!("column {name} cannot be blank")));
+        return Err(AppError::InvalidInput(localized_param("errors.user.import_column_blank", "column", name)));
     }
     Ok(value)
 }
@@ -117,6 +120,14 @@ fn row_is_blank(row: &[String]) -> bool {
 
 fn excel_infrastructure_error(error: String) -> AppError {
     AppError::Infrastructure(error)
+}
+
+fn localized(key: &'static str) -> LocalizedError {
+    LocalizedError::new(key)
+}
+
+fn localized_param(key: &'static str, param: &'static str, value: impl Into<String>) -> LocalizedError {
+    LocalizedError::new(key).with_param(param, value)
 }
 
 #[cfg(test)]

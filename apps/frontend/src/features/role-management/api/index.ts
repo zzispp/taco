@@ -8,7 +8,7 @@ import type {
   RoleDataScopeInput,
   RoleMenuTreeSelect,
   RoleDeptTreeSelect,
-} from 'src/entities/role/model/types';
+} from 'src/entities/role';
 
 import { mutate } from 'swr';
 
@@ -16,7 +16,7 @@ import axios from 'src/shared/api/http-client';
 import { downloadBlobResponse } from 'src/shared/api/download';
 import { requestData, isEndpointKey, compactParams } from 'src/shared/api/pagination';
 
-import { roleEndpoints } from 'src/entities/role/api/endpoints';
+import { roleEndpoints } from 'src/entities/role';
 
 const NAVBAR_ENDPOINT = '/api/navbar';
 

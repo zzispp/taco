@@ -1,4 +1,5 @@
 use constants::system::{ALL_PERMISSION, SUPER_ADMIN_ROLE_KEY, SUPER_ADMIN_USER_ID};
+use kernel::error::LocalizedError;
 use storage::StorageError;
 use types::{
     rbac::RoleSummary,
@@ -61,7 +62,7 @@ fn user_permissions(system: bool, roles: &[RoleSummary], permissions: Vec<String
 pub fn storage_error(error: StorageError) -> AppError {
     match error {
         StorageError::NotFound => AppError::NotFound,
-        StorageError::Conflict(message) => AppError::Conflict(message),
+        StorageError::Conflict(_) => AppError::Conflict(LocalizedError::new("errors.common.conflict")),
         StorageError::Database(message) => AppError::Infrastructure(message),
     }
 }

@@ -1,6 +1,29 @@
 {
   "demo": {
     "lang": "Chinese",
-    "description": "Hook 是后端控制台，用于管理认证、RBAC、API 权限与菜单治理。"
+    "description": "后端控制台，用于管理认证、RBAC、API 权限与菜单治理。"
+  },
+  "settings": {
+    "title": "设置",
+    "resetAll": "重置全部",
+    "close": "关闭",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏",
+    "mode": "模式",
+    "system": "系统",
+    "contrast": "对比度",
+    "rightToLeft": "从右到左",
+    "compact": "紧凑",
+    "compactTooltip": "仅仪表盘可用，且需要大屏分辨率 > 1600px (xl)",
+    "presets": "预设",
+    "nav": "导航",
+    "dashboardOnly": "仅仪表盘",
+    "layout": "布局",
+    "color": "颜色",
+    "integrate": "融合",
+    "apparent": "明显",
+    "font": "字体",
+    "family": "字体族",
+    "size": "字号"
   }
 }

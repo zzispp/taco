@@ -1,5 +1,14 @@
 import * as z from 'zod';
 
+export type PasswordPolicy = {
+  min_length: number;
+  max_length: number;
+  require_letter: boolean;
+  require_number: boolean;
+  require_symbol: boolean;
+  forbid_username_contains: boolean;
+};
+
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 30;
 export const PASSWORD_MIN_LENGTH = 8;
@@ -30,13 +39,37 @@ export const passwordSchema = z
       .max(PASSWORD_MAX_LENGTH, { error: passwordLengthMessage })
   );
 
+export function createPasswordSchema(policy?: PasswordPolicy, username?: string) {
+  const activePolicy = policy ?? defaultPasswordPolicy();
+  return z
+    .string()
+    .transform(trimCredential)
+    .pipe(
+      z
+        .string()
+        .min(activePolicy.min_length, { error: () => passwordPolicyLengthMessage(activePolicy) })
+        .max(activePolicy.max_length, { error: () => passwordPolicyLengthMessage(activePolicy) })
+        .refine((value) => !activePolicy.require_letter || hasLetter(value), {
+          error: 'Password must contain a letter',
+        })
+        .refine((value) => !activePolicy.require_number || hasNumber(value), {
+          error: 'Password must contain a number',
+        })
+        .refine((value) => !activePolicy.require_symbol || hasSymbol(value), {
+          error: 'Password must contain a symbol',
+        })
+        .refine((value) => !containsUsername(value, username, activePolicy), {
+          error: 'Password cannot contain username',
+        })
+    );
+}
+
 export const emailSchema = z
   .string()
   .transform(trimCredential)
   .pipe(
     z.email({
-      error: ({ input }) =>
-        input ? 'Email must be a valid email address!' : 'Email is required!',
+      error: ({ input }) => (input ? 'Email must be a valid email address!' : 'Email is required!'),
     })
   );
 
@@ -68,4 +101,39 @@ function passwordLengthMessage() {
 
 function usernamePatternMessage() {
   return 'Username can only contain letters, numbers, underscores, and hyphens, and must start and end with a letter or number';
+}
+
+function defaultPasswordPolicy(): PasswordPolicy {
+  return {
+    min_length: PASSWORD_MIN_LENGTH,
+    max_length: PASSWORD_MAX_LENGTH,
+    require_letter: false,
+    require_number: false,
+    require_symbol: false,
+    forbid_username_contains: false,
+  };
+}
+
+function passwordPolicyLengthMessage(policy: PasswordPolicy) {
+  return `Password must be between ${policy.min_length} and ${policy.max_length} characters`;
+}
+
+function hasLetter(value: string) {
+  return /[A-Za-z]/.test(value);
+}
+
+function hasNumber(value: string) {
+  return /\d/.test(value);
+}
+
+function hasSymbol(value: string) {
+  return /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(value);
+}
+
+function containsUsername(value: string, username: string | undefined, policy: PasswordPolicy) {
+  if (!policy.forbid_username_contains) {
+    return false;
+  }
+  const normalizedUsername = username?.trim().toLowerCase();
+  return !!normalizedUsername && value.toLowerCase().includes(normalizedUsername);
 }

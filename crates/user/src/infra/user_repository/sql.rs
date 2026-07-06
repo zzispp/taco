@@ -28,6 +28,33 @@ pub fn role_query() -> &'static str {
     "SELECT r.role_id, r.role_name, r.role_key FROM sys_role r INNER JOIN sys_user_role ur ON ur.role_id = r.role_id WHERE ur.user_id = $1 AND r.del_flag = '0' ORDER BY r.role_sort ASC"
 }
 
+pub fn role_group_query() -> &'static str {
+    r#"
+    SELECT COALESCE(string_agg(r.role_name, ',' ORDER BY r.role_sort ASC), '')
+    FROM sys_role r
+    INNER JOIN sys_user_role ur ON ur.role_id = r.role_id
+    WHERE ur.user_id = $1 AND r.del_flag = '0'
+    "#
+}
+
+pub fn post_group_query() -> &'static str {
+    r#"
+    SELECT COALESCE(string_agg(p.post_name, ',' ORDER BY p.post_sort ASC), '')
+    FROM sys_post p
+    INNER JOIN sys_user_post up ON up.post_id = p.post_id
+    WHERE up.user_id = $1
+    "#
+}
+
+pub fn dept_name_query() -> &'static str {
+    r#"
+    SELECT d.dept_name
+    FROM sys_user u
+    INNER JOIN sys_dept d ON d.dept_id = u.dept_id
+    WHERE u.user_id = $1 AND u.del_flag = '0' AND d.del_flag = '0'
+    "#
+}
+
 pub fn permission_query() -> &'static str {
     r#"
     SELECT DISTINCT m.perms

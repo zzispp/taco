@@ -3,7 +3,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use types::http::ApiErrorResponse;
+use kernel::error::LocalizedError;
+use types::http::{ApiErrorKind, ApiErrorResponse, current_locale, localized_error_response};
 
 use crate::application::RbacError;
 
@@ -35,13 +36,18 @@ fn status_code(error: &RbacError) -> StatusCode {
 }
 
 fn error_response(error: &RbacError) -> ApiErrorResponse {
+    let locale = current_locale();
     match error {
-        RbacError::Unauthorized => ApiErrorResponse::new("unauthorized", "unauthorized"),
-        RbacError::Forbidden => ApiErrorResponse::new("forbidden", "forbidden"),
-        RbacError::NotFound => ApiErrorResponse::new("not_found", "resource not found"),
-        RbacError::Conflict(message) => ApiErrorResponse::with_details("conflict", "resource conflict", message.clone()),
-        RbacError::InvalidInput(message) => ApiErrorResponse::with_details("invalid_input", "invalid input", message.clone()),
-        RbacError::Infrastructure(message) => ApiErrorResponse::with_details("infrastructure_error", "infrastructure error", message.clone()),
+        RbacError::Unauthorized => localized_error_response(locale, ApiErrorKind::Unauthorized, None),
+        RbacError::Forbidden => localized_error_response(locale, ApiErrorKind::Forbidden, None),
+        RbacError::NotFound => localized_error_response(locale, ApiErrorKind::NotFound, None),
+        RbacError::Conflict(message) => localized_error_response(locale, ApiErrorKind::Conflict, Some(message)),
+        RbacError::InvalidInput(message) => localized_error_response(locale, ApiErrorKind::InvalidInput, Some(message)),
+        RbacError::Infrastructure(_) => localized_error_response(
+            locale,
+            ApiErrorKind::Infrastructure,
+            Some(&LocalizedError::new("errors.common.service_unavailable")),
+        ),
     }
 }
 

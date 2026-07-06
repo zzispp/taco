@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/shared/config';
+import { formatPageDocumentTitle } from 'src/shared/i18n/document-title-format';
 
 import { SignInPage } from 'src/pages-layer/sign-in';
 
 // ----------------------------------------------------------------------
 
-export const metadata: Metadata = { title: `Sign in | ${CONFIG.appName}` };
+export const metadata: Metadata = { title: formatPageDocumentTitle('Sign in') };
 
 export default function Page() {
   return <SignInPage />;

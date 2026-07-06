@@ -15,5 +15,10 @@ export function useRoleUsers(
   pageSize: number,
   params: QueryParams = {}
 ) {
-  return usePagedResource<RoleUser>(roleId ? roleEndpoints.users(roleId) : '', page, pageSize, params);
+  return usePagedResource<RoleUser>(
+    roleId ? roleEndpoints.users(roleId) : '',
+    page,
+    pageSize,
+    params
+  );
 }

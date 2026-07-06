@@ -29,7 +29,11 @@ import {
   ColumnsPanelTrigger,
 } from '@mui/x-data-grid';
 
-import { ExportIcon, FilterIcon, ViewColumnsIcon } from 'src/shared/theme/core/components/mui-x-data-grid';
+import {
+  ExportIcon,
+  FilterIcon,
+  ViewColumnsIcon,
+} from 'src/shared/theme/core/components/mui-x-data-grid';
 
 import { Iconify } from '../iconify';
 

@@ -44,7 +44,6 @@ fn database_url_errors_without_password_when_url_is_missing() {
 fn jwt_secret_trims_config_value() {
     let jwt = settings_with_jwt(JwtSettings {
         secret: "  secret-from-config  ".into(),
-        ..jwt_settings()
     });
 
     assert_eq!(jwt.jwt_secret().unwrap(), "secret-from-config");
@@ -159,8 +158,6 @@ database:
   name: "postgres"
 jwt:
   secret: "jwt-secret-from-config"
-  access_token_ttl_seconds: 900
-  refresh_token_ttl_seconds: 604800
 auth:
   whitelist: []
 cors:

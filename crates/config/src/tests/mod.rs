@@ -16,6 +16,7 @@ pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
         http: http_settings(),
         metrics: metrics_settings(),
         redis: redis_settings(),
+        uploads: UploadSettings::default(),
         tracing: tracing_settings(),
     }
 }
@@ -71,8 +72,6 @@ pub(super) fn database_parts() -> DatabaseSettings {
 pub(super) fn jwt_settings() -> JwtSettings {
     JwtSettings {
         secret: "jwt-secret-from-config".into(),
-        access_token_ttl_seconds: 900,
-        refresh_token_ttl_seconds: 604800,
     }
 }
 

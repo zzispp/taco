@@ -1,0 +1,5 @@
+pub const CAP_CHALLENGE_COUNT: usize = 50;
+pub const CAP_CHALLENGE_SIZE: usize = 32;
+pub const CAP_CHALLENGE_DIFFICULTY: usize = 4;
+pub const CAP_CHALLENGE_TTL_SECONDS: u64 = 600;
+pub const CAP_REDEEMED_TOKEN_TTL_SECONDS: u64 = 1200;

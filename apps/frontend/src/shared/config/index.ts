@@ -21,7 +21,7 @@ export type ConfigValue = {
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:3000';
 
 export const CONFIG: ConfigValue = {
-  appName: 'Hook',
+  appName: 'taco',
   appVersion: packageJson.version,
   serverUrl: process.env.NEXT_PUBLIC_SERVER_URL ?? DEFAULT_SERVER_URL,
   assetsDir: process.env.NEXT_PUBLIC_ASSETS_DIR ?? '',

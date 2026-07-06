@@ -4,6 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use kernel::error::LocalizedError;
 use kernel::pagination::{Page, PageRequest};
 use system::{
     application::{ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemError, SystemRepository},
@@ -150,7 +151,7 @@ impl SystemRepository for MemoryRepository {
     async fn delete_posts(&self, ids: &[String]) -> system::application::SystemResult<()> {
         for id in ids {
             if self.post_has_users(id).await? {
-                return Err(SystemError::Conflict("post has users".into()));
+                return Err(SystemError::Conflict(LocalizedError::new("errors.system.post_assigned_to_users")));
             }
         }
         Ok(())

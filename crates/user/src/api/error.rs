@@ -3,7 +3,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use types::http::ApiErrorResponse;
+use kernel::error::LocalizedError;
+use types::http::{ApiErrorKind, ApiErrorResponse, current_locale, localized_error_response};
 
 use crate::application::AppError;
 
@@ -35,13 +36,22 @@ fn status_code(error: &AppError) -> StatusCode {
 }
 
 fn error_response(error: &AppError) -> ApiErrorResponse {
+    let locale = current_locale();
     match error {
-        AppError::InvalidInput(message) => ApiErrorResponse::with_details("invalid_input", "invalid input", message.clone()),
-        AppError::Unauthorized => ApiErrorResponse::new("unauthorized", "username or password is incorrect"),
-        AppError::Forbidden(message) => ApiErrorResponse::new("forbidden", message.clone()),
-        AppError::Conflict(message) => ApiErrorResponse::with_details("conflict", "resource conflict", message.clone()),
-        AppError::NotFound => ApiErrorResponse::new("not_found", "user not found"),
-        AppError::Infrastructure(message) => ApiErrorResponse::with_details("infrastructure_error", "infrastructure error", message.clone()),
+        AppError::InvalidInput(message) => localized_error_response(locale, ApiErrorKind::InvalidInput, Some(message)),
+        AppError::Unauthorized => localized_error_response(
+            locale,
+            ApiErrorKind::Unauthorized,
+            Some(&LocalizedError::new("errors.user.invalid_credentials")),
+        ),
+        AppError::Forbidden(message) => localized_error_response(locale, ApiErrorKind::Forbidden, Some(message)),
+        AppError::Conflict(message) => localized_error_response(locale, ApiErrorKind::Conflict, Some(message)),
+        AppError::NotFound => localized_error_response(locale, ApiErrorKind::NotFound, None),
+        AppError::Infrastructure(_) => localized_error_response(
+            locale,
+            ApiErrorKind::Infrastructure,
+            Some(&LocalizedError::new("errors.common.service_unavailable")),
+        ),
     }
 }
 

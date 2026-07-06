@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use kernel::error::LocalizedError;
 use serde_json::Value;
 
-use crate::application::{CaptchaConfigResponse, CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings, CaptchaSettingsReader, CaptchaUseCase};
+use crate::application::{
+    CaptchaConfigDocument, CaptchaConfigResponse, CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings, CaptchaSettingsReader, CaptchaUseCase,
+};
 
 pub struct CaptchaService<S> {
     settings: S,
@@ -19,12 +22,8 @@ where
     }
 
     async fn settings(&self) -> CaptchaResult<CaptchaSettings> {
-        Ok(CaptchaSettings {
-            enabled: self.settings.enabled().await?,
-            provider: self.settings.provider().await?,
-            public_config: self.settings.public_config().await?,
-            private_config: self.settings.private_config().await?,
-        })
+        let document = serde_json::from_value::<CaptchaConfigDocument>(self.settings.config().await?).map_err(invalid_config)?;
+        CaptchaSettings::try_from(document)
     }
 
     fn provider(&self, name: &str) -> CaptchaResult<&dyn CaptchaProvider> {
@@ -32,7 +31,7 @@ where
             .iter()
             .find(|provider| provider.name() == name)
             .map(Arc::as_ref)
-            .ok_or_else(|| CaptchaError::InvalidInput(format!("unsupported captcha provider: {name}")))
+            .ok_or_else(|| CaptchaError::InvalidInput(LocalizedError::new("errors.captcha.unsupported_provider").with_param("provider", name.to_owned())))
     }
 }
 
@@ -69,4 +68,9 @@ where
         }
         self.provider(&settings.provider)?.verify(&settings, token).await
     }
+}
+
+fn invalid_config(error: serde_json::Error) -> CaptchaError {
+    let _ = error;
+    CaptchaError::InvalidInput(LocalizedError::new("errors.captcha.invalid_config_json").with_param("key", "sys.account.captchaConfig"))
 }

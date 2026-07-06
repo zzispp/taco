@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 
-import { CONFIG } from 'src/shared/config';
+import { getDashboardPageMetadata } from 'src/shared/i18n/server';
 
 import { AdminDeptsPage } from 'src/pages-layer/admin-depts';
 
 // ----------------------------------------------------------------------
 
-export const metadata: Metadata = { title: `部门管理 | Dashboard - ${CONFIG.appName}` };
+export function generateMetadata(): Promise<Metadata> {
+  return getDashboardPageMetadata('pages.deptManagement');
+}
 
 export default function Page() {
   return <AdminDeptsPage />;

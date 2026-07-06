@@ -14,7 +14,7 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { usePosts } from 'src/entities/system';
 import { useHasPermission } from 'src/entities/session';
 
-import { systemMutations } from 'src/features/system-management/api';
+import { systemMutations } from 'src/features/system-management';
 
 import { SystemCrudPanel } from 'src/widgets/system-crud-panel';
 

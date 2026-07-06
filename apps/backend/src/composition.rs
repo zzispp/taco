@@ -17,9 +17,11 @@ use captcha::{
     },
 };
 use configuration::Settings;
+use constants::system_config::{AVATAR_CONFIG_KEY, CAPTCHA_CONFIG_KEY, EXPORT_BATCH_CONFIG_KEY, PASSWORD_POLICY_KEY, TOKEN_CONFIG_KEY};
+use kernel::runtime_config::{ExportBatchConfig, ExportConfigProvider};
 use rbac::{
     api::{RbacApiState, create_router as create_rbac_router},
-    application::{AuthWhitelistRule, AuthorizationConfig, RbacAdminUseCase, RbacService, RbacUseCase},
+    application::{AuthWhitelistRule, AuthorizationConfig, RbacAdminUseCase, RbacError, RbacService, RbacUseCase},
     domain::RoutePermissionRule,
     infra::{RedisRbacCache, StorageRbacRepository},
 };
@@ -27,12 +29,16 @@ use serde_json::Value;
 use storage::{Database, connect_database};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
+    services::ServeDir,
     trace::TraceLayer,
 };
 use user::{
-    api::{ApiState, TokenService, TokenSettings, create_router as create_user_router},
-    application::{AppError, SystemConfigProvider, UserService, UserUseCase},
-    infra::{Argon2PasswordHasher, StorageUserRepository},
+    api::{ApiState, TokenService, TokenSettings, TokenSettingsReader, TokenTtlConfig, create_router as create_user_router, parse_token_ttl_config},
+    application::{
+        AccountVerifier, AppError, AppResult, AvatarConfig, AvatarConfigProvider, PasswordPolicy, PasswordPolicyProvider, SystemConfigProvider, UserService,
+        UserUseCase, parse_avatar_config, parse_export_batch_config, parse_password_policy,
+    },
+    infra::{Argon2PasswordHasher, LocalAvatarStorage, StorageUserRepository},
 };
 
 use crate::{
@@ -47,28 +53,7 @@ struct RbacServices {
     admin: Arc<dyn RbacAdminUseCase>,
 }
 
-struct UserSystemConfig {
-    system: Arc<dyn SystemUseCase>,
-}
-
-impl UserSystemConfig {
-    fn new(system: Arc<dyn SystemUseCase>) -> Self {
-        Self { system }
-    }
-}
-
-#[async_trait]
-impl SystemConfigProvider for UserSystemConfig {
-    async fn config_by_key(&self, key: &str) -> Result<String, AppError> {
-        self.system.config_by_key(key).await.map_err(user_config_error)
-    }
-}
-
-const CAPTCHA_ENABLED_KEY: &str = "sys.account.captchaEnabled";
-const CAPTCHA_PROVIDER_KEY: &str = "sys.account.captchaProvider";
-const CAPTCHA_PUBLIC_CONFIG_KEY: &str = "sys.account.captchaPublicConfig";
-const CAPTCHA_PRIVATE_CONFIG_KEY: &str = "sys.account.captchaPrivateConfig";
-const DEFAULT_CAPTCHA_PROVIDER: &str = "cap";
+const AVATAR_URL_PREFIX: &str = "/uploads/avatars";
 
 struct CaptchaSystemConfig {
     system: Arc<dyn SystemUseCase>,
@@ -78,34 +63,124 @@ impl CaptchaSystemConfig {
     fn new(system: Arc<dyn SystemUseCase>) -> Self {
         Self { system }
     }
-
-    async fn config(&self, key: &str) -> Result<String, CaptchaError> {
-        self.system.config_by_key(key).await.map_err(captcha_config_error)
-    }
-
-    async fn json_config(&self, key: &str) -> Result<Value, CaptchaError> {
-        let value = self.config(key).await?;
-        serde_json::from_str(&value).map_err(|error| CaptchaError::InvalidInput(format!("invalid captcha config JSON for {key}: {error}")))
-    }
 }
 
 #[async_trait]
 impl CaptchaSettingsReader for CaptchaSystemConfig {
-    async fn enabled(&self) -> Result<bool, CaptchaError> {
-        Ok(self.config(CAPTCHA_ENABLED_KEY).await?.trim().eq_ignore_ascii_case("true"))
+    async fn config(&self) -> Result<Value, CaptchaError> {
+        let value = self.system.config_by_key(CAPTCHA_CONFIG_KEY).await.map_err(captcha_config_error)?;
+        serde_json::from_str(&value).map_err(captcha_json_error)
+    }
+}
+
+#[derive(Clone)]
+struct RuntimeUserConfig {
+    system: Arc<dyn SystemUseCase>,
+}
+
+impl RuntimeUserConfig {
+    fn new(system: Arc<dyn SystemUseCase>) -> Self {
+        Self { system }
     }
 
-    async fn provider(&self) -> Result<String, CaptchaError> {
-        let provider = self.config(CAPTCHA_PROVIDER_KEY).await?.trim().to_owned();
-        Ok(if provider.is_empty() { DEFAULT_CAPTCHA_PROVIDER.into() } else { provider })
+    async fn user_config(&self, key: &str) -> AppResult<String> {
+        self.system.config_by_key(key).await.map_err(user_config_error)
     }
+}
 
-    async fn public_config(&self) -> Result<Value, CaptchaError> {
-        self.json_config(CAPTCHA_PUBLIC_CONFIG_KEY).await
+#[async_trait]
+impl SystemConfigProvider for RuntimeUserConfig {
+    async fn config_by_key(&self, key: &str) -> Result<String, AppError> {
+        self.user_config(key).await
     }
+}
 
-    async fn private_config(&self) -> Result<Value, CaptchaError> {
-        self.json_config(CAPTCHA_PRIVATE_CONFIG_KEY).await
+#[async_trait]
+impl PasswordPolicyProvider for RuntimeUserConfig {
+    async fn password_policy(&self) -> AppResult<PasswordPolicy> {
+        parse_password_policy(&self.user_config(PASSWORD_POLICY_KEY).await?)
+    }
+}
+
+#[async_trait]
+impl AvatarConfigProvider for RuntimeUserConfig {
+    async fn avatar_config(&self) -> AppResult<AvatarConfig> {
+        parse_avatar_config(&self.user_config(AVATAR_CONFIG_KEY).await?)
+    }
+}
+
+#[async_trait]
+impl ExportConfigProvider for RuntimeUserConfig {
+    type Error = AppError;
+
+    async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
+        parse_export_batch_config(&self.user_config(EXPORT_BATCH_CONFIG_KEY).await?)
+    }
+}
+
+#[async_trait]
+impl TokenSettingsReader for RuntimeUserConfig {
+    async fn token_ttl_config(&self) -> AppResult<TokenTtlConfig> {
+        parse_token_ttl_config(&self.user_config(TOKEN_CONFIG_KEY).await?)
+    }
+}
+
+#[derive(Clone)]
+struct RuntimeRbacConfig {
+    system: Arc<dyn SystemUseCase>,
+}
+
+impl RuntimeRbacConfig {
+    fn new(system: Arc<dyn SystemUseCase>) -> Self {
+        Self { system }
+    }
+}
+
+#[async_trait]
+impl ExportConfigProvider for RuntimeRbacConfig {
+    type Error = RbacError;
+
+    async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
+        let value = self.system.config_by_key(EXPORT_BATCH_CONFIG_KEY).await.map_err(rbac_config_error)?;
+        parse_export_batch_config(&value).map_err(user_error_to_rbac)
+    }
+}
+
+#[derive(Clone)]
+struct RuntimeSystemConfig {
+    system: Arc<dyn SystemUseCase>,
+}
+
+impl RuntimeSystemConfig {
+    fn new(system: Arc<dyn SystemUseCase>) -> Self {
+        Self { system }
+    }
+}
+
+#[async_trait]
+impl ExportConfigProvider for RuntimeSystemConfig {
+    type Error = SystemError;
+
+    async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
+        let value = self.system.config_by_key(EXPORT_BATCH_CONFIG_KEY).await?;
+        parse_export_batch_config(&value).map_err(user_error_to_system)
+    }
+}
+
+struct CaptchaAccountVerifier {
+    captcha: Arc<dyn CaptchaUseCase>,
+}
+
+impl CaptchaAccountVerifier {
+    fn new(captcha: Arc<dyn CaptchaUseCase>) -> Self {
+        Self { captcha }
+    }
+}
+
+#[async_trait]
+impl AccountVerifier for CaptchaAccountVerifier {
+    async fn verify_account(&self, token: Option<&str>) -> AppResult<()> {
+        self.captcha.verify_account(token).await.map_err(captcha_account_error)
     }
 }
 
@@ -116,11 +191,16 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let authorization = authorization_config(settings);
     rbac.use_case.validate_protected_handlers(&authorization)?;
     rbac.use_case.validate_data_scope_handlers(&data_scope_handlers())?;
-    let users: Arc<dyn UserUseCase> = Arc::new(UserService::new(StorageUserRepository::new(database.clone()), Argon2PasswordHasher));
-    let tokens = TokenService::new(token_settings(settings)?);
     let system_cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
     let system: Arc<dyn SystemUseCase> = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database.clone()), system_cache));
     rebuild_system_cache(&system).await?;
+    let runtime_config = RuntimeUserConfig::new(system.clone());
+    let users: Arc<dyn UserUseCase> = Arc::new(UserService::with_password_policy(
+        StorageUserRepository::new(database.clone()),
+        Argon2PasswordHasher,
+        runtime_config.clone(),
+    ));
+    let tokens = TokenService::with_ttl_reader(token_settings(settings)?, Arc::new(runtime_config));
     let captcha = build_captcha_service(settings, system.clone()).await?;
 
     Ok(AppState {
@@ -141,21 +221,28 @@ pub async fn build_router(settings: &Settings, metrics_handle: hook_tracing::Met
 
 #[cfg(test)]
 pub(crate) fn build_public_router(settings: &Settings, metrics_handle: hook_tracing::MetricsHandle) -> BackendResult<Router> {
-    let app = attach_metrics(public_routes(), metrics_handle);
+    let app = attach_metrics(public_routes(settings), metrics_handle);
     apply_http_layers(app, settings)
 }
 
 pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tracing::MetricsHandle) -> BackendResult<Router> {
-    let user_config = Arc::new(UserSystemConfig::new(state.system.clone()));
+    let user_config = Arc::new(RuntimeUserConfig::new(state.system.clone()));
+    let rbac_config = Arc::new(RuntimeRbacConfig::new(state.system.clone()));
+    let system_config = Arc::new(RuntimeSystemConfig::new(state.system.clone()));
+    let account_verifier = Arc::new(CaptchaAccountVerifier::new(state.captcha.clone()));
+    let avatar_storage = Arc::new(LocalAvatarStorage::new(settings.uploads.avatar_directory.clone(), AVATAR_URL_PREFIX));
     let user_state = ApiState::new(
         state.users.clone(),
         state.tokens.clone(),
         state.rbac.clone(),
-        user_config,
-        state.captcha.clone(),
-    );
-    let rbac_state = RbacApiState::new(state.rbac.clone(), state.rbac_admin.clone());
-    let system_state = SystemApiState::new(state.system.clone(), state.rbac.clone(), state.rbac_admin.clone());
+        user_config.clone(),
+        account_verifier,
+    )
+    .with_avatar_storage(avatar_storage)
+    .with_avatar_config(user_config.clone())
+    .with_export_config(user_config.clone());
+    let rbac_state = RbacApiState::new(state.rbac.clone(), state.rbac_admin.clone()).with_export_config(rbac_config);
+    let system_state = SystemApiState::new(state.system.clone(), state.rbac.clone(), state.rbac_admin.clone()).with_export_config(system_config);
     let captcha_state = CaptchaApiState::new(state.captcha.clone());
     let auth_state = AuthState::new(AuthStateParts {
         users: state.users,
@@ -170,9 +257,10 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tra
         .merge(create_system_router(system_state))
         .merge(create_captcha_router(captcha_state));
 
-    let app = public_routes().nest("/api", api_router);
+    let app = public_routes(settings).nest("/api", api_router);
     let app = attach_metrics(app, metrics_handle);
     let app = app.layer(middleware::from_fn_with_state(auth_state, auth_middleware));
+    let app = app.layer(middleware::from_fn(types::http::locale_middleware));
 
     apply_http_layers(app, settings)
 }
@@ -187,8 +275,10 @@ pub(crate) fn apply_http_layers(app: Router, settings: &Settings) -> BackendResu
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid)))
 }
 
-fn public_routes() -> Router {
-    docs::router().merge(system::create_router())
+fn public_routes(settings: &Settings) -> Router {
+    docs::router()
+        .merge(system::create_router())
+        .nest_service(AVATAR_URL_PREFIX, ServeDir::new(&settings.uploads.avatar_directory))
 }
 
 fn attach_metrics(mut app: Router, metrics_handle: hook_tracing::MetricsHandle) -> Router {
@@ -249,6 +339,7 @@ fn auth_whitelist(settings: &Settings) -> Vec<AuthWhitelistRule> {
         .collect::<Vec<_>>();
     ensure_auth_whitelist_rule(&mut rules, "GET", "/api/app/configs");
     ensure_auth_whitelist_rule(&mut rules, "GET", "/api/auth/me");
+    ensure_auth_whitelist_rule(&mut rules, "GET", "/uploads/avatars/{*file}");
     ensure_auth_whitelist_rule(&mut rules, "GET", "/api/captcha/config");
     ensure_auth_whitelist_rule(&mut rules, "POST", "/api/captcha/challenge");
     ensure_auth_whitelist_rule(&mut rules, "POST", "/api/captcha/redeem");
@@ -402,9 +493,12 @@ fn route_rule(methods: &[&str], path_pattern: &str, permission: &str, handler: &
 fn token_settings(settings: &Settings) -> BackendResult<TokenSettings> {
     Ok(TokenSettings {
         secret: settings.jwt_secret()?,
-        access_token_ttl_seconds: settings.jwt.access_token_ttl_seconds,
-        refresh_token_ttl_seconds: settings.jwt.refresh_token_ttl_seconds,
     })
+}
+
+fn captcha_json_error(error: serde_json::Error) -> CaptchaError {
+    let _ = error;
+    CaptchaError::InvalidInput(kernel::error::LocalizedError::new("errors.captcha.invalid_config_json").with_param("key", CAPTCHA_CONFIG_KEY))
 }
 
 fn captcha_config_error(error: SystemError) -> CaptchaError {
@@ -425,6 +519,45 @@ fn user_config_error(error: SystemError) -> AppError {
     }
 }
 
+fn rbac_config_error(error: SystemError) -> RbacError {
+    match error {
+        SystemError::NotFound => RbacError::Infrastructure("required system config not found".into()),
+        SystemError::Forbidden(_) => RbacError::Forbidden,
+        SystemError::Conflict(message) => RbacError::Conflict(message),
+        SystemError::InvalidInput(message) => RbacError::InvalidInput(message),
+        SystemError::Infrastructure(message) => RbacError::Infrastructure(message),
+    }
+}
+
+fn user_error_to_rbac(error: AppError) -> RbacError {
+    match error {
+        AppError::InvalidInput(message) => RbacError::InvalidInput(message),
+        AppError::Unauthorized => RbacError::Unauthorized,
+        AppError::Forbidden(_) => RbacError::Forbidden,
+        AppError::Conflict(message) => RbacError::Conflict(message),
+        AppError::NotFound => RbacError::NotFound,
+        AppError::Infrastructure(message) => RbacError::Infrastructure(message),
+    }
+}
+
+fn user_error_to_system(error: AppError) -> SystemError {
+    match error {
+        AppError::InvalidInput(message) => SystemError::InvalidInput(message),
+        AppError::Unauthorized => SystemError::Forbidden(kernel::error::LocalizedError::new("errors.common.forbidden")),
+        AppError::Forbidden(message) => SystemError::Forbidden(message),
+        AppError::Conflict(message) => SystemError::Conflict(message),
+        AppError::NotFound => SystemError::NotFound,
+        AppError::Infrastructure(message) => SystemError::Infrastructure(message),
+    }
+}
+
+fn captcha_account_error(error: CaptchaError) -> AppError {
+    match error {
+        CaptchaError::InvalidInput(message) => AppError::InvalidInput(message),
+        CaptchaError::Infrastructure(message) => AppError::Infrastructure(message),
+    }
+}
+
 async fn build_rbac_service(
     repository: StorageRbacRepository,
     cache: RedisRbacCache,
@@ -436,7 +569,11 @@ async fn build_rbac_service(
 
 #[cfg(test)]
 mod tests {
-    use super::ensure_auth_whitelist_rule;
+    use super::{auth_whitelist, ensure_auth_whitelist_rule};
+    use configuration::{
+        AuthSettings, CorsSettings, DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings, RedisSettings, ServerSettings, Settings, TracingFileSettings,
+        TracingSettings, UploadSettings,
+    };
 
     #[test]
     fn ensure_auth_whitelist_rule_adds_rule_once() {
@@ -448,5 +585,70 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].methods, vec!["GET"]);
         assert_eq!(rules[0].path_pattern, "/api/auth/me");
+    }
+
+    #[test]
+    fn auth_whitelist_includes_public_avatar_files() {
+        let rules = auth_whitelist(&test_settings());
+
+        assert!(
+            rules
+                .iter()
+                .any(|rule| { rule.path_pattern == "/uploads/avatars/{*file}" && rule.methods.iter().any(|method| method == "GET") })
+        );
+    }
+
+    fn test_settings() -> Settings {
+        Settings {
+            server: ServerSettings {
+                host: "127.0.0.1".into(),
+                port: 3000,
+            },
+            database: DatabaseSettings {
+                auto_migrate: false,
+                url: None,
+                scheme: "postgres".into(),
+                host: "localhost".into(),
+                port: 5432,
+                username: "postgres".into(),
+                password: Some("postgres".into()),
+                name: "postgres".into(),
+            },
+            jwt: JwtSettings { secret: "secret".into() },
+            auth: AuthSettings { whitelist: vec![] },
+            cors: CorsSettings {
+                allowed_origins: vec!["*".into()],
+                allowed_methods: vec!["*".into()],
+                allowed_headers: vec!["*".into()],
+                exposed_headers: vec!["*".into()],
+                allow_credentials: false,
+                max_age_seconds: None,
+            },
+            http: HttpSettings {
+                request_timeout_ms: 30_000,
+                compression_enabled: true,
+            },
+            metrics: MetricsSettings { enabled: true },
+            redis: RedisSettings {
+                url: None,
+                scheme: "redis".into(),
+                host: "localhost".into(),
+                port: 6379,
+                username: None,
+                password: None,
+                database: Some(0),
+                protocol: Some("resp3".into()),
+                key_prefix: "taco".into(),
+            },
+            uploads: UploadSettings::default(),
+            tracing: TracingSettings {
+                log_level: "info".into(),
+                file: TracingFileSettings {
+                    enabled: false,
+                    directory: "logs".into(),
+                    prefix: "taco.log".into(),
+                },
+            },
+        }
     }
 }

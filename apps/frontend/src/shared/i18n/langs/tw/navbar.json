@@ -1,0 +1,12 @@
+{
+  "app": "應用",
+  "job": "工作",
+  "user": "用戶",
+  "travel": "旅行",
+  "invoice": "發票",
+  "blog": {
+    "title": "博客",
+    "caption": "自定義鍵盤快捷鍵。"
+  },
+  "subheader": "子標題"
+}

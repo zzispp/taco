@@ -9,7 +9,7 @@ use time::OffsetDateTime;
 use types::{
     rbac::{DataScopeFilter, RoleOption},
     system::{Post, TreeSelectNode},
-    user::{User, UserFormOptions, UserId},
+    user::{ProfileUpdate, User, UserFormOptions, UserId, UserProfileGroups},
 };
 
 use crate::application::{ReplaceUserRecord, UserListFilter};
@@ -85,6 +85,10 @@ impl UserQueries {
         self.find_auth_record("email = $1", email).await
     }
 
+    pub async fn find_auth_by_id(&self, id: UserId) -> StorageResult<Option<(User, String)>> {
+        self.find_auth_record("user_id = $1", &id.0).await
+    }
+
     pub async fn record_login(&self, id: UserId) -> StorageResult<()> {
         let now = OffsetDateTime::now_utc();
         let result = query("UPDATE sys_user SET login_date = $2, update_time = $2 WHERE user_id = $1 AND del_flag = '0'")
@@ -128,6 +132,29 @@ impl UserQueries {
         write::ensure_rows_affected(result.rows_affected())
     }
 
+    pub async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> StorageResult<User> {
+        let result = query("UPDATE sys_user SET nick_name=$2,email=$3,phonenumber=$4,sex=$5,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
+            .bind(&id.0)
+            .bind(profile.nick_name)
+            .bind(profile.email)
+            .bind(profile.phonenumber)
+            .bind(profile.sex)
+            .execute(self.database.pool())
+            .await?;
+        write::ensure_rows_affected(result.rows_affected())?;
+        self.find_by_id(id).await?.ok_or(StorageError::NotFound)
+    }
+
+    pub async fn update_avatar(&self, id: UserId, avatar: String) -> StorageResult<User> {
+        let result = query("UPDATE sys_user SET avatar=$2,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
+            .bind(&id.0)
+            .bind(avatar)
+            .execute(self.database.pool())
+            .await?;
+        write::ensure_rows_affected(result.rows_affected())?;
+        self.find_by_id(id).await?.ok_or(StorageError::NotFound)
+    }
+
     pub async fn update_status(&self, id: UserId, status: String) -> StorageResult<User> {
         let result = query("UPDATE sys_user SET status=$2,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
             .bind(&id.0)
@@ -144,6 +171,14 @@ impl UserQueries {
         write::replace_roles(&mut tx, &id.0, role_ids).await?;
         tx.commit().await.map_err(StorageError::from)?;
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
+    }
+
+    pub async fn profile_groups(&self, id: UserId) -> StorageResult<UserProfileGroups> {
+        Ok(UserProfileGroups {
+            role_group: self.role_group(&id.0).await?,
+            post_group: self.post_group(&id.0).await?,
+            dept_name: self.dept_name(&id.0).await?,
+        })
     }
 
     pub async fn form_options(&self) -> StorageResult<UserFormOptions> {
@@ -330,6 +365,30 @@ impl UserQueries {
             .map_err(StorageError::from)
     }
 
+    async fn role_group(&self, user_id: &str) -> StorageResult<String> {
+        query_scalar(sql::role_group_query())
+            .bind(user_id)
+            .fetch_one(self.database.pool())
+            .await
+            .map_err(StorageError::from)
+    }
+
+    async fn post_group(&self, user_id: &str) -> StorageResult<String> {
+        query_scalar(sql::post_group_query())
+            .bind(user_id)
+            .fetch_one(self.database.pool())
+            .await
+            .map_err(StorageError::from)
+    }
+
+    async fn dept_name(&self, user_id: &str) -> StorageResult<Option<String>> {
+        query_scalar(sql::dept_name_query())
+            .bind(user_id)
+            .fetch_optional(self.database.pool())
+            .await
+            .map_err(StorageError::from)
+    }
+
     async fn post_ids(&self, user_id: &str) -> StorageResult<Vec<String>> {
         query_scalar("SELECT post_id FROM sys_user_post WHERE user_id = $1 ORDER BY post_id ASC")
             .bind(user_id)
@@ -440,7 +499,7 @@ fn dept_node(record: &DeptOptionRecord, records: &[DeptOptionRecord]) -> TreeSel
         id: record.dept_id.clone(),
         label: record.dept_name.clone(),
         parent_id: record.parent_id.clone(),
-        disabled: record.status != types::rbac::STATUS_NORMAL,
+        disabled: record.status != constants::system::STATUS_NORMAL,
         children: records
             .iter()
             .filter(|child| child.parent_id == record.dept_id)

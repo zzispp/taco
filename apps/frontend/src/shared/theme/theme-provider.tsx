@@ -45,7 +45,12 @@ export function ThemeProvider({ themeOverrides, children, ...other }: ThemeProvi
   });
 
   return (
-    <ThemeVarsProvider disableTransitionOnChange theme={theme} {...other} defaultMode={settings.state.mode}>
+    <ThemeVarsProvider
+      disableTransitionOnChange
+      theme={theme}
+      {...other}
+      defaultMode={settings.state.mode}
+    >
       <ThemeModeSync mode={settings.state.mode} />
       <CssBaseline />
       <Rtl direction={settings.state.direction}>{children}</Rtl>

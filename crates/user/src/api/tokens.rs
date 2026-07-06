@@ -1,6 +1,11 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
+use async_trait::async_trait;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use kernel::error::LocalizedError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -8,16 +13,21 @@ use crate::{
     domain::UserId,
 };
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+pub struct TokenTtlConfig {
+    pub access_token_ttl_seconds: u64,
+    pub refresh_token_ttl_seconds: u64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TokenSettings {
     pub secret: String,
-    pub access_token_ttl_seconds: u64,
-    pub refresh_token_ttl_seconds: u64,
 }
 
 #[derive(Clone)]
 pub struct TokenService {
     settings: TokenSettings,
+    ttl_reader: Arc<dyn TokenSettingsReader>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,21 +52,44 @@ struct Claims {
     token_type: TokenKind,
 }
 
+#[async_trait]
+pub trait TokenSettingsReader: Send + Sync + 'static {
+    async fn token_ttl_config(&self) -> AppResult<TokenTtlConfig>;
+}
+
+#[derive(Clone, Copy)]
+pub struct StaticTokenSettingsReader;
+
+#[async_trait]
+impl TokenSettingsReader for StaticTokenSettingsReader {
+    async fn token_ttl_config(&self) -> AppResult<TokenTtlConfig> {
+        Ok(TokenTtlConfig {
+            access_token_ttl_seconds: 900,
+            refresh_token_ttl_seconds: 604800,
+        })
+    }
+}
+
 impl TokenService {
     pub fn new(settings: TokenSettings) -> Self {
-        Self { settings }
+        Self::with_ttl_reader(settings, Arc::new(StaticTokenSettingsReader))
     }
 
-    pub fn issue_pair(&self, user_id: UserId) -> AppResult<TokenPair> {
+    pub fn with_ttl_reader(settings: TokenSettings, ttl_reader: Arc<dyn TokenSettingsReader>) -> Self {
+        Self { settings, ttl_reader }
+    }
+
+    pub async fn issue_pair(&self, user_id: UserId) -> AppResult<TokenPair> {
+        let ttl = self.ttl_reader.token_ttl_config().await?;
         Ok(TokenPair {
-            access_token: self.issue_token(user_id.clone(), TokenKind::Access, self.settings.access_token_ttl_seconds)?,
-            refresh_token: self.issue_token(user_id, TokenKind::Refresh, self.settings.refresh_token_ttl_seconds)?,
+            access_token: self.issue_token(user_id.clone(), TokenKind::Access, ttl.access_token_ttl_seconds)?,
+            refresh_token: self.issue_token(user_id, TokenKind::Refresh, ttl.refresh_token_ttl_seconds)?,
         })
     }
 
-    pub fn refresh(&self, refresh_token: &str) -> AppResult<(UserId, TokenPair)> {
+    pub async fn refresh(&self, refresh_token: &str) -> AppResult<(UserId, TokenPair)> {
         let user_id = self.validate_token(refresh_token, TokenKind::Refresh)?;
-        Ok((user_id.clone(), self.issue_pair(user_id)?))
+        Ok((user_id.clone(), self.issue_pair(user_id).await?))
     }
 
     pub fn validate_access(&self, access_token: &str) -> AppResult<UserId> {
@@ -102,6 +135,24 @@ impl TokenService {
     }
 }
 
+impl TokenTtlConfig {
+    pub fn validate(&self) -> AppResult<()> {
+        if self.access_token_ttl_seconds == 0 || self.refresh_token_ttl_seconds == 0 {
+            return Err(AppError::InvalidInput(
+                LocalizedError::new("errors.user.invalid_system_config").with_param("key", "sys.auth.tokenConfig"),
+            ));
+        }
+        Ok(())
+    }
+}
+
+pub fn parse_token_ttl_config(value: &str) -> AppResult<TokenTtlConfig> {
+    let parsed = serde_json::from_str::<TokenTtlConfig>(value)
+        .map_err(|_| AppError::InvalidInput(LocalizedError::new("errors.user.invalid_system_config").with_param("key", "sys.auth.tokenConfig")))?;
+    parsed.validate()?;
+    Ok(parsed)
+}
+
 fn parse_user_id(subject: &str) -> AppResult<UserId> {
     if subject.trim().is_empty() {
         return Err(AppError::Unauthorized);
@@ -128,31 +179,31 @@ mod tests {
     use super::{TokenService, TokenSettings};
     use crate::{application::AppError, domain::UserId};
 
-    #[test]
-    fn refresh_rejects_access_token() {
+    #[tokio::test]
+    async fn refresh_rejects_access_token() {
         let service = token_service();
-        let tokens = service.issue_pair(user_id()).unwrap();
+        let tokens = service.issue_pair(user_id()).await.unwrap();
 
-        let result = service.refresh(&tokens.access_token);
+        let result = service.refresh(&tokens.access_token).await;
 
         assert!(matches!(result, Err(AppError::Unauthorized)));
     }
 
-    #[test]
-    fn refresh_accepts_refresh_token_and_issues_access_token() {
+    #[tokio::test]
+    async fn refresh_accepts_refresh_token_and_issues_access_token() {
         let service = token_service();
-        let tokens = service.issue_pair(user_id()).unwrap();
+        let tokens = service.issue_pair(user_id()).await.unwrap();
 
-        let (user_id, refreshed) = service.refresh(&tokens.refresh_token).unwrap();
+        let (user_id, refreshed) = service.refresh(&tokens.refresh_token).await.unwrap();
 
         assert_eq!(user_id, self::user_id());
         assert_eq!(service.validate_access(&refreshed.access_token).unwrap(), self::user_id());
     }
 
-    #[test]
-    fn validate_access_rejects_refresh_token() {
+    #[tokio::test]
+    async fn validate_access_rejects_refresh_token() {
         let service = token_service();
-        let tokens = service.issue_pair(user_id()).unwrap();
+        let tokens = service.issue_pair(user_id()).await.unwrap();
 
         let result = service.validate_access(&tokens.refresh_token);
 
@@ -162,12 +213,10 @@ mod tests {
     fn token_service() -> TokenService {
         TokenService::new(TokenSettings {
             secret: "test-secret-with-enough-entropy".into(),
-            access_token_ttl_seconds: 900,
-            refresh_token_ttl_seconds: 604800,
         })
     }
 
     fn user_id() -> UserId {
-        UserId("018f0000-0000-7000-8000-000000000007".into())
+        UserId("018f0000-0000-7000-8000-000000000001".into())
     }
 }

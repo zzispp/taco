@@ -16,10 +16,28 @@ use user::{
     domain::User,
 };
 
-const AUTHENTICATED_ONLY_ROUTES: &[AuthenticatedOnlyRoute] = &[AuthenticatedOnlyRoute {
-    method: "GET",
-    path: "/api/navbar",
-}];
+const AUTHENTICATED_ONLY_ROUTES: &[AuthenticatedOnlyRoute] = &[
+    AuthenticatedOnlyRoute {
+        method: "GET",
+        path: "/api/navbar",
+    },
+    AuthenticatedOnlyRoute {
+        method: "GET",
+        path: "/api/account/profile",
+    },
+    AuthenticatedOnlyRoute {
+        method: "PUT",
+        path: "/api/account/profile",
+    },
+    AuthenticatedOnlyRoute {
+        method: "PUT",
+        path: "/api/account/profile/password",
+    },
+    AuthenticatedOnlyRoute {
+        method: "POST",
+        path: "/api/account/profile/avatar",
+    },
+];
 
 struct AuthenticatedOnlyRoute {
     method: &'static str,
@@ -141,5 +159,13 @@ mod tests {
         assert!(is_authenticated_only_route("get", "/api/navbar"));
         assert!(!is_authenticated_only_route("POST", "/api/navbar"));
         assert!(!is_authenticated_only_route("GET", "/api/system/users"));
+    }
+
+    #[test]
+    fn authenticated_only_route_matches_account_profile() {
+        assert!(is_authenticated_only_route("GET", "/api/account/profile"));
+        assert!(is_authenticated_only_route("PUT", "/api/account/profile"));
+        assert!(is_authenticated_only_route("PUT", "/api/account/profile/password"));
+        assert!(is_authenticated_only_route("POST", "/api/account/profile/avatar"));
     }
 }

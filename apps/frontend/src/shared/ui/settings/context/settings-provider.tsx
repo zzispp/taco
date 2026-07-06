@@ -12,10 +12,7 @@ import { SETTINGS_STORAGE_KEY } from '../settings-config';
 
 // ----------------------------------------------------------------------
 
-function shouldMigrateCompactLayout(
-  storedValue: SettingsState,
-  defaultSettings: SettingsState
-) {
+function shouldMigrateCompactLayout(storedValue: SettingsState, defaultSettings: SettingsState) {
   return isEqual(storedValue, { ...defaultSettings, compactLayout: true });
 }
 
@@ -83,7 +80,17 @@ export function SettingsProvider({
       setState,
       setField,
     }),
-    [canReset, defaultSettings, onReset, openDrawer, onCloseDrawer, onToggleDrawer, state, setField, setState]
+    [
+      canReset,
+      defaultSettings,
+      onReset,
+      openDrawer,
+      onCloseDrawer,
+      onToggleDrawer,
+      state,
+      setField,
+      setState,
+    ]
   );
 
   return <SettingsContext value={memoizedValue}>{children}</SettingsContext>;

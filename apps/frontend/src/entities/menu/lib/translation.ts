@@ -1,7 +1,7 @@
 import type { Menu } from '../model/types';
-import type { AdminT } from 'src/shared/ui/admin/common';
+import type { TranslateFn } from 'src/shared/i18n';
 
-export function translatedMenuItem(item: Menu, t: AdminT) {
+export function translatedMenuItem(item: Menu, t: TranslateFn) {
   const keyByPerms: Record<string, string> = {
     'system:user:list': 'nav.users',
     'system:role:list': 'nav.roles',

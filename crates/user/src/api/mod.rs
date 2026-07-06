@@ -7,9 +7,9 @@ mod state;
 mod tokens;
 
 pub use dto::{
-    AuthSessionResponse, ListUsersQuery, MeResponse, RefreshTokenPayload, SignInPayload, SignUpPayload, TokenPairResponse, UserPayload, UserResponse,
-    UsersPageResponse,
+    AuthSessionResponse, AvatarResponse, ChangePasswordPayload, ListUsersQuery, MeResponse, ProfilePayload, ProfileResponse, RefreshTokenPayload,
+    SignInPayload, SignUpPayload, TokenPairResponse, UserPayload, UserResponse, UsersPageResponse,
 };
 pub use routes::create_router;
 pub use state::ApiState;
-pub use tokens::{TokenPair, TokenService, TokenSettings};
+pub use tokens::{TokenPair, TokenService, TokenSettings, TokenSettingsReader, TokenTtlConfig, parse_token_ttl_config};

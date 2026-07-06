@@ -10,4 +10,7 @@ export const userEndpoints = {
   roles: (id: string) => `/api/system/users/${id}/roles`,
   deptTree: '/api/system/users/dept-tree',
   formOptions: '/api/system/users/form-options',
+  accountProfile: '/api/account/profile',
+  accountPassword: '/api/account/profile/password',
+  accountAvatar: '/api/account/profile/avatar',
 } as const;

@@ -34,19 +34,31 @@ type TreeSelectorProps = {
   onResolvedSelectionChange?: (selected: string[]) => void;
 };
 
-export function TreeSelector({ items, selected, strict, onChange, onStrictChange, onResolvedSelectionChange }: TreeSelectorProps) {
+export function TreeSelector({
+  items,
+  selected,
+  strict,
+  onChange,
+  onStrictChange,
+  onResolvedSelectionChange,
+}: TreeSelectorProps) {
   const tree = useMemo(() => buildTree(items), [items]);
   const allIds = useMemo(() => items.map((item) => item.id), [items]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const [expanded, setExpanded] = useState<string[]>(() => tree.map((node) => node.id));
-  const resolvedSelection = useMemo(() => selectedWithAncestors(selected, items), [items, selected]);
+  const resolvedSelection = useMemo(
+    () => selectedWithAncestors(selected, items),
+    [items, selected]
+  );
 
   useEffect(() => {
     onResolvedSelectionChange?.(resolvedSelection);
   }, [onResolvedSelectionChange, resolvedSelection]);
 
   const toggleExpanded = useCallback((id: string) => {
-    setExpanded((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    setExpanded((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
   }, []);
 
   return (
@@ -62,7 +74,17 @@ export function TreeSelector({ items, selected, strict, onChange, onStrictChange
       />
       <List disablePadding>
         {tree.map((node) => (
-          <TreeNodeRow key={node.id} node={node} level={0} selected={selected} selectedSet={selectedSet} strict={strict} expanded={expanded} onToggleExpanded={toggleExpanded} onChange={onChange} />
+          <TreeNodeRow
+            key={node.id}
+            node={node}
+            level={0}
+            selected={selected}
+            selectedSet={selectedSet}
+            strict={strict}
+            expanded={expanded}
+            onToggleExpanded={toggleExpanded}
+            onChange={onChange}
+          />
         ))}
       </List>
     </Box>
@@ -83,45 +105,144 @@ function addAncestors(id: string, parentById: Map<string, string>, selected: Set
   addAncestors(parentId, parentById, selected);
 }
 
-function SelectorToolbar({ selectedCount, strict, onExpandAll, onCollapseAll, onSelectAll, onUnselectAll, onStrictChange }: { selectedCount: number; strict: boolean; onExpandAll: () => void; onCollapseAll: () => void; onSelectAll: () => void; onUnselectAll: () => void; onStrictChange: (value: boolean) => void }) {
+function SelectorToolbar({
+  selectedCount,
+  strict,
+  onExpandAll,
+  onCollapseAll,
+  onSelectAll,
+  onUnselectAll,
+  onStrictChange,
+}: {
+  selectedCount: number;
+  strict: boolean;
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
+  onSelectAll: () => void;
+  onUnselectAll: () => void;
+  onStrictChange: (value: boolean) => void;
+}) {
   const { t } = useTranslate('admin');
 
   return (
-    <Paper variant="outlined" sx={{ position: 'sticky', top: 0, zIndex: 1, p: 1.25, mb: 1.5, bgcolor: 'background.paper' }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between">
+    <Paper
+      variant="outlined"
+      sx={{ position: 'sticky', top: 0, zIndex: 1, p: 1.25, mb: 1.5, bgcolor: 'background.paper' }}
+    >
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1.25}
+        alignItems={{ xs: 'stretch', md: 'center' }}
+        justifyContent="space-between"
+      >
         <ButtonGroup variant="outlined" size="small" sx={{ flexWrap: 'wrap' }}>
-          <Button startIcon={<Iconify icon="eva:expand-fill" />} onClick={onExpandAll}>{t('actions.expandAll')}</Button>
-          <Button startIcon={<Iconify icon="eva:collapse-fill" />} onClick={onCollapseAll}>{t('actions.collapseAll')}</Button>
-          <Button startIcon={<Iconify icon="eva:done-all-fill" />} onClick={onSelectAll}>{t('actions.selectAll')}</Button>
-          <Button startIcon={<Iconify icon="eva:minus-circle-fill" />} onClick={onUnselectAll}>{t('actions.unselectAll')}</Button>
+          <Button startIcon={<Iconify icon="eva:expand-fill" />} onClick={onExpandAll}>
+            {t('actions.expandAll')}
+          </Button>
+          <Button startIcon={<Iconify icon="eva:collapse-fill" />} onClick={onCollapseAll}>
+            {t('actions.collapseAll')}
+          </Button>
+          <Button startIcon={<Iconify icon="eva:done-all-fill" />} onClick={onSelectAll}>
+            {t('actions.selectAll')}
+          </Button>
+          <Button startIcon={<Iconify icon="eva:minus-circle-fill" />} onClick={onUnselectAll}>
+            {t('actions.unselectAll')}
+          </Button>
         </ButtonGroup>
-        <Stack direction="row" spacing={1.25} alignItems="center" justifyContent={{ xs: 'space-between', md: 'flex-end' }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          alignItems="center"
+          justifyContent={{ xs: 'space-between', md: 'flex-end' }}
+        >
           <FormControlLabel
             label={t('actions.parentChildLinkage')}
-            control={<Switch checked={strict} onChange={(event) => onStrictChange(event.target.checked)} />}
+            control={
+              <Switch checked={strict} onChange={(event) => onStrictChange(event.target.checked)} />
+            }
             sx={{ m: 0, whiteSpace: 'nowrap' }}
           />
-          <Chip color="primary" variant="outlined" label={t('messages.selectedCount', { count: selectedCount })} />
+          <Chip
+            color="primary"
+            variant="outlined"
+            label={t('messages.selectedCount', { count: selectedCount })}
+          />
         </Stack>
       </Stack>
     </Paper>
   );
 }
 
-function TreeNodeRow({ node, level, selected, selectedSet, strict, expanded, onToggleExpanded, onChange }: { node: TreeNode; level: number; selected: string[]; selectedSet: Set<string>; strict: boolean; expanded: string[]; onToggleExpanded: (id: string) => void; onChange: (selected: string[]) => void }) {
+function TreeNodeRow({
+  node,
+  level,
+  selected,
+  selectedSet,
+  strict,
+  expanded,
+  onToggleExpanded,
+  onChange,
+}: {
+  node: TreeNode;
+  level: number;
+  selected: string[];
+  selectedSet: Set<string>;
+  strict: boolean;
+  expanded: string[];
+  onToggleExpanded: (id: string) => void;
+  onChange: (selected: string[]) => void;
+}) {
   const { checked, indeterminate } = nodeState(node, selectedSet);
   const open = expanded.includes(node.id);
   const hasChildren = node.children.length > 0;
   const toggle = () => onChange(nextSelected(node, selected, strict));
 
-  return <><ListItemButton dense sx={{ pl: 1 + level * 2 }} onClick={toggle}>{hasChildren ? <IconButton size="small" onClick={(event) => { event.stopPropagation(); onToggleExpanded(node.id); }}><Iconify icon={open ? 'eva:arrow-ios-downward-fill' : 'eva:arrow-ios-forward-fill'} /></IconButton> : <Box sx={{ width: 34 }} />}<Checkbox edge="start" checked={checked} indeterminate={indeterminate} tabIndex={-1} /><ListItemText primary={node.label} /></ListItemButton>{hasChildren && <Collapse in={open}>{node.children.map((child) => <TreeNodeRow key={child.id} node={child} level={level + 1} selected={selected} selectedSet={selectedSet} strict={strict} expanded={expanded} onToggleExpanded={onToggleExpanded} onChange={onChange} />)}</Collapse>}</>;
+  return (
+    <>
+      <ListItemButton dense sx={{ pl: 1 + level * 2 }} onClick={toggle}>
+        {hasChildren ? (
+          <IconButton
+            size="small"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleExpanded(node.id);
+            }}
+          >
+            <Iconify icon={open ? 'eva:arrow-ios-downward-fill' : 'eva:arrow-ios-forward-fill'} />
+          </IconButton>
+        ) : (
+          <Box sx={{ width: 34 }} />
+        )}
+        <Checkbox edge="start" checked={checked} indeterminate={indeterminate} tabIndex={-1} />
+        <ListItemText primary={node.label} />
+      </ListItemButton>
+      {hasChildren && (
+        <Collapse in={open}>
+          {node.children.map((child) => (
+            <TreeNodeRow
+              key={child.id}
+              node={child}
+              level={level + 1}
+              selected={selected}
+              selectedSet={selectedSet}
+              strict={strict}
+              expanded={expanded}
+              onToggleExpanded={onToggleExpanded}
+              onChange={onChange}
+            />
+          ))}
+        </Collapse>
+      )}
+    </>
+  );
 }
 
 function nodeState(node: TreeNode, selected: Set<string>): TreeNodeState {
   if (node.children.length === 0) return { checked: selected.has(node.id), indeterminate: false };
   const childStates = node.children.map((child) => nodeState(child, selected));
   const checked = selected.has(node.id) || childStates.every((state) => state.checked);
-  const indeterminate = !checked && childStates.some((state) => state.checked || state.indeterminate);
+  const indeterminate =
+    !checked && childStates.some((state) => state.checked || state.indeterminate);
   return { checked, indeterminate };
 }
 
@@ -129,7 +250,7 @@ function nextSelected(node: TreeNode, selected: string[], strict: boolean) {
   const ids = strict ? [node.id, ...descendants(node)] : [node.id];
   const next = new Set(selected);
   const shouldAdd = ids.some((id) => !next.has(id));
-  ids.forEach((id) => shouldAdd ? next.add(id) : next.delete(id));
+  ids.forEach((id) => (shouldAdd ? next.add(id) : next.delete(id)));
   return Array.from(next);
 }
 

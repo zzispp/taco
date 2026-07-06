@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use kernel::error::LocalizedError;
 use storage::StorageError;
 
 use crate::{
@@ -77,7 +78,7 @@ pub fn permission_snapshot(permission_rows: Vec<RolePermissionRecord>, dept_rows
 pub fn storage_error(error: StorageError) -> RbacError {
     match error {
         StorageError::NotFound => RbacError::NotFound,
-        StorageError::Conflict(message) => RbacError::Conflict(message),
+        StorageError::Conflict(_) => RbacError::Conflict(LocalizedError::new("errors.common.conflict")),
         StorageError::Database(message) => RbacError::Infrastructure(message),
     }
 }

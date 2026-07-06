@@ -96,12 +96,7 @@ export function NavMobile({ data, open, onClose, slots, sx }: NavMobileProps) {
         >
           <SignInButton fullWidth />
 
-          <Button
-            fullWidth
-            component={RouterLink}
-            variant="contained"
-            href={paths.dashboard.root}
-          >
+          <Button fullWidth component={RouterLink} variant="contained" href={paths.dashboard.root}>
             Open console
           </Button>
         </Box>

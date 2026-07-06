@@ -1,12 +1,12 @@
+import type { Menu, MenuInput } from 'src/entities/menu';
 import type { TreeSelectNode } from 'src/entities/system';
-import type { Menu, MenuInput } from 'src/entities/menu/model/types';
 
 import { mutate } from 'swr';
 
 import axios from 'src/shared/api/http-client';
 import { requestData, isEndpointKey } from 'src/shared/api/pagination';
 
-import { menuEndpoints } from 'src/entities/menu/api/endpoints';
+import { menuEndpoints } from 'src/entities/menu';
 
 const NAVBAR_ENDPOINT = '/api/navbar';
 
@@ -27,7 +27,6 @@ export async function updateMenuSort(id: string, orderNum: number) {
   await refreshMenus();
   return menu;
 }
-
 
 export function getMenuTreeSelect() {
   return requestData<TreeSelectNode[]>(axios.get(menuEndpoints.treeSelect));

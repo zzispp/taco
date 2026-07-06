@@ -7,24 +7,35 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 
 import { CONFIG } from 'src/shared/config';
+import { useSiteDisplay } from 'src/shared/config/site-display-context';
 
 // ----------------------------------------------------------------------
+
+type AuthSectionVariant = 'default' | 'sign-in' | 'sign-up';
 
 export type AuthSplitSectionProps = BoxProps & {
   title?: string;
   imgUrl?: string;
   subtitle?: string;
+  variant?: AuthSectionVariant;
   layoutQuery?: Breakpoint;
 };
 
 export function AuthSplitSection({
   sx,
   layoutQuery = 'md',
-  title = 'Operate one backend control plane',
+  variant = 'default',
+  title,
   imgUrl = `${CONFIG.assetsDir}/assets/illustrations/illustration-dashboard.webp`,
-  subtitle = 'Hook centralizes authentication, RBAC, API permissions, and menu governance.',
+  subtitle,
   ...other
 }: AuthSplitSectionProps) {
+  const { siteName } = useSiteDisplay();
+  const resolvedTitle = title ?? authSectionTitle(variant, siteName);
+  const resolvedSubtitle =
+    subtitle ??
+    `${siteName} centralizes authentication, RBAC, API permissions, and menu governance.`;
+
   return (
     <Box
       sx={[
@@ -56,12 +67,12 @@ export function AuthSplitSection({
     >
       <div>
         <Typography variant="h3" sx={{ textAlign: 'center' }}>
-          {title}
+          {resolvedTitle}
         </Typography>
 
-        {subtitle && (
+        {resolvedSubtitle && (
           <Typography sx={{ color: 'text.secondary', textAlign: 'center', mt: 2 }}>
-            {subtitle}
+            {resolvedSubtitle}
           </Typography>
         )}
       </div>
@@ -74,4 +85,16 @@ export function AuthSplitSection({
       />
     </Box>
   );
+}
+
+function authSectionTitle(variant: AuthSectionVariant, siteName: string) {
+  if (variant === 'sign-in') {
+    return `Resume your ${siteName} workspace`;
+  }
+
+  if (variant === 'sign-up') {
+    return `Create your ${siteName} workspace`;
+  }
+
+  return 'Operate one backend control plane';
 }

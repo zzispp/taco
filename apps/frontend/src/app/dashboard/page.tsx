@@ -2,12 +2,12 @@ import type { Metadata } from 'next';
 
 import { redirect } from 'next/navigation';
 
-import { CONFIG } from 'src/shared/config';
 import { paths } from 'src/shared/routes/paths';
+import { formatPageDocumentTitle } from 'src/shared/i18n/document-title-format';
 
 // ----------------------------------------------------------------------
 
-export const metadata: Metadata = { title: `Dashboard - ${CONFIG.appName}` };
+export const metadata: Metadata = { title: formatPageDocumentTitle('Dashboard') };
 
 export default function Page() {
   redirect(paths.dashboard.admin.users);

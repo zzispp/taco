@@ -1,0 +1,29 @@
+{
+  "demo": {
+    "lang": "Chinese",
+    "description": "後端控制檯，用於管理認證、RBAC、API 權限與菜單治理。"
+  },
+  "settings": {
+    "title": "設定",
+    "resetAll": "重設全部",
+    "close": "關閉",
+    "fullscreen": "全螢幕",
+    "exitFullscreen": "退出全螢幕",
+    "mode": "模式",
+    "system": "系統",
+    "contrast": "對比度",
+    "rightToLeft": "從右到左",
+    "compact": "緊湊",
+    "compactTooltip": "僅儀表板可用，且需要大螢幕解析度 > 1600px (xl)",
+    "presets": "預設",
+    "nav": "導覽",
+    "dashboardOnly": "僅儀表板",
+    "layout": "佈局",
+    "color": "顏色",
+    "integrate": "融合",
+    "apparent": "明顯",
+    "font": "字體",
+    "family": "字體族",
+    "size": "字號"
+  }
+}

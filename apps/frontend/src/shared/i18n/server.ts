@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { LangCode } from './locales-config';
 
 import { cache } from 'react';
@@ -6,6 +7,7 @@ import { createInstance } from 'i18next';
 import acceptLanguage from 'accept-language';
 import { initReactI18next } from 'react-i18next/initReactI18next';
 
+import { formatDashboardDocumentTitle } from './document-title-format';
 import {
   defaultNS,
   i18nOptions,
@@ -30,9 +32,23 @@ function normalizeLanguage(value?: string | null): LangCode | undefined {
     return undefined;
   }
 
-  const lower = value.toLowerCase();
+  const lower = value.toLowerCase().replace('_', '-');
 
-  if (lower === 'cn' || lower.startsWith('zh') || lower.includes('zh-')) {
+  if (
+    lower === 'tw' ||
+    lower.startsWith('zh-tw') ||
+    lower.startsWith('zh-hk') ||
+    lower.startsWith('zh-hant')
+  ) {
+    return 'tw';
+  }
+
+  if (
+    lower === 'cn' ||
+    lower === 'zh' ||
+    lower.startsWith('zh-cn') ||
+    lower.startsWith('zh-hans')
+  ) {
     return 'cn';
   }
 
@@ -98,3 +114,11 @@ export const getServerTranslations = cache(async (namespace = defaultNS, options
     i18n: i18nextInstance,
   };
 });
+
+export async function getDashboardPageMetadata(titleKey: string): Promise<Metadata> {
+  const { t } = await getServerTranslations('admin');
+
+  return {
+    title: formatDashboardDocumentTitle(t(titleKey), t('nav.dashboard')),
+  };
+}

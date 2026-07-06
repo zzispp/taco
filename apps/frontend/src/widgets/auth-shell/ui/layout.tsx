@@ -3,7 +3,11 @@
 import type { Breakpoint } from '@mui/material/styles';
 import type { AuthSplitSectionProps } from './section';
 import type { AuthSplitContentProps } from './content';
-import type { MainSectionProps, HeaderSectionProps, LayoutSectionProps } from 'src/shared/ui/layout';
+import type {
+  MainSectionProps,
+  HeaderSectionProps,
+  LayoutSectionProps,
+} from 'src/shared/ui/layout';
 
 import { merge } from 'es-toolkit';
 
@@ -101,10 +105,7 @@ export function AuthSplitLayout({
         ...(Array.isArray(slotProps?.main?.sx) ? slotProps.main.sx : [slotProps?.main?.sx]),
       ]}
     >
-      <AuthSplitSection
-        layoutQuery={layoutQuery}
-        {...slotProps?.section}
-      />
+      <AuthSplitSection layoutQuery={layoutQuery} {...slotProps?.section} />
       <AuthSplitContent layoutQuery={layoutQuery} {...slotProps?.content}>
         {children}
       </AuthSplitContent>

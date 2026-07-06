@@ -8,19 +8,26 @@ import Typography from '@mui/material/Typography';
 
 import { RouterLink } from 'src/shared/routes/components';
 import { varBounce, MotionContainer } from 'src/shared/ui/animate';
+import { useSiteDisplay } from 'src/shared/config/site-display-context';
 import { ServerErrorIllustration } from 'src/shared/assets/illustrations';
+import { SiteDocumentTitle } from 'src/shared/config/site-document-title';
+import { formatErrorDocumentTitle } from 'src/shared/i18n/document-title-format';
 
 import { SimpleLayout } from 'src/widgets/simple-shell';
 
 // ----------------------------------------------------------------------
 
 export function View500() {
+  const { siteName } = useSiteDisplay();
+
   return (
     <SimpleLayout
       slotProps={{
         content: { compact: true },
       }}
     >
+      <SiteDocumentTitle title={formatErrorDocumentTitle('500 Internal server error!', siteName)} />
+
       <Container component={MotionContainer}>
         <m.div variants={varBounce('in')}>
           <Typography variant="h3" sx={{ mb: 2 }}>

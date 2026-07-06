@@ -6,8 +6,9 @@ use axum::{
 use crate::api::{
     ApiState,
     handlers::{
-        create_user, delete_user, delete_users, export_users, get_user, import_users, list_users, me, refresh, replace_user, replace_user_roles,
-        reset_user_password, sign_in, sign_up, update_user_status, user_dept_tree, user_form_options, user_import_template, user_roles,
+        account_profile, change_account_password, create_user, delete_user, delete_users, export_users, get_user, import_users, list_users, me, refresh,
+        replace_user, replace_user_roles, reset_user_password, sign_in, sign_up, update_account_profile, update_user_status, upload_account_avatar,
+        user_dept_tree, user_form_options, user_import_template, user_roles,
     },
 };
 
@@ -17,6 +18,9 @@ pub fn create_router(state: ApiState) -> Router {
         .route("/auth/sign-in", post(sign_in))
         .route("/auth/refresh", post(refresh))
         .route("/auth/me", get(me))
+        .route("/account/profile", get(account_profile).put(update_account_profile))
+        .route("/account/profile/password", put(change_account_password))
+        .route("/account/profile/avatar", post(upload_account_avatar))
         .route("/system/users", get(list_users).post(create_user))
         .route("/system/users/export", axum::routing::post(export_users))
         .route("/system/users/import", axum::routing::post(import_users))

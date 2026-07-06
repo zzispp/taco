@@ -20,7 +20,11 @@ export function TableNoData({ notFound, title, sx }: TableNoDataProps) {
     <TableRow>
       {notFound ? (
         <TableCell colSpan={12}>
-          <EmptyContent title={title} filled sx={[{ py: 10 }, ...(Array.isArray(sx) ? sx : [sx])]} />
+          <EmptyContent
+            title={title}
+            filled
+            sx={[{ py: 10 }, ...(Array.isArray(sx) ? sx : [sx])]}
+          />
         </TableCell>
       ) : (
         <TableCell colSpan={12} sx={{ p: 0 }} />

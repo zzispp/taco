@@ -9,12 +9,16 @@ import { initReactI18next, I18nextProvider as Provider } from 'react-i18next';
 
 import enAdmin from './langs/en/admin.json';
 import cnAdmin from './langs/cn/admin.json';
+import twAdmin from './langs/tw/admin.json';
 import enCommon from './langs/en/common.json';
 import cnCommon from './langs/cn/common.json';
+import twCommon from './langs/tw/common.json';
 import enNavbar from './langs/en/navbar.json';
 import cnNavbar from './langs/cn/navbar.json';
+import twNavbar from './langs/tw/navbar.json';
 import enMessages from './langs/en/messages.json';
 import cnMessages from './langs/cn/messages.json';
+import twMessages from './langs/tw/messages.json';
 import { i18nOptions, fallbackLng, storageConfig } from './locales-config';
 
 // ----------------------------------------------------------------------
@@ -28,6 +32,7 @@ i18next.use(initReactI18next).init({
   resources: {
     cn: { admin: cnAdmin, common: cnCommon, messages: cnMessages, navbar: cnNavbar },
     en: { admin: enAdmin, common: enCommon, messages: enMessages, navbar: enNavbar },
+    tw: { admin: twAdmin, common: twCommon, messages: twMessages, navbar: twNavbar },
   },
 });
 
@@ -65,13 +70,27 @@ function normalizeDetectedLanguage(lang?: string | null): LangCode | undefined {
     return undefined;
   }
 
-  const lower = lang.toLowerCase();
+  const lower = lang.toLowerCase().replace('_', '-');
 
-  if (lower === 'cn' || lower.startsWith('zh')) {
+  if (
+    lower === 'tw' ||
+    lower.startsWith('zh-tw') ||
+    lower.startsWith('zh-hk') ||
+    lower.startsWith('zh-hant')
+  ) {
+    return 'tw';
+  }
+
+  if (
+    lower === 'cn' ||
+    lower === 'zh' ||
+    lower.startsWith('zh-cn') ||
+    lower.startsWith('zh-hans')
+  ) {
     return 'cn';
   }
 
-  if (lower === 'en' || lower.startsWith('en')) {
+  if (lower === 'en' || lower.startsWith('en-')) {
     return 'en';
   }
 

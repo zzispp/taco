@@ -20,6 +20,9 @@ import { useRouter } from 'src/shared/routes/hooks';
 import { Form, Field } from 'src/shared/ui/hook-form';
 import { RouterLink } from 'src/shared/routes/components';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
+import { useSiteDisplay } from 'src/shared/config/site-display-context';
+import { SiteDocumentTitle } from 'src/shared/config/site-document-title';
+import { formatPageDocumentTitle } from 'src/shared/i18n/document-title-format';
 
 import { usePublicConfigs, isRegisterEnabled } from 'src/entities/system';
 import { useAuthContext, passwordSchema, identifierSchema } from 'src/entities/session';
@@ -45,6 +48,7 @@ export const SignInSchema = z.object({
 export function JwtSignInView() {
   const router = useRouter();
   const showPassword = useBoolean();
+  const { siteName } = useSiteDisplay();
   const { checkUserSession } = useAuthContext();
   const { data: publicConfigs, isLoading: loadingConfig } = usePublicConfigs();
   const captcha = useCaptchaConfig();
@@ -110,7 +114,13 @@ export function JwtSignInView() {
       />
 
       <Box sx={{ gap: 1.5, display: 'flex', flexDirection: 'column' }}>
-        <Link component={RouterLink} href="#" variant="body2" color="inherit" sx={{ alignSelf: 'flex-end' }}>
+        <Link
+          component={RouterLink}
+          href="#"
+          variant="body2"
+          color="inherit"
+          sx={{ alignSelf: 'flex-end' }}
+        >
           Forgot password?
         </Link>
 
@@ -125,7 +135,9 @@ export function JwtSignInView() {
               endAdornment: (
                 <InputAdornment position="end">
                   <IconButton onClick={showPassword.onToggle} edge="end">
-                    <Iconify icon={showPassword.value ? 'solar:eye-bold' : 'solar:eye-closed-bold'} />
+                    <Iconify
+                      icon={showPassword.value ? 'solar:eye-bold' : 'solar:eye-closed-bold'}
+                    />
                   </IconButton>
                 </InputAdornment>
               ),
@@ -134,7 +146,11 @@ export function JwtSignInView() {
         />
       </Box>
 
-      <CaptchaWidget config={captcha.data} resetKey={captchaResetKey} onTokenChange={setCaptchaToken} />
+      <CaptchaWidget
+        config={captcha.data}
+        resetKey={captchaResetKey}
+        onTokenChange={setCaptchaToken}
+      />
 
       {captcha.error ? <Alert severity="error">{getErrorMessage(captcha.error)}</Alert> : null}
 
@@ -155,6 +171,8 @@ export function JwtSignInView() {
 
   return (
     <>
+      <SiteDocumentTitle title={formatPageDocumentTitle('Sign in', siteName)} />
+
       <FormHead
         title="Sign in to your account"
         description={

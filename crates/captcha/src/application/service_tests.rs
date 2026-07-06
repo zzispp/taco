@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 
 use crate::{
-    application::{CaptchaProvider, CaptchaResult, CaptchaService, CaptchaSettingsReader, CaptchaUseCase},
+    application::{CaptchaError, CaptchaProvider, CaptchaResult, CaptchaService, CaptchaSettingsReader, CaptchaUseCase},
     providers::cap::{CapChallengeRecord, CapOptions, CapProvider, CapStore, solve_for_test},
 };
 
@@ -28,7 +28,7 @@ async fn unknown_provider_is_explicit_error() {
 
     let error = service.config().await.expect_err("unknown provider must fail");
 
-    assert_eq!(error.to_string(), "unsupported captcha provider: missing");
+    assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.unsupported_provider"));
 }
 
 #[tokio::test]
@@ -46,7 +46,7 @@ async fn verify_account_requires_token_when_enabled() {
 
     let error = service.verify_account(None).await.expect_err("missing token must fail");
 
-    assert_eq!(error.to_string(), "captcha verification is required");
+    assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_required"));
 }
 
 #[tokio::test]
@@ -60,7 +60,7 @@ async fn cap_challenge_redeem_and_verify_consumes_token_once() {
     let error = service.verify_account(Some(token)).await.expect_err("second token use must fail");
 
     assert_eq!(redeem["success"], true);
-    assert_eq!(error.to_string(), "captcha verification failed");
+    assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_failed"));
 }
 
 fn service(settings: TestSettings, store: TestStore) -> CaptchaService<TestSettings> {
@@ -104,20 +104,14 @@ struct TestSettings {
 
 #[async_trait]
 impl CaptchaSettingsReader for TestSettings {
-    async fn enabled(&self) -> CaptchaResult<bool> {
-        Ok(self.enabled)
-    }
-
-    async fn provider(&self) -> CaptchaResult<String> {
-        Ok(self.provider.clone())
-    }
-
-    async fn public_config(&self) -> CaptchaResult<Value> {
-        Ok(json!({}))
-    }
-
-    async fn private_config(&self) -> CaptchaResult<Value> {
-        Ok(json!({}))
+    async fn config(&self) -> CaptchaResult<Value> {
+        Ok(json!({
+            "enabled": self.enabled,
+            "provider": self.provider,
+            "providers": {
+                "cap": {}
+            }
+        }))
     }
 }
 

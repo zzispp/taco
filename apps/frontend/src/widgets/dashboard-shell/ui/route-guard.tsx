@@ -49,6 +49,10 @@ export function DashboardRouteGuard({
     return <DashboardRouteError error={error} />;
   }
 
+  if (normalizePath(pathname) === paths.dashboard.profile) {
+    return <>{children}</>;
+  }
+
   if (!hasDashboardRoute(data, pathname)) {
     return <DashboardPermissionDenied />;
   }

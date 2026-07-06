@@ -4,9 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+constants.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 hex.workspace = true
+kernel.workspace = true
 rand_core.workspace = true
 redis.workspace = true
 reqwest.workspace = true
