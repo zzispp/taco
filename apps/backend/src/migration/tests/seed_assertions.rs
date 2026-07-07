@@ -93,7 +93,7 @@ async fn public_config_count(pool: &PgPool) -> i64 {
 
 async fn assert_legacy_captcha_configs_removed(pool: &PgPool) {
     let legacy_count: i64 = query_scalar("SELECT COUNT(*) FROM sys_config WHERE config_key = ANY($1)")
-        .bind(&[
+        .bind([
             "sys.account.captchaEnabled",
             "sys.account.captchaProvider",
             "sys.account.captchaPublicConfig",

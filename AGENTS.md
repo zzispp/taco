@@ -198,6 +198,19 @@ When adding or changing backend error keys:
 - `just check`: run `cargo check` for the Rust workspace.
 - `just build`: build all Rust crates.
 - `just test`: run Rust tests with the repository's 60-second timeout wrapper.
+- `just quality-precommit`: run the mandatory Rust pre-commit gate.
+- `just quality-complete`: run the mandatory Rust completion gate.
+- `just install-git-hooks`: install the repository native Git pre-commit hook.
+
+## Rust Quality Gates
+
+Treat these gates as the highest-priority Rust quality rules. Do not skip checks, mock success, ignore errors, delete checks, add silent fallbacks, or downgrade failures to warnings just to make a run pass. Missing local quality tools must be installed by the gate before execution; installation failure must fail visibly.
+
+Before every commit, run `just quality-precommit`. This gate must install missing `rustfmt` and `clippy` components first, then execute `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo check --workspace --all-targets`, and `just test`. The installed Git hook must call the same gate and block the commit on failure.
+
+Before marking any Rust task complete, run `just quality-complete`. This gate must run the pre-commit gate first, then install any missing required tools (`cargo-audit`, `cargo-deny`, `cargo-geiger`, `cargo-outdated`, `cargo-udeps`, `cargo-expand`, and Miri), then execute `cargo audit`, `cargo deny check`, `cargo geiger --all-features --workspace`, `cargo miri test --workspace`, `cargo outdated --workspace`, and `cargo +nightly udeps --workspace --all-targets`.
+
+`cargo expand` is a macro-debugging and inspection tool, not a normal blocking gate. Use `just quality-report` when investigating proc-macro, derive, or complex macro expansion behavior; this command must install missing `cargo-expand` before running.
 
 ## Coding Style & Naming Conventions
 
