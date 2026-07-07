@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+type ImportColumns = HashMap<&'static str, usize>;
+
 use kernel::error::LocalizedError;
 use kernel::excel::{read_xlsx, write_xlsx};
 use kernel::pagination::PageRequest;
@@ -69,7 +71,7 @@ fn user_row(user: &User) -> Vec<String> {
     ]
 }
 
-fn import_columns(header: &[String]) -> AppResult<HashMap<&'static str, usize>> {
+fn import_columns(header: &[String]) -> AppResult<ImportColumns> {
     let mut columns = HashMap::new();
     for expected in IMPORT_HEADERS {
         let index = header
@@ -81,19 +83,19 @@ fn import_columns(header: &[String]) -> AppResult<HashMap<&'static str, usize>> 
     Ok(columns)
 }
 
-fn import_row(row: &[String], columns: &HashMap<&'static str, usize>) -> AppResult<UserImportRow> {
+fn import_row(row: &[String], columns: &ImportColumns) -> AppResult<UserImportRow> {
     Ok(UserImportRow {
         dept_id: optional_cell(row, columns, "部门编号"),
         username: required_cell(row, columns, "登录名称")?,
         nick_name: required_cell(row, columns, "用户名称")?,
         email: required_cell(row, columns, "用户邮箱")?,
         phonenumber: optional_cell(row, columns, "手机号码"),
-        sex: default_cell(row, columns, "用户性别", "2"),
-        status: default_cell(row, columns, "账号状态", "0"),
+        sex: optional_cell(row, columns, "用户性别").unwrap_or_else(|| "2".into()),
+        status: optional_cell(row, columns, "账号状态").unwrap_or_else(|| "0".into()),
     })
 }
 
-fn required_cell(row: &[String], columns: &HashMap<&'static str, usize>, name: &str) -> AppResult<String> {
+fn required_cell(row: &[String], columns: &ImportColumns, name: &str) -> AppResult<String> {
     let value = cell(row, columns, name).trim().to_owned();
     if value.is_empty() {
         return Err(AppError::InvalidInput(localized_param("errors.user.import_column_blank", "column", name)));
@@ -101,16 +103,12 @@ fn required_cell(row: &[String], columns: &HashMap<&'static str, usize>, name: &
     Ok(value)
 }
 
-fn optional_cell(row: &[String], columns: &HashMap<&'static str, usize>, name: &str) -> Option<String> {
+fn optional_cell(row: &[String], columns: &ImportColumns, name: &str) -> Option<String> {
     let value = cell(row, columns, name).trim().to_owned();
     (!value.is_empty()).then_some(value)
 }
 
-fn default_cell(row: &[String], columns: &HashMap<&'static str, usize>, name: &str, default: &str) -> String {
-    optional_cell(row, columns, name).unwrap_or_else(|| default.into())
-}
-
-fn cell<'a>(row: &'a [String], columns: &HashMap<&'static str, usize>, name: &str) -> &'a str {
+fn cell<'a>(row: &'a [String], columns: &ImportColumns, name: &str) -> &'a str {
     columns.get(name).and_then(|index| row.get(*index)).map(String::as_str).unwrap_or_default()
 }
 

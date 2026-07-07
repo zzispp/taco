@@ -316,6 +316,74 @@
       "開展市場調研"
     ]
   },
+  "systemDashboard": {
+    "title": "系統儀表盤",
+    "summary": {
+      "cpuUsage": "CPU 使用率",
+      "memoryUsage": "內存使用率",
+      "diskUsage": "磁盤使用率",
+      "networkInbound": "網絡入站"
+    },
+    "cards": {
+      "serverInfo": "服務器基本信息",
+      "healthStatus": "健康狀態"
+    },
+    "labels": {
+      "hostname": "主機名",
+      "system": "系統",
+      "kernel": "內核",
+      "cpu": "CPU",
+      "cpuCores": "CPU 核心",
+      "memoryDisk": "內存 / 磁盤",
+      "publicIp": "公網 IP",
+      "uptime": "Uptime",
+      "bootTime": "啟動時間",
+      "sampledAt": "採樣時間",
+      "load": "Load"
+    },
+    "health": {
+      "green": "綠色",
+      "yellow": "黃色",
+      "red": "紅色",
+      "allHealthy": "所有核心資源低於告警閾值",
+      "issue": "{{kind}}：{{target}} {{usage}}%",
+      "issueSeparator": "；",
+      "kinds": {
+        "cpu": "CPU",
+        "memory": "內存",
+        "disk": "磁盤"
+      }
+    },
+    "units": {
+      "physical": "物理核心",
+      "logical": "邏輯核心",
+      "day": "天",
+      "hour": "小時",
+      "minute": "分鐘"
+    },
+    "charts": {
+      "resourceTrend": "CPU / 內存歷史趨勢",
+      "realtimeSessionSampling": "當前頁面會話實時採樣",
+      "networkTrend": "網絡流量實時曲線",
+      "inboundOutboundBandwidth": "入站 / 出站帶寬",
+      "diskUsage": "磁盤分區使用量",
+      "usedCapacity": "按已用容量統計",
+      "series": {
+        "cpu": "CPU",
+        "memory": "內存",
+        "inbound": "入站",
+        "outbound": "出站"
+      }
+    },
+    "tables": {
+      "topProcesses": "Top 消耗進程",
+      "sortedByCpu": "按 CPU 使用率排序",
+      "cpuCoreLoad": "CPU 核心負載",
+      "cpuCoreLoadSubheader": "各核心使用率與頻率",
+      "diskPartitions": "磁盤分區明細",
+      "diskPartitionsSubheader": "掛載點、文件系統與容量"
+    }
+  },
   "dataScope": {
     "all": "全部數據權限",
     "custom": "自定數據權限",

@@ -5,10 +5,19 @@ use storage::StorageError;
 
 use crate::{
     application::RbacError,
-    domain::{Menu, NavItemResponse, NavSectionResponse, PermissionSnapshot, Role, RoleMenuSnapshot, RoleOption, RolePermissionSnapshot, RoleUser},
+    domain::{
+        MENU_TYPE_DIRECTORY, MENU_TYPE_MENU, Menu, NavItemResponse, NavSectionResponse, PermissionSnapshot, Role, RoleMenuSnapshot, RoleOption,
+        RolePermissionSnapshot, RoleUser,
+    },
 };
 
 use super::records::{MenuRecord, RoleDeptRecord, RoleMenuRecord, RoleOptionRecord, RolePermissionRecord, RoleRecord, RoleUserRecord};
+
+const MENU_ROOT_PARENT_ID: &str = "0";
+const NAV_OVERVIEW_SECTION_CODE: &str = "overview";
+const NAV_OVERVIEW_SECTION_TITLE: &str = "Overview";
+const EXTERNAL_HTTP_SCHEME: &str = "http://";
+const EXTERNAL_HTTPS_SCHEME: &str = "https://";
 
 pub fn role(record: RoleRecord) -> Role {
     Role {
@@ -112,39 +121,98 @@ fn role_menus(rows: Vec<RoleMenuRecord>) -> Vec<RoleMenuSnapshot> {
         .into_iter()
         .map(|(role_key, rows)| RoleMenuSnapshot {
             role_key,
-            sections: vec![NavSectionResponse {
-                code: "system_management".into(),
-                subheader: "System Management".into(),
-                items: nav_items(rows),
-            }],
+            sections: nav_sections(rows),
         })
         .collect()
 }
 
-fn nav_items(rows: Vec<RoleMenuRecord>) -> Vec<NavItemResponse> {
-    rows.into_iter()
-        .filter(|row| row.parent_id == "1")
-        .map(|row| NavItemResponse {
-            code: row.menu_id,
-            title: row.menu_name,
-            path: dashboard_path(&row.path),
-            icon: Some(row.icon),
-            caption: None,
-            deep_match: true,
-            children: vec![],
-        })
+fn nav_sections(rows: Vec<RoleMenuRecord>) -> Vec<NavSectionResponse> {
+    let mut sections = Vec::new();
+    push_section(
+        &mut sections,
+        NavSectionDraft {
+            code: NAV_OVERVIEW_SECTION_CODE,
+            subheader: NAV_OVERVIEW_SECTION_TITLE,
+            items: root_menu_items(&rows),
+        },
+    );
+    sections.extend(directory_sections(&rows));
+    sections
+}
+
+fn push_section(sections: &mut Vec<NavSectionResponse>, draft: NavSectionDraft) {
+    if draft.items.is_empty() {
+        return;
+    }
+    sections.push(NavSectionResponse {
+        code: draft.code.into(),
+        subheader: draft.subheader.into(),
+        items: draft.items,
+    });
+}
+
+struct NavSectionDraft {
+    code: &'static str,
+    subheader: &'static str,
+    items: Vec<NavItemResponse>,
+}
+
+fn root_menu_items(rows: &[RoleMenuRecord]) -> Vec<NavItemResponse> {
+    rows.iter()
+        .filter(|row| row.parent_id == MENU_ROOT_PARENT_ID && row.menu_type == MENU_TYPE_MENU)
+        .map(nav_item)
         .collect()
 }
 
-fn dashboard_path(path: &str) -> String {
-    match path {
-        "user" => "/dashboard/admin/users".into(),
-        "role" => "/dashboard/admin/roles".into(),
-        "menu" => "/dashboard/admin/menus".into(),
-        "dept" => "/dashboard/admin/depts".into(),
-        "post" => "/dashboard/admin/posts".into(),
-        "dict" => "/dashboard/admin/dicts".into(),
-        "config" => "/dashboard/admin/configs".into(),
-        value => format!("/dashboard/admin/{value}"),
+fn directory_sections(rows: &[RoleMenuRecord]) -> Vec<NavSectionResponse> {
+    rows.iter()
+        .filter(|row| row.parent_id == MENU_ROOT_PARENT_ID && row.menu_type == MENU_TYPE_DIRECTORY)
+        .filter_map(|row| directory_section(row, rows))
+        .collect()
+}
+
+fn directory_section(directory: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> Option<NavSectionResponse> {
+    let items = child_menu_items(rows, &directory.menu_id);
+    if items.is_empty() {
+        return None;
+    }
+    Some(NavSectionResponse {
+        code: directory.menu_id.clone(),
+        subheader: directory.menu_name.clone(),
+        items,
+    })
+}
+
+fn child_menu_items(rows: &[RoleMenuRecord], parent_id: &str) -> Vec<NavItemResponse> {
+    rows.iter()
+        .filter(|row| row.parent_id == parent_id && row.menu_type == MENU_TYPE_MENU)
+        .map(nav_item)
+        .collect()
+}
+
+fn nav_item(row: &RoleMenuRecord) -> NavItemResponse {
+    NavItemResponse {
+        code: row.menu_id.clone(),
+        title: row.menu_name.clone(),
+        path: nav_path(&row.path),
+        icon: Some(row.icon.clone()),
+        caption: None,
+        deep_match: false,
+        children: vec![],
     }
 }
+
+fn nav_path(path: &str) -> String {
+    let path = path.trim();
+    if path.starts_with('/') || is_external_path(path) {
+        return path.into();
+    }
+    format!("/{path}")
+}
+
+fn is_external_path(path: &str) -> bool {
+    path.starts_with(EXTERNAL_HTTP_SCHEME) || path.starts_with(EXTERNAL_HTTPS_SCHEME)
+}
+
+#[cfg(test)]
+mod tests;

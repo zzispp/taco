@@ -9,6 +9,19 @@ import { fAdminDateTime } from 'src/shared/lib/admin-time';
 
 const TABLE_HEAD_SX = { whiteSpace: 'nowrap' } as const;
 const DATE_TIME_CELL_SX = { whiteSpace: 'nowrap' } as const;
+
+type TableHeadOptions<T> = {
+  fields: CrudField<T>[];
+  hasExtra: boolean;
+  hasSelection: boolean;
+  actionLabel: string;
+};
+
+type DisplayLabels = {
+  yes: string;
+  no: string;
+};
+
 const ELLIPSIS_CELL_SX = {
   display: 'inline-block',
   maxWidth: '100%',
@@ -18,12 +31,8 @@ const ELLIPSIS_CELL_SX = {
   textOverflow: 'ellipsis',
 } as const;
 
-export function tableHead<T>(
-  fields: CrudField<T>[],
-  hasExtra: boolean,
-  hasSelection: boolean,
-  actionLabel: string
-): TableHeadCellProps[] {
+export function tableHead<T>(options: TableHeadOptions<T>): TableHeadCellProps[] {
+  const { fields, hasExtra, hasSelection, actionLabel } = options;
   return [
     ...fields
       .filter((field) => !field.hiddenInTable)
@@ -56,12 +65,12 @@ export function formFromRow<T extends Record<string, unknown>, I extends Record<
   ) as I;
 }
 
-export function displayField<T>(value: unknown, field: CrudField<T>) {
+export function displayField<T>(value: unknown, field: CrudField<T>, labels: DisplayLabels) {
   if (value === null || value === undefined || value === '') return '-';
   if (isDateTimeField(field)) return fAdminDateTime(String(value)) || '-';
   if (field.type === 'switch')
     return <Switch size="small" checked={String(value) === '0'} disabled />;
-  if (typeof value === 'boolean') return value ? '是' : '否';
+  if (typeof value === 'boolean') return value ? labels.yes : labels.no;
 
   const text = String(value);
   if (field.ellipsis) return <EllipsisCellText value={text} />;

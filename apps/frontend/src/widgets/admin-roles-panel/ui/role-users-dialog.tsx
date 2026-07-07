@@ -30,13 +30,6 @@ import { useRoleUsers, translatedRoleName } from 'src/entities/role';
 
 import { deleteRoleUsers, assignRoleUsers } from 'src/features/role-management';
 
-const HEAD: TableHeadCellProps[] = [
-  { id: 'username', label: '用户名' },
-  { id: 'nick_name', label: '昵称' },
-  { id: 'dept_name', label: '部门' },
-  { id: 'phonenumber', label: '手机' },
-];
-
 export function RoleUsersDialog({ role, onClose }: { role: Role | null; onClose: () => void }) {
   const { t } = useTranslate('admin');
   const table = useTable({ defaultRowsPerPage: 5 });
@@ -49,7 +42,8 @@ export function RoleUsersDialog({ role, onClose }: { role: Role | null; onClose:
     username,
     phonenumber,
   });
-  const loadingHead = withSelectionHead(HEAD);
+  const head = roleUsersHead(t);
+  const loadingHead = withSelectionHead(head);
   const toggleAll = useCallback(
     (checked: boolean) => {
       setSelected(checked ? users.items.map((user) => user.user_id) : []);
@@ -105,7 +99,7 @@ export function RoleUsersDialog({ role, onClose }: { role: Role | null; onClose:
         <Scrollbar>
           <Table size="small" sx={{ minWidth: 760 }}>
             <ManagementTableHead
-              head={HEAD}
+              head={head}
               rowCount={users.items.length}
               numSelected={selected.length}
               onSelectAllRows={toggleAll}
@@ -148,6 +142,15 @@ export function RoleUsersDialog({ role, onClose }: { role: Role | null; onClose:
       </DialogActions>
     </Dialog>
   );
+}
+
+function roleUsersHead(t: ReturnType<typeof useTranslate>['t']): TableHeadCellProps[] {
+  return [
+    { id: 'username', label: t('common.username') },
+    { id: 'nick_name', label: t('fields.nickName') },
+    { id: 'dept_name', label: t('fields.deptName') },
+    { id: 'phonenumber', label: t('fields.phone') },
+  ];
 }
 
 function RoleUserRow({

@@ -1,3 +1,4 @@
+import type { ServerDashboard } from '../model/dashboard';
 import type { QueryParams } from 'src/shared/api/pagination';
 import type { PublicConfigMap } from '../model/public-config';
 import type { Dept, Post, DictData, DictType, ConfigItem } from '../model/types';
@@ -9,6 +10,13 @@ import { usePagedResource } from 'src/shared/api/use-paged-resource';
 
 import { systemEndpoints } from './endpoints';
 import { publicConfigKeys } from '../model/public-config';
+
+export function useServerDashboard() {
+  return useSWR<ServerDashboard>(systemEndpoints.dashboard, fetcher, {
+    refreshInterval: 5000,
+    revalidateOnFocus: false,
+  });
+}
 
 export function useDepts(page: number, pageSize: number, params: QueryParams = {}) {
   return usePagedResource<Dept>(systemEndpoints.depts, page, pageSize, params);

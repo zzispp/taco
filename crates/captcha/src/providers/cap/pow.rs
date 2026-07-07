@@ -4,10 +4,17 @@ use super::CapChallengeSpec;
 
 const FNV_OFFSET: u32 = 2_166_136_261;
 
-pub(crate) fn solution_matches(token: &str, index: usize, spec: &CapChallengeSpec, solution: u64) -> bool {
-    let salt = prng(&format!("{token}{index}"), spec.s);
-    let target = prng(&format!("{token}{index}d"), spec.d);
-    let digest = Sha256::digest(format!("{salt}{solution}").as_bytes());
+pub(crate) struct PowSolution<'a> {
+    pub(crate) token: &'a str,
+    pub(crate) index: usize,
+    pub(crate) spec: &'a CapChallengeSpec,
+    pub(crate) solution: u64,
+}
+
+pub(crate) fn solution_matches(input: PowSolution<'_>) -> bool {
+    let salt = prng(&format!("{}{}", input.token, input.index), input.spec.s);
+    let target = prng(&format!("{}{}d", input.token, input.index), input.spec.d);
+    let digest = Sha256::digest(format!("{}{}", salt, input.solution).as_bytes());
     hex::encode(digest).starts_with(&target)
 }
 

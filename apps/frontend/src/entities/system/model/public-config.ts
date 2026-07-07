@@ -37,6 +37,10 @@ const MODE_THEME: Record<string, Pick<SettingsState, 'mode' | 'navColor'>> = {
   'theme-light': { mode: 'light', navColor: 'integrate' },
 };
 
+const HTTPS_PROTOCOL = 'https:';
+const LOCAL_LOGO_PATH_PREFIX = '/';
+const PROTOCOL_RELATIVE_URL_PREFIX = '//';
+
 export function publicConfigKeys() {
   return Object.values(PUBLIC_CONFIG_KEYS);
 }
@@ -103,9 +107,34 @@ function isSiteDisplayConfig(value: unknown): value is SiteDisplayConfig {
   }
   return (
     isNonEmptyString(value.site_name) &&
-    isNonEmptyString(value.logo_url) &&
+    isLogoUrl(value.logo_url) &&
     isNonEmptyString(value.footer_text)
   );
+}
+
+function isLogoUrl(value: unknown): value is string {
+  if (!isNonEmptyString(value)) {
+    return false;
+  }
+
+  const logoUrl = value.trim();
+
+  return isLocalLogoPath(logoUrl) || isHttpsLogoUrl(logoUrl);
+}
+
+function isLocalLogoPath(value: string) {
+  return (
+    value.startsWith(LOCAL_LOGO_PATH_PREFIX) &&
+    !value.startsWith(PROTOCOL_RELATIVE_URL_PREFIX)
+  );
+}
+
+function isHttpsLogoUrl(value: string) {
+  try {
+    return new URL(value).protocol === HTTPS_PROTOCOL;
+  } catch {
+    return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

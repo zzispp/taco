@@ -1,10 +1,2 @@
-DELETE FROM sys_config
-WHERE config_key IN (
-    'sys.account.captchaProvider',
-    'sys.account.captchaPublicConfig',
-    'sys.account.captchaPrivateConfig'
-);
-
-UPDATE sys_config
-SET public_read = FALSE
-WHERE config_key = 'sys.account.captchaEnabled';
+-- Captcha settings are seeded by the baseline seed migration; this consolidation step has no rollback work.
+SELECT 1;

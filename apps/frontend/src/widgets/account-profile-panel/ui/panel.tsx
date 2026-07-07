@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 import { useState, useCallback } from 'react';
 
 import Tab from '@mui/material/Tab';
@@ -58,10 +60,43 @@ export function AccountProfilePanel() {
   const passwordPolicy = passwordPolicyFromPublicConfigs(publicConfigs);
 
   return (
+    <ProfileContainer
+      tab={tab}
+      profile={data}
+      passwordPolicy={passwordPolicy}
+      refreshProfile={refreshProfile}
+      setTab={setTab}
+      setAvatarOpen={setAvatarOpen}
+    >
+      <AvatarCropDialog
+        open={avatarOpen}
+        currentAvatar={resolveServerAssetUrl(data.user.avatar)}
+        onClose={() => setAvatarOpen(false)}
+        onUploaded={refreshProfile}
+      />
+    </ProfileContainer>
+  );
+}
+
+type ProfileContainerProps = {
+  tab: string;
+  profile: NonNullable<ReturnType<typeof useAccountProfile>['data']>;
+  passwordPolicy: ReturnType<typeof passwordPolicyFromPublicConfigs>;
+  refreshProfile: () => Promise<void>;
+  setTab: (tab: string) => void;
+  setAvatarOpen: (open: boolean) => void;
+  children: ReactNode;
+};
+
+function ProfileContainer(props: ProfileContainerProps) {
+  const { tab, profile, passwordPolicy, refreshProfile, setTab, setAvatarOpen, children } = props;
+  const { t } = useTranslate('admin');
+
+  return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 4 }}>
-          <ProfileCard profile={data} onChangeAvatar={() => setAvatarOpen(true)} />
+          <ProfileCard profile={profile} onChangeAvatar={() => setAvatarOpen(true)} />
         </Grid>
         <Grid size={{ xs: 12, md: 8 }}>
           <Card>
@@ -72,11 +107,11 @@ export function AccountProfilePanel() {
             </Tabs>
             <CardContent>
               <Box hidden={tab !== BASIC_TAB}>
-                <BasicProfileForm user={data.user} onSaved={refreshProfile} />
+                <BasicProfileForm user={profile.user} onSaved={refreshProfile} />
               </Box>
               <Box hidden={tab !== PASSWORD_TAB}>
                 <PasswordProfileForm
-                  username={data.user.username}
+                  username={profile.user.username}
                   passwordPolicy={passwordPolicy}
                 />
               </Box>
@@ -84,12 +119,7 @@ export function AccountProfilePanel() {
           </Card>
         </Grid>
       </Grid>
-      <AvatarCropDialog
-        open={avatarOpen}
-        currentAvatar={resolveServerAssetUrl(data.user.avatar)}
-        onClose={() => setAvatarOpen(false)}
-        onUploaded={refreshProfile}
-      />
+      {children}
     </Container>
   );
 }

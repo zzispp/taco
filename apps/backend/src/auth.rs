@@ -83,7 +83,7 @@ pub async fn auth_middleware(State(state): State<AuthState>, mut request: Reques
         return Ok(next.run(request).await);
     }
 
-    authorize_request(&state, &method, &path, &current_user).await?;
+    authorize_request(&state, user_check_request(&method, &path, &current_user)).await?;
     let data_scope = state.rbac.data_scope_filter(&current_user).await?;
     request.extensions_mut().insert(data_scope);
     request.extensions_mut().insert(current_user);
@@ -103,11 +103,8 @@ async fn authenticate_current_user(state: &AuthState, headers: &HeaderMap) -> Re
     Ok(current_user(user))
 }
 
-async fn authorize_request(state: &AuthState, method: &str, path: &str, current_user: &CurrentUser) -> Result<(), RbacError> {
-    state
-        .rbac
-        .authorize_api(&state.authorization, user_check_request(method, path, current_user))
-        .await
+async fn authorize_request(state: &AuthState, request: ApiCheckRequest) -> Result<(), RbacError> {
+    state.rbac.authorize_api(&state.authorization, request).await
 }
 
 fn user_check_request(method: &str, path: &str, current_user: &CurrentUser) -> ApiCheckRequest {

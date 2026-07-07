@@ -1,7 +1,6 @@
 import type { Dayjs, OpUnitType } from 'dayjs';
 
 import dayjs from 'dayjs';
-import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
 // ----------------------------------------------------------------------
@@ -25,7 +24,6 @@ import relativeTime from 'dayjs/plugin/relativeTime';
  * dayjs().utc().format()
  */
 
-dayjs.extend(duration);
 dayjs.extend(relativeTime);
 
 // ----------------------------------------------------------------------
@@ -254,80 +252,5 @@ export function fDateRangeShortLabel(start: DateInput, end: DateInput, initial?:
   return `${fDate(startDate)} - ${fDate(endDate)}`;
 }
 
-// ----------------------------------------------------------------------
-
-/**
- * Adds duration to the current time.
- * @returns ISO formatted string with the result.
- * @example
- * fAdd({ days: 3 }) // '2025-08-08T12:34:56+00:00'
- */
-export type DurationProps = {
-  years?: number;
-  months?: number;
-  days?: number;
-  hours?: number;
-  minutes?: number;
-  seconds?: number;
-  milliseconds?: number;
-};
-
-export function fAdd({
-  years = 0,
-  months = 0,
-  days = 0,
-  hours = 0,
-  minutes = 0,
-  seconds = 0,
-  milliseconds = 0,
-}: DurationProps): string {
-  const result = dayjs()
-    .add(
-      dayjs.duration({
-        years,
-        months,
-        days,
-        hours,
-        minutes,
-        seconds,
-        milliseconds,
-      })
-    )
-    .format();
-
-  return result;
-}
-
-// ----------------------------------------------------------------------
-
-/**
- * Subtracts duration from the current time.
- * @returns ISO formatted string with the result.
- * @example
- * fSub({ months: 1 }) // '2025-07-05T12:34:56+00:00'
- */
-export function fSub({
-  years = 0,
-  months = 0,
-  days = 0,
-  hours = 0,
-  minutes = 0,
-  seconds = 0,
-  milliseconds = 0,
-}: DurationProps): string {
-  const result = dayjs()
-    .subtract(
-      dayjs.duration({
-        years,
-        months,
-        days,
-        hours,
-        minutes,
-        seconds,
-        milliseconds,
-      })
-    )
-    .format();
-
-  return result;
-}
+export { fAdd, fSub } from './format-duration';
+export type { DurationProps } from './format-duration';

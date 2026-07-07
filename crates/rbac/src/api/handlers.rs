@@ -25,6 +25,25 @@ use crate::{
 };
 
 type ApiJson<T> = Json<T>;
+
+mod support;
+
+use self::support::{ExportRolesInput, all_export_roles, checked_keys_for_tree, menu_tree, ok, role_user_filter};
+
+type ExportRolesRequest = (State<RbacApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<RoleExportQuery>);
+type ListRolesRequest = (State<RbacApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<RbacListQuery>);
+type RoleMenuRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleMenuBindingInput>);
+type RoleDeptRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleDeptBindingInput>);
+type RoleUsersRequest = (
+    State<RbacApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    Path<String>,
+    Query<RoleUsersQuery>,
+);
+type RoleUserReplaceRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleUserBindingInput>);
+type DeleteRoleUserRequest = (State<RbacApiState>, Path<(String, String)>);
+type DeleteRoleUsersRequest = (State<RbacApiState>, Path<String>, RequestJson<BatchIdsInput>);
 type ApiResult<T> = Result<T, RbacApiError>;
 
 #[derive(Debug, Deserialize)]
@@ -73,24 +92,22 @@ pub async fn navbar(State(state): State<RbacApiState>, current_user: CurrentUser
 
 #[require_perms("system:role:export")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn export_roles(
-    State(state): State<RbacApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    Extension(data_scope): Extension<DataScopeFilter>,
-    Query(query): Query<RoleExportQuery>,
-) -> ApiResult<Response> {
-    let roles = all_export_roles(&state, &current_user, data_scope, &query).await?;
+pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
+    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let roles = all_export_roles(ExportRolesInput {
+        state: &state,
+        current_user: &current_user,
+        data_scope,
+        query: &query,
+    })
+    .await?;
     Ok(xlsx_attachment("roles.xlsx", export_roles_xlsx(&roles)?))
 }
 
 #[require_perms("system:role:list")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn list_roles(
-    State(state): State<RbacApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    Extension(data_scope): Extension<DataScopeFilter>,
-    Query(query): Query<RbacListQuery>,
-) -> ApiResult<ApiJson<Page<Role>>> {
+pub async fn list_roles(request: ListRolesRequest) -> ApiResult<ApiJson<Page<Role>>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
     let page = if current_user.admin {
         state.rbac_admin.page_roles(query.into()).await?
     } else {
@@ -202,11 +219,7 @@ pub async fn role_menu_bindings(State(state): State<RbacApiState>, Path(id): Pat
 }
 
 #[require_perms("system:role:edit")]
-pub async fn replace_role_menus(
-    State(state): State<RbacApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<RoleMenuBindingInput>,
-) -> ApiResult<ApiJson<()>> {
+pub async fn replace_role_menus((State(state), Path(id), RequestJson(payload)): RoleMenuRequest) -> ApiResult<ApiJson<()>> {
     state.rbac_admin.replace_role_menus(&id, payload).await?;
     Ok(ok(()))
 }
@@ -219,50 +232,33 @@ pub async fn role_dept_bindings(State(state): State<RbacApiState>, Path(id): Pat
 }
 
 #[require_perms("system:role:edit")]
-pub async fn replace_role_depts(
-    State(state): State<RbacApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<RoleDeptBindingInput>,
-) -> ApiResult<ApiJson<()>> {
+pub async fn replace_role_depts((State(state), Path(id), RequestJson(payload)): RoleDeptRequest) -> ApiResult<ApiJson<()>> {
     state.rbac_admin.replace_role_depts(&id, payload).await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:role:list")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn role_users(
-    State(state): State<RbacApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    Extension(data_scope): Extension<DataScopeFilter>,
-    Path(id): Path<String>,
-    Query(query): Query<RoleUsersQuery>,
-) -> ApiResult<ApiJson<Page<RoleUser>>> {
+pub async fn role_users(request: RoleUsersRequest) -> ApiResult<ApiJson<Page<RoleUser>>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id), Query(query)) = request;
     let scope = (!current_user.admin).then_some(data_scope);
     Ok(ok(state.rbac_admin.page_role_users(role_user_filter(id, query), scope).await?))
 }
 
 #[require_perms("system:role:edit")]
-pub async fn replace_role_users(
-    State(state): State<RbacApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<RoleUserBindingInput>,
-) -> ApiResult<ApiJson<()>> {
+pub async fn replace_role_users((State(state), Path(id), RequestJson(payload)): RoleUserReplaceRequest) -> ApiResult<ApiJson<()>> {
     state.rbac_admin.replace_role_users(&id, payload).await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:role:remove")]
-pub async fn delete_role_user(State(state): State<RbacApiState>, Path((id, user_id)): Path<(String, String)>) -> ApiResult<ApiJson<()>> {
+pub async fn delete_role_user((State(state), Path((id, user_id))): DeleteRoleUserRequest) -> ApiResult<ApiJson<()>> {
     state.rbac_admin.delete_role_user(&id, &user_id).await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:role:remove")]
-pub async fn delete_role_users(
-    State(state): State<RbacApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<BatchIdsInput>,
-) -> ApiResult<ApiJson<()>> {
+pub async fn delete_role_users((State(state), Path(id), RequestJson(payload)): DeleteRoleUsersRequest) -> ApiResult<ApiJson<()>> {
     state.rbac_admin.delete_role_users(&id, payload.ids).await?;
     Ok(ok(()))
 }
@@ -279,105 +275,4 @@ pub async fn role_menu_tree_select(State(state): State<RbacApiState>, Path(id): 
     let checked_keys = state.rbac_admin.role_menu_ids(&id).await?;
     let checked_keys = checked_keys_for_tree(&menus, checked_keys, role.menu_check_strictly);
     Ok(ok(RoleMenuTreeSelect { menus, checked_keys }))
-}
-
-impl From<RbacListQuery> for RoleListFilter {
-    fn from(value: RbacListQuery) -> Self {
-        Self {
-            page: PageRequest {
-                page: value.page,
-                page_size: value.page_size,
-            },
-            role_name: value.role_name,
-            role_key: value.role_key,
-            status: value.status,
-            begin_time: value.begin_time,
-            end_time: value.end_time,
-        }
-    }
-}
-
-impl From<RbacListQuery> for MenuListFilter {
-    fn from(value: RbacListQuery) -> Self {
-        Self {
-            page: PageRequest {
-                page: value.page,
-                page_size: value.page_size,
-            },
-            menu_name: value.menu_name,
-            status: value.status,
-        }
-    }
-}
-
-fn role_user_filter(role_id: String, query: RoleUsersQuery) -> RoleUserListFilter {
-    RoleUserListFilter {
-        page: PageRequest {
-            page: query.page,
-            page_size: query.page_size,
-        },
-        role_id,
-        username: query.username,
-        phonenumber: query.phonenumber,
-        allocated: query.allocated.unwrap_or(true),
-    }
-}
-
-fn menu_tree(menus: Vec<Menu>) -> Vec<types::system::TreeSelectNode> {
-    menus.iter().filter(|menu| menu.parent_id == "0").map(|menu| menu_node(menu, &menus)).collect()
-}
-
-fn menu_node(menu: &Menu, menus: &[Menu]) -> types::system::TreeSelectNode {
-    types::system::TreeSelectNode {
-        id: menu.menu_id.clone(),
-        label: menu.menu_name.clone(),
-        parent_id: menu.parent_id.clone(),
-        disabled: menu.status != constants::system::STATUS_NORMAL,
-        children: menus
-            .iter()
-            .filter(|child| child.parent_id == menu.menu_id)
-            .map(|child| menu_node(child, menus))
-            .collect(),
-    }
-}
-
-fn checked_keys_for_tree(tree: &[types::system::TreeSelectNode], checked_keys: Vec<String>, strictly: bool) -> Vec<String> {
-    if strictly {
-        checked_keys.into_iter().filter(|key| tree_leaf_contains(tree, key)).collect()
-    } else {
-        checked_keys
-    }
-}
-
-fn tree_leaf_contains(tree: &[types::system::TreeSelectNode], key: &str) -> bool {
-    tree.iter().any(|node| {
-        if node.id == key {
-            return node.children.is_empty();
-        }
-        tree_leaf_contains(&node.children, key)
-    })
-}
-
-async fn all_export_roles(state: &RbacApiState, current_user: &CurrentUser, data_scope: DataScopeFilter, query: &RoleExportQuery) -> ApiResult<Vec<Role>> {
-    let export_page_size = state.export_config.export_batch_config().await?;
-    let mut page = 1;
-    let mut roles = Vec::new();
-    loop {
-        let filter = role_export_page(query, page, export_page_size.page_size);
-        let current = if current_user.admin {
-            state.rbac_admin.page_roles(filter).await?
-        } else {
-            state.rbac_admin.page_roles_scoped(filter, data_scope.clone()).await?
-        };
-        let is_last = current.items.is_empty() || roles.len() + current.items.len() >= current.total as usize;
-        roles.extend(current.items);
-        if is_last {
-            return Ok(roles);
-        }
-        page += 1;
-    }
-}
-
-fn ok<T>(data: T) -> ApiJson<T> {
-    Json(data)
 }

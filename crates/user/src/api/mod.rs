@@ -11,5 +11,5 @@ pub use dto::{
     SignInPayload, SignUpPayload, TokenPairResponse, UserPayload, UserResponse, UsersPageResponse,
 };
 pub use routes::create_router;
-pub use state::ApiState;
+pub use state::{ApiState, ApiStateParts};
 pub use tokens::{TokenPair, TokenService, TokenSettings, TokenSettingsReader, TokenTtlConfig, parse_token_ttl_config};

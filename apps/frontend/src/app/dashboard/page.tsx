@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 
-import { redirect } from 'next/navigation';
+import { getDashboardPageMetadata } from 'src/shared/i18n/server';
 
-import { paths } from 'src/shared/routes/paths';
-import { formatPageDocumentTitle } from 'src/shared/i18n/document-title-format';
+import { DashboardHomePage } from 'src/pages-layer/dashboard-home';
 
 // ----------------------------------------------------------------------
 
-export const metadata: Metadata = { title: formatPageDocumentTitle('Dashboard') };
+export async function generateMetadata(): Promise<Metadata> {
+  return getDashboardPageMetadata('nav.dashboard');
+}
 
 export default function Page() {
-  redirect(paths.dashboard.admin.users);
+  return <DashboardHomePage />;
 }

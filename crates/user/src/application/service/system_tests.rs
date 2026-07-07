@@ -152,7 +152,12 @@ async fn list_users_returns_empty_for_unmatched_dept_filter_when_system_user_is_
 fn service_with_system_user(
     repository: MemoryUserRepository,
 ) -> UserService<MemoryUserRepository, TestPasswordHasher, StaticPasswordPolicyProvider, crate::test_support::TestSystemUserProvider> {
-    UserService::with_system_user(repository, TestPasswordHasher, StaticPasswordPolicyProvider, system_user())
+    UserService {
+        repository,
+        password_hasher: TestPasswordHasher,
+        password_policy: StaticPasswordPolicyProvider,
+        system_users: system_user(),
+    }
 }
 
 fn users_repository() -> MemoryUserRepository {

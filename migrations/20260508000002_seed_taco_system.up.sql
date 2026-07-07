@@ -25,14 +25,15 @@ VALUES
 
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
 VALUES
-    ('1', '系统管理', '0', 1, 'system', NULL, '', '', FALSE, FALSE, 'M', '0', '0', NULL, 'icon.dashboard', 'admin', CURRENT_TIMESTAMP, '系统管理目录'),
-    ('100', '用户管理', '1', 1, 'user', 'system/user/index', '', 'User', FALSE, FALSE, 'C', '0', '0', 'system:user:list', 'icon.user', 'admin', CURRENT_TIMESTAMP, '用户管理菜单'),
-    ('101', '角色管理', '1', 2, 'role', 'system/role/index', '', 'Role', FALSE, FALSE, 'C', '0', '0', 'system:role:list', 'icon.lock', 'admin', CURRENT_TIMESTAMP, '角色管理菜单'),
-    ('102', '菜单管理', '1', 3, 'menu', 'system/menu/index', '', 'Menu', FALSE, FALSE, 'C', '0', '0', 'system:menu:list', 'icon.menu', 'admin', CURRENT_TIMESTAMP, '菜单管理菜单'),
-    ('103', '部门管理', '1', 4, 'dept', 'system/dept/index', '', 'Dept', FALSE, FALSE, 'C', '0', '0', 'system:dept:list', 'icon.folder', 'admin', CURRENT_TIMESTAMP, '部门管理菜单'),
-    ('104', '岗位管理', '1', 5, 'post', 'system/post/index', '', 'Post', FALSE, FALSE, 'C', '0', '0', 'system:post:list', 'icon.file', 'admin', CURRENT_TIMESTAMP, '岗位管理菜单'),
-    ('105', '字典管理', '1', 6, 'dict', 'system/dict/index', '', 'Dict', FALSE, FALSE, 'C', '0', '0', 'system:dict:list', 'icon.analytics', 'admin', CURRENT_TIMESTAMP, '字典管理菜单'),
-    ('106', '参数设置', '1', 7, 'config', 'system/config/index', '', 'Config', FALSE, FALSE, 'C', '0', '0', 'system:config:list', 'icon.kanban', 'admin', CURRENT_TIMESTAMP, '参数设置菜单'),
+    ('2', '仪表盘', '0', 0, '/dashboard', 'dashboard/index', '', 'Dashboard', FALSE, FALSE, 'C', '0', '0', 'system:dashboard:view', 'icon.dashboard', 'admin', CURRENT_TIMESTAMP, '仪表盘菜单'),
+    ('1', '系统管理', '0', 1, '/dashboard/admin', NULL, '', '', FALSE, FALSE, 'M', '0', '0', NULL, 'icon.folder', 'admin', CURRENT_TIMESTAMP, '系统管理目录'),
+    ('100', '用户管理', '1', 1, '/dashboard/admin/users', 'system/user/index', '', 'User', FALSE, FALSE, 'C', '0', '0', 'system:user:list', 'icon.user', 'admin', CURRENT_TIMESTAMP, '用户管理菜单'),
+    ('101', '角色管理', '1', 2, '/dashboard/admin/roles', 'system/role/index', '', 'Role', FALSE, FALSE, 'C', '0', '0', 'system:role:list', 'icon.lock', 'admin', CURRENT_TIMESTAMP, '角色管理菜单'),
+    ('102', '菜单管理', '1', 3, '/dashboard/admin/menus', 'system/menu/index', '', 'Menu', FALSE, FALSE, 'C', '0', '0', 'system:menu:list', 'icon.menu', 'admin', CURRENT_TIMESTAMP, '菜单管理菜单'),
+    ('103', '部门管理', '1', 4, '/dashboard/admin/depts', 'system/dept/index', '', 'Dept', FALSE, FALSE, 'C', '0', '0', 'system:dept:list', 'icon.folder', 'admin', CURRENT_TIMESTAMP, '部门管理菜单'),
+    ('104', '岗位管理', '1', 5, '/dashboard/admin/posts', 'system/post/index', '', 'Post', FALSE, FALSE, 'C', '0', '0', 'system:post:list', 'icon.file', 'admin', CURRENT_TIMESTAMP, '岗位管理菜单'),
+    ('105', '字典管理', '1', 6, '/dashboard/admin/dicts', 'system/dict/index', '', 'Dict', FALSE, FALSE, 'C', '0', '0', 'system:dict:list', 'icon.analytics', 'admin', CURRENT_TIMESTAMP, '字典管理菜单'),
+    ('106', '参数设置', '1', 7, '/dashboard/admin/configs', 'system/config/index', '', 'Config', FALSE, FALSE, 'C', '0', '0', 'system:config:list', 'icon.kanban', 'admin', CURRENT_TIMESTAMP, '参数设置菜单'),
     ('1000', '用户查询', '100', 1, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:user:query', '#', 'admin', CURRENT_TIMESTAMP, ''),
     ('1001', '用户新增', '100', 2, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:user:add', '#', 'admin', CURRENT_TIMESTAMP, ''),
     ('1002', '用户修改', '100', 3, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:user:edit', '#', 'admin', CURRENT_TIMESTAMP, ''),
@@ -103,11 +104,8 @@ VALUES
 
 INSERT INTO sys_config (config_id, config_name, config_key, config_value, config_type, create_by, create_time, remark)
 VALUES
-    ('1', '主框架页-默认皮肤样式名称', 'sys.index.skinName', 'skin-blue', 'Y', 'admin', CURRENT_TIMESTAMP, '蓝色 skin-blue、绿色 skin-green、紫色 skin-purple、红色 skin-red、黄色 skin-yellow'),
-    ('2', '用户管理-账号初始密码', 'sys.user.initPassword', '123456', 'Y', 'admin', CURRENT_TIMESTAMP, '初始化密码 123456'),
-    ('3', '主框架页-默认主题', 'sys.index.modeTheme', 'theme-light', 'Y', 'admin', CURRENT_TIMESTAMP, '深色主题theme-dark，浅色主题theme-light'),
-    ('4', '账号自助-验证码开关', 'sys.account.captchaEnabled', 'true', 'Y', 'admin', CURRENT_TIMESTAMP, '是否开启验证码功能'),
-    ('5', '账号自助-是否开启用户注册功能', 'sys.account.registerUser', 'false', 'Y', 'admin', CURRENT_TIMESTAMP, '是否开启注册用户功能'),
-    ('6', '账号自助-验证码类型', 'sys.account.captchaProvider', 'cap', 'Y', 'admin', CURRENT_TIMESTAMP, '当前验证码提供方。可选值：cap（内置 PoW 验证码）、cloudflare_turnstile（Cloudflare Turnstile）。切换 provider 后需同步填写对应 JSON 配置。'),
-    ('7', '账号自助-验证码公开配置', 'sys.account.captchaPublicConfig', '{"cap":{},"cloudflare_turnstile":{"site_key":"","theme":"auto","size":"normal"}}', 'Y', 'admin', CURRENT_TIMESTAMP, '验证码公开配置 JSON，前端可读取。cap 使用 {}；cloudflare_turnstile 填写 {"site_key":"Cloudflare Turnstile Site Key","theme":"auto|light|dark","size":"normal|compact|flexible"}。'),
-    ('8', '账号自助-验证码私有配置', 'sys.account.captchaPrivateConfig', '{"cap":{},"cloudflare_turnstile":{"secret_key":""}}', 'Y', 'admin', CURRENT_TIMESTAMP, '验证码私有配置 JSON，仅后端读取，不会公开。cap 使用 {}；cloudflare_turnstile 填写 {"secret_key":"Cloudflare Turnstile Secret Key"}。');
+    ('1', '主框架页-默认皮肤样式名称', 'sys.index.skinName', 'skin-blue', 'Y', 'admin', CURRENT_TIMESTAMP, '默认皮肤样式。可选值：skin-blue 蓝色、skin-green 绿色、skin-purple 紫色、skin-red 红色、skin-yellow 黄色。'),
+    ('2', '用户管理-账号初始密码', 'sys.user.initPassword', '123456', 'Y', 'admin', CURRENT_TIMESTAMP, '新建用户未填写密码时使用的初始密码；由后端读取，不对前端公开。'),
+    ('3', '主框架页-默认主题', 'sys.index.modeTheme', 'theme-light', 'Y', 'admin', CURRENT_TIMESTAMP, '默认主题模式。可选值：theme-dark 深色主题、theme-light 浅色主题。'),
+    ('4', '账号自助-验证码配置', 'sys.account.captchaConfig', '{"enabled":true,"provider":"cap","providers":{"cap":{"challenge_count":50,"challenge_size":32,"challenge_difficulty":4,"challenge_ttl_seconds":600,"redeemed_token_ttl_seconds":1200},"cloudflare_turnstile":{"site_key":"","secret_key":"","theme":"auto","size":"normal"}}}', 'Y', 'admin', CURRENT_TIMESTAMP, '验证码完整配置 JSON。enabled 控制开关，provider 选择 cap/cloudflare_turnstile，providers.cap 配置 PoW 难度和 TTL，providers.cloudflare_turnstile 配置 site_key、secret_key、theme、size；仅后端读取。'),
+    ('5', '账号自助-是否开启用户注册功能', 'sys.account.registerUser', 'false', 'Y', 'admin', CURRENT_TIMESTAMP, '是否允许账号自助注册。true 允许注册，false 禁止注册。');

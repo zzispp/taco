@@ -2,7 +2,7 @@ mod support;
 
 use system::application::{PostListFilter, SystemError, SystemService, SystemUseCase};
 
-use support::{MemoryRepository, config_item, dept, dict_type, page, post_input};
+use support::{ConfigInputSeed, MemoryRepository, config_input, dept, dict_type, page, post_input, public_config_item};
 
 #[tokio::test]
 async fn delete_dict_type_rejects_existing_data() {
@@ -30,9 +30,9 @@ async fn config_by_key_returns_value_or_not_found() {
 #[tokio::test]
 async fn public_configs_return_only_public_values() {
     let repository = MemoryRepository::default()
-        .with_config_item(config_item("sys.index.skinName", "skin-blue", "Y", true))
-        .with_config_item(config_item("sys.index.modeTheme", "theme-light", "Y", true))
-        .with_config_item(config_item("sys.site.displayConfig", r#"{"site_name":"taco"}"#, "Y", true));
+        .with_config_item(public_config_item("sys.index.skinName", "skin-blue"))
+        .with_config_item(public_config_item("sys.index.modeTheme", "theme-light"))
+        .with_config_item(public_config_item("sys.site.displayConfig", r#"{"site_name":"taco"}"#));
     let service = SystemService::new(repository);
 
     let values = service
@@ -59,12 +59,12 @@ async fn public_configs_reject_private_or_missing_keys() {
 
 #[tokio::test]
 async fn built_in_config_cannot_be_deleted_or_renamed() {
-    let repository = MemoryRepository::default().with_config_item(config_item("sys.index.skinName", "skin-blue", "Y", true));
+    let repository = MemoryRepository::default().with_config_item(public_config_item("sys.index.skinName", "skin-blue"));
     let service = SystemService::new(repository);
 
     let delete_result = service.delete_config("sys.index.skinName").await;
     let replace_result = service
-        .replace_config("sys.index.skinName", config_input("sys.index.modeTheme", "theme-dark", "Y", true))
+        .replace_config("sys.index.skinName", config_input(ConfigInputSeed::public("sys.index.modeTheme", "theme-dark")))
         .await;
 
     assert!(matches!(delete_result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.builtin_config_delete"));
@@ -75,7 +75,9 @@ async fn built_in_config_cannot_be_deleted_or_renamed() {
 async fn initial_password_config_cannot_be_public() {
     let service = SystemService::new(MemoryRepository::default());
 
-    let result = service.create_config(config_input("sys.user.initPassword", "12345678", "Y", true)).await;
+    let result = service
+        .create_config(config_input(ConfigInputSeed::public("sys.user.initPassword", "12345678")))
+        .await;
 
     assert!(matches!(result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.initial_password_public"));
 }
@@ -84,7 +86,7 @@ async fn initial_password_config_cannot_be_public() {
 async fn captcha_config_cannot_be_public() {
     let service = SystemService::new(MemoryRepository::default());
 
-    let result = service.create_config(config_input("sys.account.captchaConfig", "{}", "Y", true)).await;
+    let result = service.create_config(public_config_input("sys.account.captchaConfig", "{}")).await;
 
     assert!(matches!(result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.captcha_private_public"));
 }
@@ -101,13 +103,13 @@ async fn create_post_rejects_duplicate_code_and_name() {
     assert!(matches!(name_result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.post_name_exists"));
 }
 
-fn config_input(key: &str, value: &str, config_type: &str, public_read: bool) -> system::domain::ConfigInput {
+fn public_config_input(key: &str, value: &str) -> system::domain::ConfigInput {
     system::domain::ConfigInput {
         config_name: key.into(),
         config_key: key.into(),
         config_value: value.into(),
-        config_type: config_type.into(),
-        public_read,
+        config_type: "Y".into(),
+        public_read: true,
         remark: None,
     }
 }

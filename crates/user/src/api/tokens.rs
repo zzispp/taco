@@ -13,6 +13,8 @@ use crate::{
     domain::UserId,
 };
 
+const JWT_EXPIRATION_OVERFLOW_ERROR: &str = "infra.jwt.expiration_overflow";
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct TokenTtlConfig {
     pub access_token_ttl_seconds: u64,
@@ -101,7 +103,7 @@ impl TokenService {
         let iat = now.as_secs();
         let exp = iat
             .checked_add(ttl_seconds)
-            .ok_or_else(|| AppError::Infrastructure("jwt expiration overflow".into()))?;
+            .ok_or_else(|| AppError::Infrastructure(JWT_EXPIRATION_OVERFLOW_ERROR.into()))?;
         let claims = Claims {
             sub: user_id.0,
             exp,

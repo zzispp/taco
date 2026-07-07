@@ -316,6 +316,74 @@
       "Conduct Market Research"
     ]
   },
+  "systemDashboard": {
+    "title": "System dashboard",
+    "summary": {
+      "cpuUsage": "CPU usage",
+      "memoryUsage": "Memory usage",
+      "diskUsage": "Disk usage",
+      "networkInbound": "Network inbound"
+    },
+    "cards": {
+      "serverInfo": "Server information",
+      "healthStatus": "Health status"
+    },
+    "labels": {
+      "hostname": "Hostname",
+      "system": "System",
+      "kernel": "Kernel",
+      "cpu": "CPU",
+      "cpuCores": "CPU cores",
+      "memoryDisk": "Memory / Disk",
+      "publicIp": "Public IP",
+      "uptime": "Uptime",
+      "bootTime": "Boot time",
+      "sampledAt": "Sampled at",
+      "load": "Load"
+    },
+    "health": {
+      "green": "Green",
+      "yellow": "Yellow",
+      "red": "Red",
+      "allHealthy": "All core resources are below alert thresholds",
+      "issue": "{{kind}}: {{target}} {{usage}}%",
+      "issueSeparator": "; ",
+      "kinds": {
+        "cpu": "CPU",
+        "memory": "Memory",
+        "disk": "Disk"
+      }
+    },
+    "units": {
+      "physical": "physical",
+      "logical": "logical",
+      "day": "d",
+      "hour": "h",
+      "minute": "m"
+    },
+    "charts": {
+      "resourceTrend": "CPU / memory trend",
+      "realtimeSessionSampling": "Real-time samples for this page session",
+      "networkTrend": "Real-time network traffic",
+      "inboundOutboundBandwidth": "Inbound / outbound bandwidth",
+      "diskUsage": "Disk partition usage",
+      "usedCapacity": "By used capacity",
+      "series": {
+        "cpu": "CPU",
+        "memory": "Memory",
+        "inbound": "Inbound",
+        "outbound": "Outbound"
+      }
+    },
+    "tables": {
+      "topProcesses": "Top resource processes",
+      "sortedByCpu": "Sorted by CPU usage",
+      "cpuCoreLoad": "CPU core load",
+      "cpuCoreLoadSubheader": "Usage and frequency for each core",
+      "diskPartitions": "Disk partition details",
+      "diskPartitionsSubheader": "Mount point, file system and capacity"
+    }
+  },
   "dataScope": {
     "all": "All data",
     "custom": "Custom departments",

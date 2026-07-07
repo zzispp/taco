@@ -6,6 +6,8 @@ use redis::AsyncCommands;
 use crate::application::{RbacCache, RbacError, RbacResult};
 use crate::domain::{NavItemResponse, NavResponse, NavSectionResponse, PermissionSnapshot};
 
+const RBAC_CACHE_MISSING_ERROR: &str = "infra.rbac.cache_missing";
+
 #[derive(Clone)]
 pub struct RedisRbacCache {
     connection: redis::aio::ConnectionManager,
@@ -35,7 +37,7 @@ impl RbacCache for RedisRbacCache {
     async fn read_snapshot(&self) -> RbacResult<PermissionSnapshot> {
         let mut connection = self.connection.clone();
         let value: Option<String> = connection.get(self.snapshot_key()).await.map_err(redis_error)?;
-        let value = value.ok_or_else(|| RbacError::Infrastructure("rbac cache is missing".into()))?;
+        let value = value.ok_or_else(|| RbacError::Infrastructure(RBAC_CACHE_MISSING_ERROR.into()))?;
         serde_json::from_str(&value).map_err(json_error)
     }
 

@@ -1,3 +1,4 @@
+mod dashboard;
 mod error;
 mod export;
 mod handlers;
@@ -15,14 +16,18 @@ use kernel::{
 
 use rbac::application::{RbacAdminUseCase, RbacUseCase};
 
-use crate::application::{SystemError, SystemUseCase};
+use crate::application::{ServerMetricsUseCase, SystemError, SystemUseCase};
 
-use self::handlers::{
-    config_by_key, create_config, create_dept, create_dict_data, create_dict_type, create_post, delete_config, delete_configs, delete_dept, delete_dict_data,
-    delete_dict_data_batch, delete_dict_type, delete_dict_types, delete_post, delete_posts, dept_tree_select, dict_data_by_type, dict_type_options,
-    exclude_dept_tree, export_configs, export_dict_data, export_dict_types, export_posts, get_config, get_dept, get_dict_data, get_dict_type, get_post,
-    list_configs, list_depts, list_dict_data, list_dict_types, list_posts, post_options, public_configs, refresh_config_cache, refresh_dict_cache,
-    replace_config, replace_dept, replace_dict_data, replace_dict_type, replace_post, role_dept_tree_select, update_dept_sort, update_dept_sorts,
+use self::{
+    dashboard::get_server_dashboard,
+    handlers::{
+        config_by_key, create_config, create_dept, create_dict_data, create_dict_type, create_post, delete_config, delete_configs, delete_dept,
+        delete_dict_data, delete_dict_data_batch, delete_dict_type, delete_dict_types, delete_post, delete_posts, dept_tree_select, dict_data_by_type,
+        dict_type_options, exclude_dept_tree, export_configs, export_dict_data, export_dict_types, export_posts, get_config, get_dept, get_dict_data,
+        get_dict_type, get_post, list_configs, list_depts, list_dict_data, list_dict_types, list_posts, post_options, public_configs, refresh_config_cache,
+        refresh_dict_cache, replace_config, replace_dept, replace_dict_data, replace_dict_type, replace_post, role_dept_tree_select, update_dept_sort,
+        update_dept_sorts,
+    },
 };
 
 pub use error::SystemApiError;
@@ -30,17 +35,26 @@ pub use error::SystemApiError;
 #[derive(Clone)]
 pub struct SystemApiState {
     pub system: Arc<dyn SystemUseCase>,
+    pub metrics: Arc<dyn ServerMetricsUseCase>,
     pub rbac: Arc<dyn RbacUseCase>,
     pub rbac_admin: Arc<dyn RbacAdminUseCase>,
     pub export_config: Arc<dyn ExportConfigProvider<Error = SystemError>>,
 }
 
+pub struct SystemApiStateParts {
+    pub system: Arc<dyn SystemUseCase>,
+    pub metrics: Arc<dyn ServerMetricsUseCase>,
+    pub rbac: Arc<dyn RbacUseCase>,
+    pub rbac_admin: Arc<dyn RbacAdminUseCase>,
+}
+
 impl SystemApiState {
-    pub fn new(system: Arc<dyn SystemUseCase>, rbac: Arc<dyn RbacUseCase>, rbac_admin: Arc<dyn RbacAdminUseCase>) -> Self {
+    pub fn new(parts: SystemApiStateParts) -> Self {
         Self {
-            system,
-            rbac,
-            rbac_admin,
+            system: parts.system,
+            metrics: parts.metrics,
+            rbac: parts.rbac,
+            rbac_admin: parts.rbac_admin,
             export_config: Arc::new(DisabledExportConfigProvider),
         }
     }
@@ -64,6 +78,7 @@ impl ExportConfigProvider for DisabledExportConfigProvider {
 
 pub fn create_router(state: SystemApiState) -> Router {
     Router::new()
+        .route("/system/dashboard", get(get_server_dashboard))
         .route("/system/depts", get(list_depts).post(create_dept))
         .route("/system/depts/tree-select", get(dept_tree_select))
         .route("/system/depts/exclude/{id}", get(exclude_dept_tree))

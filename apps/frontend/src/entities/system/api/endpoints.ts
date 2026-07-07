@@ -1,5 +1,6 @@
 export const systemEndpoints = {
   appConfigs: '/api/app/configs',
+  dashboard: '/api/system/dashboard',
   depts: '/api/system/depts',
   deptTreeSelect: '/api/system/depts/tree-select',
   deptExclude: (id: string) => `/api/system/depts/exclude/${id}`,

@@ -41,6 +41,7 @@ export const NAV_ICONS: NonNullable<NavSectionProps['render']>['navIcon'] = {
 
 export function translatedMenuItem(item: Menu, t: TranslateFn) {
   const keyByPerms: Record<string, string> = {
+    'system:dashboard:view': 'nav.dashboard',
     'system:user:list': 'nav.users',
     'system:role:list': 'nav.roles',
     'system:menu:list': 'nav.menus',

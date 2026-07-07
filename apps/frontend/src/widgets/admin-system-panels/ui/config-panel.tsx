@@ -4,128 +4,32 @@ import type { ConfigItem, ConfigInput } from 'src/entities/system';
 
 import { useMemo, useState } from 'react';
 
-import Stack from '@mui/material/Stack';
-import Button from '@mui/material/Button';
-
 import { useTable } from 'src/shared/ui/table';
-import { toast } from 'src/shared/ui/snackbar';
-import { Iconify } from 'src/shared/ui/iconify';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
 import { useConfigs } from 'src/entities/system';
-import { useHasPermission } from 'src/entities/session';
 
 import { systemMutations } from 'src/features/system-management';
 
 import { SystemCrudPanel } from 'src/widgets/system-crud-panel';
 
-const DEFAULT_INPUT: ConfigInput = {
-  config_name: '',
-  config_key: '',
-  config_value: '',
-  config_type: 'N',
-  public_read: false,
-  remark: '',
-};
-const DEFAULT_FILTERS = {
-  config_name: '',
-  config_key: '',
-  config_type: '',
-  begin_time: '',
-  end_time: '',
-};
+import { ConfigToolbar } from './config-toolbar';
+import { DEFAULT_CONFIG_INPUT, DEFAULT_CONFIG_FILTERS } from './config-constants';
+import {
+  configFields,
+  toConfigFilters,
+  configFilterFields,
+  isConfigSelectable,
+  normalizeConfigInput,
+} from './config-fields';
 
 export function ConfigManagementPanel() {
   const { t } = useTranslate('admin');
   const table = useTable({ defaultRowsPerPage: 10 });
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState(DEFAULT_CONFIG_FILTERS);
   const resource = useConfigs(table.page, table.rowsPerPage, filters);
-  const canExport = useHasPermission('system:config:export');
-  const fields = useMemo(
-    () => [
-      {
-        key: 'config_name' as const,
-        label: t('fields.configName'),
-        width: 180,
-        ellipsis: true,
-      },
-      {
-        key: 'config_key' as const,
-        label: t('fields.configKey'),
-        width: 260,
-        ellipsis: true,
-        disabled: builtInFieldDisabled,
-      },
-      {
-        key: 'config_value' as const,
-        label: t('fields.configValue'),
-        width: 360,
-        ellipsis: true,
-      },
-      {
-        key: 'config_type' as const,
-        label: t('fields.configType'),
-        type: 'select' as const,
-        width: 120,
-        options: configTypeOptions(t),
-        disabled: builtInFieldDisabled,
-      },
-      {
-        key: 'public_read' as const,
-        label: t('fields.publicRead'),
-        type: 'boolean' as const,
-        width: 120,
-        disabled: publicReadDisabled,
-      },
-      {
-        key: 'remark' as const,
-        label: t('common.remark'),
-        type: 'textarea' as const,
-        width: 280,
-        ellipsis: true,
-      },
-      {
-        key: 'create_time' as const,
-        label: t('fields.createTime'),
-        width: 190,
-        format: 'dateTime' as const,
-        hiddenInForm: true,
-      },
-    ],
-    [t]
-  );
-  const filterFields = useMemo(
-    () => [
-      { key: 'config_name', label: t('fields.configName') },
-      { key: 'config_key', label: t('fields.configKey') },
-      {
-        key: 'config_type',
-        label: t('fields.configType'),
-        type: 'select' as const,
-        options: allConfigTypeOptions(t),
-      },
-      { key: 'begin_time', label: t('fields.beginTime'), type: 'date' as const },
-      { key: 'end_time', label: t('fields.endTime'), type: 'date' as const },
-    ],
-    [t]
-  );
-
-  const refreshCache = async () => {
-    try {
-      await systemMutations.refreshConfigCache();
-      toast.success(t('messages.cacheRefreshed'));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
-    }
-  };
-
-  const exportItems = async () => {
-    try {
-      await systemMutations.exportConfigs(filters);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.exportFailed'));
-    }
-  };
+  const fields = useMemo(() => configFields(t), [t]);
+  const filterFields = useMemo(() => configFilterFields(t), [t]);
 
   return (
     <SystemCrudPanel<ConfigItem, ConfigInput>
@@ -135,7 +39,7 @@ export function ConfigManagementPanel() {
       idKey="config_id"
       nameKey="config_name"
       fields={fields}
-      defaultInput={DEFAULT_INPUT}
+      defaultInput={DEFAULT_CONFIG_INPUT}
       resource={resource}
       page={table.page}
       rowsPerPage={table.rowsPerPage}
@@ -149,73 +53,7 @@ export function ConfigManagementPanel() {
       updateItem={(id, input) => systemMutations.updateConfig(id, normalizeConfigInput(input))}
       deleteItem={systemMutations.deleteConfig}
       batchDeleteItems={systemMutations.deleteConfigs}
-      toolbarAction={
-        <Stack direction="row" spacing={1}>
-          {canExport && (
-            <Button
-              variant="outlined"
-              startIcon={<Iconify icon="solar:export-bold" />}
-              onClick={exportItems}
-            >
-              {t('actions.export')}
-            </Button>
-          )}
-          <Button
-            variant="outlined"
-            startIcon={<Iconify icon="solar:restart-bold" />}
-            onClick={refreshCache}
-          >
-            {t('actions.refreshCache')}
-          </Button>
-        </Stack>
-      }
+      toolbarAction={<ConfigToolbar filters={filters} />}
     />
   );
-}
-
-function configTypeOptions(t: ReturnType<typeof useTranslate>['t']) {
-  return [
-    { value: 'Y', label: t('common.yes') },
-    { value: 'N', label: t('common.no') },
-  ];
-}
-
-function allConfigTypeOptions(t: ReturnType<typeof useTranslate>['t']) {
-  return [{ value: '', label: t('common.all') }, ...configTypeOptions(t)];
-}
-
-function toConfigFilters(values: Record<string, string>) {
-  return {
-    config_name: values.config_name ?? '',
-    config_key: values.config_key ?? '',
-    config_type: values.config_type ?? '',
-    begin_time: values.begin_time ?? '',
-    end_time: values.end_time ?? '',
-  };
-}
-
-function isConfigSelectable(row: ConfigItem) {
-  return row.config_type !== 'Y';
-}
-
-function builtInFieldDisabled({ editing }: { editing: Record<string, unknown> | null }) {
-  return editing?.config_type === 'Y';
-}
-
-function publicReadDisabled({
-  form,
-  editing,
-}: {
-  form: Record<string, unknown>;
-  editing: Record<string, unknown> | null;
-}) {
-  const key = String(form.config_key || editing?.config_key || '');
-  return key === 'sys.user.initPassword';
-}
-
-function normalizeConfigInput(input: ConfigInput): ConfigInput {
-  if (input.config_key === 'sys.user.initPassword') {
-    return { ...input, public_read: false };
-  }
-  return input;
 }

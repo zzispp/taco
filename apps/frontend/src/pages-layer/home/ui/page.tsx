@@ -60,44 +60,61 @@ export function HomeView() {
 
       <HeroSection siteName={siteName} />
 
-      <Stack sx={{ position: 'relative', bgcolor: 'background.default' }}>
-        <SectionShell
-          overline={siteName}
-          title="What remains after template cleanup"
-          description={`${siteName} now keeps only the surfaces that serve the backend control plane: auth, users, RBAC, APIs, and menus.`}
-        >
-          <Grid container spacing={3}>
-            {PRINCIPLES.map((item) => (
-              <Grid key={item.title} size={{ xs: 12, md: 4 }}>
-                <SectionCard title={item.title} description={item.description} />
-              </Grid>
-            ))}
-          </Grid>
-        </SectionShell>
-
-        <SectionShell
-          overline={siteName}
-          title="Primary entry points"
-          description="The homepage now routes directly into the same modules that the backend and the current UI actively use."
-        >
-          <Grid container spacing={3}>
-            {entryPoints.map((item) => (
-              <Grid key={item.title} size={{ xs: 12, md: 4 }}>
-                <SectionCard
-                  title={item.title}
-                  description={item.description}
-                  action={
-                    <Button component={RouterLink} href={item.href} variant="text" color="inherit">
-                      Open
-                    </Button>
-                  }
-                />
-              </Grid>
-            ))}
-          </Grid>
-        </SectionShell>
-      </Stack>
+      <HomeSections siteName={siteName} entryPoints={entryPoints} />
     </>
+  );
+}
+
+function HomeSections({ siteName, entryPoints }: { siteName: string; entryPoints: ReturnType<typeof createEntryPoints> }) {
+  return (
+    <Stack sx={{ position: 'relative', bgcolor: 'background.default' }}>
+      <PrinciplesSection siteName={siteName} />
+      <EntryPointsSection siteName={siteName} entryPoints={entryPoints} />
+    </Stack>
+  );
+}
+
+function PrinciplesSection({ siteName }: { siteName: string }) {
+  return (
+    <SectionShell
+      overline={siteName}
+      title="What remains after template cleanup"
+      description={`${siteName} now keeps only the surfaces that serve the backend control plane: auth, users, RBAC, APIs, and menus.`}
+    >
+      <Grid container spacing={3}>
+        {PRINCIPLES.map((item) => (
+          <Grid key={item.title} size={{ xs: 12, md: 4 }}>
+            <SectionCard title={item.title} description={item.description} />
+          </Grid>
+        ))}
+      </Grid>
+    </SectionShell>
+  );
+}
+
+function EntryPointsSection(props: { siteName: string; entryPoints: ReturnType<typeof createEntryPoints> }) {
+  return (
+    <SectionShell
+      overline={props.siteName}
+      title="Primary entry points"
+      description="The homepage now routes directly into the same modules that the backend and the current UI actively use."
+    >
+      <Grid container spacing={3}>
+        {props.entryPoints.map((item) => (
+          <Grid key={item.title} size={{ xs: 12, md: 4 }}>
+            <SectionCard title={item.title} description={item.description} action={<OpenEntryPointButton href={item.href} />} />
+          </Grid>
+        ))}
+      </Grid>
+    </SectionShell>
+  );
+}
+
+function OpenEntryPointButton({ href }: { href: string }) {
+  return (
+    <Button component={RouterLink} href={href} variant="text" color="inherit">
+      Open
+    </Button>
   );
 }
 

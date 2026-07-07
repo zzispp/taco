@@ -316,6 +316,74 @@
       "开展市场调研"
     ]
   },
+  "systemDashboard": {
+    "title": "系统仪表盘",
+    "summary": {
+      "cpuUsage": "CPU 使用率",
+      "memoryUsage": "内存使用率",
+      "diskUsage": "磁盘使用率",
+      "networkInbound": "网络入站"
+    },
+    "cards": {
+      "serverInfo": "服务器基本信息",
+      "healthStatus": "健康状态"
+    },
+    "labels": {
+      "hostname": "主机名",
+      "system": "系统",
+      "kernel": "内核",
+      "cpu": "CPU",
+      "cpuCores": "CPU 核心",
+      "memoryDisk": "内存 / 磁盘",
+      "publicIp": "公网 IP",
+      "uptime": "Uptime",
+      "bootTime": "启动时间",
+      "sampledAt": "采样时间",
+      "load": "Load"
+    },
+    "health": {
+      "green": "绿色",
+      "yellow": "黄色",
+      "red": "红色",
+      "allHealthy": "所有核心资源低于告警阈值",
+      "issue": "{{kind}}：{{target}} {{usage}}%",
+      "issueSeparator": "；",
+      "kinds": {
+        "cpu": "CPU",
+        "memory": "内存",
+        "disk": "磁盘"
+      }
+    },
+    "units": {
+      "physical": "物理核心",
+      "logical": "逻辑核心",
+      "day": "天",
+      "hour": "小时",
+      "minute": "分钟"
+    },
+    "charts": {
+      "resourceTrend": "CPU / 内存历史趋势",
+      "realtimeSessionSampling": "当前页面会话实时采样",
+      "networkTrend": "网络流量实时曲线",
+      "inboundOutboundBandwidth": "入站 / 出站带宽",
+      "diskUsage": "磁盘分区使用量",
+      "usedCapacity": "按已用容量统计",
+      "series": {
+        "cpu": "CPU",
+        "memory": "内存",
+        "inbound": "入站",
+        "outbound": "出站"
+      }
+    },
+    "tables": {
+      "topProcesses": "Top 消耗进程",
+      "sortedByCpu": "按 CPU 使用率排序",
+      "cpuCoreLoad": "CPU 核心负载",
+      "cpuCoreLoadSubheader": "各核心使用率与频率",
+      "diskPartitions": "磁盘分区明细",
+      "diskPartitionsSubheader": "挂载点、文件系统与容量"
+    }
+  },
   "dataScope": {
     "all": "全部数据权限",
     "custom": "自定数据权限",

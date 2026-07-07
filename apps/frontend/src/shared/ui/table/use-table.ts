@@ -1,162 +1,113 @@
 'use client';
 
+import type { UseTableProps, UseTableReturn } from './use-table-types';
+
 import { useState, useCallback } from 'react';
 
-// ----------------------------------------------------------------------
-
-export type UseTableReturn = {
-  dense: boolean;
-  page: number;
-  rowsPerPage: number;
-  order: 'asc' | 'desc';
-  orderBy: string;
-  /********/
-  selected: string[];
-  onSelectRow: (id: string) => void;
-  onSelectAllRows: (checked: boolean, newSelecteds: string[]) => void;
-  /********/
-  onResetPage: () => void;
-  onSort: (id: string) => void;
-  onChangePage: (event: unknown, newPage: number) => void;
-  onChangeRowsPerPage: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onChangeDense: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onUpdatePageDeleteRow: (totalRowsInPage: number) => void;
-  onUpdatePageDeleteRows: (totalRowsInPage: number, totalRowsFiltered: number) => void;
-  /********/
-  setPage: React.Dispatch<React.SetStateAction<number>>;
-  setDense: React.Dispatch<React.SetStateAction<boolean>>;
-  setOrderBy: React.Dispatch<React.SetStateAction<string>>;
-  setSelected: React.Dispatch<React.SetStateAction<string[]>>;
-  setRowsPerPage: React.Dispatch<React.SetStateAction<number>>;
-  setOrder: React.Dispatch<React.SetStateAction<'desc' | 'asc'>>;
-};
-
-export type UseTableProps = {
-  defaultDense?: boolean;
-  defaultOrderBy?: string;
-  defaultSelected?: string[];
-  defaultRowsPerPage?: number;
-  defaultCurrentPage?: number;
-  defaultOrder?: 'asc' | 'desc';
-};
+export type { UseTableProps, UseTableReturn } from './use-table-types';
 
 export function useTable(props?: UseTableProps): UseTableReturn {
+  const state = useTableState(props);
+  const sort = useTableSort(state);
+  const selection = useTableSelection(state);
+  const pagination = useTablePagination(state, selection.selected.length);
+
+  return {
+    ...state,
+    ...sort,
+    ...selection,
+    ...pagination,
+  };
+}
+
+function useTableState(props?: UseTableProps) {
   const [dense, setDense] = useState(!!props?.defaultDense);
-
   const [page, setPage] = useState(props?.defaultCurrentPage ?? 0);
-
   const [orderBy, setOrderBy] = useState(props?.defaultOrderBy ?? 'name');
-
   const [rowsPerPage, setRowsPerPage] = useState(props?.defaultRowsPerPage ?? 5);
-
   const [order, setOrder] = useState<'asc' | 'desc'>(props?.defaultOrder ?? 'asc');
-
   const [selected, setSelected] = useState<string[]>(props?.defaultSelected ?? []);
 
+  return { dense, page, orderBy, rowsPerPage, order, selected, setDense, setPage, setOrderBy, setRowsPerPage, setOrder, setSelected };
+}
+
+function useTableSort(state: ReturnType<typeof useTableState>) {
   const onSort = useCallback(
     (id: string) => {
-      const isAsc = orderBy === id && order === 'asc';
+      const isAsc = state.orderBy === id && state.order === 'asc';
       if (id !== '') {
-        setOrder(isAsc ? 'desc' : 'asc');
-        setOrderBy(id);
+        state.setOrder(isAsc ? 'desc' : 'asc');
+        state.setOrderBy(id);
       }
     },
-    [order, orderBy]
+    [state]
   );
 
+  return { onSort };
+}
+
+function useTableSelection(state: ReturnType<typeof useTableState>) {
   const onSelectRow = useCallback(
     (inputValue: string) => {
-      const newSelected = selected.includes(inputValue)
-        ? selected.filter((value) => value !== inputValue)
-        : [...selected, inputValue];
-
-      setSelected(newSelected);
+      state.setSelected(toggleSelected(state.selected, inputValue));
     },
-    [selected]
+    [state]
   );
 
+  const onSelectAllRows = useCallback(
+    (checked: boolean, inputValue: string[]) => {
+      state.setSelected(checked ? inputValue : []);
+    },
+    [state]
+  );
+
+  return { selected: state.selected, onSelectRow, onSelectAllRows };
+}
+
+function useTablePagination(state: ReturnType<typeof useTableState>, totalSelected: number) {
   const onChangeRowsPerPage = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    setPage(0);
-    setRowsPerPage(parseInt(event.target.value, 10));
-  }, []);
-
-  const onChangeDense = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    setDense(event.target.checked);
-  }, []);
-
-  const onSelectAllRows = useCallback((checked: boolean, inputValue: string[]) => {
-    if (checked) {
-      setSelected(inputValue);
-      return;
-    }
-    setSelected([]);
-  }, []);
-
-  const onChangePage = useCallback((event: unknown, newPage: number) => {
-    setPage(newPage);
-  }, []);
-
-  const onResetPage = useCallback(() => {
-    setPage(0);
-  }, []);
-
-  const onUpdatePageDeleteRow = useCallback(
-    (totalRowsInPage: number) => {
-      setSelected([]);
-      if (page) {
-        if (totalRowsInPage < 2) {
-          setPage(page - 1);
-        }
-      }
-    },
-    [page]
-  );
+    state.setPage(0);
+    state.setRowsPerPage(parseInt(event.target.value, 10));
+  }, [state]);
 
   const onUpdatePageDeleteRows = useCallback(
     (totalRowsInPage: number, totalRowsFiltered: number) => {
-      const totalSelected = selected.length;
-
-      setSelected([]);
-
-      if (page) {
-        if (totalSelected === totalRowsInPage) {
-          setPage(page - 1);
-        } else if (totalSelected === totalRowsFiltered) {
-          setPage(0);
-        } else if (totalSelected > totalRowsInPage) {
-          const newPage = Math.ceil((totalRowsFiltered - totalSelected) / rowsPerPage) - 1;
-
-          setPage(newPage);
-        }
-      }
+      state.setSelected([]);
+      state.setPage(nextPageAfterRowsDelete({ currentPage: state.page, rowsPerPage: state.rowsPerPage, totalRowsInPage, totalRowsFiltered, totalSelected }));
     },
-    [page, rowsPerPage, selected.length]
+    [state, totalSelected]
   );
 
   return {
-    dense,
-    order,
-    page,
-    orderBy,
-    rowsPerPage,
-    /********/
-    selected,
-    onSelectRow,
-    onSelectAllRows,
-    /********/
-    onSort,
-    onChangePage,
-    onChangeDense,
-    onResetPage,
+    onResetPage: useCallback(() => state.setPage(0), [state]),
+    onChangeDense: useCallback((event: React.ChangeEvent<HTMLInputElement>) => state.setDense(event.target.checked), [state]),
+    onChangePage: useCallback((event: unknown, newPage: number) => state.setPage(newPage), [state]),
     onChangeRowsPerPage,
-    onUpdatePageDeleteRow,
+    onUpdatePageDeleteRow: useCallback((totalRowsInPage: number) => state.setPage(nextPageAfterRowDelete(state.page, totalRowsInPage)), [state]),
     onUpdatePageDeleteRows,
-    /********/
-    setPage,
-    setDense,
-    setOrder,
-    setOrderBy,
-    setSelected,
-    setRowsPerPage,
   };
+}
+
+function toggleSelected(selected: string[], inputValue: string) {
+  return selected.includes(inputValue) ? selected.filter((value) => value !== inputValue) : [...selected, inputValue];
+}
+
+function nextPageAfterRowDelete(page: number, totalRowsInPage: number) {
+  return page && totalRowsInPage < 2 ? page - 1 : page;
+}
+
+type DeleteRowsState = {
+  currentPage: number;
+  rowsPerPage: number;
+  totalRowsInPage: number;
+  totalRowsFiltered: number;
+  totalSelected: number;
+};
+
+function nextPageAfterRowsDelete(state: DeleteRowsState) {
+  if (!state.currentPage) return state.currentPage;
+  if (state.totalSelected === state.totalRowsInPage) return state.currentPage - 1;
+  if (state.totalSelected === state.totalRowsFiltered) return 0;
+  if (state.totalSelected > state.totalRowsInPage) return Math.ceil((state.totalRowsFiltered - state.totalSelected) / state.rowsPerPage) - 1;
+  return state.currentPage;
 }

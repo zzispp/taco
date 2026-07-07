@@ -15,12 +15,22 @@ import { fallbackLng, storageConfig, getCurrentLang } from './locales-config';
 // ----------------------------------------------------------------------
 
 export function useTranslate(namespace?: Namespace) {
-  const settings = useSettingsContext();
-
   const { t, i18n } = useTranslation(namespace);
-  const { t: tMessages } = useTranslation('messages');
-
   const currentLang = getCurrentLang(i18n.resolvedLanguage);
+  const changeLang = useLanguageChanger(i18n);
+
+  return {
+    t,
+    i18n,
+    currentLang,
+    onChangeLang: changeLang,
+    onResetLang: () => changeLang(fallbackLng),
+  };
+}
+
+function useLanguageChanger(i18n: ReturnType<typeof useTranslation>['i18n']) {
+  const settings = useSettingsContext();
+  const { t: tMessages } = useTranslation('messages');
 
   const updateDirection = useCallback(
     (lang: LangCode) => {
@@ -38,7 +48,7 @@ export function useTranslate(namespace?: Namespace) {
     localStorage.setItem(storageConfig.localStorage.key, lang);
   }, []);
 
-  const handleChangeLang = useCallback(
+  return useCallback(
     async (lang: LangCode) => {
       try {
         const changeLangPromise = i18n.changeLanguage(lang);
@@ -60,18 +70,6 @@ export function useTranslate(namespace?: Namespace) {
     },
     [i18n, persistLanguage, tMessages, updateDayjsLocale, updateDirection]
   );
-
-  const handleResetLang = useCallback(() => {
-    handleChangeLang(fallbackLng);
-  }, [handleChangeLang]);
-
-  return {
-    t,
-    i18n,
-    currentLang,
-    onChangeLang: handleChangeLang,
-    onResetLang: handleResetLang,
-  };
 }
 
 // ----------------------------------------------------------------------

@@ -2,11 +2,14 @@ mod config;
 mod dept;
 mod dict;
 mod mapping;
+mod metrics;
+mod network_interfaces;
 mod page;
 mod post;
 mod record;
 mod redis_cache;
 
+pub use metrics::SysinfoServerMetricsCollector;
 pub use redis_cache::RedisSystemCache;
 
 use async_trait::async_trait;

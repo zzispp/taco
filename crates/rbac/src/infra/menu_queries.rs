@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 
 use crate::{
     application::MenuListFilter,
-    domain::{Menu, MenuInput},
+    domain::{MENU_TYPE_BUTTON, Menu, MenuInput},
 };
 use types::system::SortBatchInput;
 
@@ -166,6 +166,7 @@ impl MenuQueries {
 
     pub async fn role_menu_rows(&self) -> StorageResult<Vec<RoleMenuRecord>> {
         query_as::<_, RoleMenuRecord>(role_menu_query())
+            .bind(MENU_TYPE_BUTTON)
             .fetch_all(self.database.pool())
             .await
             .map_err(StorageError::from)
@@ -190,16 +191,16 @@ fn update_menu_sql() -> &'static str {
 
 fn role_menu_query() -> &'static str {
     r#"
-    SELECT r.role_key, m.menu_id, m.menu_name, m.parent_id, m.path, m.icon, m.order_num
+    SELECT r.role_key, m.menu_id, m.menu_name, m.parent_id, m.path, m.menu_type, m.icon, m.order_num
     FROM sys_role r
     CROSS JOIN sys_menu m
-    WHERE r.role_key = 'admin' AND r.del_flag = '0' AND r.status = '0' AND m.status = '0' AND m.visible = '0' AND m.menu_type <> 'F'
+    WHERE r.role_key = 'admin' AND r.del_flag = '0' AND r.status = '0' AND m.status = '0' AND m.visible = '0' AND m.menu_type <> $1
     UNION
-    SELECT r.role_key, m.menu_id, m.menu_name, m.parent_id, m.path, m.icon, m.order_num
+    SELECT r.role_key, m.menu_id, m.menu_name, m.parent_id, m.path, m.menu_type, m.icon, m.order_num
     FROM sys_role r
     INNER JOIN sys_role_menu rm ON rm.role_id = r.role_id
     INNER JOIN sys_menu m ON m.menu_id = rm.menu_id
-    WHERE r.role_key <> 'admin' AND r.del_flag = '0' AND r.status = '0' AND m.status = '0' AND m.visible = '0' AND m.menu_type <> 'F'
+    WHERE r.role_key <> 'admin' AND r.del_flag = '0' AND r.status = '0' AND m.status = '0' AND m.visible = '0' AND m.menu_type <> $1
     ORDER BY role_key ASC, parent_id ASC, order_num ASC
     "#
 }

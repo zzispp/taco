@@ -32,6 +32,18 @@ use crate::{
 type ApiResult<T> = Result<T, ApiError>;
 type ApiJson<T> = Json<T>;
 
+mod support;
+
+use self::support::{
+    ExportUsersInput, all_export_users, avatar_file, bearer_token, new_admin_user, new_sign_up_user, ok, reject_disabled_registration, user_import_form,
+    verify_account_captcha,
+};
+
+type AccountPasswordRequest = (State<ApiState>, Extension<CurrentUser>, RequestJson<ChangePasswordPayload>);
+type ExportUsersRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<UserExportQuery>);
+type ResetPasswordRequest = (State<ApiState>, Path<String>, RequestJson<ResetPasswordPayload>);
+type ListUsersRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<ListUsersQuery>);
+
 pub async fn sign_up(State(state): State<ApiState>, RequestJson(payload): RequestJson<SignUpPayload>) -> ApiResult<ApiJson<AuthSessionResponse>> {
     reject_disabled_registration(&state).await?;
     verify_account_captcha(&state, payload.captcha_token.as_deref()).await?;
@@ -74,11 +86,7 @@ pub async fn update_account_profile(
     Ok(ok(user.into()))
 }
 
-pub async fn change_account_password(
-    State(state): State<ApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    RequestJson(payload): RequestJson<ChangePasswordPayload>,
-) -> ApiResult<ApiJson<()>> {
+pub async fn change_account_password((State(state), Extension(current_user), RequestJson(payload)): AccountPasswordRequest) -> ApiResult<ApiJson<()>> {
     state
         .users
         .change_password(UserId(current_user.id), payload.old_password, payload.new_password)
@@ -100,13 +108,15 @@ pub async fn upload_account_avatar(
 
 #[require_perms("system:user:export")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn export_users(
-    State(state): State<ApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    Extension(data_scope): Extension<DataScopeFilter>,
-    Query(query): Query<UserExportQuery>,
-) -> ApiResult<Response> {
-    let users = all_export_users(&state, &current_user, data_scope, &query).await?;
+pub async fn export_users(request: ExportUsersRequest) -> ApiResult<Response> {
+    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let users = all_export_users(ExportUsersInput {
+        state: &state,
+        current_user: &current_user,
+        data_scope,
+        query: &query,
+    })
+    .await?;
     let bytes = export_users_xlsx(&users)?;
     Ok(xlsx_attachment("users.xlsx", bytes))
 }
@@ -167,11 +177,7 @@ pub async fn get_user(State(state): State<ApiState>, Path(id): Path<String>) -> 
 }
 
 #[require_perms("system:user:resetPwd")]
-pub async fn reset_user_password(
-    State(state): State<ApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<ResetPasswordPayload>,
-) -> ApiResult<ApiJson<()>> {
+pub async fn reset_user_password((State(state), Path(id), RequestJson(payload)): ResetPasswordRequest) -> ApiResult<ApiJson<()>> {
     state.users.reset_password(UserId(id), payload.password).await?;
     Ok(ok(()))
 }
@@ -215,159 +221,12 @@ pub async fn user_dept_tree(State(state): State<ApiState>) -> ApiResult<ApiJson<
 
 #[require_perms("system:user:list")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn list_users(
-    State(state): State<ApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    Extension(data_scope): Extension<DataScopeFilter>,
-    Query(query): Query<ListUsersQuery>,
-) -> ApiResult<ApiJson<UsersPageResponse>> {
+pub async fn list_users(request: ListUsersRequest) -> ApiResult<ApiJson<UsersPageResponse>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
     let page = if current_user.admin {
         state.users.list_users(query.into()).await?
     } else {
         state.users.list_users_scoped(query.into(), data_scope).await?
     };
     Ok(ok(page.into()))
-}
-
-async fn all_export_users(state: &ApiState, current_user: &CurrentUser, data_scope: DataScopeFilter, query: &UserExportQuery) -> ApiResult<Vec<User>> {
-    let export_page_size = state.export_config.export_batch_config().await?.page_size;
-    let mut page = 1;
-    let mut users = Vec::new();
-    loop {
-        let filter = export_query_page(query, page, export_page_size);
-        let current = if current_user.admin {
-            state.users.list_users(filter).await?
-        } else {
-            state.users.list_users_scoped(filter, data_scope.clone()).await?
-        };
-        let is_last = current.items.is_empty() || users.len() + current.items.len() >= current.total as usize;
-        users.extend(current.items);
-        if is_last {
-            return Ok(users);
-        }
-        page += 1;
-    }
-}
-
-struct UserImportForm {
-    file: Vec<u8>,
-    update_support: bool,
-}
-
-async fn avatar_file(mut multipart: Multipart) -> ApiResult<AvatarFile> {
-    while let Some(field) = multipart.next_field().await.map_err(multipart_error)? {
-        if field.name() != Some("avatarfile") {
-            continue;
-        }
-        let filename = field.file_name().map(str::to_owned);
-        let content_type = field.content_type().map(str::to_owned);
-        let bytes = field.bytes().await.map_err(multipart_error)?;
-        return Ok(AvatarFile {
-            filename,
-            content_type,
-            bytes: bytes.to_vec(),
-        });
-    }
-    Err(ApiError(AppError::InvalidInput(localized("errors.user.avatarfile_required"))))
-}
-
-async fn user_import_form(mut multipart: Multipart) -> ApiResult<UserImportForm> {
-    let mut file = None;
-    let mut update_support = false;
-    while let Some(field) = multipart.next_field().await.map_err(multipart_error)? {
-        let name = field.name().unwrap_or_default().to_owned();
-        let bytes = field.bytes().await.map_err(multipart_error)?;
-        match name.as_str() {
-            "file" => file = Some(bytes.to_vec()),
-            "update_support" | "updateSupport" => update_support = parse_bool(&bytes)?,
-            _ => {}
-        }
-    }
-    Ok(UserImportForm {
-        file: file.ok_or_else(|| ApiError(AppError::InvalidInput(localized("errors.user.file_required"))))?,
-        update_support,
-    })
-}
-
-fn parse_bool(bytes: &[u8]) -> ApiResult<bool> {
-    let value = std::str::from_utf8(bytes).map_err(|_| ApiError(AppError::InvalidInput(localized("errors.user.invalid_form_value"))))?;
-    Ok(matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "y"))
-}
-
-fn multipart_error(error: axum::extract::multipart::MultipartError) -> ApiError {
-    let _ = error;
-    ApiError(AppError::InvalidInput(localized("errors.user.invalid_multipart")))
-}
-
-fn ok<T>(data: T) -> ApiJson<T> {
-    Json(data)
-}
-
-async fn verify_account_captcha(state: &ApiState, token: Option<&str>) -> ApiResult<()> {
-    state.account_verifier.verify_account(token).await.map_err(ApiError)
-}
-
-async fn reject_disabled_registration(state: &ApiState) -> ApiResult<()> {
-    if !state.config.config_by_key(REGISTER_USER_KEY).await?.trim().eq_ignore_ascii_case("true") {
-        return Err(ApiError(crate::application::AppError::Forbidden(localized(
-            "errors.user.registration_disabled",
-        ))));
-    }
-    Ok(())
-}
-
-fn localized(key: &'static str) -> LocalizedError {
-    LocalizedError::new(key)
-}
-
-async fn new_admin_user(state: &ApiState, payload: UserPayload) -> ApiResult<NewUser> {
-    let mut user: NewUser = payload.into();
-    if user.password.trim().is_empty() {
-        user.password = state.config.config_by_key(INIT_PASSWORD_KEY).await?;
-    }
-    Ok(user)
-}
-
-fn new_sign_up_user(payload: SignUpPayload) -> NewUser {
-    NewUser {
-        nick_name: payload.username.clone(),
-        username: payload.username,
-        password: payload.password,
-        dept_id: None,
-        email: payload.email,
-        phonenumber: None,
-        sex: "2".into(),
-        status: "0".into(),
-        remark: None,
-        role_ids: vec!["2".into()],
-        post_ids: vec![],
-    }
-}
-
-impl AuthSessionResponse {
-    pub fn new(user: UserResponse, tokens: TokenPair) -> Self {
-        Self {
-            user,
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-        }
-    }
-}
-
-impl From<TokenPair> for TokenPairResponse {
-    fn from(value: TokenPair) -> Self {
-        Self {
-            access_token: value.access_token,
-            refresh_token: value.refresh_token,
-        }
-    }
-}
-
-fn bearer_token(headers: &HeaderMap) -> ApiResult<&str> {
-    let value = headers
-        .get(AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .ok_or(ApiError(crate::application::AppError::Unauthorized))?;
-
-    value.strip_prefix("Bearer ").ok_or(ApiError(crate::application::AppError::Unauthorized))
 }

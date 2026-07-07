@@ -24,6 +24,7 @@ export type TreeOption = { id: string; parentId: string; label: string };
 
 type TreeNode = TreeOption & { children: TreeNode[] };
 type TreeNodeState = { checked: boolean; indeterminate: boolean };
+type ParentById = ReadonlyMap<string, string>;
 
 type TreeSelectorProps = {
   items: TreeOption[];
@@ -93,16 +94,20 @@ export function TreeSelector({
 
 export function selectedWithAncestors(selected: string[], items: TreeOption[]) {
   const selectedSet = new Set(selected);
-  const parentById = new Map(items.map((item) => [item.id, item.parentId]));
-  selected.forEach((id) => addAncestors(id, parentById, selectedSet));
+  const parentById: ParentById = new Map(items.map((item) => [item.id, item.parentId]));
+
+  selected.forEach((id) => {
+    collectAncestors(id, parentById).forEach((parentId) => selectedSet.add(parentId));
+  });
+
   return items.map((item) => item.id).filter((id) => selectedSet.has(id));
 }
 
-function addAncestors(id: string, parentById: Map<string, string>, selected: Set<string>) {
+function collectAncestors(id: string, parentById: ParentById): string[] {
   const parentId = parentById.get(id);
-  if (!parentId || !parentById.has(parentId) || selected.has(parentId)) return;
-  selected.add(parentId);
-  addAncestors(parentId, parentById, selected);
+  if (!parentId || !parentById.has(parentId)) return [];
+
+  return [parentId, ...collectAncestors(parentId, parentById)];
 }
 
 function SelectorToolbar({

@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 
 use crate::application::{CaptchaError, CaptchaProvider, CaptchaResult, CaptchaSettings};
 
-use self::pow::solution_matches;
+use self::pow::{PowSolution, solution_matches};
 
 const PROVIDER_NAME: &str = "cap";
 const CHALLENGE_TOKEN_BYTES: usize = 25;
@@ -216,16 +216,27 @@ fn challenge(options: &CapOptions) -> CapChallengeSpec {
 
 fn solutions_match(token: &str, challenge: &CapChallengeSpec, solutions: &[u64]) -> bool {
     solutions.len() == challenge.c
-        && solutions
-            .iter()
-            .enumerate()
-            .all(|(index, solution)| solution_matches(token, index + 1, challenge, *solution))
+        && solutions.iter().enumerate().all(|(index, solution)| {
+            solution_matches(PowSolution {
+                token,
+                index: index + 1,
+                spec: challenge,
+                solution: *solution,
+            })
+        })
 }
 
 #[cfg(test)]
 pub(crate) fn solve_for_test(token: &str, spec: &CapChallengeSpec, index: usize) -> u64 {
     (0..u64::MAX)
-        .find(|candidate| solution_matches(token, index, spec, *candidate))
+        .find(|candidate| {
+            solution_matches(PowSolution {
+                token,
+                index,
+                spec,
+                solution: *candidate,
+            })
+        })
         .expect("test challenge must be solvable")
 }
 

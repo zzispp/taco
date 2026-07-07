@@ -16,9 +16,12 @@ serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
 storage.workspace = true
+sysinfo.workspace = true
 thiserror.workspace = true
 time.workspace = true
+tokio.workspace = true
 types.workspace = true
+nix.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

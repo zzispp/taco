@@ -56,6 +56,7 @@ pub struct RoleMenuRecord {
     pub menu_name: String,
     pub parent_id: String,
     pub path: String,
+    pub menu_type: String,
     pub icon: String,
     pub order_num: i64,
 }

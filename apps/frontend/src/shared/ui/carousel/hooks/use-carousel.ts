@@ -3,7 +3,6 @@
 import type { EmblaPluginType } from 'embla-carousel';
 import type { CarouselOptions, UseCarouselReturn } from '../types';
 
-import { useMemo } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 
 import { useTheme } from '@mui/material/styles';
@@ -12,6 +11,7 @@ import { useThumbs } from './use-thumbs';
 import { useCarouselDots } from './use-carousel-dots';
 import { useParallax } from './use-carousel-parallax';
 import { useCarouselArrows } from './use-carousel-arrows';
+import { useCarouselControls } from './use-carousel-controls';
 import { useCarouselProgress } from './use-carousel-progress';
 import { useCarouselAutoplay } from './use-carousel-autoplay';
 import { useCarouselAutoScroll } from './use-carousel-auto-scroll';
@@ -37,24 +37,7 @@ export function useCarousel(
 
   useParallax(mainApi, options?.parallax);
 
-  const controls = useMemo(() => {
-    if (pluginNames?.includes('autoplay')) {
-      return {
-        onClickPrev: () => autoplay.onClickPlay(arrows.onClickPrev),
-        onClickNext: () => autoplay.onClickPlay(arrows.onClickNext),
-      };
-    }
-    if (pluginNames?.includes('autoScroll')) {
-      return {
-        onClickPrev: () => autoScroll.onClickPlay(arrows.onClickPrev),
-        onClickNext: () => autoScroll.onClickPlay(arrows.onClickNext),
-      };
-    }
-    return {
-      onClickPrev: arrows.onClickPrev,
-      onClickNext: arrows.onClickNext,
-    };
-  }, [autoScroll, autoplay, arrows.onClickNext, arrows.onClickPrev, pluginNames]);
+  const controls = useCarouselControls({ pluginNames, arrows, autoplay, autoScroll });
 
   const mergedOptions = { ...options, ...mainApi?.internalEngine().options };
 

@@ -18,68 +18,88 @@ import { createShadowColor } from '../core/custom-shadows';
 
 export function applySettingsToTheme(
   theme: ThemeOptions,
-  settingsState?: SettingsState
+  settingsState: SettingsState
 ): ThemeOptions {
-  const {
-    direction,
-    fontFamily,
-    contrast = 'default',
-    primaryColor = 'default',
-  } = settingsState ?? {};
-
-  const isDefaultContrast = contrast === 'default';
-  const isDefaultPrimaryColor = primaryColor === 'default';
-
-  const lightPalette = theme.colorSchemes?.light?.palette as ColorSystem['palette'];
-
-  const primaryColorPalette = createPaletteChannel(primaryColorPresets[primaryColor]);
-  // const secondaryColorPalette = createPaletteChannel(secondaryColorPresets[primaryColor]);
-
-  const updateColorScheme = (schemeName: ThemeColorScheme) => {
-    const currentScheme: ColorSchemeOptionsExtended = theme.colorSchemes?.[schemeName] ?? {};
-
-    const updatedPalette = {
-      ...currentScheme?.palette,
-      ...(!isDefaultPrimaryColor && {
-        primary: primaryColorPalette,
-        // secondary: secondaryColorPalette,
-      }),
-      ...(schemeName === 'light' && {
-        background: {
-          ...lightPalette?.background,
-          ...(!isDefaultContrast && {
-            default: lightPalette.grey[200],
-            defaultChannel: hexToRgbChannel(lightPalette.grey[200]),
-          }),
-        },
-      }),
-    };
-
-    const updatedCustomShadows = {
-      ...currentScheme?.customShadows,
-      ...(!isDefaultPrimaryColor && {
-        primary: createShadowColor(primaryColorPalette.mainChannel),
-        // secondary: createShadowColor(secondaryColorPalette.mainChannel),
-      }),
-    };
-
-    return {
-      ...currentScheme,
-      palette: updatedPalette,
-      customShadows: updatedCustomShadows,
-    };
-  };
+  const options = themeUpdateOptions(theme, settingsState);
 
   return {
     ...theme,
-    direction,
+    direction: options.direction,
     colorSchemes: {
-      light: updateColorScheme('light'),
-      dark: updateColorScheme('dark'),
+      light: updateColorScheme(options, 'light'),
+      dark: updateColorScheme(options, 'dark'),
     },
     typography: {
       ...theme.typography,
-      fontFamily: setFont(fontFamily),
+      fontFamily: setFont(options.fontFamily),
     },
+  };
+}
+
+type ThemeUpdateOptions = {
+  theme: ThemeOptions;
+  direction: SettingsState['direction'];
+  fontFamily: SettingsState['fontFamily'];
+  isDefaultContrast: boolean;
+  isDefaultPrimaryColor: boolean;
+  lightPalette: ColorSystem['palette'];
+  primaryColorPalette: ReturnType<typeof createPaletteChannel>;
+};
+
+function themeUpdateOptions(theme: ThemeOptions, settingsState: SettingsState): ThemeUpdateOptions {
+  const { direction, fontFamily, contrast, primaryColor } = settingsState;
+
+  return {
+    theme,
+    direction,
+    fontFamily,
+    isDefaultContrast: contrast === 'default',
+    isDefaultPrimaryColor: primaryColor === 'default',
+    lightPalette: theme.colorSchemes?.light?.palette as ColorSystem['palette'],
+    primaryColorPalette: createPaletteChannel(primaryColorPresets[primaryColor]),
+  };
+}
+
+function updateColorScheme(options: ThemeUpdateOptions, schemeName: ThemeColorScheme) {
+  const currentScheme: ColorSchemeOptionsExtended = options.theme.colorSchemes?.[schemeName] ?? {};
+
+  return {
+    ...currentScheme,
+    palette: updatedPalette(options, currentScheme, schemeName),
+    customShadows: updatedCustomShadows(options, currentScheme),
+  };
+}
+
+function updatedPalette(
+  options: ThemeUpdateOptions,
+  currentScheme: ColorSchemeOptionsExtended,
+  schemeName: ThemeColorScheme
+) {
+  return {
+    ...currentScheme?.palette,
+    ...(!options.isDefaultPrimaryColor && { primary: options.primaryColorPalette }),
+    ...(schemeName === 'light' && { background: lightBackground(options) }),
+  };
+}
+
+function lightBackground(options: ThemeUpdateOptions) {
+  return {
+    ...options.lightPalette?.background,
+    ...(!options.isDefaultContrast && {
+      default: options.lightPalette.grey[200],
+      defaultChannel: hexToRgbChannel(options.lightPalette.grey[200]),
+    }),
+  };
+}
+
+function updatedCustomShadows(
+  options: ThemeUpdateOptions,
+  currentScheme: ColorSchemeOptionsExtended
+) {
+  return {
+    ...currentScheme?.customShadows,
+    ...(!options.isDefaultPrimaryColor && {
+      primary: createShadowColor(options.primaryColorPalette.mainChannel),
+    }),
   };
 }

@@ -110,7 +110,7 @@ pub(super) fn sanitize_profile_update(input: ProfileUpdate) -> ProfileUpdate {
 }
 
 fn validate_username(username: &str) -> AppResult<()> {
-    reject_length("username", username, USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH)?;
+    reject_length(username, LengthRule::new("username", USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH))?;
     if !username.chars().all(is_username_character) {
         return Err(AppError::InvalidInput(localized("errors.user.username_chars")));
     }
@@ -135,7 +135,7 @@ fn validate_optional_phone(phone: Option<&str>) -> AppResult<()> {
 }
 
 pub(super) fn validate_password(password: &str, policy: &PasswordPolicy, username: Option<&str>) -> AppResult<()> {
-    reject_length("password", password, policy.min_length, policy.max_length)?;
+    reject_length(password, LengthRule::new("password", policy.min_length, policy.max_length))?;
     reject_password_character_rules(password, policy)?;
     reject_password_contains_username(password, username, policy)
 }
@@ -164,13 +164,26 @@ fn reject_password_contains_username(password: &str, username: Option<&str>, pol
     Ok(())
 }
 
-fn reject_length(field: &str, value: &str, min: usize, max: usize) -> AppResult<()> {
+#[derive(Clone, Copy)]
+struct LengthRule {
+    field: &'static str,
+    min: usize,
+    max: usize,
+}
+
+impl LengthRule {
+    const fn new(field: &'static str, min: usize, max: usize) -> Self {
+        Self { field, min, max }
+    }
+}
+
+fn reject_length(value: &str, rule: LengthRule) -> AppResult<()> {
     let length = value.chars().count();
-    if length < min || length > max {
+    if length < rule.min || length > rule.max {
         return Err(AppError::InvalidInput(
-            localized_param("errors.validation.length_between", "field", field)
-                .with_param("min", min.to_string())
-                .with_param("max", max.to_string()),
+            localized_param("errors.validation.length_between", "field", rule.field)
+                .with_param("min", rule.min.to_string())
+                .with_param("max", rule.max.to_string()),
         ));
     }
     Ok(())

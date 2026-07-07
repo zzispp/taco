@@ -9,6 +9,8 @@ use types::http::{ApiErrorKind, ApiErrorResponse, current_locale, localized_erro
 use crate::application::SystemError;
 use rbac::application::RbacError;
 
+const RBAC_UNAUTHORIZED_INFRASTRUCTURE_ERROR: &str = "infra.rbac.unexpected_unauthorized";
+
 #[derive(Debug)]
 pub struct SystemApiError(pub SystemError);
 
@@ -21,7 +23,7 @@ impl From<SystemError> for SystemApiError {
 impl From<RbacError> for SystemApiError {
     fn from(value: RbacError) -> Self {
         Self(match value {
-            RbacError::Unauthorized => SystemError::Infrastructure("unauthorized".into()),
+            RbacError::Unauthorized => SystemError::Infrastructure(RBAC_UNAUTHORIZED_INFRASTRUCTURE_ERROR.into()),
             RbacError::Forbidden => SystemError::Forbidden(LocalizedError::new("errors.common.forbidden")),
             RbacError::NotFound => SystemError::NotFound,
             RbacError::Conflict(message) => SystemError::Conflict(message),

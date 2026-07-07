@@ -153,66 +153,12 @@ export function filledStyles(theme: Theme, colorKey: ColorKey, options?: StyleOp
     return {};
   }
 
-  if (colorKey === 'default') {
-    const base: CSSObject = {
-      color: theme.vars.palette.grey[800],
-      backgroundColor: theme.vars.palette.grey[300],
-    };
-
-    const hover: CSSObject = getHoverStyles(options?.hover, {
-      backgroundColor: theme.vars.palette.grey[400],
-    });
-
-    return { ...base, ...hover };
-  }
-
-  if (colorKey === 'inherit') {
-    const base: CSSObject = {
-      color: theme.vars.palette.common.white,
-      backgroundColor: theme.vars.palette.grey[800],
-      ...theme.applyStyles('dark', {
-        color: theme.vars.palette.grey[800],
-        backgroundColor: theme.vars.palette.common.white,
-      }),
-    };
-
-    const hover: CSSObject = getHoverStyles(options?.hover, {
-      backgroundColor: theme.vars.palette.grey[700],
-      ...theme.applyStyles('dark', {
-        backgroundColor: theme.vars.palette.grey[400],
-      }),
-    });
-
-    return { ...base, ...hover };
-  }
-
+  if (colorKey === 'default') return filledDefaultStyles(theme, options);
+  if (colorKey === 'inherit') return filledInheritStyles(theme, options);
   if (colorKey === 'white' || colorKey === 'black') {
-    const base: CSSObject = {
-      color: `${theme.vars.palette.common[colorKey === 'white' ? 'black' : 'white']}`,
-      backgroundColor: theme.vars.palette.common[colorKey],
-    };
-
-    const hover: CSSObject = getHoverStyles(options?.hover, {
-      backgroundColor: varAlpha(
-        `${theme.vars.palette.common[`${colorKey}Channel`]}`,
-        theme.vars.opacity.filled.commonHoverBg
-      ),
-    });
-
-    return { ...base, ...hover };
+    return filledCommonStyles(theme, colorKey, options);
   }
-
-  const colorPalette: Record<'base' | 'hover', CSSObject> = {
-    base: {
-      color: theme.vars.palette[colorKey].contrastText,
-      backgroundColor: theme.vars.palette[colorKey].main,
-    },
-    hover: getHoverStyles(options?.hover, {
-      backgroundColor: theme.vars.palette[colorKey].dark,
-    }),
-  };
-
-  return { ...colorPalette.base, ...colorPalette.hover };
+  return filledPaletteStyles(theme, colorKey, options);
 }
 
 export function softStyles(theme: Theme, colorKey: ColorKey, options?: StyleOptions): CSSObject {
@@ -223,62 +169,88 @@ export function softStyles(theme: Theme, colorKey: ColorKey, options?: StyleOpti
     return {};
   }
 
-  if (colorKey === 'default') {
-    return {
-      ...filledStyles(theme, 'default', options),
-      boxShadow: 'none',
-    };
-  }
+  if (colorKey === 'default') return { ...filledStyles(theme, 'default', options), boxShadow: 'none' };
+  if (colorKey === 'inherit') return softInheritStyles(theme, options);
+  if (colorKey === 'white' || colorKey === 'black') return softCommonStyles(theme, colorKey, options);
+  return softPaletteStyles(theme, colorKey, options);
+}
 
-  if (colorKey === 'inherit') {
-    const base: CSSObject = {
-      boxShadow: 'none',
-      backgroundColor: varAlpha(theme.vars.palette.grey['500Channel'], theme.vars.opacity.soft.bg),
-    };
+function filledDefaultStyles(theme: Theme, options?: StyleOptions): CSSObject {
+  return {
+    color: theme.vars.palette.grey[800],
+    backgroundColor: theme.vars.palette.grey[300],
+    ...getHoverStyles(options?.hover, { backgroundColor: theme.vars.palette.grey[400] }),
+  };
+}
 
-    const hover: CSSObject = getHoverStyles(options?.hover, {
+function filledInheritStyles(theme: Theme, options?: StyleOptions): CSSObject {
+  return {
+    color: theme.vars.palette.common.white,
+    backgroundColor: theme.vars.palette.grey[800],
+    ...theme.applyStyles('dark', {
+      color: theme.vars.palette.grey[800],
+      backgroundColor: theme.vars.palette.common.white,
+    }),
+    ...getHoverStyles(options?.hover, {
+      backgroundColor: theme.vars.palette.grey[700],
+      ...theme.applyStyles('dark', { backgroundColor: theme.vars.palette.grey[400] }),
+    }),
+  };
+}
+
+function filledCommonStyles(theme: Theme, colorKey: 'white' | 'black', options?: StyleOptions): CSSObject {
+  return {
+    color: theme.vars.palette.common[colorKey === 'white' ? 'black' : 'white'],
+    backgroundColor: theme.vars.palette.common[colorKey],
+    ...getHoverStyles(options?.hover, {
       backgroundColor: varAlpha(
-        theme.vars.palette.grey['500Channel'],
-        theme.vars.opacity.soft.hoverBg
+        theme.vars.palette.common[`${colorKey}Channel`],
+        theme.vars.opacity.filled.commonHoverBg
       ),
-    });
+    }),
+  };
+}
 
-    return { ...base, ...hover };
-  }
+function filledPaletteStyles(theme: Theme, colorKey: PaletteColorKey, options?: StyleOptions): CSSObject {
+  return {
+    color: theme.vars.palette[colorKey].contrastText,
+    backgroundColor: theme.vars.palette[colorKey].main,
+    ...getHoverStyles(options?.hover, { backgroundColor: theme.vars.palette[colorKey].dark }),
+  };
+}
 
-  if (colorKey === 'white' || colorKey === 'black') {
-    const base: CSSObject = {
-      boxShadow: 'none',
-      color: theme.vars.palette.common[colorKey],
-      backgroundColor: varAlpha('currentColor', theme.vars.opacity.soft.commonBg),
-    };
+function softInheritStyles(theme: Theme, options?: StyleOptions): CSSObject {
+  return {
+    boxShadow: 'none',
+    backgroundColor: varAlpha(theme.vars.palette.grey['500Channel'], theme.vars.opacity.soft.bg),
+    ...getHoverStyles(options?.hover, {
+      backgroundColor: varAlpha(theme.vars.palette.grey['500Channel'], theme.vars.opacity.soft.hoverBg),
+    }),
+  };
+}
 
-    const hover: CSSObject = getHoverStyles(options?.hover, {
+function softCommonStyles(theme: Theme, colorKey: 'white' | 'black', options?: StyleOptions): CSSObject {
+  return {
+    boxShadow: 'none',
+    color: theme.vars.palette.common[colorKey],
+    backgroundColor: varAlpha('currentColor', theme.vars.opacity.soft.commonBg),
+    ...getHoverStyles(options?.hover, {
       backgroundColor: varAlpha('currentColor', theme.vars.opacity.soft.commonHoverBg),
-    });
+    }),
+  };
+}
 
-    return { ...base, ...hover };
-  }
-
-  const colorPalette: Record<'base' | 'hover', CSSObject> = {
-    base: {
-      boxShadow: 'none',
-      color: theme.vars.palette[colorKey].dark,
-      backgroundColor: varAlpha(
-        theme.vars.palette[colorKey].mainChannel,
-        theme.vars.opacity.soft.bg
-      ),
-      ...theme.applyStyles('dark', {
-        color: theme.vars.palette[colorKey].light,
-      }),
-    },
-    hover: getHoverStyles(options?.hover, {
+function softPaletteStyles(theme: Theme, colorKey: PaletteColorKey, options?: StyleOptions): CSSObject {
+  return {
+    boxShadow: 'none',
+    color: theme.vars.palette[colorKey].dark,
+    backgroundColor: varAlpha(theme.vars.palette[colorKey].mainChannel, theme.vars.opacity.soft.bg),
+    ...theme.applyStyles('dark', { color: theme.vars.palette[colorKey].light }),
+    ...getHoverStyles(options?.hover, {
       backgroundColor: varAlpha(
         theme.vars.palette[colorKey].mainChannel,
         theme.vars.opacity.soft.hoverBg
       ),
     }),
   };
-
-  return { ...colorPalette.base, ...colorPalette.hover };
 }

@@ -5,6 +5,10 @@ use std::{
 
 use sqlx::{PgPool, postgres::PgPoolOptions, query, query_scalar};
 
+mod seed_assertions;
+
+use seed_assertions::assert_seed_data_exists;
+
 use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, refresh, reset, status, up};
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
@@ -242,95 +246,6 @@ async fn insert_missing_local_migration(pool: &PgPool) {
         .execute(pool)
         .await
         .unwrap();
-}
-
-async fn assert_seed_data_exists(pool: &PgPool) {
-    assert_eq!(table_count(pool, "sys_role").await, 2);
-    assert_eq!(table_count(pool, "sys_menu").await, 43);
-    assert_eq!(table_count(pool, "sys_dept").await, 10);
-    assert_eq!(table_count(pool, "sys_post").await, 4);
-    assert_eq!(table_count(pool, "sys_dict_type").await, 5);
-    assert_eq!(table_count(pool, "sys_config").await, 14);
-    assert_eq!(public_config_count(pool).await, 5);
-    let captcha = captcha_config(pool).await;
-    assert_eq!(captcha["provider"], "cap");
-    assert_eq!(captcha["providers"]["cap"]["challenge_difficulty"], 4);
-    assert_eq!(captcha["providers"]["cloudflare_turnstile"]["site_key"], "");
-    assert_eq!(captcha["providers"]["cloudflare_turnstile"]["secret_key"], "");
-    assert_eq!(token_config(pool).await["refresh_token_ttl_seconds"], 604800);
-    assert_eq!(password_policy(pool).await["min_length"], 8);
-    assert_eq!(avatar_config(pool).await["max_bytes"], 2097152);
-    assert_eq!(export_batch_config(pool).await["page_size"], 100);
-    assert_eq!(site_display_config(pool).await["site_name"], "taco");
-    assert_eq!(initial_password(pool).await, "12345678");
-    assert_eq!(mode_theme(pool).await, "theme-light");
-}
-
-async fn initial_password(pool: &PgPool) -> String {
-    query_scalar::<_, String>("SELECT config_value FROM sys_config WHERE config_key = 'sys.user.initPassword'")
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-async fn mode_theme(pool: &PgPool) -> String {
-    query_scalar::<_, String>("SELECT config_value FROM sys_config WHERE config_key = 'sys.index.modeTheme'")
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-async fn public_config_count(pool: &PgPool) -> i64 {
-    query_scalar::<_, i64>("SELECT COUNT(*) FROM sys_config WHERE public_read = TRUE")
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-async fn captcha_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.account.captchaConfig").await
-}
-
-async fn token_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.auth.tokenConfig").await
-}
-
-async fn password_policy(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.user.passwordPolicy").await
-}
-
-async fn avatar_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.upload.avatarConfig").await
-}
-
-async fn export_batch_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.export.batchConfig").await
-}
-
-async fn site_display_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.site.displayConfig").await
-}
-
-async fn config_json(pool: &PgPool, key: &str) -> serde_json::Value {
-    let value: String = query_scalar("SELECT config_value FROM sys_config WHERE config_key = $1")
-        .bind(key)
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    serde_json::from_str(&value).unwrap()
-}
-
-async fn table_count(pool: &PgPool, table: &str) -> i64 {
-    let sql = match table {
-        "sys_role" => "SELECT COUNT(*) FROM sys_role",
-        "sys_menu" => "SELECT COUNT(*) FROM sys_menu",
-        "sys_dept" => "SELECT COUNT(*) FROM sys_dept",
-        "sys_post" => "SELECT COUNT(*) FROM sys_post",
-        "sys_dict_type" => "SELECT COUNT(*) FROM sys_dict_type",
-        "sys_config" => "SELECT COUNT(*) FROM sys_config",
-        _ => panic!("unexpected table: {table}"),
-    };
-    query_scalar::<_, i64>(sql).fetch_one(pool).await.unwrap()
 }
 
 fn test_database_name() -> String {

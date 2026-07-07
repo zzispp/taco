@@ -59,7 +59,7 @@ export const allLangs: LangOption[] = [
   },
   {
     value: 'cn',
-    label: '中文',
+    label: 'Chinese',
     countryCode: 'CN',
     adapterLocale: 'zh-cn',
     numberFormat: { code: 'zh-CN', currency: 'CNY' },
@@ -69,7 +69,7 @@ export const allLangs: LangOption[] = [
   },
   {
     value: 'tw',
-    label: '繁體中文',
+    label: 'Traditional Chinese',
     countryCode: 'TW',
     adapterLocale: 'zh-tw',
     numberFormat: { code: 'zh-TW', currency: 'TWD' },

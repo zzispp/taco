@@ -20,7 +20,7 @@ import {
   outlinedInputStyles,
   filledInputVariants,
   outlinedInputVariants,
-} from './text-field';
+} from './text-field-common';
 
 // ----------------------------------------------------------------------
 

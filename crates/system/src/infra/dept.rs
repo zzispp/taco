@@ -142,7 +142,15 @@ impl DeptQueries {
             .await?;
         ensure_rows(result.rows_affected())?;
         if current.parent_id != input.parent_id {
-            update_child_ancestors(self.database.pool(), id, &old_prefix, &new_prefix).await?;
+            update_child_ancestors(
+                self.database.pool(),
+                ChildAncestorsUpdate {
+                    id,
+                    old_prefix: &old_prefix,
+                    new_prefix: &new_prefix,
+                },
+            )
+            .await?;
         }
         self.find(id).await?.ok_or(StorageError::NotFound)
     }
@@ -218,7 +226,13 @@ async fn exists(pool: &sqlx::PgPool, sql: &str, id: &str) -> StorageResult<bool>
     query_scalar::<_, bool>(sql).bind(id).fetch_one(pool).await.map_err(StorageError::from)
 }
 
-async fn update_child_ancestors(pool: &sqlx::PgPool, id: &str, old_prefix: &str, new_prefix: &str) -> StorageResult<()> {
+struct ChildAncestorsUpdate<'a> {
+    id: &'a str,
+    old_prefix: &'a str,
+    new_prefix: &'a str,
+}
+
+async fn update_child_ancestors(pool: &sqlx::PgPool, update: ChildAncestorsUpdate<'_>) -> StorageResult<()> {
     query(
         r#"
         UPDATE sys_dept
@@ -227,9 +241,9 @@ async fn update_child_ancestors(pool: &sqlx::PgPool, id: &str, old_prefix: &str,
         WHERE del_flag = '0' AND (',' || ancestors || ',') LIKE '%,' || $1 || ',%'
         "#,
     )
-    .bind(id)
-    .bind(format!("{old_prefix},{id}"))
-    .bind(format!("{new_prefix},{id}"))
+    .bind(update.id)
+    .bind(format!("{},{}", update.old_prefix, update.id))
+    .bind(format!("{},{}", update.new_prefix, update.id))
     .execute(pool)
     .await
     .map(|_| ())
