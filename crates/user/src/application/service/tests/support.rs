@@ -24,9 +24,15 @@ pub(super) fn user_filter(page: u64, page_size: u64) -> crate::application::User
     crate::application::UserListFilter {
         page: PageRequest { page, page_size },
         username: None,
+        nick_name: None,
         phonenumber: None,
+        email: None,
+        sex: None,
         status: None,
         dept_id: None,
+        dept_name: None,
+        post_ids: vec![],
+        role_ids: vec![],
         begin_time: None,
         end_time: None,
     }

@@ -22,6 +22,8 @@ import { updateAccountProfile, changeAccountPassword } from 'src/features/user-p
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^1[3-9]\d{9}$/;
 
+type AdminTranslate = ReturnType<typeof useTranslate>['t'];
+
 export function BasicProfileForm({ user, onSaved }: BasicProfileFormProps) {
   const { t } = useTranslate('admin');
   const [form, setForm] = useState<ProfileInput>(profileForm(user));
@@ -56,6 +58,19 @@ export function BasicProfileForm({ user, onSaved }: BasicProfileFormProps) {
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 560 }}>
+      <BasicProfileFields form={form} t={t} updateField={updateField} />
+      <Box>
+        <Button variant="contained" loading={loading} onClick={handleSubmit}>
+          {t('common.save')}
+        </Button>
+      </Box>
+    </Stack>
+  );
+}
+
+function BasicProfileFields({ form, t, updateField }: BasicProfileFieldsProps) {
+  return (
+    <>
       <TextField
         label={t('fields.nickName')}
         value={form.nick_name}
@@ -83,12 +98,7 @@ export function BasicProfileForm({ user, onSaved }: BasicProfileFormProps) {
         <MenuItem value="1">{t('common.female')}</MenuItem>
         <MenuItem value="2">{t('common.unknown')}</MenuItem>
       </TextField>
-      <Box>
-        <Button variant="contained" loading={loading} onClick={handleSubmit}>
-          {t('common.save')}
-        </Button>
-      </Box>
-    </Stack>
+    </>
   );
 }
 
@@ -102,7 +112,7 @@ export function PasswordProfileForm({ username, passwordPolicy }: PasswordProfil
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    const error = passwordFormError(form, t, username, passwordPolicy);
+    const error = passwordFormError(form, { t, username, policy: passwordPolicy });
     if (error) {
       toast.error(error);
       return;
@@ -164,7 +174,7 @@ function passwordForm(): PasswordFormState {
   return { old_password: '', new_password: '', confirm_password: '' };
 }
 
-function profileFormError(form: ProfileInput, t: ReturnType<typeof useTranslate>['t']) {
+function profileFormError(form: ProfileInput, t: AdminTranslate) {
   if (!form.nick_name.trim() || !form.email.trim()) return t('profile.requiredProfileFields');
   if (!EMAIL_PATTERN.test(form.email.trim())) return t('profile.invalidEmail');
   if (form.phonenumber?.trim() && !PHONE_PATTERN.test(form.phonenumber.trim())) {
@@ -173,22 +183,20 @@ function profileFormError(form: ProfileInput, t: ReturnType<typeof useTranslate>
   return '';
 }
 
-function passwordFormError(
-  form: PasswordFormState,
-  t: ReturnType<typeof useTranslate>['t'],
-  username: string,
-  policy?: PasswordPolicy
-) {
+function passwordFormError(form: PasswordFormState, context: PasswordValidationContext) {
+  const { t, username, policy } = context;
   if (!form.old_password || !form.new_password || !form.confirm_password)
     return t('profile.passwordRequired');
-  const parsed = createPasswordSchema(validationMessages(t), policy, username).safeParse(form.new_password);
+  const parsed = createPasswordSchema(validationMessages(t), policy, username).safeParse(
+    form.new_password
+  );
   if (!parsed.success) return parsed.error.issues[0]?.message ?? passwordRuleText(t, policy);
   if (form.old_password === form.new_password) return t('profile.passwordSame');
   if (form.new_password !== form.confirm_password) return t('profile.passwordMismatch');
   return '';
 }
 
-function validationMessages(t: ReturnType<typeof useTranslate>['t']) {
+function validationMessages(t: AdminTranslate) {
   return {
     usernameLength: (min: number, max: number) => t('profile.usernameRuleDynamic', { min, max }),
     usernamePattern: t('profile.usernamePattern'),
@@ -204,7 +212,7 @@ function validationMessages(t: ReturnType<typeof useTranslate>['t']) {
   };
 }
 
-function passwordRuleText(t: ReturnType<typeof useTranslate>['t'], policy?: PasswordPolicy) {
+function passwordRuleText(t: AdminTranslate, policy?: PasswordPolicy) {
   if (!policy) return t('profile.passwordRule');
   return t('profile.passwordRuleDynamic', { min: policy.min_length, max: policy.max_length });
 }
@@ -214,9 +222,21 @@ type BasicProfileFormProps = {
   onSaved: () => Promise<void>;
 };
 
+type BasicProfileFieldsProps = {
+  form: ProfileInput;
+  t: AdminTranslate;
+  updateField: (field: keyof ProfileInput, value: string) => void;
+};
+
 type PasswordProfileFormProps = {
   username: string;
   passwordPolicy?: PasswordPolicy;
+};
+
+type PasswordValidationContext = {
+  t: AdminTranslate;
+  username: string;
+  policy?: PasswordPolicy;
 };
 
 type PasswordFormState = {

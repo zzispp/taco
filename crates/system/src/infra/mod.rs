@@ -1,5 +1,6 @@
 mod config;
 mod dept;
+mod dept_sql;
 mod dict;
 mod mapping;
 mod metrics;

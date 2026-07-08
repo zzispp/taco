@@ -9,9 +9,9 @@ use crate::{
 };
 use types::rbac::DataScopeFilter;
 
-use super::{mapping::dept, page, record::DeptRecord};
+use super::{dept_sql, mapping::dept, page, record::DeptRecord};
 
-const COLUMNS: &str = "dept_id,parent_id,ancestors,dept_name,order_num,leader,phone,email,status,create_time::text AS create_time";
+pub(super) const COLUMNS: &str = "dept_id,parent_id,ancestors,dept_name,order_num,leader,phone,email,status,create_time::text AS create_time";
 
 #[derive(Clone)]
 pub struct DeptQueries {
@@ -24,15 +24,21 @@ impl DeptQueries {
     }
 
     pub async fn page(&self, filter: DeptListFilter) -> StorageResult<Page<Dept>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(total_sql()))
+        let total = query_scalar::<_, i64>(AssertSqlSafe(dept_sql::total_sql()))
             .bind(&filter.dept_name)
+            .bind(&filter.leader)
+            .bind(&filter.phone)
+            .bind(&filter.email)
             .bind(&filter.status)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, DeptRecord>(AssertSqlSafe(page_sql()))
+        let items = query_as::<_, DeptRecord>(AssertSqlSafe(dept_sql::page_sql()))
             .bind(&filter.dept_name)
+            .bind(&filter.leader)
+            .bind(&filter.phone)
+            .bind(&filter.email)
             .bind(&filter.status)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
@@ -44,8 +50,11 @@ impl DeptQueries {
     }
 
     pub async fn page_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> StorageResult<Page<Dept>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(scoped_total_sql()))
+        let total = query_scalar::<_, i64>(AssertSqlSafe(dept_sql::scoped_total_sql()))
             .bind(&filter.dept_name)
+            .bind(&filter.leader)
+            .bind(&filter.phone)
+            .bind(&filter.email)
             .bind(&filter.status)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
@@ -54,8 +63,11 @@ impl DeptQueries {
             .bind(&scope.dept_ids)
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, DeptRecord>(AssertSqlSafe(scoped_page_sql()))
+        let items = query_as::<_, DeptRecord>(AssertSqlSafe(dept_sql::scoped_page_sql()))
             .bind(&filter.dept_name)
+            .bind(&filter.leader)
+            .bind(&filter.phone)
+            .bind(&filter.email)
             .bind(&filter.status)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
@@ -70,8 +82,11 @@ impl DeptQueries {
     }
 
     pub async fn list(&self, filter: DeptListFilter) -> StorageResult<Vec<Dept>> {
-        query_as::<_, DeptRecord>(AssertSqlSafe(list_sql()))
+        query_as::<_, DeptRecord>(AssertSqlSafe(dept_sql::list_sql()))
             .bind(&filter.dept_name)
+            .bind(&filter.leader)
+            .bind(&filter.phone)
+            .bind(&filter.email)
             .bind(&filter.status)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
@@ -82,8 +97,11 @@ impl DeptQueries {
     }
 
     pub async fn list_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> StorageResult<Vec<Dept>> {
-        query_as::<_, DeptRecord>(AssertSqlSafe(scoped_list_sql()))
+        query_as::<_, DeptRecord>(AssertSqlSafe(dept_sql::scoped_list_sql()))
             .bind(&filter.dept_name)
+            .bind(&filter.leader)
+            .bind(&filter.phone)
+            .bind(&filter.email)
             .bind(&filter.status)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
@@ -107,7 +125,7 @@ impl DeptQueries {
 
     pub async fn create(&self, input: DeptInput) -> StorageResult<Dept> {
         let id = self.database.next_id();
-        query(insert_sql())
+        query(dept_sql::insert_sql())
             .bind(&id)
             .bind(&input.parent_id)
             .bind(ancestors(self.database.pool(), &input.parent_id).await?)
@@ -128,7 +146,7 @@ impl DeptQueries {
         let next_ancestors = ancestors(self.database.pool(), &input.parent_id).await?;
         let old_prefix = current.ancestors.clone();
         let new_prefix = next_ancestors.clone();
-        let result = query(update_sql())
+        let result = query(dept_sql::update_sql())
             .bind(id)
             .bind(&input.parent_id)
             .bind(&next_ancestors)
@@ -248,47 +266,6 @@ async fn update_child_ancestors(pool: &sqlx::PgPool, update: ChildAncestorsUpdat
     .await
     .map(|_| ())
     .map_err(StorageError::from)
-}
-
-fn insert_sql() -> &'static str {
-    "INSERT INTO sys_dept (dept_id,parent_id,ancestors,dept_name,order_num,leader,phone,email,status,create_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"
-}
-
-fn update_sql() -> &'static str {
-    "UPDATE sys_dept SET parent_id=$2,ancestors=$3,dept_name=$4,order_num=$5,leader=$6,phone=$7,email=$8,status=$9,update_time=CURRENT_TIMESTAMP WHERE dept_id=$1 AND del_flag='0'"
-}
-
-fn predicate() -> &'static str {
-    "del_flag='0' AND ($1::text IS NULL OR dept_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR status=$2) AND ($3::text IS NULL OR create_time::date >= $3::date) AND ($4::text IS NULL OR create_time::date <= $4::date)"
-}
-
-fn list_sql() -> String {
-    format!("SELECT {COLUMNS} FROM sys_dept WHERE {} ORDER BY parent_id ASC, order_num ASC", predicate())
-}
-fn page_sql() -> String {
-    format!("{} LIMIT $5 OFFSET $6", list_sql())
-}
-fn total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_dept WHERE {}", predicate())
-}
-fn scoped_list_sql() -> String {
-    format!(
-        "SELECT {COLUMNS} FROM sys_dept d WHERE {} AND {} ORDER BY parent_id ASC, order_num ASC",
-        scoped_filter_predicate(),
-        scoped_predicate()
-    )
-}
-fn scoped_page_sql() -> String {
-    format!("{} LIMIT $8 OFFSET $9", scoped_list_sql())
-}
-fn scoped_total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_dept d WHERE {} AND {}", scoped_filter_predicate(), scoped_predicate())
-}
-fn scoped_filter_predicate() -> &'static str {
-    "d.del_flag='0' AND ($1::text IS NULL OR d.dept_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR d.status=$2) AND ($3::text IS NULL OR d.create_time::date >= $3::date) AND ($4::text IS NULL OR d.create_time::date <= $4::date)"
-}
-fn scoped_predicate() -> &'static str {
-    "($5='1' OR ($5='2' AND d.dept_id = ANY($7)) OR ($5='3' AND $6::text IS NOT NULL AND d.dept_id=$6) OR ($5='4' AND $6::text IS NOT NULL AND (d.dept_id=$6 OR (',' || d.ancestors || ',') LIKE '%,' || $6 || ',%')) OR ($5='5' AND $6::text IS NOT NULL AND d.dept_id=$6))"
 }
 
 fn ensure_rows(rows: u64) -> StorageResult<()> {

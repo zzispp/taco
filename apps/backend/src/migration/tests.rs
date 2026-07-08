@@ -13,7 +13,7 @@ use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, re
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
 const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
-const MIGRATION_TOTAL: usize = 11;
+const MIGRATION_TOTAL: usize = 12;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);

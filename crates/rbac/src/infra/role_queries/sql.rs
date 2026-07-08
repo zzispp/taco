@@ -48,7 +48,7 @@ pub(super) fn role_page(items: Vec<RoleRecord>, total: i64, filter: RoleListFilt
 
 pub(super) fn role_page_sql() -> String {
     format!(
-        "SELECT {ROLE_COLUMNS} FROM sys_role r WHERE {} ORDER BY r.role_sort ASC LIMIT $6 OFFSET $7",
+        "SELECT {ROLE_COLUMNS} FROM sys_role r WHERE {} ORDER BY r.role_sort ASC LIMIT $7 OFFSET $8",
         role_where()
     )
 }
@@ -59,7 +59,7 @@ pub(super) fn role_total_sql() -> String {
 
 pub(super) fn role_scoped_page_sql() -> String {
     format!(
-        "SELECT DISTINCT {ROLE_COLUMNS} FROM sys_role r LEFT JOIN sys_user_role ur ON ur.role_id=r.role_id LEFT JOIN sys_user u ON u.user_id=ur.user_id LEFT JOIN sys_dept d ON d.dept_id=u.dept_id WHERE {} AND {} ORDER BY r.role_sort ASC LIMIT $10 OFFSET $11",
+        "SELECT DISTINCT {ROLE_COLUMNS} FROM sys_role r LEFT JOIN sys_user_role ur ON ur.role_id=r.role_id LEFT JOIN sys_user u ON u.user_id=ur.user_id LEFT JOIN sys_dept d ON d.dept_id=u.dept_id WHERE {} AND {} ORDER BY r.role_sort ASC LIMIT $11 OFFSET $12",
         role_where(),
         role_scope_where()
     )
@@ -89,11 +89,11 @@ pub(super) fn scoped_user_ids_sql() -> &'static str {
 }
 
 fn role_where() -> &'static str {
-    "r.del_flag='0' AND ($1::text IS NULL OR r.role_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR r.role_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR r.status=$3) AND ($4::text IS NULL OR r.create_time::date >= $4::date) AND ($5::text IS NULL OR r.create_time::date <= $5::date)"
+    "r.del_flag='0' AND ($1::text IS NULL OR r.role_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR r.role_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR r.status=$3) AND ($4::bool IS NULL OR r.system=$4) AND ($5::text IS NULL OR r.create_time::date >= $5::date) AND ($6::text IS NULL OR r.create_time::date <= $6::date)"
 }
 
 fn role_scope_where() -> &'static str {
-    "($6='1' OR ($6='2' AND u.dept_id = ANY($9)) OR ($6='3' AND $8::text IS NOT NULL AND u.dept_id=$8) OR ($6='4' AND $8::text IS NOT NULL AND (u.dept_id=$8 OR (',' || d.ancestors || ',') LIKE '%,' || $8 || ',%')) OR ($6='5' AND u.user_id=$7))"
+    "($7='1' OR ($7='2' AND u.dept_id = ANY($10)) OR ($7='3' AND $9::text IS NOT NULL AND u.dept_id=$9) OR ($7='4' AND $9::text IS NOT NULL AND (u.dept_id=$9 OR (',' || d.ancestors || ',') LIKE '%,' || $9 || ',%')) OR ($7='5' AND u.user_id=$8))"
 }
 
 fn role_users_base(scoped: bool) -> String {
@@ -106,4 +106,23 @@ fn role_users_base(scoped: bool) -> String {
 
 fn user_scope_where() -> &'static str {
     "($5='1' OR ($5='2' AND u.dept_id = ANY($8)) OR ($5='3' AND $7::text IS NOT NULL AND u.dept_id=$7) OR ($5='4' AND $7::text IS NOT NULL AND (u.dept_id=$7 OR (',' || d.ancestors || ',') LIKE '%,' || $7 || ',%')) OR ($5='5' AND u.user_id=$6))"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{role_page_sql, role_scoped_page_sql};
+
+    #[test]
+    fn role_list_sql_binds_system_before_time_and_scope_placeholders() {
+        let page_sql = role_page_sql();
+        let scoped_sql = role_scoped_page_sql();
+
+        assert!(page_sql.contains("r.role_name ILIKE"));
+        assert!(page_sql.contains("r.role_key ILIKE"));
+        assert!(page_sql.contains("($4::bool IS NULL OR r.system=$4)"));
+        assert!(page_sql.contains("LIMIT $7 OFFSET $8"));
+        assert!(scoped_sql.contains("($7='1'"));
+        assert!(scoped_sql.contains("u.dept_id = ANY($10)"));
+        assert!(scoped_sql.contains("LIMIT $11 OFFSET $12"));
+    }
 }

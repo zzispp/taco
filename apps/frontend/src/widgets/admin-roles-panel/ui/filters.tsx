@@ -1,3 +1,5 @@
+import type React from 'react';
+import type { TranslateFn } from 'src/shared/i18n';
 import type { RoleFiltersValue } from './constants';
 
 import Stack from '@mui/material/Stack';
@@ -9,18 +11,34 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 
 import { DEFAULT_FILTERS } from './constants';
 
-export function RoleFilters({
-  filters,
-  onChange,
-}: {
+const SELECT_FILTER_MIN_WIDTH = 140;
+
+type RoleFilterKey = keyof RoleFiltersValue;
+type FilterWriter = (key: RoleFilterKey, value: string) => void;
+
+type RoleFiltersProps = {
   filters: RoleFiltersValue;
   onChange: (filters: RoleFiltersValue) => void;
-}) {
+};
+
+export function RoleFilters({ filters, onChange }: RoleFiltersProps) {
   const { t } = useTranslate('admin');
-  const write = (key: keyof RoleFiltersValue, value: string) =>
-    onChange({ ...filters, [key]: value });
+  const write: FilterWriter = (key, value) => onChange({ ...filters, [key]: value });
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>
+      <RoleTextFilters filters={filters} write={write} t={t} />
+      <RoleSelectFilters filters={filters} write={write} t={t} />
+      <RoleDateFilters filters={filters} write={write} t={t} />
+      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
+        {t('common.reset')}
+      </Button>
+    </Stack>
+  );
+}
+
+function RoleTextFilters({ filters, write, t }: RoleFilterSectionProps) {
+  return (
+    <>
       <TextField
         size="small"
         label={t('fields.roleName')}
@@ -33,18 +51,38 @@ export function RoleFilters({
         value={filters.role_key}
         onChange={(event) => write('role_key', event.target.value)}
       />
-      <TextField
-        select
-        size="small"
+    </>
+  );
+}
+
+function RoleSelectFilters({ filters, write, t }: RoleFilterSectionProps) {
+  return (
+    <>
+      <SelectFilter
         label={t('common.status')}
         value={filters.status}
-        sx={{ minWidth: 140 }}
-        onChange={(event) => write('status', event.target.value)}
+        onChange={(value) => write('status', value)}
       >
         <MenuItem value="">{t('common.all')}</MenuItem>
         <MenuItem value="0">{t('common.enabled')}</MenuItem>
         <MenuItem value="1">{t('common.disabled')}</MenuItem>
-      </TextField>
+      </SelectFilter>
+      <SelectFilter
+        label={t('common.type')}
+        value={filters.system}
+        onChange={(value) => write('system', value)}
+      >
+        <MenuItem value="">{t('common.all')}</MenuItem>
+        <MenuItem value="true">{t('common.system')}</MenuItem>
+        <MenuItem value="false">{t('common.custom')}</MenuItem>
+      </SelectFilter>
+    </>
+  );
+}
+
+function RoleDateFilters({ filters, write, t }: RoleFilterSectionProps) {
+  return (
+    <>
       <TextField
         size="small"
         type="date"
@@ -61,9 +99,34 @@ export function RoleFilters({
         InputLabelProps={{ shrink: true }}
         onChange={(event) => write('end_time', event.target.value)}
       />
-      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
-        {t('common.reset')}
-      </Button>
-    </Stack>
+    </>
   );
 }
+
+function SelectFilter({ label, value, children, onChange }: SelectFilterProps) {
+  return (
+    <TextField
+      select
+      size="small"
+      label={label}
+      value={value}
+      sx={{ minWidth: SELECT_FILTER_MIN_WIDTH }}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {children}
+    </TextField>
+  );
+}
+
+type RoleFilterSectionProps = {
+  filters: RoleFiltersValue;
+  write: FilterWriter;
+  t: TranslateFn;
+};
+
+type SelectFilterProps = {
+  label: string;
+  value: string;
+  children: React.ReactNode;
+  onChange: (value: string) => void;
+};

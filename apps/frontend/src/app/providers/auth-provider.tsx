@@ -34,6 +34,8 @@ type MeResponse = {
   user: Omit<SessionUser, 'access_token' | 'displayName' | 'photoURL'>;
 };
 
+type AuthStateSetter = (value: Partial<AuthState>) => void;
+
 export function AuthProvider({ children }: Props) {
   const { state, setState } = useSetState<AuthState>({
     user: null,
@@ -41,38 +43,7 @@ export function AuthProvider({ children }: Props) {
     loading: true,
   });
 
-  const checkUserSession = useCallback(async () => {
-    const session = await resolveSession();
-
-    if (!session) {
-      await setSession(null);
-      setState({ user: null, error: null, loading: false });
-      return;
-    }
-
-    try {
-      const res = await axios.get(AUTH_ME_ENDPOINT);
-      const { user } = res.data as MeResponse;
-
-      setState({
-        user: {
-          ...user,
-          access_token: session.access_token,
-          displayName: user.nick_name || user.username,
-          photoURL: resolveServerAssetUrl(user.avatar),
-        },
-        error: null,
-        loading: false,
-      });
-    } catch (error) {
-      if (isAuthSessionRejected(error)) {
-        await setSession(null);
-        setState({ user: null, error: null, loading: false });
-        return;
-      }
-      throw error;
-    }
-  }, [setState]);
+  const checkUserSession = useCheckUserSession(setState);
 
   useEffect(() => {
     checkUserSession().catch((error: Error) => {
@@ -105,6 +76,50 @@ export function AuthProvider({ children }: Props) {
   }
 
   return <AuthContext value={memoizedValue}>{children}</AuthContext>;
+}
+
+function useCheckUserSession(setState: AuthStateSetter) {
+  return useCallback(async () => {
+    await syncUserSession(setState);
+  }, [setState]);
+}
+
+async function syncUserSession(setState: AuthStateSetter) {
+  const session = await resolveSession();
+  if (!session) {
+    await setSession(null);
+    setUnauthenticated(setState);
+    return;
+  }
+  try {
+    setState({
+      user: await fetchSessionUser(session.access_token),
+      error: null,
+      loading: false,
+    });
+  } catch (error) {
+    if (isAuthSessionRejected(error)) {
+      await setSession(null);
+      setUnauthenticated(setState);
+      return;
+    }
+    throw error;
+  }
+}
+
+async function fetchSessionUser(accessToken: string): Promise<SessionUser> {
+  const res = await axios.get(AUTH_ME_ENDPOINT);
+  const { user } = res.data as MeResponse;
+  return {
+    ...user,
+    access_token: accessToken,
+    displayName: user.nick_name || user.username,
+    photoURL: resolveServerAssetUrl(user.avatar),
+  };
+}
+
+function setUnauthenticated(setState: AuthStateSetter) {
+  setState({ user: null, error: null, loading: false });
 }
 
 async function resolveSession() {

@@ -228,3 +228,15 @@ fn menu_page_sql() -> String {
 fn menu_total_sql() -> String {
     format!("SELECT COUNT(*) FROM sys_menu WHERE {}", menu_where())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::menu_page_sql;
+
+    #[test]
+    fn menu_text_filters_use_case_insensitive_search() {
+        let sql = menu_page_sql();
+
+        assert!(sql.contains("menu_name ILIKE"));
+    }
+}

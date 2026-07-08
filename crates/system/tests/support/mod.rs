@@ -29,7 +29,9 @@ struct State {
     dept_has_users: bool,
     deleted_dict_types: Vec<String>,
     updated_dept_sorts: Vec<(String, i64)>,
+    last_dept_filter: Option<DeptListFilter>,
     last_post_filter: Option<PostListFilter>,
+    last_config_filter: Option<ConfigListFilter>,
 }
 
 impl MemoryRepository {
@@ -76,8 +78,15 @@ impl MemoryRepository {
     pub(crate) fn updated_dept_sorts(&self) -> Vec<(String, i64)> {
         self.state.lock().unwrap().updated_dept_sorts.clone()
     }
+    pub(crate) fn last_dept_filter(&self) -> Option<DeptListFilter> {
+        self.state.lock().unwrap().last_dept_filter.clone()
+    }
     pub(crate) fn last_post_filter(&self) -> Option<PostListFilter> {
         self.state.lock().unwrap().last_post_filter.clone()
+    }
+
+    pub(crate) fn last_config_filter(&self) -> Option<ConfigListFilter> {
+        self.state.lock().unwrap().last_config_filter.clone()
     }
 }
 

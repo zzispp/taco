@@ -48,7 +48,7 @@ async fn assert_seed_config_values(pool: &PgPool) {
     assert_eq!(captcha["providers"]["cloudflare_turnstile"]["site_key"], "");
     assert_eq!(captcha["providers"]["cloudflare_turnstile"]["secret_key"], "");
     assert_eq!(token_config(pool).await["refresh_token_ttl_seconds"], EXPECTED_REFRESH_TTL_SECONDS);
-    assert_eq!(ip_location_config(pool).await["enabled"], false);
+    assert_eq!(ip_location_config(pool).await["enabled"], true);
     assert_eq!(password_policy(pool).await["min_length"], EXPECTED_PASSWORD_MIN_LENGTH);
     assert_eq!(avatar_config(pool).await["max_bytes"], EXPECTED_AVATAR_MAX_BYTES);
     assert_eq!(export_batch_config(pool).await["page_size"], EXPECTED_EXPORT_PAGE_SIZE);

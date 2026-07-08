@@ -8,4 +8,11 @@ export const DEFAULT_POST_INPUT: PostInput = {
   remark: '',
 };
 
-export const DEFAULT_POST_FILTERS = { post_name: '', post_code: '', status: '' };
+export const DEFAULT_POST_FILTERS = {
+  post_name: '',
+  post_code: '',
+  status: '',
+  remark: '',
+  begin_time: '',
+  end_time: '',
+};

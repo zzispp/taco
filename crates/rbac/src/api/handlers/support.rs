@@ -10,6 +10,7 @@ impl From<RbacListQuery> for RoleListFilter {
             role_name: value.role_name,
             role_key: value.role_key,
             status: value.status,
+            system: value.system,
             begin_time: value.begin_time,
             end_time: value.end_time,
         }

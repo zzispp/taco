@@ -54,6 +54,7 @@ pub(super) fn sanitize_role_filter(input: RoleListFilter) -> RoleListFilter {
         role_name: trim_optional(input.role_name),
         role_key: trim_optional(input.role_key),
         status: trim_optional(input.status),
+        system: input.system,
         begin_time: trim_optional(input.begin_time),
         end_time: trim_optional(input.end_time),
     }
@@ -204,4 +205,35 @@ pub(super) async fn ensure_role_exists<R: RbacRepository>(repository: &R, id: &s
 
 pub(super) async fn ensure_menu_exists<R: RbacRepository>(repository: &R, id: &str) -> RbacResult<()> {
     repository.find_menu(id).await?.map(|_| ()).ok_or(RbacError::NotFound)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_role_filter_trims_text_and_preserves_system_filter() {
+        let filter = RoleListFilter {
+            page: PageRequest { page: 1, page_size: 10 },
+            role_name: Some(" 管理员 ".into()),
+            role_key: Some("   ".into()),
+            status: Some(" 0 ".into()),
+            system: Some(false),
+            begin_time: Some("2026-07-01".into()),
+            end_time: Some("  ".into()),
+        };
+
+        assert_eq!(
+            sanitize_role_filter(filter),
+            RoleListFilter {
+                page: PageRequest { page: 1, page_size: 10 },
+                role_name: Some("管理员".into()),
+                role_key: None,
+                status: Some("0".into()),
+                system: Some(false),
+                begin_time: Some("2026-07-01".into()),
+                end_time: None,
+            }
+        );
+    }
 }

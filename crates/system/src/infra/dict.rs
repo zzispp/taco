@@ -278,3 +278,18 @@ fn ensure_batch_rows(rows: u64, expected: usize) -> StorageResult<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{data_page_sql, type_page_sql};
+
+    #[test]
+    fn dict_text_filters_use_case_insensitive_search() {
+        let type_sql = type_page_sql();
+        let data_sql = data_page_sql();
+
+        assert!(type_sql.contains("dict_name ILIKE"));
+        assert!(type_sql.contains("dict_type ILIKE"));
+        assert!(data_sql.contains("dict_label ILIKE"));
+    }
+}

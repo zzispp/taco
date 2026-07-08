@@ -101,6 +101,7 @@ pub struct RoleListFilter {
     pub role_name: Option<String>,
     pub role_key: Option<String>,
     pub status: Option<String>,
+    pub system: Option<bool>,
     pub begin_time: Option<String>,
     pub end_time: Option<String>,
 }

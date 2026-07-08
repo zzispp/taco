@@ -1,3 +1,4 @@
+mod filter_sql;
 mod mapping;
 mod queries;
 mod record;

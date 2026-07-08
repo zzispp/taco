@@ -5,6 +5,9 @@ impl From<SystemListQuery> for DeptListFilter {
         Self {
             page: page(value.page, value.page_size),
             dept_name: value.dept_name,
+            leader: value.leader,
+            phone: value.phone,
+            email: value.email,
             status: value.status,
             begin_time: value.begin_time,
             end_time: value.end_time,
@@ -17,6 +20,9 @@ impl From<DeptTreeQuery> for DeptListFilter {
         Self {
             page: PageRequest { page: 1, page_size: 100_000 },
             dept_name: value.dept_name,
+            leader: value.leader,
+            phone: value.phone,
+            email: value.email,
             status: value.status,
             begin_time: value.begin_time,
             end_time: value.end_time,
@@ -31,6 +37,9 @@ impl From<SystemListQuery> for PostListFilter {
             post_code: value.post_code,
             post_name: value.post_name,
             status: value.status,
+            remark: value.remark,
+            begin_time: value.begin_time,
+            end_time: value.end_time,
         }
     }
 }
@@ -66,6 +75,7 @@ impl From<SystemListQuery> for ConfigListFilter {
             config_name: value.config_name,
             config_key: value.config_key,
             config_type: value.config_type,
+            public_read: value.public_read,
             begin_time: value.begin_time,
             end_time: value.end_time,
         }
@@ -140,6 +150,9 @@ pub(super) fn all_depts_filter() -> DeptListFilter {
     DeptListFilter {
         page: PageRequest { page: 1, page_size: 100_000 },
         dept_name: None,
+        leader: None,
+        phone: None,
+        email: None,
         status: None,
         begin_time: None,
         end_time: None,

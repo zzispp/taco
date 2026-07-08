@@ -5,6 +5,8 @@ use tower::ServiceExt;
 use super::support::*;
 use crate::test_support::{MemoryUserRepository, stored_user};
 
+const JULY_8_2026_NOON_UTC_MILLIS: i64 = 1_783_512_000_000;
+
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_creates_online_session() {
@@ -22,7 +24,21 @@ async fn sign_in_creates_online_session() {
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn online_list_returns_aligned_rows_and_filters_exactly() {
+async fn repeated_sign_in_keeps_multiple_online_sessions_like_ruoyi() {
+    let app = test_app();
+
+    sign_in(app.router.clone()).await;
+    sign_in(app.router).await;
+
+    let sessions = app.sessions.sessions();
+    assert_eq!(sessions.len(), 2);
+    assert!(sessions.iter().all(|session| session.user_name == "alice"));
+    assert_ne!(sessions[0].token_id, sessions[1].token_id);
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn online_list_returns_aligned_rows_and_filters_fuzzily() {
     let app = test_app();
     let tokens = sign_in(app.router.clone()).await;
 
@@ -30,7 +46,7 @@ async fn online_list_returns_aligned_rows_and_filters_exactly() {
         .router
         .oneshot(authenticated_request(
             Method::GET,
-            "/api/system/online/list?ipaddr=8.8.8.8&userName=alice",
+            "/api/system/online/list?ipaddr=8.8&userName=LIC",
             &tokens.access_token,
         ))
         .await
@@ -47,7 +63,7 @@ async fn online_list_returns_aligned_rows_and_filters_exactly() {
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn online_list_filters_username_and_ip_as_exact_matches() {
+async fn online_list_rejects_unmatched_fuzzy_filters() {
     let app = test_app();
     let tokens = sign_in(app.router.clone()).await;
 
@@ -64,6 +80,50 @@ async fn online_list_filters_username_and_ip_as_exact_matches() {
 
     assert_eq!(body["total"], 0);
     assert_eq!(body["rows"], json!([]));
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn online_list_filters_detail_fields_and_login_time_range() {
+    let app = test_app();
+    let tokens = sign_in(app.router.clone()).await;
+    app.sessions.save_session(detailed_online_session()).await;
+
+    let response = app
+        .router
+        .oneshot(authenticated_request(
+            Method::GET,
+            "/api/system/online/list?loginLocation=zhou&browser=fire&os=nux&begin_time=2026-07-08&end_time=2026-07-08",
+            &tokens.access_token,
+        ))
+        .await
+        .unwrap();
+    let body = response_json(response).await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(body["rows"][0]["userName"], "bob");
+    assert_eq!(body["rows"][0]["loginLocation"], "Guangzhou");
+    assert_eq!(body["rows"][0]["browser"], "Firefox");
+    assert_eq!(body["rows"][0]["os"], "Linux");
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn online_list_rejects_invalid_login_time_filter() {
+    let app = test_app();
+    let tokens = sign_in(app.router.clone()).await;
+
+    let response = app
+        .router
+        .oneshot(authenticated_request(
+            Method::GET,
+            "/api/system/online/list?begin_time=2026-99-99",
+            &tokens.access_token,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
@@ -168,6 +228,20 @@ async fn force_logout_rejects_online_session_outside_self_data_scope() {
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     assert!(app.sessions.sessions().iter().any(|session| session.token_id == token_id));
+}
+
+fn detailed_online_session() -> crate::application::OnlineSession {
+    crate::application::OnlineSession {
+        token_id: "manual-token-detail".into(),
+        user_id: crate::test_support::user_id(2),
+        dept_name: Some("部门104".into()),
+        user_name: "bob".into(),
+        ipaddr: "10.0.0.2".into(),
+        login_location: "Guangzhou".into(),
+        browser: "Firefox".into(),
+        os: "Linux".into(),
+        login_time: JULY_8_2026_NOON_UTC_MILLIS,
+    }
 }
 
 fn online_session_for_user(user: u64, username: &str, dept: &str) -> crate::application::OnlineSession {

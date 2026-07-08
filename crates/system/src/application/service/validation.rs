@@ -15,6 +15,7 @@ pub(super) fn all_configs_filter() -> ConfigListFilter {
         config_name: None,
         config_key: None,
         config_type: None,
+        public_read: None,
         begin_time: None,
         end_time: None,
     }
@@ -35,6 +36,9 @@ pub(super) fn all_depts_filter() -> DeptListFilter {
     DeptListFilter {
         page: PageRequest { page: 1, page_size: 100_000 },
         dept_name: None,
+        leader: None,
+        phone: None,
+        email: None,
         status: None,
         begin_time: None,
         end_time: None,
@@ -46,6 +50,9 @@ pub(super) async fn reject_duplicate_dept<R: SystemRepository>(repository: &R, i
         .list_depts(DeptListFilter {
             page: PageRequest { page: 1, page_size: 100_000 },
             dept_name: None,
+            leader: None,
+            phone: None,
+            email: None,
             status: None,
             begin_time: None,
             end_time: None,
@@ -102,6 +109,7 @@ pub(super) async fn reject_duplicate_config_key<R: SystemRepository>(repository:
             config_name: None,
             config_key: Some(input.config_key.clone()),
             config_type: None,
+            public_read: None,
             begin_time: None,
             end_time: None,
         })
@@ -190,6 +198,9 @@ pub(super) fn sanitize_dept_filter(input: DeptListFilter) -> DeptListFilter {
     DeptListFilter {
         page: input.page,
         dept_name: trim(input.dept_name),
+        leader: trim(input.leader),
+        phone: trim(input.phone),
+        email: trim(input.email),
         status: trim(input.status),
         begin_time: trim(input.begin_time),
         end_time: trim(input.end_time),
@@ -202,6 +213,9 @@ pub(super) fn sanitize_post_filter(input: PostListFilter) -> PostListFilter {
         post_code: trim(input.post_code),
         post_name: trim(input.post_name),
         status: trim(input.status),
+        remark: trim(input.remark),
+        begin_time: trim(input.begin_time),
+        end_time: trim(input.end_time),
     }
 }
 
@@ -231,6 +245,7 @@ pub(super) fn sanitize_config_filter(input: ConfigListFilter) -> ConfigListFilte
         config_name: trim(input.config_name),
         config_key: trim(input.config_key),
         config_type: trim(input.config_type),
+        public_read: input.public_read,
         begin_time: trim(input.begin_time),
         end_time: trim(input.end_time),
     }

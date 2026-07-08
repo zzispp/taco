@@ -11,9 +11,15 @@ use types::rbac::DataScopeFilter;
 pub struct UserListFilter {
     pub page: PageRequest,
     pub username: Option<String>,
+    pub nick_name: Option<String>,
     pub phonenumber: Option<String>,
+    pub email: Option<String>,
+    pub sex: Option<String>,
     pub status: Option<String>,
     pub dept_id: Option<String>,
+    pub dept_name: Option<String>,
+    pub post_ids: Vec<String>,
+    pub role_ids: Vec<String>,
     pub begin_time: Option<String>,
     pub end_time: Option<String>,
 }
@@ -101,6 +107,11 @@ pub struct OnlineSession {
 pub struct OnlineSessionFilter {
     pub ipaddr: Option<String>,
     pub user_name: Option<String>,
+    pub login_location: Option<String>,
+    pub browser: Option<String>,
+    pub os: Option<String>,
+    pub begin_time: Option<String>,
+    pub end_time: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

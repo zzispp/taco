@@ -13,6 +13,7 @@ use crate::application::UserListFilter;
 
 use super::UserQueries;
 use crate::infra::user_repository::{
+    filter_sql,
     mapping::{UserRelations, role_summary, user},
     record::{RoleSummaryRecord, UserRecord},
     sql,
@@ -55,20 +56,26 @@ impl UserQueries {
     }
 
     async fn filtered_total(&self, filter: &UserListFilter) -> StorageResult<i64> {
-        query_scalar(sql::filtered_users_total())
+        query_scalar(filter_sql::filtered_users_total())
             .bind(&filter.username)
             .bind(&filter.phonenumber)
             .bind(&filter.status)
             .bind(&filter.dept_id)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
+            .bind(&filter.nick_name)
+            .bind(&filter.dept_name)
+            .bind(&filter.email)
+            .bind(&filter.sex)
+            .bind(&filter.post_ids)
+            .bind(&filter.role_ids)
             .fetch_one(self.database.pool())
             .await
             .map_err(StorageError::from)
     }
 
     async fn filtered_records_slice(&self, filter: &UserListFilter, limit: u64, offset: u64) -> StorageResult<Vec<UserRecord>> {
-        let sql = sql::filtered_users("ORDER BY u.create_time ASC LIMIT $7 OFFSET $8");
+        let sql = filter_sql::filtered_users("ORDER BY u.create_time ASC LIMIT $13 OFFSET $14");
         query_as::<_, UserRecord>(AssertSqlSafe(sql))
             .bind(&filter.username)
             .bind(&filter.phonenumber)
@@ -76,6 +83,12 @@ impl UserQueries {
             .bind(&filter.dept_id)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
+            .bind(&filter.nick_name)
+            .bind(&filter.dept_name)
+            .bind(&filter.email)
+            .bind(&filter.sex)
+            .bind(&filter.post_ids)
+            .bind(&filter.role_ids)
             .bind(to_i64(limit)?)
             .bind(to_i64(offset)?)
             .fetch_all(self.database.pool())
@@ -84,7 +97,7 @@ impl UserQueries {
     }
 
     pub(super) async fn scoped_user_ids(&self, filter: &UserListFilter, scope: &DataScopeFilter, slice: ScopedUserSlice) -> StorageResult<Vec<String>> {
-        query_scalar(sql::scoped_user_ids())
+        query_scalar(filter_sql::scoped_user_ids())
             .bind(&scope.data_scope)
             .bind(&scope.user_id)
             .bind(&scope.dept_id)
@@ -95,6 +108,12 @@ impl UserQueries {
             .bind(&filter.dept_id)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
+            .bind(&filter.nick_name)
+            .bind(&filter.dept_name)
+            .bind(&filter.email)
+            .bind(&filter.sex)
+            .bind(&filter.post_ids)
+            .bind(&filter.role_ids)
             .bind(to_i64(slice.limit)?)
             .bind(to_i64(slice.offset)?)
             .fetch_all(self.database.pool())
@@ -103,7 +122,7 @@ impl UserQueries {
     }
 
     pub(super) async fn scoped_user_total(&self, filter: &UserListFilter, scope: &DataScopeFilter) -> StorageResult<i64> {
-        query_scalar(sql::scoped_user_total())
+        query_scalar(filter_sql::scoped_user_total())
             .bind(&scope.data_scope)
             .bind(&scope.user_id)
             .bind(&scope.dept_id)
@@ -114,6 +133,12 @@ impl UserQueries {
             .bind(&filter.dept_id)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
+            .bind(&filter.nick_name)
+            .bind(&filter.dept_name)
+            .bind(&filter.email)
+            .bind(&filter.sex)
+            .bind(&filter.post_ids)
+            .bind(&filter.role_ids)
             .fetch_one(self.database.pool())
             .await
             .map_err(StorageError::from)

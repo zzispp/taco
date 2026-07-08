@@ -3,10 +3,14 @@ use super::*;
 #[async_trait]
 impl SystemRepository for MemoryRepository {
     async fn page_depts(&self, filter: DeptListFilter) -> system::application::SystemResult<Page<Dept>> {
-        Ok(empty_page(filter.page))
+        let page = filter.page;
+        self.state.lock().unwrap().last_dept_filter = Some(filter);
+        Ok(empty_page(page))
     }
     async fn page_depts_scoped(&self, filter: DeptListFilter, _scope: DataScopeFilter) -> system::application::SystemResult<Page<Dept>> {
-        Ok(empty_page(filter.page))
+        let page = filter.page;
+        self.state.lock().unwrap().last_dept_filter = Some(filter);
+        Ok(empty_page(page))
     }
     async fn list_depts(&self, _filter: DeptListFilter) -> system::application::SystemResult<Vec<Dept>> {
         Ok(vec![])
@@ -137,7 +141,9 @@ impl SystemRepository for MemoryRepository {
         Ok(())
     }
     async fn page_configs(&self, filter: ConfigListFilter) -> system::application::SystemResult<Page<ConfigItem>> {
-        Ok(empty_page(filter.page))
+        let page = filter.page;
+        self.state.lock().unwrap().last_config_filter = Some(filter);
+        Ok(empty_page(page))
     }
     async fn list_configs(&self, _filter: ConfigListFilter) -> system::application::SystemResult<Vec<ConfigItem>> {
         Ok(self.state.lock().unwrap().configs.values().cloned().collect())

@@ -1,6 +1,6 @@
 mod support;
 
-use system::application::{PostListFilter, SystemError, SystemService, SystemUseCase};
+use system::application::{DeptListFilter, PostListFilter, SystemError, SystemService, SystemUseCase};
 use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_SELF, DataScopeFilter};
 
 use support::{ConfigInputSeed, MemoryRepository, config_input, dept, dict_type, page, post_input, public_config_item};
@@ -144,6 +144,9 @@ async fn page_post_filter_is_trimmed_and_empty_values_are_removed() {
         post_code: Some(" ceo ".into()),
         post_name: Some("   ".into()),
         status: Some(" 0 ".into()),
+        remark: Some(" ops ".into()),
+        begin_time: Some("2026-07-01".into()),
+        end_time: Some("2026-07-08".into()),
     };
 
     SystemService::new(repository.clone()).page_posts(filter).await.unwrap();
@@ -154,7 +157,72 @@ async fn page_post_filter_is_trimmed_and_empty_values_are_removed() {
             page: page(),
             post_code: Some("ceo".into()),
             post_name: None,
-            status: Some("0".into())
+            status: Some("0".into()),
+            remark: Some("ops".into()),
+            begin_time: Some("2026-07-01".into()),
+            end_time: Some("2026-07-08".into()),
+        })
+    );
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn page_dept_filter_is_trimmed_and_empty_values_are_removed() {
+    let repository = MemoryRepository::default();
+    let filter = DeptListFilter {
+        page: page(),
+        dept_name: Some(" 研发 ".into()),
+        leader: Some(" taco ".into()),
+        phone: Some(" 13900000000 ".into()),
+        email: Some("   ".into()),
+        status: Some(" 0 ".into()),
+        begin_time: Some("2026-07-01".into()),
+        end_time: Some("2026-07-08".into()),
+    };
+
+    SystemService::new(repository.clone()).page_depts(filter).await.unwrap();
+
+    assert_eq!(
+        repository.last_dept_filter(),
+        Some(DeptListFilter {
+            page: page(),
+            dept_name: Some("研发".into()),
+            leader: Some("taco".into()),
+            phone: Some("13900000000".into()),
+            email: None,
+            status: Some("0".into()),
+            begin_time: Some("2026-07-01".into()),
+            end_time: Some("2026-07-08".into()),
+        })
+    );
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn page_config_filter_is_trimmed_and_public_read_is_preserved() {
+    let repository = MemoryRepository::default();
+    let filter = system::application::ConfigListFilter {
+        page: page(),
+        config_name: Some(" site ".into()),
+        config_key: Some("   ".into()),
+        config_type: Some(" Y ".into()),
+        public_read: Some(true),
+        begin_time: Some("2026-07-01".into()),
+        end_time: None,
+    };
+
+    SystemService::new(repository.clone()).page_configs(filter).await.unwrap();
+
+    assert_eq!(
+        repository.last_config_filter(),
+        Some(system::application::ConfigListFilter {
+            page: page(),
+            config_name: Some("site".into()),
+            config_key: None,
+            config_type: Some("Y".into()),
+            public_read: Some(true),
+            begin_time: Some("2026-07-01".into()),
+            end_time: None,
         })
     );
 }

@@ -73,9 +73,15 @@ export function displayField<T>(value: unknown, field: CrudField<T>, labels: Dis
   if (typeof value === 'boolean') return value ? labels.yes : labels.no;
 
   const text = String(value);
+  const optionLabel = selectOptionLabel(field, text);
+  if (optionLabel) return optionLabel;
   if (field.ellipsis) return <EllipsisCellText value={text} />;
 
   return text;
+}
+
+function selectOptionLabel<T>(field: CrudField<T>, value: string) {
+  return field.options?.find((option) => option.value === value)?.label ?? null;
 }
 
 export function fieldCellSx<T>(field: CrudField<T>) {

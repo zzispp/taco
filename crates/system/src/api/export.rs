@@ -54,30 +54,30 @@ const CONFIG_HEADER_KEYS: &[&str] = &[
     "excel.common.headers.create_time",
 ];
 
+struct ExportSheet<'a> {
+    sheet_key: &'a str,
+    header_keys: &'a [&'a str],
+    rows: &'a [Vec<String>],
+}
+
 pub fn export_posts_xlsx(items: &[Post], locale: Locale) -> SystemResult<Vec<u8>> {
-    write_export(POST_SHEET_KEY, POST_HEADER_KEYS, &items.iter().map(post_row).collect::<Vec<_>>(), locale)
+    let rows = items.iter().map(post_row).collect::<Vec<_>>();
+    write_export(export_sheet(POST_SHEET_KEY, POST_HEADER_KEYS, &rows), locale)
 }
 
 pub fn export_dict_types_xlsx(items: &[DictType], locale: Locale) -> SystemResult<Vec<u8>> {
-    write_export(
-        DICT_TYPE_SHEET_KEY,
-        DICT_TYPE_HEADER_KEYS,
-        &items.iter().map(dict_type_row).collect::<Vec<_>>(),
-        locale,
-    )
+    let rows = items.iter().map(dict_type_row).collect::<Vec<_>>();
+    write_export(export_sheet(DICT_TYPE_SHEET_KEY, DICT_TYPE_HEADER_KEYS, &rows), locale)
 }
 
 pub fn export_dict_data_xlsx(items: &[DictData], locale: Locale) -> SystemResult<Vec<u8>> {
-    write_export(
-        DICT_DATA_SHEET_KEY,
-        DICT_DATA_HEADER_KEYS,
-        &items.iter().map(dict_data_row).collect::<Vec<_>>(),
-        locale,
-    )
+    let rows = items.iter().map(dict_data_row).collect::<Vec<_>>();
+    write_export(export_sheet(DICT_DATA_SHEET_KEY, DICT_DATA_HEADER_KEYS, &rows), locale)
 }
 
 pub fn export_configs_xlsx(items: &[ConfigItem], locale: Locale) -> SystemResult<Vec<u8>> {
-    write_export(CONFIG_SHEET_KEY, CONFIG_HEADER_KEYS, &items.iter().map(config_row).collect::<Vec<_>>(), locale)
+    let rows = items.iter().map(config_row).collect::<Vec<_>>();
+    write_export(export_sheet(CONFIG_SHEET_KEY, CONFIG_HEADER_KEYS, &rows), locale)
 }
 
 pub fn post_export_page(query: &SystemExportQuery, page: u64, page_size: u64) -> PostListFilter {
@@ -86,6 +86,9 @@ pub fn post_export_page(query: &SystemExportQuery, page: u64, page_size: u64) ->
         post_code: query.post_code.clone(),
         post_name: query.post_name.clone(),
         status: query.status.clone(),
+        remark: query.remark.clone(),
+        begin_time: query.begin_time.clone(),
+        end_time: query.end_time.clone(),
     }
 }
 
@@ -115,13 +118,18 @@ pub fn config_export_page(query: &SystemExportQuery, page: u64, page_size: u64) 
         config_name: query.config_name.clone(),
         config_key: query.config_key.clone(),
         config_type: query.config_type.clone(),
+        public_read: query.public_read,
         begin_time: query.begin_time.clone(),
         end_time: query.end_time.clone(),
     }
 }
 
-fn write_export(sheet_key: &str, header_keys: &[&str], rows: &[Vec<String>], locale: Locale) -> SystemResult<Vec<u8>> {
-    write_xlsx(&text(locale, sheet_key), &localized_headers(locale, header_keys), rows).map_err(excel_error)
+fn export_sheet<'a>(sheet_key: &'a str, header_keys: &'a [&'a str], rows: &'a [Vec<String>]) -> ExportSheet<'a> {
+    ExportSheet { sheet_key, header_keys, rows }
+}
+
+fn write_export(sheet: ExportSheet<'_>, locale: Locale) -> SystemResult<Vec<u8>> {
+    write_xlsx(&text(locale, sheet.sheet_key), &localized_headers(locale, sheet.header_keys), sheet.rows).map_err(excel_error)
 }
 
 fn localized_headers(locale: Locale, keys: &[&str]) -> Vec<String> {

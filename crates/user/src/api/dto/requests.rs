@@ -48,9 +48,15 @@ pub struct ListUsersQuery {
     pub page: u64,
     pub page_size: u64,
     pub username: Option<String>,
+    pub nick_name: Option<String>,
     pub phonenumber: Option<String>,
+    pub email: Option<String>,
+    pub sex: Option<String>,
     pub status: Option<String>,
     pub dept_id: Option<String>,
+    pub dept_name: Option<String>,
+    pub post_ids: Option<String>,
+    pub role_ids: Option<String>,
     pub begin_time: Option<String>,
     pub end_time: Option<String>,
 }
@@ -58,9 +64,15 @@ pub struct ListUsersQuery {
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct UserExportQuery {
     pub username: Option<String>,
+    pub nick_name: Option<String>,
     pub phonenumber: Option<String>,
+    pub email: Option<String>,
+    pub sex: Option<String>,
     pub status: Option<String>,
     pub dept_id: Option<String>,
+    pub dept_name: Option<String>,
+    pub post_ids: Option<String>,
+    pub role_ids: Option<String>,
     pub begin_time: Option<String>,
     pub end_time: Option<String>,
 }
@@ -70,6 +82,12 @@ pub struct OnlineSessionsQuery {
     pub ipaddr: Option<String>,
     #[serde(rename = "userName")]
     pub user_name: Option<String>,
+    #[serde(rename = "loginLocation")]
+    pub login_location: Option<String>,
+    pub browser: Option<String>,
+    pub os: Option<String>,
+    pub begin_time: Option<String>,
+    pub end_time: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -165,11 +183,37 @@ impl From<ListUsersQuery> for UserListFilter {
                 page_size: value.page_size,
             },
             username: value.username,
+            nick_name: value.nick_name,
             phonenumber: value.phonenumber,
+            email: value.email,
+            sex: value.sex,
             status: value.status,
             dept_id: value.dept_id,
+            dept_name: value.dept_name,
+            post_ids: split_ids(value.post_ids),
+            role_ids: split_ids(value.role_ids),
             begin_time: value.begin_time,
             end_time: value.end_time,
+        }
+    }
+}
+
+impl UserExportQuery {
+    pub(crate) fn to_filter(&self, page: u64, page_size: u64) -> UserListFilter {
+        UserListFilter {
+            page: PageRequest { page, page_size },
+            username: self.username.clone(),
+            nick_name: self.nick_name.clone(),
+            phonenumber: self.phonenumber.clone(),
+            email: self.email.clone(),
+            sex: self.sex.clone(),
+            status: self.status.clone(),
+            dept_id: self.dept_id.clone(),
+            dept_name: self.dept_name.clone(),
+            post_ids: split_ids(self.post_ids.clone()),
+            role_ids: split_ids(self.role_ids.clone()),
+            begin_time: self.begin_time.clone(),
+            end_time: self.end_time.clone(),
         }
     }
 }
@@ -179,10 +223,22 @@ impl From<OnlineSessionsQuery> for OnlineSessionFilter {
         Self {
             ipaddr: trim_optional(value.ipaddr),
             user_name: trim_optional(value.user_name),
+            login_location: trim_optional(value.login_location),
+            browser: trim_optional(value.browser),
+            os: trim_optional(value.os),
+            begin_time: trim_optional(value.begin_time),
+            end_time: trim_optional(value.end_time),
         }
     }
 }
 
 fn trim_optional(value: Option<String>) -> Option<String> {
     value.map(|item| item.trim().to_owned()).filter(|item| !item.is_empty())
+}
+
+fn split_ids(value: Option<String>) -> Vec<String> {
+    let Some(value) = value else {
+        return vec![];
+    };
+    value.split(',').map(str::trim).filter(|item| !item.is_empty()).map(str::to_owned).collect()
 }

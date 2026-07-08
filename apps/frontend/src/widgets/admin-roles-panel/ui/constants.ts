@@ -15,6 +15,7 @@ export const DEFAULT_FILTERS = {
   role_name: '',
   role_key: '',
   status: '',
+  system: '',
   begin_time: '',
   end_time: '',
 };

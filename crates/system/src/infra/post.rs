@@ -27,12 +27,18 @@ impl PostQueries {
             .bind(&filter.post_code)
             .bind(&filter.post_name)
             .bind(&filter.status)
+            .bind(&filter.remark)
+            .bind(&filter.begin_time)
+            .bind(&filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
         let records = query_as::<_, PostRecord>(AssertSqlSafe(page_sql()))
             .bind(&filter.post_code)
             .bind(&filter.post_name)
             .bind(&filter.status)
+            .bind(&filter.remark)
+            .bind(&filter.begin_time)
+            .bind(&filter.end_time)
             .bind(page::limit(filter.page)?)
             .bind(page::offset(filter.page)?)
             .fetch_all(self.database.pool())
@@ -126,11 +132,11 @@ impl PostQueries {
 }
 
 fn predicate() -> &'static str {
-    "($1::text IS NULL OR post_code ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR post_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3)"
+    "($1::text IS NULL OR post_code ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR post_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::text IS NULL OR remark ILIKE '%' || $4 || '%') AND ($5::text IS NULL OR create_time::date >= $5::date) AND ($6::text IS NULL OR create_time::date <= $6::date)"
 }
 
 fn page_sql() -> String {
-    format!("SELECT {COLUMNS} FROM sys_post WHERE {} ORDER BY post_sort ASC LIMIT $4 OFFSET $5", predicate())
+    format!("SELECT {COLUMNS} FROM sys_post WHERE {} ORDER BY post_sort ASC LIMIT $7 OFFSET $8", predicate())
 }
 
 fn total_sql() -> String {
@@ -157,4 +163,18 @@ fn ensure_batch_rows(rows: u64, expected: usize) -> StorageResult<()> {
         return Err(StorageError::NotFound);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::page_sql;
+
+    #[test]
+    fn post_text_filters_use_case_insensitive_search() {
+        let sql = page_sql();
+
+        assert!(sql.contains("post_code ILIKE"));
+        assert!(sql.contains("post_name ILIKE"));
+        assert!(sql.contains("remark ILIKE"));
+    }
 }

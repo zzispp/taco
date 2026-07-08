@@ -5,7 +5,7 @@ use kernel::pagination::PageRequest;
 use regex::Regex;
 use std::sync::LazyLock;
 
-use crate::application::{AppError, AppResult, PasswordPolicy};
+use crate::application::{AppError, AppResult, PasswordPolicy, UserListFilter};
 use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser};
 
 static EMAIL_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").expect("email regex must compile"));
@@ -106,6 +106,24 @@ pub(super) fn sanitize_profile_update(input: ProfileUpdate) -> ProfileUpdate {
         phonenumber: trim_optional(input.phonenumber),
         email: input.email.trim().into(),
         sex: trim_required(input.sex),
+    }
+}
+
+pub(super) fn sanitize_filter(input: UserListFilter) -> UserListFilter {
+    UserListFilter {
+        page: input.page,
+        username: trim_optional(input.username),
+        nick_name: trim_optional(input.nick_name),
+        phonenumber: trim_optional(input.phonenumber),
+        email: trim_optional(input.email),
+        sex: trim_optional(input.sex),
+        status: trim_optional(input.status),
+        dept_id: trim_optional(input.dept_id),
+        dept_name: trim_optional(input.dept_name),
+        post_ids: trim_ids(input.post_ids),
+        role_ids: trim_ids(input.role_ids),
+        begin_time: trim_optional(input.begin_time),
+        end_time: trim_optional(input.end_time),
     }
 }
 

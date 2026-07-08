@@ -14,6 +14,8 @@ import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
 import { OnlineSessionRow } from './row';
 import { OnlineSessionFiltersBar } from './filters';
 
+const ONLINE_SESSIONS_TABLE_MIN_WIDTH = 1510;
+
 export function OnlineSessionsTableSection({
   table,
   filters,
@@ -30,7 +32,7 @@ export function OnlineSessionsTableSection({
     <Card>
       <OnlineSessionFiltersBar filters={filters} onChange={onFilterChange} />
       <Scrollbar>
-        <Table sx={{ minWidth: 1510 }}>
+        <Table sx={{ minWidth: ONLINE_SESSIONS_TABLE_MIN_WIDTH }}>
           <ManagementTableHead head={head} />
           <TableBody>
             {loading ? (

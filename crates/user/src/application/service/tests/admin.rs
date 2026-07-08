@@ -113,3 +113,103 @@ async fn list_users_scoped_supports_custom_departments() {
 
     assert_eq!(page.items.into_iter().map(|user| user.username).collect::<Vec<_>>(), vec!["bob"]);
 }
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn list_users_filters_by_extra_toolbar_fields() {
+    let alice = toolbar_user(ToolbarUserFixture::alice());
+    let bob = toolbar_user(ToolbarUserFixture::bob());
+    let service = UserService::new(MemoryUserRepository::with_users(vec![alice, bob]), TestPasswordHasher);
+
+    let page = service.list_users(toolbar_filter()).await.unwrap();
+
+    assert_eq!(page.items.into_iter().map(|user| user.username).collect::<Vec<_>>(), vec!["alice"]);
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn list_users_scoped_applies_extra_toolbar_filters() {
+    let alice = toolbar_user(ToolbarUserFixture::alice());
+    let bob = toolbar_user(ToolbarUserFixture::bob());
+    let service = UserService::new(MemoryUserRepository::with_users(vec![alice, bob]), TestPasswordHasher);
+
+    let page = service
+        .list_users_scoped(
+            crate::application::UserListFilter {
+                role_ids: vec![" 3 ".into()],
+                ..user_filter(1, 10)
+            },
+            DataScopeFilter {
+                data_scope: DATA_SCOPE_CUSTOM.into(),
+                user_id: user_id(1).0,
+                dept_id: Some("101".into()),
+                dept_ids: vec!["101".into(), "102".into()],
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(page.items.into_iter().map(|user| user.username).collect::<Vec<_>>(), vec!["bob"]);
+}
+
+fn toolbar_filter() -> crate::application::UserListFilter {
+    crate::application::UserListFilter {
+        username: Some(" ALI ".into()),
+        nick_name: Some(" 研发 ".into()),
+        email: Some("CORP.EXAMPLE".into()),
+        sex: Some(" 0 ".into()),
+        dept_name: Some(" 门101 ".into()),
+        post_ids: vec![" 2 ".into()],
+        role_ids: vec![" 2 ".into()],
+        ..user_filter(1, 10)
+    }
+}
+
+struct ToolbarUserFixture {
+    id: u64,
+    username: &'static str,
+    dept_id: &'static str,
+    nick_name: &'static str,
+    email: &'static str,
+    sex: &'static str,
+    post_id: &'static str,
+    role_id: &'static str,
+}
+
+impl ToolbarUserFixture {
+    const fn alice() -> Self {
+        Self {
+            id: 1,
+            username: "alice",
+            dept_id: "101",
+            nick_name: "Alice研发",
+            email: "alice@corp.example",
+            sex: "0",
+            post_id: "2",
+            role_id: "2",
+        }
+    }
+
+    const fn bob() -> Self {
+        Self {
+            id: 2,
+            username: "bob",
+            dept_id: "102",
+            nick_name: "Bob运营",
+            email: "bob@corp.example",
+            sex: "1",
+            post_id: "3",
+            role_id: "3",
+        }
+    }
+}
+
+fn toolbar_user(input: ToolbarUserFixture) -> crate::test_support::StoredUser {
+    stored_user(input.id, input.username, "hashed:secret123")
+        .with_dept_id(input.dept_id)
+        .with_nick_name(input.nick_name)
+        .with_email(input.email)
+        .with_sex(input.sex)
+        .with_post_ids(vec![input.post_id])
+        .with_role_ids(vec![input.role_id])
+}

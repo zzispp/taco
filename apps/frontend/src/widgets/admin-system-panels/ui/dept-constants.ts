@@ -10,6 +10,14 @@ export const DEFAULT_INPUT: DeptInput = {
   status: '0',
 };
 
-export const DEFAULT_FILTERS = { dept_name: '', status: '' };
+export const DEFAULT_FILTERS = {
+  dept_name: '',
+  leader: '',
+  phone: '',
+  email: '',
+  status: '',
+  begin_time: '',
+  end_time: '',
+};
 
 export type DeptFiltersValue = typeof DEFAULT_FILTERS;

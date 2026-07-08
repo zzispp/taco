@@ -61,15 +61,34 @@ pub(super) async fn list_with_system_user<R: UserRepository>(repository: &R, fil
 }
 
 fn system_user_matches(user: &User, filter: &UserListFilter) -> bool {
-    contains_filter(&user.username, &filter.username) && exact_filter(&user.status, &filter.status) && filter.phonenumber.is_none() && filter.dept_id.is_none()
+    contains_filter(&user.username, &filter.username)
+        && contains_filter(&user.nick_name, &filter.nick_name)
+        && contains_filter(&user.email, &filter.email)
+        && exact_filter(&user.sex, &filter.sex)
+        && exact_filter(&user.status, &filter.status)
+        && any_id_filter(&user.role_ids, &filter.role_ids)
+        && filter.phonenumber.is_none()
+        && filter.dept_id.is_none()
+        && filter.dept_name.is_none()
+        && filter.post_ids.is_empty()
+        && filter.begin_time.is_none()
+        && filter.end_time.is_none()
 }
 
 fn contains_filter(value: &str, filter: &Option<String>) -> bool {
-    filter.as_ref().is_none_or(|needle| value.contains(needle))
+    filter.as_ref().is_none_or(|needle| case_insensitive_contains(value, needle))
 }
 
 fn exact_filter(value: &str, filter: &Option<String>) -> bool {
     filter.as_ref().is_none_or(|expected| value == expected)
+}
+
+fn case_insensitive_contains(value: &str, needle: &str) -> bool {
+    value.to_lowercase().contains(&needle.to_lowercase())
+}
+
+fn any_id_filter(values: &[String], filter: &[String]) -> bool {
+    filter.is_empty() || filter.iter().any(|expected| values.contains(expected))
 }
 
 fn system_auth_by_identifier<S: SystemUserProvider>(system_users: &S, identifier: &str) -> Option<UserAuthRecord> {

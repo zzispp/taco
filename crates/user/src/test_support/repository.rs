@@ -1,3 +1,4 @@
+use super::filters::{memory_filter_matches, memory_scope_matches};
 use super::*;
 
 #[async_trait]
@@ -120,6 +121,7 @@ impl UserRepository for MemoryUserRepository {
             .users
             .iter()
             .filter(|stored| memory_scope_matches(&stored.user, &scope))
+            .filter(|stored| memory_filter_matches(&stored.user, &filter))
             .map(|stored| stored.user.clone())
             .collect::<Vec<_>>();
         let start = ((page.page - 1) * page.page_size) as usize;

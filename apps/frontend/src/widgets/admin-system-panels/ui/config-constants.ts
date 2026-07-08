@@ -13,6 +13,7 @@ export const DEFAULT_CONFIG_FILTERS = {
   config_name: '',
   config_key: '',
   config_type: '',
+  public_read: '',
   begin_time: '',
   end_time: '',
 };

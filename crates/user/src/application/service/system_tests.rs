@@ -124,6 +124,23 @@ async fn list_users_prepends_system_user_to_first_page() {
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
+async fn list_users_filters_system_user_case_insensitively() {
+    let service = service_with_system_user(MemoryUserRepository::default());
+
+    let page = service
+        .list_users(crate::application::UserListFilter {
+            username: Some("ADM".into()),
+            ..user_filter(1, 10)
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(page.items.into_iter().map(|user| user.username).collect::<Vec<_>>(), vec!["admin"]);
+    assert_eq!(page.total, 1);
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
 async fn list_users_offsets_database_page_after_system_user() {
     let service = service_with_system_user(users_repository());
 
@@ -184,9 +201,15 @@ fn user_filter(page: u64, page_size: u64) -> crate::application::UserListFilter 
     crate::application::UserListFilter {
         page: PageRequest { page, page_size },
         username: None,
+        nick_name: None,
         phonenumber: None,
+        email: None,
+        sex: None,
         status: None,
         dept_id: None,
+        dept_name: None,
+        post_ids: vec![],
+        role_ids: vec![],
         begin_time: None,
         end_time: None,
     }

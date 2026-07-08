@@ -16,9 +16,15 @@ export const DEFAULT_FORM: UserInput = {
 
 export const DEFAULT_FILTERS = {
   username: '',
+  nick_name: '',
+  dept_name: '',
   phonenumber: '',
+  email: '',
+  sex: '',
   status: '',
   dept_id: '',
+  post_ids: '',
+  role_ids: '',
   begin_time: '',
   end_time: '',
 };

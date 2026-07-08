@@ -15,6 +15,7 @@ use crate::{
     domain::{DataScopeFilter, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleOption, RoleUser, RoleUserBindingInput},
 };
 
+mod pages;
 mod relations;
 mod scoped_users;
 mod sql;
@@ -25,10 +26,7 @@ use self::{
         dept_ids, insert_dept_ids, menu_ids, normalize_data_scope_dept_ids, normalize_menu_ids, replace_dept_ids, replace_menu_ids, replace_user_ids,
         role_key_exists, role_name_exists,
     },
-    sql::{
-        ROLE_COLUMNS, dept_query, insert_role_sql, permission_query, role_page, role_page_sql, role_scoped_page_sql, role_scoped_total_sql, role_total_sql,
-        role_users_page_sql, role_users_total_sql, update_role_sql,
-    },
+    sql::{ROLE_COLUMNS, dept_query, insert_role_sql, permission_query, role_users_page_sql, role_users_total_sql, update_role_sql},
     support::{ensure_batch_rows, ensure_rows_affected},
 };
 
@@ -149,55 +147,11 @@ impl RoleQueries {
     }
 
     pub async fn page(&self, filter: RoleListFilter) -> StorageResult<Page<Role>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(role_total_sql()))
-            .bind(&filter.role_name)
-            .bind(&filter.role_key)
-            .bind(&filter.status)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
-            .fetch_one(self.database.pool())
-            .await?;
-        let items = query_as::<_, RoleRecord>(AssertSqlSafe(role_page_sql()))
-            .bind(&filter.role_name)
-            .bind(&filter.role_key)
-            .bind(&filter.status)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
-            .bind(to_i64(filter.page.page_size)?)
-            .bind(to_i64((filter.page.page - 1) * filter.page.page_size)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        role_page(items, total, filter)
+        pages::page(&self.database, filter).await
     }
 
     pub async fn page_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> StorageResult<Page<Role>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(role_scoped_total_sql()))
-            .bind(&filter.role_name)
-            .bind(&filter.role_key)
-            .bind(&filter.status)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
-            .bind(&scope.data_scope)
-            .bind(&scope.user_id)
-            .bind(&scope.dept_id)
-            .bind(&scope.dept_ids)
-            .fetch_one(self.database.pool())
-            .await?;
-        let items = query_as::<_, RoleRecord>(AssertSqlSafe(role_scoped_page_sql()))
-            .bind(&filter.role_name)
-            .bind(&filter.role_key)
-            .bind(&filter.status)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
-            .bind(&scope.data_scope)
-            .bind(&scope.user_id)
-            .bind(&scope.dept_id)
-            .bind(&scope.dept_ids)
-            .bind(to_i64(filter.page.page_size)?)
-            .bind(to_i64((filter.page.page - 1) * filter.page.page_size)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        role_page(items, total, filter)
+        pages::page_scoped(&self.database, filter, scope).await
     }
 
     pub async fn options(&self) -> StorageResult<Vec<RoleOption>> {

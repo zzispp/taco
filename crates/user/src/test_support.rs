@@ -10,7 +10,7 @@ use crate::{
     domain::{NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfileGroups},
 };
 use types::{
-    rbac::{DATA_SCOPE_ALL, DATA_SCOPE_CUSTOM, DATA_SCOPE_DEPT, DATA_SCOPE_SELF, DataScopeFilter, RoleSummary},
+    rbac::{DataScopeFilter, RoleSummary},
     system::{Post, TreeSelectNode},
 };
 
@@ -75,6 +75,7 @@ impl MemoryUserRepository {
     }
 }
 
+mod filters;
 mod online_session_store;
 mod repository;
 
@@ -104,6 +105,32 @@ impl StoredUser {
 
     pub(crate) fn with_dept_id(mut self, dept_id: &str) -> Self {
         self.user.dept_id = Some(dept_id.into());
+        self
+    }
+
+    pub(crate) fn with_nick_name(mut self, nick_name: &str) -> Self {
+        self.user.nick_name = nick_name.into();
+        self
+    }
+
+    pub(crate) fn with_email(mut self, email: &str) -> Self {
+        self.user.email = email.into();
+        self
+    }
+
+    pub(crate) fn with_sex(mut self, sex: &str) -> Self {
+        self.user.sex = sex.into();
+        self
+    }
+
+    pub(crate) fn with_role_ids(mut self, ids: Vec<&str>) -> Self {
+        self.user.role_ids = ids.iter().map(|id| (*id).into()).collect();
+        self.user.roles = self.user.role_ids.iter().map(|id| role_summary(id)).collect();
+        self
+    }
+
+    pub(crate) fn with_post_ids(mut self, ids: Vec<&str>) -> Self {
+        self.user.post_ids = ids.into_iter().map(str::to_owned).collect();
         self
     }
 
@@ -256,37 +283,4 @@ fn role_summary(id: &str) -> RoleSummary {
         role_name: "超级管理员".into(),
         role_key: "admin".into(),
     }
-}
-
-fn memory_scope_matches(user: &User, scope: &DataScopeFilter) -> bool {
-    match scope.data_scope.as_str() {
-        DATA_SCOPE_ALL => true,
-        DATA_SCOPE_CUSTOM => user.dept_id.as_ref().is_some_and(|id| scope.dept_ids.contains(id)),
-        DATA_SCOPE_DEPT => user.dept_id == scope.dept_id,
-        DATA_SCOPE_SELF => user.id.0 == scope.user_id,
-        _ => user.dept_id == scope.dept_id || user.dept_id.as_ref().is_some_and(|id| scope.dept_ids.contains(id)),
-    }
-}
-
-fn memory_filter_matches(user: &User, filter: &UserListFilter) -> bool {
-    contains_filter(&user.username, &filter.username)
-        && contains_optional_filter(&user.phonenumber, &filter.phonenumber)
-        && exact_filter(&user.status, &filter.status)
-        && exact_optional_filter(&user.dept_id, &filter.dept_id)
-}
-
-fn contains_filter(value: &str, filter: &Option<String>) -> bool {
-    filter.as_ref().is_none_or(|needle| value.contains(needle))
-}
-
-fn contains_optional_filter(value: &Option<String>, filter: &Option<String>) -> bool {
-    filter.as_ref().is_none_or(|needle| value.as_ref().is_some_and(|item| item.contains(needle)))
-}
-
-fn exact_filter(value: &str, filter: &Option<String>) -> bool {
-    filter.as_ref().is_none_or(|expected| value == expected)
-}
-
-fn exact_optional_filter(value: &Option<String>, filter: &Option<String>) -> bool {
-    filter.as_ref().is_none_or(|expected| value.as_deref() == Some(expected.as_str()))
 }

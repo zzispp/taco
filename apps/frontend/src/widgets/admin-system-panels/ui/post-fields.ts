@@ -16,6 +16,9 @@ export function postFilterFields(t: TranslateFn) {
     { key: 'post_name', label: t('fields.postName') },
     { key: 'post_code', label: t('fields.postCode') },
     { key: 'status', label: t('common.status'), type: 'select' as const, options: allStatusOptions(t) },
+    { key: 'remark', label: t('common.remark') },
+    { key: 'begin_time', label: t('fields.beginTime'), type: 'date' as const },
+    { key: 'end_time', label: t('fields.endTime'), type: 'date' as const },
   ];
 }
 
@@ -24,6 +27,9 @@ export function toPostFilters(values: Record<string, string>) {
     post_name: values.post_name ?? '',
     post_code: values.post_code ?? '',
     status: values.status ?? '',
+    remark: values.remark ?? '',
+    begin_time: values.begin_time ?? '',
+    end_time: values.end_time ?? '',
   };
 }
 

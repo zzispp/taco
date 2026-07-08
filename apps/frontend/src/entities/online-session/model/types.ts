@@ -17,4 +17,9 @@ export type OnlineSessionsResponse = {
 export type OnlineSessionFilters = {
   ipaddr: string;
   userName: string;
+  loginLocation: string;
+  browser: string;
+  os: string;
+  begin_time: string;
+  end_time: string;
 };

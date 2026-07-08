@@ -20,8 +20,8 @@ const DATA_SCOPE_FORBIDDEN_KEY: &str = "errors.user.data_scope_forbidden";
 use self::{
     system_user::{find_auth_by_identifier, list_with_system_user, reject_conflicting_system_user, reject_protected_user_id, system_user_by_id},
     validation::{
-        sanitize_credentials, sanitize_new_user, sanitize_profile_update, sanitize_replace_user, validate_credentials, validate_new_user, validate_page,
-        validate_profile_update, validate_replace_user,
+        sanitize_credentials, sanitize_filter, sanitize_new_user, sanitize_profile_update, sanitize_replace_user, validate_credentials, validate_new_user,
+        validate_page, validate_profile_update, validate_replace_user,
     },
 };
 
@@ -177,22 +177,6 @@ where
 fn default_if_blank(value: String, default: &str) -> String {
     let value = value.trim();
     if value.is_empty() { default.into() } else { value.into() }
-}
-
-fn sanitize_filter(input: UserListFilter) -> UserListFilter {
-    UserListFilter {
-        page: input.page,
-        username: trim_filter(input.username),
-        phonenumber: trim_filter(input.phonenumber),
-        status: trim_filter(input.status),
-        dept_id: trim_filter(input.dept_id),
-        begin_time: trim_filter(input.begin_time),
-        end_time: trim_filter(input.end_time),
-    }
-}
-
-fn trim_filter(value: Option<String>) -> Option<String> {
-    value.map(|item| item.trim().into()).filter(|item: &String| !item.is_empty())
 }
 
 impl From<NewUser> for UserRecordInput {

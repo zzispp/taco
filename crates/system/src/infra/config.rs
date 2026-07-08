@@ -27,6 +27,7 @@ impl ConfigQueries {
             .bind(&filter.config_name)
             .bind(&filter.config_key)
             .bind(&filter.config_type)
+            .bind(filter.public_read)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
             .fetch_one(self.database.pool())
@@ -35,6 +36,7 @@ impl ConfigQueries {
             .bind(&filter.config_name)
             .bind(&filter.config_key)
             .bind(&filter.config_type)
+            .bind(filter.public_read)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
             .bind(page::limit(filter.page)?)
@@ -49,6 +51,7 @@ impl ConfigQueries {
             .bind(&filter.config_name)
             .bind(&filter.config_key)
             .bind(&filter.config_type)
+            .bind(filter.public_read)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
             .fetch_all(self.database.pool())
@@ -131,14 +134,14 @@ impl ConfigQueries {
 }
 
 fn predicate() -> &'static str {
-    "($1::text IS NULL OR config_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR config_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR config_type=$3) AND ($4::text IS NULL OR create_time::date >= $4::date) AND ($5::text IS NULL OR create_time::date <= $5::date)"
+    "($1::text IS NULL OR config_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR config_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR config_type=$3) AND ($4::boolean IS NULL OR public_read=$4::boolean) AND ($5::text IS NULL OR create_time::date >= $5::date) AND ($6::text IS NULL OR create_time::date <= $6::date)"
 }
 fn list_sql() -> String {
     format!("SELECT {COLUMNS} FROM sys_config WHERE {} ORDER BY config_id ASC", predicate())
 }
 fn page_sql() -> String {
     format!(
-        "SELECT {COLUMNS} FROM sys_config WHERE {} ORDER BY config_id ASC LIMIT $6 OFFSET $7",
+        "SELECT {COLUMNS} FROM sys_config WHERE {} ORDER BY config_id ASC LIMIT $7 OFFSET $8",
         predicate()
     )
 }
@@ -163,4 +166,17 @@ fn ensure_batch_rows(rows: u64, expected: usize) -> StorageResult<()> {
         return Err(StorageError::NotFound);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::page_sql;
+
+    #[test]
+    fn config_text_filters_use_case_insensitive_search() {
+        let sql = page_sql();
+
+        assert!(sql.contains("config_name ILIKE"));
+        assert!(sql.contains("config_key ILIKE"));
+    }
 }

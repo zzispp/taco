@@ -1,5 +1,10 @@
+import type React from 'react';
+import type { Post } from 'src/entities/system';
+import type { TranslateFn } from 'src/shared/i18n';
+import type { RoleOption } from 'src/entities/role';
 import type { UserFiltersValue } from './constants';
 
+import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
@@ -7,49 +12,145 @@ import TextField from '@mui/material/TextField';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
-import { DEFAULT_FILTERS } from './constants';
+import { translatedRoleName } from 'src/entities/role';
 
-export function UserFilters({
-  filters,
-  onChange,
-}: {
+import { DEFAULT_FILTERS } from './constants';
+import { SearchMultiSelect } from './search-multi-select';
+
+const TEXT_FILTER_WIDTH = 150;
+const SELECT_FILTER_WIDTH = 140;
+const DATE_FILTER_WIDTH = 170;
+const MULTI_SELECT_FILTER_WIDTH = 220;
+const ID_SEPARATOR = ',';
+
+type FilterWriter = (key: keyof UserFiltersValue, value: string) => void;
+
+type UserFiltersProps = {
   filters: UserFiltersValue;
+  roles: RoleOption[];
+  posts: Post[];
   onChange: (filters: UserFiltersValue) => void;
-}) {
+};
+
+export function UserFilters({ filters, roles, posts, onChange }: UserFiltersProps) {
   const { t } = useTranslate('admin');
-  const write = (key: keyof UserFiltersValue, value: string) =>
-    onChange({ ...filters, [key]: value });
+  const write: FilterWriter = (key, value) => onChange({ ...filters, [key]: value });
+
   return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>
-      <TextField
-        size="small"
+    <Stack
+      direction="row"
+      useFlexGap
+      flexWrap="wrap"
+      spacing={2}
+      sx={{ p: 2, alignItems: 'center' }}
+    >
+      <TextFilterFields filters={filters} write={write} t={t} />
+      <SelectFilterFields filters={filters} write={write} t={t} />
+      <MultiSelectFilterFields filters={filters} write={write} roles={roles} posts={posts} t={t} />
+      <DateFilterFields filters={filters} write={write} t={t} />
+      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
+        {t('common.reset')}
+      </Button>
+    </Stack>
+  );
+}
+
+function TextFilterFields({ filters, write, t }: BaseFilterProps) {
+  return (
+    <>
+      <TextFilter
         label={t('common.username')}
         value={filters.username}
-        onChange={(event) => write('username', event.target.value)}
+        onChange={(value) => write('username', value)}
       />
-      <TextField
-        size="small"
+      <TextFilter
+        label={t('fields.nickName')}
+        value={filters.nick_name}
+        onChange={(value) => write('nick_name', value)}
+      />
+      <TextFilter
+        label={t('fields.deptName')}
+        value={filters.dept_name}
+        onChange={(value) => write('dept_name', value)}
+      />
+      <TextFilter
+        label={t('common.email')}
+        value={filters.email}
+        onChange={(value) => write('email', value)}
+      />
+      <TextFilter
         label={t('fields.phone')}
         value={filters.phonenumber}
-        onChange={(event) => write('phonenumber', event.target.value)}
+        onChange={(value) => write('phonenumber', value)}
       />
-      <TextField
-        select
-        size="small"
+    </>
+  );
+}
+
+function SelectFilterFields({ filters, write, t }: BaseFilterProps) {
+  return (
+    <>
+      <SelectFilter
+        label={t('fields.sex')}
+        value={filters.sex}
+        onChange={(value) => write('sex', value)}
+      >
+        <MenuItem value="">{t('common.all')}</MenuItem>
+        <MenuItem value="0">{t('common.male')}</MenuItem>
+        <MenuItem value="1">{t('common.female')}</MenuItem>
+        <MenuItem value="2">{t('common.unknown')}</MenuItem>
+      </SelectFilter>
+      <SelectFilter
         label={t('common.status')}
         value={filters.status}
-        sx={{ minWidth: 140 }}
-        onChange={(event) => write('status', event.target.value)}
+        onChange={(value) => write('status', value)}
       >
         <MenuItem value="">{t('common.all')}</MenuItem>
         <MenuItem value="0">{t('common.enabled')}</MenuItem>
         <MenuItem value="1">{t('common.disabled')}</MenuItem>
-      </TextField>
+      </SelectFilter>
+    </>
+  );
+}
+
+function MultiSelectFilterFields({ filters, write, roles, posts, t }: MultiSelectFilterProps) {
+  const postOptions = posts.map((post) => ({ id: post.post_id, label: post.post_name }));
+  const roleOptions = roles.map((role) => ({
+    id: role.role_id,
+    label: translatedRoleName(role, t),
+  }));
+
+  return (
+    <>
+      <Box sx={{ minWidth: MULTI_SELECT_FILTER_WIDTH }}>
+        <SearchMultiSelect
+          label={t('fields.postName')}
+          values={splitIds(filters.post_ids)}
+          options={postOptions}
+          onChange={(values) => write('post_ids', joinIds(values))}
+        />
+      </Box>
+      <Box sx={{ minWidth: MULTI_SELECT_FILTER_WIDTH }}>
+        <SearchMultiSelect
+          label={t('common.role')}
+          values={splitIds(filters.role_ids)}
+          options={roleOptions}
+          onChange={(values) => write('role_ids', joinIds(values))}
+        />
+      </Box>
+    </>
+  );
+}
+
+function DateFilterFields({ filters, write, t }: BaseFilterProps) {
+  return (
+    <>
       <TextField
         size="small"
         type="date"
         label={t('fields.beginTime')}
         value={filters.begin_time}
+        sx={{ minWidth: DATE_FILTER_WIDTH }}
         InputLabelProps={{ shrink: true }}
         onChange={(event) => write('begin_time', event.target.value)}
       />
@@ -58,12 +159,69 @@ export function UserFilters({
         type="date"
         label={t('fields.endTime')}
         value={filters.end_time}
+        sx={{ minWidth: DATE_FILTER_WIDTH }}
         InputLabelProps={{ shrink: true }}
         onChange={(event) => write('end_time', event.target.value)}
       />
-      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
-        {t('common.reset')}
-      </Button>
-    </Stack>
+    </>
   );
 }
+
+function TextFilter({ label, value, onChange }: FieldProps) {
+  return (
+    <TextField
+      size="small"
+      label={label}
+      value={value}
+      sx={{ minWidth: TEXT_FILTER_WIDTH }}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+function SelectFilter({ label, value, children, onChange }: SelectFilterProps) {
+  return (
+    <TextField
+      select
+      size="small"
+      label={label}
+      value={value}
+      sx={{ minWidth: SELECT_FILTER_WIDTH }}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {children}
+    </TextField>
+  );
+}
+
+function splitIds(value: string) {
+  return value
+    .split(ID_SEPARATOR)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function joinIds(values: string[]) {
+  return values.join(ID_SEPARATOR);
+}
+
+type BaseFilterProps = {
+  filters: UserFiltersValue;
+  write: FilterWriter;
+  t: TranslateFn;
+};
+
+type MultiSelectFilterProps = BaseFilterProps & {
+  roles: RoleOption[];
+  posts: Post[];
+};
+
+type FieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+type SelectFilterProps = FieldProps & {
+  children: React.ReactNode;
+};

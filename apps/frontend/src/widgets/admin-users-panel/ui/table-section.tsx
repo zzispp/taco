@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { FlatNode } from './helpers';
+import type { TranslateFn } from 'src/shared/i18n';
 import type { RoleOption } from 'src/entities/role';
 import type { SystemUser } from 'src/entities/user';
 import type { UserFiltersValue } from './constants';
@@ -20,71 +21,28 @@ import { UserRow } from './user-row';
 import { UserFilters } from './filters';
 import { DeptFilterTree } from './dept-filter-tree';
 
-export function UserTableSection({
-  table,
-  filters,
-  users,
-  roles,
-  depts,
-  posts,
-  deptTree,
-  head,
-  loadingHead,
-  selectableUsers,
-  selected,
-  canDelete,
-  onFilterChange,
-  onDeptSelect,
-  onToggleAll,
-  onToggleSelected,
-  onEdit,
-  onDelete,
-  onRoles,
-  onResetPassword,
-  onStatusChange,
-}: UserTableSectionProps) {
+const DEPT_FILTER_CARD_WIDTH = 280;
+const USER_TABLE_MIN_WIDTH = 1560;
+
+export function UserTableSection(props: UserTableSectionProps) {
+  const { table, filters, users, roles, posts, deptTree, onDeptSelect, onFilterChange } = props;
   const { t } = useTranslate('admin');
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-      <Card sx={{ width: { xs: 1, md: 280 }, flexShrink: 0, alignSelf: 'flex-start' }}>
+      <Card
+        sx={{
+          width: { xs: 1, md: DEPT_FILTER_CARD_WIDTH },
+          flexShrink: 0,
+          alignSelf: 'flex-start',
+        }}
+      >
         <DeptFilterTree nodes={deptTree} selected={filters.dept_id} onSelect={onDeptSelect} />
       </Card>
       <Card sx={{ flex: 1, minWidth: 0 }}>
-        <UserFilters filters={filters} onChange={onFilterChange} />
+        <UserFilters filters={filters} roles={roles} posts={posts} onChange={onFilterChange} />
         <Scrollbar>
-          <Table sx={{ minWidth: 1560 }}>
-            <ManagementTableHead
-              head={head}
-              rowCount={selectableUsers.length}
-              numSelected={selected.length}
-              onSelectAllRows={canDelete ? onToggleAll : undefined}
-            />
-            <TableBody>
-              {users.isLoading ? (
-                <TableLoadingRows head={loadingHead} rows={table.rowsPerPage} />
-              ) : (
-                users.items.map((row) => (
-                  <UserRow
-                    key={row.user_id}
-                    row={row}
-                    selected={selected.includes(row.user_id)}
-                    roles={roles}
-                    depts={depts}
-                    posts={posts}
-                    onToggleSelected={onToggleSelected}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onRoles={onRoles}
-                    onResetPassword={onResetPassword}
-                    onStatusChange={(status) => onStatusChange(row, status)}
-                  />
-                ))
-              )}
-              <TableNoData
-                title={t('common.noData')}
-                notFound={!users.isLoading && users.items.length === 0}
-              />
-            </TableBody>
+          <Table sx={{ minWidth: USER_TABLE_MIN_WIDTH }}>
+            <UserTableContent props={{ ...props, t }} />
           </Table>
         </Scrollbar>
         <TablePaginationCustom
@@ -97,6 +55,49 @@ export function UserTableSection({
       </Card>
     </Stack>
   );
+}
+
+function UserTableContent({ props }: { props: UserTableContentProps }) {
+  const selectAll = props.canDelete ? props.onToggleAll : undefined;
+  return (
+    <>
+      <ManagementTableHead
+        head={props.head}
+        rowCount={props.selectableUsers.length}
+        numSelected={props.selected.length}
+        onSelectAllRows={selectAll}
+      />
+      <TableBody>
+        <UserRows props={props} />
+        <TableNoData
+          title={props.t('common.noData')}
+          notFound={!props.users.isLoading && props.users.items.length === 0}
+        />
+      </TableBody>
+    </>
+  );
+}
+
+function UserRows({ props }: { props: UserTableContentProps }) {
+  if (props.users.isLoading) {
+    return <TableLoadingRows head={props.loadingHead} rows={props.table.rowsPerPage} />;
+  }
+  return props.users.items.map((row) => (
+    <UserRow
+      key={row.user_id}
+      row={row}
+      selected={props.selected.includes(row.user_id)}
+      roles={props.roles}
+      depts={props.depts}
+      posts={props.posts}
+      onToggleSelected={props.onToggleSelected}
+      onEdit={props.onEdit}
+      onDelete={props.onDelete}
+      onRoles={props.onRoles}
+      onResetPassword={props.onResetPassword}
+      onStatusChange={(status) => props.onStatusChange(row, status)}
+    />
+  ));
 }
 
 type TableState = {
@@ -134,4 +135,8 @@ type UserTableSectionProps = {
   onRoles: (user: SystemUser) => void;
   onResetPassword: (user: SystemUser) => void;
   onStatusChange: (user: SystemUser, status: string) => void;
+};
+
+type UserTableContentProps = UserTableSectionProps & {
+  t: TranslateFn;
 };

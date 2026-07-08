@@ -18,6 +18,7 @@ export function configFilterFields(t: TranslateFn) {
     { key: 'config_name', label: t('fields.configName') },
     { key: 'config_key', label: t('fields.configKey') },
     { key: 'config_type', label: t('fields.configType'), type: 'select' as const, options: allConfigTypeOptions(t) },
+    { key: 'public_read', label: t('fields.publicRead'), type: 'select' as const, options: allBooleanOptions(t) },
     { key: 'begin_time', label: t('fields.beginTime'), type: 'date' as const },
     { key: 'end_time', label: t('fields.endTime'), type: 'date' as const },
   ];
@@ -28,6 +29,7 @@ export function toConfigFilters(values: Record<string, string>) {
     config_name: values.config_name ?? '',
     config_key: values.config_key ?? '',
     config_type: values.config_type ?? '',
+    public_read: values.public_read ?? '',
     begin_time: values.begin_time ?? '',
     end_time: values.end_time ?? '',
   };
@@ -51,6 +53,14 @@ function configTypeOptions(t: TranslateFn) {
 
 function allConfigTypeOptions(t: TranslateFn) {
   return [{ value: '', label: t('common.all') }, ...configTypeOptions(t)];
+}
+
+function allBooleanOptions(t: TranslateFn) {
+  return [
+    { value: '', label: t('common.all') },
+    { value: 'true', label: t('common.yes') },
+    { value: 'false', label: t('common.no') },
+  ];
 }
 
 function builtInFieldDisabled({ editing }: { editing: Record<string, unknown> | null }) {

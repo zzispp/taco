@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use kernel::error::LocalizedError;
 use kernel::excel::{read_xlsx, write_xlsx};
-use kernel::pagination::PageRequest;
 use types::{
     http::{Locale, translate_message},
     user::User,
@@ -31,6 +30,12 @@ struct ImportColumnDef {
 }
 
 type ImportColumns = HashMap<ImportField, usize>;
+
+struct ImportRowReader<'a> {
+    row: &'a [String],
+    columns: &'a ImportColumns,
+    locale: Locale,
+}
 
 const EXPORT_SHEET_KEY: &str = "excel.user.export.sheet";
 const IMPORT_SHEET_KEY: &str = "excel.user.import.sheet";
@@ -99,15 +104,7 @@ pub fn parse_import_rows(bytes: &[u8], locale: Locale) -> AppResult<Vec<UserImpo
 }
 
 pub fn export_query_page(query: &UserExportQuery, page: u64, page_size: u64) -> UserListFilter {
-    UserListFilter {
-        page: PageRequest { page, page_size },
-        username: query.username.clone(),
-        phonenumber: query.phonenumber.clone(),
-        status: query.status.clone(),
-        dept_id: query.dept_id.clone(),
-        begin_time: query.begin_time.clone(),
-        end_time: query.end_time.clone(),
-    }
+    query.to_filter(page, page_size)
 }
 
 fn user_row(user: &User) -> Vec<String> {
@@ -138,36 +135,43 @@ fn import_columns(header: &[String], locale: Locale) -> AppResult<ImportColumns>
 }
 
 fn import_row(row: &[String], columns: &ImportColumns, locale: Locale) -> AppResult<UserImportRow> {
+    let reader = ImportRowReader { row, columns, locale };
     Ok(UserImportRow {
-        dept_id: optional_cell(row, columns, ImportField::DeptId),
-        username: required_cell(row, columns, ImportField::Username, locale)?,
-        nick_name: required_cell(row, columns, ImportField::NickName, locale)?,
-        email: required_cell(row, columns, ImportField::Email, locale)?,
-        phonenumber: optional_cell(row, columns, ImportField::PhoneNumber),
-        sex: optional_cell(row, columns, ImportField::Sex).unwrap_or_else(|| "2".into()),
-        status: optional_cell(row, columns, ImportField::Status).unwrap_or_else(|| "0".into()),
+        dept_id: reader.optional_cell(ImportField::DeptId),
+        username: reader.required_cell(ImportField::Username)?,
+        nick_name: reader.required_cell(ImportField::NickName)?,
+        email: reader.required_cell(ImportField::Email)?,
+        phonenumber: reader.optional_cell(ImportField::PhoneNumber),
+        sex: reader.optional_cell(ImportField::Sex).unwrap_or_else(|| "2".into()),
+        status: reader.optional_cell(ImportField::Status).unwrap_or_else(|| "0".into()),
     })
 }
 
-fn required_cell(row: &[String], columns: &ImportColumns, field: ImportField, locale: Locale) -> AppResult<String> {
-    let value = cell(row, columns, field).trim().to_owned();
-    if value.is_empty() {
-        return Err(AppError::InvalidInput(localized_param(
-            "errors.user.import_column_blank",
-            "column",
-            field_label(field, locale),
-        )));
+impl ImportRowReader<'_> {
+    fn required_cell(&self, field: ImportField) -> AppResult<String> {
+        let value = self.cell(field).trim().to_owned();
+        if value.is_empty() {
+            return Err(AppError::InvalidInput(localized_param(
+                "errors.user.import_column_blank",
+                "column",
+                field_label(field, self.locale),
+            )));
+        }
+        Ok(value)
     }
-    Ok(value)
-}
 
-fn optional_cell(row: &[String], columns: &ImportColumns, field: ImportField) -> Option<String> {
-    let value = cell(row, columns, field).trim().to_owned();
-    (!value.is_empty()).then_some(value)
-}
+    fn optional_cell(&self, field: ImportField) -> Option<String> {
+        let value = self.cell(field).trim().to_owned();
+        (!value.is_empty()).then_some(value)
+    }
 
-fn cell<'a>(row: &'a [String], columns: &ImportColumns, field: ImportField) -> &'a str {
-    columns.get(&field).and_then(|index| row.get(*index)).map(String::as_str).unwrap_or_default()
+    fn cell(&self, field: ImportField) -> &str {
+        self.columns
+            .get(&field)
+            .and_then(|index| self.row.get(*index))
+            .map(String::as_str)
+            .unwrap_or_default()
+    }
 }
 
 fn field_label(field: ImportField, locale: Locale) -> String {

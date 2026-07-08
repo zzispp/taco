@@ -32,6 +32,7 @@ pub fn role_export_page(query: &RoleExportQuery, page: u64, page_size: u64) -> R
         role_name: query.role_name.clone(),
         role_key: query.role_key.clone(),
         status: query.status.clone(),
+        system: query.system,
         begin_time: query.begin_time.clone(),
         end_time: query.end_time.clone(),
     }

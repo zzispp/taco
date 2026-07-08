@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    api::online_session_filter::OnlineSessionMatcher,
     application::{AppError, AppResult, OnlineSession, OnlineSessionFilter, OnlineSessionStore},
     domain::UserId,
 };
@@ -72,6 +73,13 @@ struct ValidatedToken {
     token_id: String,
 }
 
+struct TokenPayload<'a> {
+    user_id: &'a UserId,
+    token_id: &'a str,
+    token_type: TokenKind,
+    ttl_seconds: u64,
+}
+
 #[async_trait]
 pub trait TokenSettingsReader: Send + Sync + 'static {
     async fn token_ttl_config(&self) -> AppResult<TokenTtlConfig>;
@@ -120,8 +128,9 @@ impl TokenService {
     }
 
     pub async fn online_sessions(&self, filter: OnlineSessionFilter) -> AppResult<Vec<OnlineSession>> {
+        let matcher = OnlineSessionMatcher::new(filter)?;
         let mut sessions = self.sessions.list().await?;
-        sessions.retain(|session| session_matches(session, &filter));
+        sessions.retain(|session| matcher.matches(session));
         sessions.reverse();
         Ok(sessions)
     }
@@ -136,22 +145,32 @@ impl TokenService {
 
     fn issue_pair_for_session(&self, user_id: &UserId, token_id: &str, ttl: &TokenTtlConfig) -> AppResult<TokenPair> {
         Ok(TokenPair {
-            access_token: self.issue_token(user_id, token_id, TokenKind::Access, ttl.access_token_ttl_seconds)?,
-            refresh_token: self.issue_token(user_id, token_id, TokenKind::Refresh, ttl.refresh_token_ttl_seconds)?,
+            access_token: self.issue_token(TokenPayload {
+                user_id,
+                token_id,
+                token_type: TokenKind::Access,
+                ttl_seconds: ttl.access_token_ttl_seconds,
+            })?,
+            refresh_token: self.issue_token(TokenPayload {
+                user_id,
+                token_id,
+                token_type: TokenKind::Refresh,
+                ttl_seconds: ttl.refresh_token_ttl_seconds,
+            })?,
         })
     }
 
-    fn issue_token(&self, user_id: &UserId, token_id: &str, token_type: TokenKind, ttl_seconds: u64) -> AppResult<String> {
+    fn issue_token(&self, payload: TokenPayload<'_>) -> AppResult<String> {
         let iat = system_time()?.as_secs();
         let exp = iat
-            .checked_add(ttl_seconds)
+            .checked_add(payload.ttl_seconds)
             .ok_or_else(|| AppError::Infrastructure(JWT_EXPIRATION_OVERFLOW_ERROR.into()))?;
         let claims = Claims {
-            sub: user_id.0.clone(),
+            sub: payload.user_id.0.clone(),
             exp,
             iat,
-            jti: token_id.into(),
-            token_type,
+            jti: payload.token_id.into(),
+            token_type: payload.token_type,
         };
         encode(
             &Header::new(Algorithm::HS256),
@@ -211,14 +230,6 @@ pub fn parse_token_ttl_config(value: &str) -> AppResult<TokenTtlConfig> {
         .map_err(|_| AppError::InvalidInput(LocalizedError::new("errors.user.invalid_system_config").with_param("key", "sys.auth.tokenConfig")))?;
     parsed.validate()?;
     Ok(parsed)
-}
-
-fn session_matches(session: &OnlineSession, filter: &OnlineSessionFilter) -> bool {
-    exact_filter(&session.ipaddr, &filter.ipaddr) && exact_filter(&session.user_name, &filter.user_name)
-}
-
-fn exact_filter(value: &str, filter: &Option<String>) -> bool {
-    filter.as_ref().is_none_or(|expected| value == expected)
 }
 
 fn parse_user_id(subject: &str) -> AppResult<UserId> {
