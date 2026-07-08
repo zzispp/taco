@@ -10,6 +10,7 @@ mod tests {
     use crate::composition;
     use configuration::Settings;
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn docs_and_metrics_routes_are_public() {
         let settings = test_settings();
@@ -33,6 +34,7 @@ mod tests {
         assert_eq!(metrics.status(), StatusCode::OK);
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn docs_support_gzip_and_request_id() {
         let settings = test_settings();
@@ -58,6 +60,7 @@ mod tests {
         assert!(response.headers().contains_key("x-request-id"));
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn metrics_output_exposes_http_series() {
         let settings = test_settings();

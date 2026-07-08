@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_up_hashes_password_and_persists_user() {
     let repository = MemoryUserRepository::default();
@@ -12,6 +13,7 @@ async fn sign_up_hashes_password_and_persists_user() {
     assert_eq!(created[0].password_hash.as_deref(), Some("hashed:secret123"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_up_trims_username_email_and_password_before_persisting() {
     let repository = MemoryUserRepository::default();
@@ -27,6 +29,7 @@ async fn sign_up_trims_username_email_and_password_before_persisting() {
     assert_eq!(created[0].password_hash.as_deref(), Some("hashed:secret123"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_rejects_invalid_password() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -42,6 +45,7 @@ async fn sign_in_rejects_invalid_password() {
     assert!(matches!(result, Err(AppError::Unauthorized)));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_accepts_email_identifier() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -59,6 +63,7 @@ async fn sign_in_accepts_email_identifier() {
     assert_eq!(repository.login_records(), vec![user_id(1)]);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_trims_identifier_and_password() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -75,6 +80,7 @@ async fn sign_in_trims_identifier_and_password() {
     assert_eq!(user.email, "alice@example.com");
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_up_rejects_invalid_username_constraints() {
     for username in ["ab", "alice!", "-alice", "alice_"] {
@@ -87,6 +93,7 @@ async fn sign_up_rejects_invalid_username_constraints() {
     }
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_up_rejects_invalid_password_constraints() {
     for password in ["short", ""] {
@@ -99,6 +106,7 @@ async fn sign_up_rejects_invalid_password_constraints() {
     }
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn authenticated_user_returns_user_from_token_subject() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -109,6 +117,7 @@ async fn authenticated_user_returns_user_from_token_subject() {
     assert_eq!(user.email, "alice@example.com");
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn authenticated_user_rejects_unknown_user() {
     let repository = MemoryUserRepository::default();

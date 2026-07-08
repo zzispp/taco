@@ -75,7 +75,10 @@ impl MemoryUserRepository {
     }
 }
 
+mod online_session_store;
 mod repository;
+
+pub(crate) use online_session_store::MemoryOnlineSessionStore;
 
 impl PasswordHasher for TestPasswordHasher {
     fn hash(&self, password: &str) -> AppResult<String> {

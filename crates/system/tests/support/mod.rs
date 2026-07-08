@@ -10,7 +10,7 @@ use system::{
     application::{ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemError, SystemRepository},
     domain::{ConfigInput, ConfigItem, Dept, DeptInput, DictData, DictDataInput, DictType, DictTypeInput, Post, PostInput},
 };
-use types::rbac::DataScopeFilter;
+use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_CUSTOM, DATA_SCOPE_DEPT, DATA_SCOPE_DEPT_AND_CHILD, DATA_SCOPE_SELF, DataScopeFilter};
 
 #[derive(Clone, Default)]
 pub(crate) struct MemoryRepository {
@@ -211,6 +211,23 @@ fn config_from_input(id: &str, input: ConfigInput) -> ConfigItem {
         remark: input.remark,
         create_time: "2026-01-01 00:00:00".into(),
     }
+}
+
+fn memory_dept_scope_matches(dept: &Dept, scope: &DataScopeFilter) -> bool {
+    match scope.data_scope.as_str() {
+        DATA_SCOPE_ALL => true,
+        DATA_SCOPE_CUSTOM => scope.dept_ids.contains(&dept.dept_id),
+        DATA_SCOPE_DEPT | DATA_SCOPE_SELF => scope.dept_id.as_deref() == Some(dept.dept_id.as_str()),
+        DATA_SCOPE_DEPT_AND_CHILD => dept_in_scope_tree(dept, scope.dept_id.as_deref()),
+        _ => false,
+    }
+}
+
+fn dept_in_scope_tree(dept: &Dept, root: Option<&str>) -> bool {
+    let Some(root) = root else {
+        return false;
+    };
+    dept.dept_id == root || dept.ancestors.split(',').any(|id| id == root)
 }
 pub(crate) fn dept(id: &str, parent_id: &str, name: &str) -> Dept {
     Dept {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sqlx::{Postgres, query, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, Postgres, query, query_as, query_scalar};
 use storage::{StorageError, StorageResult};
 
 use crate::domain::RoleDataScopeInput;
@@ -145,7 +145,7 @@ pub(super) async fn replace_user_ids(pool: &sqlx::PgPool, role_id: &str, user_id
 
 async fn replace_ids(pool: &sqlx::PgPool, replacement: RelationReplacement<'_>) -> StorageResult<()> {
     let mut tx = pool.begin().await?;
-    query(&format!("DELETE FROM {} WHERE role_id = $1", replacement.target.table))
+    query(AssertSqlSafe(format!("DELETE FROM {} WHERE role_id = $1", replacement.target.table)))
         .bind(replacement.target.role_id)
         .execute(&mut *tx)
         .await?;
@@ -155,10 +155,10 @@ async fn replace_ids(pool: &sqlx::PgPool, replacement: RelationReplacement<'_>) 
 
 async fn insert_ids(tx: &mut RoleTx<'_>, replacement: RelationReplacement<'_>) -> StorageResult<()> {
     for id in replacement.ids {
-        query(&format!(
+        query(AssertSqlSafe(format!(
             "INSERT INTO {} (role_id, {}) VALUES ($1, $2)",
             replacement.target.table, replacement.target.column
-        ))
+        )))
         .bind(replacement.target.role_id)
         .bind(id)
         .execute(&mut **tx)
@@ -168,10 +168,10 @@ async fn insert_ids(tx: &mut RoleTx<'_>, replacement: RelationReplacement<'_>) -
 }
 
 async fn binding_ids(pool: &sqlx::PgPool, target: RelationTarget<'_>) -> StorageResult<Vec<String>> {
-    query_scalar::<_, String>(&format!(
+    query_scalar::<_, String>(AssertSqlSafe(format!(
         "SELECT {} FROM {} WHERE role_id = $1 ORDER BY {} ASC",
         target.column, target.table, target.column
-    ))
+    )))
     .bind(target.role_id)
     .fetch_all(pool)
     .await
@@ -179,10 +179,10 @@ async fn binding_ids(pool: &sqlx::PgPool, target: RelationTarget<'_>) -> Storage
 }
 
 async fn unique_exists(pool: &sqlx::PgPool, check: RoleUniqueCheck<'_>) -> StorageResult<bool> {
-    query_scalar::<_, bool>(&format!(
+    query_scalar::<_, bool>(AssertSqlSafe(format!(
         "SELECT EXISTS(SELECT 1 FROM sys_role WHERE del_flag='0' AND {}=$1 AND ($2::text IS NULL OR role_id<>$2))",
         check.column
-    ))
+    )))
     .bind(check.value)
     .bind(check.current_id)
     .fetch_one(pool)

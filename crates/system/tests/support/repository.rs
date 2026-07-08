@@ -11,8 +11,16 @@ impl SystemRepository for MemoryRepository {
     async fn list_depts(&self, _filter: DeptListFilter) -> system::application::SystemResult<Vec<Dept>> {
         Ok(vec![])
     }
-    async fn list_depts_scoped(&self, _filter: DeptListFilter, _scope: DataScopeFilter) -> system::application::SystemResult<Vec<Dept>> {
-        Ok(vec![])
+    async fn list_depts_scoped(&self, _filter: DeptListFilter, scope: DataScopeFilter) -> system::application::SystemResult<Vec<Dept>> {
+        Ok(self
+            .state
+            .lock()
+            .unwrap()
+            .dept
+            .clone()
+            .into_iter()
+            .filter(|dept| memory_dept_scope_matches(dept, &scope))
+            .collect())
     }
     async fn list_depts_excluding(&self, _id: &str) -> system::application::SystemResult<Vec<Dept>> {
         Ok(vec![])

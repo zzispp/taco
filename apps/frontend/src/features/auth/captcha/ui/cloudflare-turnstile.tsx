@@ -32,6 +32,7 @@ type CloudflareTurnstileProps = {
   config: TurnstilePublicConfig;
   resetKey: number;
   onTokenChange: (token: string | null) => void;
+  siteKeyRequiredMessage: string;
 };
 
 declare global {
@@ -40,7 +41,7 @@ declare global {
   }
 }
 
-export function CloudflareTurnstile({ config, resetKey, onTokenChange }: CloudflareTurnstileProps) {
+export function CloudflareTurnstile({ config, resetKey, onTokenChange, siteKeyRequiredMessage }: CloudflareTurnstileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<TurnstileWidgetId | null>(null);
   const containerId = useRef(`${TURNSTILE_CONTAINER_ID_PREFIX}-${crypto.randomUUID()}`);
@@ -54,7 +55,7 @@ export function CloudflareTurnstile({ config, resetKey, onTokenChange }: Cloudfl
   );
 
   if (!config.site_key) {
-    return <Alert severity="error">Cloudflare Turnstile site_key is required</Alert>;
+    return <Alert severity="error">{siteKeyRequiredMessage}</Alert>;
   }
 
   return (

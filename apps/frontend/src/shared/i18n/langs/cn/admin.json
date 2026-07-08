@@ -12,7 +12,8 @@
     "depts": "部门管理",
     "posts": "岗位管理",
     "dicts": "字典管理",
-    "configs": "参数设置"
+    "configs": "参数设置",
+    "online": "在线用户"
   },
   "common": {
     "active": "启用",
@@ -71,7 +72,8 @@
     "saved": "已保存",
     "deleted": "已删除",
     "all": "全部",
-    "reset": "重置"
+    "reset": "重置",
+    "index": "序号"
   },
   "pages": {
     "menuManagement": "菜单管理",
@@ -80,7 +82,8 @@
     "deptManagement": "部门管理",
     "postManagement": "岗位管理",
     "dictManagement": "字典管理",
-    "configManagement": "参数设置"
+    "configManagement": "参数设置",
+    "onlineManagement": "在线用户"
   },
   "actions": {
     "addMenuItem": "新增菜单",
@@ -254,7 +257,17 @@
     "viewAll": "查看全部",
     "markComplete": "标记完成",
     "share": "分享",
-    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
+    "months": [
+      "1月",
+      "2月",
+      "3月",
+      "4月",
+      "5月",
+      "6月",
+      "7月",
+      "8月",
+      "9月"
+    ],
     "regions": {
       "america": "美洲",
       "asia": "亚洲",
@@ -419,6 +432,34 @@
     "invalidPhone": "手机号格式不正确",
     "logout": "退出登录",
     "logoutFailed": "退出登录失败",
-    "authorizedNavigation": "授权菜单"
+    "authorizedNavigation": "授权菜单",
+    "usernameRuleDynamic": "用户名长度必须在 {{min}} 到 {{max}} 个字符之间",
+    "usernamePattern": "用户名只能包含字母、数字、下划线和连字符，并且必须以字母或数字开头和结尾",
+    "passwordLetterRequired": "密码必须包含字母",
+    "passwordNumberRequired": "密码必须包含数字",
+    "passwordSymbolRequired": "密码必须包含特殊字符",
+    "passwordContainsUsername": "密码不能包含用户名",
+    "emailRequired": "邮箱不能为空",
+    "identifierRequired": "请输入用户名或邮箱",
+    "identifierInvalid": "请输入有效的用户名或邮箱地址"
+  },
+  "onlineSessions": {
+    "tokenId": "会话编号",
+    "userName": "登录名称",
+    "ipaddr": "登录地址",
+    "host": "主机",
+    "loginLocation": "登录地点",
+    "browser": "浏览器",
+    "os": "操作系统",
+    "loginTime": "登录时间",
+    "forceLogout": "强退",
+    "forceLogoutConfirm": "是否确认强退名称为\"{{name}}\"的用户？",
+    "forceLogoutSuccess": "强退成功"
+  },
+  "authExpired": {
+    "title": "系统提示",
+    "content": "登录状态已过期，您可以继续留在该页面，或者重新登录",
+    "stay": "继续留在该页面",
+    "relogin": "重新登录"
   }
 }

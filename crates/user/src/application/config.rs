@@ -23,6 +23,11 @@ pub struct AvatarConfig {
     pub max_bytes: usize,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+pub struct IpLocationConfig {
+    pub enabled: bool,
+}
+
 impl Default for PasswordPolicy {
     fn default() -> Self {
         Self {
@@ -64,6 +69,10 @@ pub fn parse_avatar_config(value: &str) -> AppResult<AvatarConfig> {
 
 pub fn parse_export_batch_config(value: &str) -> AppResult<kernel::runtime_config::ExportBatchConfig> {
     parse_config(value, "sys.export.batchConfig", validate_export_batch_config)
+}
+
+pub fn parse_ip_location_config(value: &str) -> AppResult<IpLocationConfig> {
+    serde_json::from_str::<IpLocationConfig>(value).map_err(|_| invalid_config(constants::system_config::IP_LOCATION_CONFIG_KEY))
 }
 
 fn validate_export_batch_config(value: &kernel::runtime_config::ExportBatchConfig) -> AppResult<()> {

@@ -2,6 +2,7 @@
 name = "hook_tracing"
 version.workspace = true
 edition.workspace = true
+publish.workspace = true
 
 [dependencies]
 axum.workspace = true
@@ -13,4 +14,3 @@ tracing-appender.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [dev-dependencies]
-tempfile.workspace = true

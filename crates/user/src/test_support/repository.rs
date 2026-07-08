@@ -133,6 +133,16 @@ impl UserRepository for MemoryUserRepository {
         })
     }
 
+    async fn list_scoped_ids(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<Vec<UserId>> {
+        let state = self.state.lock().unwrap();
+        Ok(state
+            .users
+            .iter()
+            .filter(|stored| ids.contains(&stored.user.id) && memory_scope_matches(&stored.user, &scope))
+            .map(|stored| stored.user.id.clone())
+            .collect())
+    }
+
     async fn list_slice(&self, filter: UserListFilter, request: PageSliceRequest) -> AppResult<Page<User>> {
         let state = self.state.lock().unwrap();
         let filtered = state

@@ -2,7 +2,7 @@ use kernel::pagination::PageRequest;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::UserListFilter,
+    application::{OnlineSessionFilter, UserListFilter},
     domain::{Credentials, NewUser, ReplaceUser},
 };
 
@@ -63,6 +63,13 @@ pub struct UserExportQuery {
     pub dept_id: Option<String>,
     pub begin_time: Option<String>,
     pub end_time: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct OnlineSessionsQuery {
+    pub ipaddr: Option<String>,
+    #[serde(rename = "userName")]
+    pub user_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -165,4 +172,17 @@ impl From<ListUsersQuery> for UserListFilter {
             end_time: value.end_time,
         }
     }
+}
+
+impl From<OnlineSessionsQuery> for OnlineSessionFilter {
+    fn from(value: OnlineSessionsQuery) -> Self {
+        Self {
+            ipaddr: trim_optional(value.ipaddr),
+            user_name: trim_optional(value.user_name),
+        }
+    }
+}
+
+fn trim_optional(value: Option<String>) -> Option<String> {
+    value.map(|item| item.trim().to_owned()).filter(|item| !item.is_empty())
 }

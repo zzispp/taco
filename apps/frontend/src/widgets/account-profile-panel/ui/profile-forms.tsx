@@ -181,11 +181,27 @@ function passwordFormError(
 ) {
   if (!form.old_password || !form.new_password || !form.confirm_password)
     return t('profile.passwordRequired');
-  const parsed = createPasswordSchema(policy, username).safeParse(form.new_password);
+  const parsed = createPasswordSchema(validationMessages(t), policy, username).safeParse(form.new_password);
   if (!parsed.success) return parsed.error.issues[0]?.message ?? passwordRuleText(t, policy);
   if (form.old_password === form.new_password) return t('profile.passwordSame');
   if (form.new_password !== form.confirm_password) return t('profile.passwordMismatch');
   return '';
+}
+
+function validationMessages(t: ReturnType<typeof useTranslate>['t']) {
+  return {
+    usernameLength: (min: number, max: number) => t('profile.usernameRuleDynamic', { min, max }),
+    usernamePattern: t('profile.usernamePattern'),
+    passwordLength: (min: number, max: number) => t('profile.passwordRuleDynamic', { min, max }),
+    passwordLetterRequired: t('profile.passwordLetterRequired'),
+    passwordNumberRequired: t('profile.passwordNumberRequired'),
+    passwordSymbolRequired: t('profile.passwordSymbolRequired'),
+    passwordContainsUsername: t('profile.passwordContainsUsername'),
+    emailRequired: t('profile.emailRequired'),
+    emailInvalid: t('profile.invalidEmail'),
+    identifierRequired: t('profile.identifierRequired'),
+    identifierInvalid: t('profile.identifierInvalid'),
+  };
 }
 
 function passwordRuleText(t: ReturnType<typeof useTranslate>['t'], policy?: PasswordPolicy) {

@@ -4,6 +4,7 @@ use tower::ServiceExt;
 
 use super::support::*;
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_rejects_missing_captcha_when_enabled() {
     let app = test_router_with_captcha(TestCaptcha::enabled());
@@ -26,6 +27,7 @@ async fn sign_in_rejects_missing_captcha_when_enabled() {
     assert_eq!(body["details"], "请先完成验证码校验");
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_accepts_captcha_token_when_enabled() {
     let app = test_router_with_captcha(TestCaptcha::enabled());
@@ -49,6 +51,7 @@ async fn sign_in_accepts_captcha_token_when_enabled() {
     assert_non_empty_string(&body["refresh_token"]);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_up_rejects_missing_captcha_when_enabled() {
     let app = test_router_with_captcha(TestCaptcha::enabled());
@@ -73,6 +76,7 @@ async fn sign_up_rejects_missing_captcha_when_enabled() {
     assert_eq!(body["details"], "请先完成验证码校验");
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_up_accepts_captcha_token_when_enabled() {
     let app = test_router_with_captcha(TestCaptcha::enabled());

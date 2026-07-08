@@ -11,6 +11,7 @@ use crate::{
     providers::cap::{CapChallengeRecord, CapOptions, CapProvider, CapStore, solve_for_test},
 };
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn config_dispatches_to_selected_provider() {
     let service = service(settings(true, "cap"), store());
@@ -22,6 +23,7 @@ async fn config_dispatches_to_selected_provider() {
     assert_eq!(config.public_config, json!({}));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn unknown_provider_is_explicit_error() {
     let service = service(settings(true, "missing"), store());
@@ -31,6 +33,7 @@ async fn unknown_provider_is_explicit_error() {
     assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.unsupported_provider"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_account_allows_missing_token_when_disabled() {
     let service = service(settings(false, "cap"), store());
@@ -40,6 +43,7 @@ async fn verify_account_allows_missing_token_when_disabled() {
     assert!(result.is_ok());
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_account_requires_token_when_enabled() {
     let service = service(settings(true, "cap"), store());
@@ -49,6 +53,7 @@ async fn verify_account_requires_token_when_enabled() {
     assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_required"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn cap_challenge_redeem_and_verify_consumes_token_once() {
     let service = service(settings(true, "cap"), store());

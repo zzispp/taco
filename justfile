@@ -29,7 +29,7 @@ quality-complete: quality-precommit
     scripts/quality/ensure-rust-quality-tools.sh complete
     cargo audit
     cargo deny check
-    cargo geiger --all-features --workspace
+    scripts/quality/run-cargo-geiger.sh
     cargo miri test --workspace
     cargo outdated --workspace
     cargo +nightly udeps --workspace --all-targets

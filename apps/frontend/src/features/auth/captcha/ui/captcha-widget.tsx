@@ -4,6 +4,8 @@ import type { CaptchaConfig, CaptchaLabels, TurnstilePublicConfig } from '../mod
 
 import Alert from '@mui/material/Alert';
 
+import { useTranslate } from 'src/shared/i18n';
+
 import { CapCaptcha } from './cap-captcha';
 import { CloudflareTurnstile } from './cloudflare-turnstile';
 import { CAPTCHA_PROVIDER_CAP, CAPTCHA_PROVIDER_CLOUDFLARE_TURNSTILE } from '../model/types';
@@ -15,14 +17,9 @@ type CaptchaWidgetProps = {
   labels?: CaptchaLabels;
 };
 
-const DEFAULT_LABELS: CaptchaLabels = {
-  initial: 'Verify you are human',
-  verifying: 'Verifying...',
-  solved: 'You are human',
-  error: 'Error. Try again.',
-};
-
 export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: CaptchaWidgetProps) {
+  const { t } = useTranslate('messages');
+  const captchaLabels = labels ?? defaultLabels(t);
   if (!config?.enabled) {
     return null;
   }
@@ -32,7 +29,7 @@ export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: Captc
       <CapCaptcha
         resetKey={resetKey}
         onTokenChange={onTokenChange}
-        labels={labels ?? DEFAULT_LABELS}
+        labels={captchaLabels}
       />
     );
   }
@@ -43,11 +40,12 @@ export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: Captc
         config={turnstileConfig(config)}
         resetKey={resetKey}
         onTokenChange={onTokenChange}
+        siteKeyRequiredMessage={t('auth.captcha.turnstileSiteKeyRequired')}
       />
     );
   }
 
-  return <Alert severity="error">Unsupported captcha provider: {config.provider}</Alert>;
+  return <Alert severity="error">{t('auth.captcha.unsupportedProvider', { provider: config.provider })}</Alert>;
 }
 
 export function isCaptchaReady(config: CaptchaConfig | undefined, token: string | null) {
@@ -56,4 +54,13 @@ export function isCaptchaReady(config: CaptchaConfig | undefined, token: string 
 
 function turnstileConfig(config: CaptchaConfig): TurnstilePublicConfig {
   return config.public_config as TurnstilePublicConfig;
+}
+
+function defaultLabels(t: ReturnType<typeof useTranslate>['t']): CaptchaLabels {
+  return {
+    initial: t('auth.captcha.initial'),
+    verifying: t('auth.captcha.verifying'),
+    solved: t('auth.captcha.solved'),
+    error: t('auth.captcha.error'),
+  };
 }

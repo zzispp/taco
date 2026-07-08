@@ -1,5 +1,5 @@
 use kernel::pagination::Page;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
@@ -28,7 +28,7 @@ impl DictQueries {
     }
 
     pub async fn page_types(&self, filter: DictTypeListFilter) -> StorageResult<Page<DictType>> {
-        let total = query_scalar::<_, i64>(&type_total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(type_total_sql()))
             .bind(&filter.dict_name)
             .bind(&filter.dict_type)
             .bind(&filter.status)
@@ -36,7 +36,7 @@ impl DictQueries {
             .bind(&filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
-        let rows = query_as::<_, DictTypeRecord>(&type_page_sql())
+        let rows = query_as::<_, DictTypeRecord>(AssertSqlSafe(type_page_sql()))
             .bind(&filter.dict_name)
             .bind(&filter.dict_type)
             .bind(&filter.status)
@@ -50,7 +50,7 @@ impl DictQueries {
     }
 
     pub async fn list_types(&self, filter: DictTypeListFilter) -> StorageResult<Vec<DictType>> {
-        query_as::<_, DictTypeRecord>(&type_list_sql())
+        query_as::<_, DictTypeRecord>(AssertSqlSafe(type_list_sql()))
             .bind(&filter.dict_name)
             .bind(&filter.dict_type)
             .bind(&filter.status)
@@ -115,7 +115,7 @@ impl DictQueries {
     }
 
     pub async fn find_type(&self, id: &str) -> StorageResult<Option<DictType>> {
-        query_as::<_, DictTypeRecord>(&format!("SELECT {TYPE_COLUMNS} FROM sys_dict_type WHERE dict_id = $1"))
+        query_as::<_, DictTypeRecord>(AssertSqlSafe(format!("SELECT {TYPE_COLUMNS} FROM sys_dict_type WHERE dict_id = $1")))
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
@@ -124,11 +124,13 @@ impl DictQueries {
     }
 
     pub async fn type_options(&self) -> StorageResult<Vec<DictType>> {
-        query_as::<_, DictTypeRecord>(&format!("SELECT {TYPE_COLUMNS} FROM sys_dict_type WHERE status='0' ORDER BY dict_id ASC"))
-            .fetch_all(self.database.pool())
-            .await
-            .map(|rows| rows.into_iter().map(dict_type).collect())
-            .map_err(StorageError::from)
+        query_as::<_, DictTypeRecord>(AssertSqlSafe(format!(
+            "SELECT {TYPE_COLUMNS} FROM sys_dict_type WHERE status='0' ORDER BY dict_id ASC"
+        )))
+        .fetch_all(self.database.pool())
+        .await
+        .map(|rows| rows.into_iter().map(dict_type).collect())
+        .map_err(StorageError::from)
     }
 
     pub async fn type_has_data(&self, dict_type: &str) -> StorageResult<bool> {
@@ -140,13 +142,13 @@ impl DictQueries {
     }
 
     pub async fn page_data(&self, filter: DictDataListFilter) -> StorageResult<Page<DictData>> {
-        let total = query_scalar::<_, i64>(&data_total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(data_total_sql()))
             .bind(&filter.dict_type)
             .bind(&filter.dict_label)
             .bind(&filter.status)
             .fetch_one(self.database.pool())
             .await?;
-        let rows = query_as::<_, DictDataRecord>(&data_page_sql())
+        let rows = query_as::<_, DictDataRecord>(AssertSqlSafe(data_page_sql()))
             .bind(&filter.dict_type)
             .bind(&filter.dict_label)
             .bind(&filter.status)
@@ -210,7 +212,7 @@ impl DictQueries {
     }
 
     pub async fn find_data(&self, id: &str) -> StorageResult<Option<DictData>> {
-        query_as::<_, DictDataRecord>(&format!("SELECT {DATA_COLUMNS} FROM sys_dict_data WHERE dict_code = $1"))
+        query_as::<_, DictDataRecord>(AssertSqlSafe(format!("SELECT {DATA_COLUMNS} FROM sys_dict_data WHERE dict_code = $1")))
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
@@ -219,9 +221,9 @@ impl DictQueries {
     }
 
     pub async fn data_by_type(&self, dict_type: &str) -> StorageResult<Vec<DictData>> {
-        query_as::<_, DictDataRecord>(&format!(
+        query_as::<_, DictDataRecord>(AssertSqlSafe(format!(
             "SELECT {DATA_COLUMNS} FROM sys_dict_data WHERE dict_type=$1 AND status='0' ORDER BY dict_sort ASC"
-        ))
+        )))
         .bind(dict_type)
         .fetch_all(self.database.pool())
         .await

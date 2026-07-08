@@ -1,48 +1,101 @@
 use std::collections::HashMap;
 
-type ImportColumns = HashMap<&'static str, usize>;
-
 use kernel::error::LocalizedError;
 use kernel::excel::{read_xlsx, write_xlsx};
 use kernel::pagination::PageRequest;
-use types::user::User;
+use types::{
+    http::{Locale, translate_message},
+    user::User,
+};
 
 use crate::{
     api::dto::UserExportQuery,
     application::{AppError, AppResult, UserImportRow, UserListFilter},
 };
 
-const EXPORT_HEADERS: &[&str] = &[
-    "用户序号",
-    "部门编号",
-    "登录名称",
-    "用户名称",
-    "用户邮箱",
-    "手机号码",
-    "用户性别",
-    "账号状态",
-    "创建时间",
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum ImportField {
+    DeptId,
+    Username,
+    NickName,
+    Email,
+    PhoneNumber,
+    Sex,
+    Status,
+}
+
+#[derive(Clone, Copy)]
+struct ImportColumnDef {
+    field: ImportField,
+    label_key: &'static str,
+}
+
+type ImportColumns = HashMap<ImportField, usize>;
+
+const EXPORT_SHEET_KEY: &str = "excel.user.export.sheet";
+const IMPORT_SHEET_KEY: &str = "excel.user.import.sheet";
+const EXPORT_HEADER_KEYS: &[&str] = &[
+    "excel.user.headers.user_id",
+    "excel.user.headers.dept_id",
+    "excel.user.headers.login_name",
+    "excel.user.headers.user_name",
+    "excel.user.headers.email",
+    "excel.user.headers.phone_number",
+    "excel.user.headers.sex",
+    "excel.user.headers.status",
+    "excel.user.headers.create_time",
 ];
-const IMPORT_HEADERS: &[&str] = &["部门编号", "登录名称", "用户名称", "用户邮箱", "手机号码", "用户性别", "账号状态"];
-const EXPORT_SHEET: &str = "用户数据";
-const IMPORT_SHEET: &str = "用户导入模板";
+const IMPORT_COLUMNS: &[ImportColumnDef] = &[
+    ImportColumnDef {
+        field: ImportField::DeptId,
+        label_key: "excel.user.headers.dept_id",
+    },
+    ImportColumnDef {
+        field: ImportField::Username,
+        label_key: "excel.user.headers.login_name",
+    },
+    ImportColumnDef {
+        field: ImportField::NickName,
+        label_key: "excel.user.headers.user_name",
+    },
+    ImportColumnDef {
+        field: ImportField::Email,
+        label_key: "excel.user.headers.email",
+    },
+    ImportColumnDef {
+        field: ImportField::PhoneNumber,
+        label_key: "excel.user.headers.phone_number",
+    },
+    ImportColumnDef {
+        field: ImportField::Sex,
+        label_key: "excel.user.headers.sex",
+    },
+    ImportColumnDef {
+        field: ImportField::Status,
+        label_key: "excel.user.headers.status",
+    },
+];
 
-pub fn export_users_xlsx(users: &[User]) -> AppResult<Vec<u8>> {
+pub fn export_users_xlsx(users: &[User], locale: Locale) -> AppResult<Vec<u8>> {
     let rows = users.iter().map(user_row).collect::<Vec<_>>();
-    write_xlsx(EXPORT_SHEET, EXPORT_HEADERS, &rows).map_err(excel_infrastructure_error)
+    write_xlsx(&text(locale, EXPORT_SHEET_KEY), &localized_headers(locale, EXPORT_HEADER_KEYS), &rows).map_err(excel_infrastructure_error)
 }
 
-pub fn import_template_xlsx() -> AppResult<Vec<u8>> {
-    write_xlsx(IMPORT_SHEET, IMPORT_HEADERS, &[]).map_err(excel_infrastructure_error)
+pub fn import_template_xlsx(locale: Locale) -> AppResult<Vec<u8>> {
+    write_xlsx(&text(locale, IMPORT_SHEET_KEY), &localized_import_headers(locale), &[]).map_err(excel_infrastructure_error)
 }
 
-pub fn parse_import_rows(bytes: &[u8]) -> AppResult<Vec<UserImportRow>> {
+pub fn parse_import_rows(bytes: &[u8], locale: Locale) -> AppResult<Vec<UserImportRow>> {
     let rows = read_xlsx(bytes).map_err(|_| AppError::InvalidInput(localized("errors.user.import_excel_invalid")))?;
     let (header, data_rows) = rows
         .split_first()
         .ok_or_else(|| AppError::InvalidInput(localized("errors.user.import_excel_empty")))?;
-    let columns = import_columns(header)?;
-    data_rows.iter().filter(|row| !row_is_blank(row)).map(|row| import_row(row, &columns)).collect()
+    let columns = import_columns(header, locale)?;
+    data_rows
+        .iter()
+        .filter(|row| !row_is_blank(row))
+        .map(|row| import_row(row, &columns, locale))
+        .collect()
 }
 
 pub fn export_query_page(query: &UserExportQuery, page: u64, page_size: u64) -> UserListFilter {
@@ -71,45 +124,70 @@ fn user_row(user: &User) -> Vec<String> {
     ]
 }
 
-fn import_columns(header: &[String]) -> AppResult<ImportColumns> {
+fn import_columns(header: &[String], locale: Locale) -> AppResult<ImportColumns> {
     let mut columns = HashMap::new();
-    for expected in IMPORT_HEADERS {
+    for expected in IMPORT_COLUMNS {
+        let label = text(locale, expected.label_key);
         let index = header
             .iter()
-            .position(|value| value.trim() == *expected)
-            .ok_or_else(|| AppError::InvalidInput(localized_param("errors.user.import_missing_column", "column", *expected)))?;
-        columns.insert(*expected, index);
+            .position(|value| value.trim() == label)
+            .ok_or_else(|| AppError::InvalidInput(localized_param("errors.user.import_missing_column", "column", label.clone())))?;
+        columns.insert(expected.field, index);
     }
     Ok(columns)
 }
 
-fn import_row(row: &[String], columns: &ImportColumns) -> AppResult<UserImportRow> {
+fn import_row(row: &[String], columns: &ImportColumns, locale: Locale) -> AppResult<UserImportRow> {
     Ok(UserImportRow {
-        dept_id: optional_cell(row, columns, "部门编号"),
-        username: required_cell(row, columns, "登录名称")?,
-        nick_name: required_cell(row, columns, "用户名称")?,
-        email: required_cell(row, columns, "用户邮箱")?,
-        phonenumber: optional_cell(row, columns, "手机号码"),
-        sex: optional_cell(row, columns, "用户性别").unwrap_or_else(|| "2".into()),
-        status: optional_cell(row, columns, "账号状态").unwrap_or_else(|| "0".into()),
+        dept_id: optional_cell(row, columns, ImportField::DeptId),
+        username: required_cell(row, columns, ImportField::Username, locale)?,
+        nick_name: required_cell(row, columns, ImportField::NickName, locale)?,
+        email: required_cell(row, columns, ImportField::Email, locale)?,
+        phonenumber: optional_cell(row, columns, ImportField::PhoneNumber),
+        sex: optional_cell(row, columns, ImportField::Sex).unwrap_or_else(|| "2".into()),
+        status: optional_cell(row, columns, ImportField::Status).unwrap_or_else(|| "0".into()),
     })
 }
 
-fn required_cell(row: &[String], columns: &ImportColumns, name: &str) -> AppResult<String> {
-    let value = cell(row, columns, name).trim().to_owned();
+fn required_cell(row: &[String], columns: &ImportColumns, field: ImportField, locale: Locale) -> AppResult<String> {
+    let value = cell(row, columns, field).trim().to_owned();
     if value.is_empty() {
-        return Err(AppError::InvalidInput(localized_param("errors.user.import_column_blank", "column", name)));
+        return Err(AppError::InvalidInput(localized_param(
+            "errors.user.import_column_blank",
+            "column",
+            field_label(field, locale),
+        )));
     }
     Ok(value)
 }
 
-fn optional_cell(row: &[String], columns: &ImportColumns, name: &str) -> Option<String> {
-    let value = cell(row, columns, name).trim().to_owned();
+fn optional_cell(row: &[String], columns: &ImportColumns, field: ImportField) -> Option<String> {
+    let value = cell(row, columns, field).trim().to_owned();
     (!value.is_empty()).then_some(value)
 }
 
-fn cell<'a>(row: &'a [String], columns: &ImportColumns, name: &str) -> &'a str {
-    columns.get(name).and_then(|index| row.get(*index)).map(String::as_str).unwrap_or_default()
+fn cell<'a>(row: &'a [String], columns: &ImportColumns, field: ImportField) -> &'a str {
+    columns.get(&field).and_then(|index| row.get(*index)).map(String::as_str).unwrap_or_default()
+}
+
+fn field_label(field: ImportField, locale: Locale) -> String {
+    IMPORT_COLUMNS
+        .iter()
+        .find(|column| column.field == field)
+        .map(|column| text(locale, column.label_key))
+        .unwrap_or_default()
+}
+
+fn localized_import_headers(locale: Locale) -> Vec<String> {
+    IMPORT_COLUMNS.iter().map(|column| text(locale, column.label_key)).collect()
+}
+
+fn localized_headers(locale: Locale, keys: &[&str]) -> Vec<String> {
+    keys.iter().map(|key| text(locale, key)).collect()
+}
+
+fn text(locale: Locale, key: &str) -> String {
+    translate_message(locale, key)
 }
 
 fn row_is_blank(row: &[String]) -> bool {
@@ -130,21 +208,32 @@ fn localized_param(key: &'static str, param: &'static str, value: impl Into<Stri
 
 #[cfg(test)]
 mod tests {
-    use super::{IMPORT_HEADERS, import_template_xlsx, parse_import_rows};
+    use super::{import_template_xlsx, localized_import_headers, parse_import_rows};
     use kernel::excel::write_xlsx;
+    use types::http::Locale;
 
+    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn import_template_has_no_role_or_post_columns() {
-        let rows = kernel::excel::read_xlsx(&import_template_xlsx().unwrap()).unwrap();
+        let rows = kernel::excel::read_xlsx(&import_template_xlsx(Locale::ZhCn).unwrap()).unwrap();
 
-        assert_eq!(rows[0], IMPORT_HEADERS);
+        assert_eq!(rows[0], localized_import_headers(Locale::ZhCn));
     }
 
+    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
+    #[test]
+    fn import_template_uses_requested_locale() {
+        let rows = kernel::excel::read_xlsx(&import_template_xlsx(Locale::En).unwrap()).unwrap();
+
+        assert_eq!(rows[0], localized_import_headers(Locale::En));
+    }
+
+    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn parses_import_rows_without_roles_or_posts() {
         let bytes = write_xlsx(
             "用户数据",
-            IMPORT_HEADERS,
+            &localized_import_headers(Locale::ZhCn),
             &[vec![
                 "103".into(),
                 "alice".into(),
@@ -157,7 +246,7 @@ mod tests {
         )
         .unwrap();
 
-        let rows = parse_import_rows(&bytes).unwrap();
+        let rows = parse_import_rows(&bytes, Locale::ZhCn).unwrap();
 
         assert_eq!(rows[0].username, "alice");
         assert_eq!(rows[0].dept_id.as_deref(), Some("103"));

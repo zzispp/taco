@@ -9,7 +9,9 @@ use utoipa::ToSchema;
 
 mod locale;
 
-pub use locale::{ApiErrorKind, Locale, current_locale, locale_middleware, localized_error_response, translate_error};
+pub use locale::{
+    ApiErrorKind, Locale, current_locale, locale_middleware, localized_error_response, translate_error, translate_message, translate_message_with_params,
+};
 
 #[derive(Debug, PartialEq, Eq, Serialize, ToSchema)]
 pub struct ApiErrorResponse {

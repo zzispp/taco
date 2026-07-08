@@ -1,26 +1,32 @@
 use std::sync::Arc;
 
+use ::rbac::application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacResult, RbacUseCase};
 use async_trait::async_trait;
-use axum::{
-    Router,
-    body::{Body, to_bytes},
-    http::{Method, Request, Response, StatusCode, header},
-    middleware,
-};
+use axum::{Extension, Router, middleware};
 use constants::system_config::{INIT_PASSWORD_KEY, REGISTER_USER_KEY};
 use kernel::error::LocalizedError;
-use rbac::application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacResult, RbacUseCase};
-use serde_json::{Value, json};
-use tower::ServiceExt;
-use types::rbac::{DataScopeFilter, NavResponse};
+use types::{
+    http::Locale,
+    rbac::{DataScopeFilter, NavResponse},
+};
 
 use crate::{
     api::{ApiState, ApiStateParts, TokenService, TokenSettings, TokenSettingsReader, TokenTtlConfig},
-    application::{AccountVerifier, AppError, AppResult, SystemConfigProvider, UserService},
-    test_support::{MemoryUserRepository, TestPasswordHasher, stored_user},
+    application::{AccountVerifier, AppError, AppResult, IpLocationResolver, PublicIpResolver, SystemConfigProvider, UserService},
+    test_support::{MemoryOnlineSessionStore, MemoryUserRepository, TestPasswordHasher, stored_user},
 };
 
 use super::super::create_router;
+
+#[path = "support/http.rs"]
+mod http;
+#[path = "support/rbac.rs"]
+mod rbac_fixtures;
+
+pub(super) use http::{
+    LocalizedJsonRequest, assert_non_empty_string, authenticated_request, json_body, json_request, json_request_with_accept_language, response_json, sign_in,
+};
+pub(super) use rbac_fixtures::{admin_current_user, all_data_scope, self_current_user, self_data_scope};
 
 pub(super) use crate::test_support::VALID_PASSWORD;
 
@@ -28,6 +34,8 @@ const TEST_SECRET: &str = "test-secret-with-enough-entropy";
 const ACCESS_TTL_SECONDS: u64 = 900;
 const REFRESH_TTL_SECONDS: u64 = 604800;
 const DEFAULT_INIT_PASSWORD: &str = "12345678";
+pub(super) const TEST_PUBLIC_IP: &str = "8.8.8.8";
+pub(super) const TEST_LOGIN_LOCATION: &str = "广东省 深圳市";
 pub(super) const VALID_CAPTCHA_TOKEN: &str = "valid-captcha-token";
 const UNUSED_RBAC_ERROR: &str = "test.rbac.unexpected_call";
 
@@ -36,15 +44,25 @@ pub(super) struct SessionTokens {
     pub(super) refresh_token: String,
 }
 
-pub(super) struct LocalizedJsonRequest<'a> {
-    pub(super) method: Method,
-    pub(super) uri: &'a str,
-    pub(super) body: Value,
-    pub(super) accept_language: &'a str,
+pub(super) struct TestApp {
+    pub(super) router: Router,
+    pub(super) sessions: Arc<MemoryOnlineSessionStore>,
+}
+
+struct TestAppInput {
+    repository: MemoryUserRepository,
+    config: TestConfig,
+    captcha: TestCaptcha,
+    current_user: ::rbac::api::CurrentUser,
+    data_scope: DataScopeFilter,
 }
 
 pub(super) fn test_router() -> Router {
-    test_router_with_config(TestConfig::new(true))
+    test_app().router
+}
+
+pub(super) fn test_app() -> TestApp {
+    test_app_with_repository(base_repository(), TestConfig::new(true), TestCaptcha::disabled())
 }
 
 pub(super) fn test_router_with_config(config: TestConfig) -> Router {
@@ -60,17 +78,47 @@ pub(super) fn test_router_with_repository(repository: MemoryUserRepository, conf
 }
 
 fn test_router_with_repository_and_captcha(repository: MemoryUserRepository, config: TestConfig, captcha: TestCaptcha) -> Router {
-    let users = UserService::new(repository, TestPasswordHasher);
+    test_app_with_repository(repository, config, captcha).router
+}
+
+fn test_app_with_repository(repository: MemoryUserRepository, config: TestConfig, captcha: TestCaptcha) -> TestApp {
+    test_app_from_input(TestAppInput {
+        repository,
+        config,
+        captcha,
+        current_user: admin_current_user(),
+        data_scope: all_data_scope(),
+    })
+}
+
+pub(super) fn test_app_with_scope(repository: MemoryUserRepository, current_user: ::rbac::api::CurrentUser, data_scope: DataScopeFilter) -> TestApp {
+    test_app_from_input(TestAppInput {
+        repository,
+        config: TestConfig::new(true),
+        captcha: TestCaptcha::disabled(),
+        current_user,
+        data_scope,
+    })
+}
+
+fn test_app_from_input(input: TestAppInput) -> TestApp {
+    let users = UserService::new(input.repository, TestPasswordHasher);
+    let sessions = Arc::new(MemoryOnlineSessionStore::default());
     let state = ApiState::new(ApiStateParts {
         users: Arc::new(users),
-        tokens: token_service(),
+        tokens: token_service(sessions.clone()),
         rbac: Arc::new(UnusedRbac),
-        config: Arc::new(config),
-        account_verifier: Arc::new(captcha),
+        config: Arc::new(input.config),
+        account_verifier: Arc::new(input.captcha),
+        public_ip_resolver: Arc::new(TestPublicIpResolver),
+        ip_location_resolver: Arc::new(TestIpLocationResolver),
     });
-    Router::new()
+    let router = Router::new()
         .nest("/api", create_router(state))
-        .layer(middleware::from_fn(types::http::locale_middleware))
+        .layer(Extension(input.current_user))
+        .layer(Extension(input.data_scope))
+        .layer(middleware::from_fn(types::http::locale_middleware));
+    TestApp { router, sessions }
 }
 
 pub(super) fn base_repository() -> MemoryUserRepository {
@@ -88,6 +136,24 @@ impl TestCaptcha {
 
     fn disabled() -> Self {
         Self { enabled: false }
+    }
+}
+
+struct TestPublicIpResolver;
+
+#[async_trait]
+impl PublicIpResolver for TestPublicIpResolver {
+    async fn resolve_public_ip(&self) -> AppResult<String> {
+        Ok(TEST_PUBLIC_IP.into())
+    }
+}
+
+struct TestIpLocationResolver;
+
+#[async_trait]
+impl IpLocationResolver for TestIpLocationResolver {
+    async fn resolve_login_location(&self, _ipaddr: &str, _locale: Locale) -> AppResult<String> {
+        Ok(TEST_LOGIN_LOCATION.into())
     }
 }
 
@@ -130,7 +196,7 @@ impl SystemConfigProvider for TestConfig {
 
 #[async_trait]
 impl RbacUseCase for UnusedRbac {
-    async fn navbar(&self, _current_user: &rbac::api::CurrentUser) -> RbacResult<NavResponse> {
+    async fn navbar(&self, _current_user: &::rbac::api::CurrentUser) -> RbacResult<NavResponse> {
         Err(unused_rbac_error())
     }
 
@@ -138,7 +204,7 @@ impl RbacUseCase for UnusedRbac {
         Err(unused_rbac_error())
     }
 
-    async fn data_scope_filter(&self, _current_user: &rbac::api::CurrentUser) -> RbacResult<DataScopeFilter> {
+    async fn data_scope_filter(&self, _current_user: &::rbac::api::CurrentUser) -> RbacResult<DataScopeFilter> {
         Err(unused_rbac_error())
     }
 
@@ -159,8 +225,8 @@ fn unused_rbac_error() -> RbacError {
     RbacError::Infrastructure(UNUSED_RBAC_ERROR.into())
 }
 
-fn token_service() -> TokenService {
-    TokenService::with_ttl_reader(TokenSettings { secret: TEST_SECRET.into() }, Arc::new(TestTokenSettingsReader))
+fn token_service(sessions: Arc<MemoryOnlineSessionStore>) -> TokenService {
+    TokenService::with_ttl_reader(TokenSettings { secret: TEST_SECRET.into() }, Arc::new(TestTokenSettingsReader), sessions)
 }
 
 struct TestTokenSettingsReader;
@@ -173,66 +239,4 @@ impl TokenSettingsReader for TestTokenSettingsReader {
             refresh_token_ttl_seconds: REFRESH_TTL_SECONDS,
         })
     }
-}
-
-pub(super) async fn sign_in(app: Router) -> SessionTokens {
-    let response = app
-        .oneshot(json_request(
-            Method::POST,
-            "/api/auth/sign-in",
-            json!({
-                "identifier": "alice",
-                "password": VALID_PASSWORD
-            }),
-        ))
-        .await
-        .unwrap();
-    let body = response_json(response).await;
-
-    SessionTokens {
-        access_token: body["access_token"].as_str().unwrap().into(),
-        refresh_token: body["refresh_token"].as_str().unwrap().into(),
-    }
-}
-
-pub(super) fn json_request(method: Method, uri: &str, body: Value) -> Request<Body> {
-    Request::builder()
-        .method(method)
-        .uri(uri)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body.to_string()))
-        .unwrap()
-}
-
-pub(super) fn json_request_with_accept_language(input: LocalizedJsonRequest<'_>) -> Request<Body> {
-    Request::builder()
-        .method(input.method)
-        .uri(input.uri)
-        .header(header::CONTENT_TYPE, "application/json")
-        .header(header::ACCEPT_LANGUAGE, input.accept_language)
-        .body(Body::from(input.body.to_string()))
-        .unwrap()
-}
-
-pub(super) fn authenticated_request(method: Method, uri: &str, token: &str) -> Request<Body> {
-    Request::builder()
-        .method(method)
-        .uri(uri)
-        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::empty())
-        .unwrap()
-}
-
-pub(super) async fn response_json(response: Response<Body>) -> Value {
-    assert_eq!(response.status(), StatusCode::OK);
-    json_body(response).await
-}
-
-pub(super) async fn json_body(response: Response<Body>) -> Value {
-    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
-
-pub(super) fn assert_non_empty_string(value: &Value) {
-    assert!(!value.as_str().unwrap().is_empty());
 }

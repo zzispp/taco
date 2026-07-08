@@ -2,12 +2,12 @@
 name = "rbac"
 version.workspace = true
 edition.workspace = true
+publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
 constants.workspace = true
-hook_tracing.workspace = true
 inventory.workspace = true
 kernel.workspace = true
 matchit.workspace = true

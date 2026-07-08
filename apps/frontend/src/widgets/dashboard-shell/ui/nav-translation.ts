@@ -33,6 +33,7 @@ const ITEM_KEY_BY_CODE: Record<string, string> = {
   '104': 'nav.posts',
   '105': 'nav.dicts',
   '106': 'nav.configs',
+  '107': 'nav.online',
 };
 
 const ITEM_KEY_BY_PATH: Record<string, string> = {
@@ -45,6 +46,7 @@ const ITEM_KEY_BY_PATH: Record<string, string> = {
   '/dashboard/admin/posts': 'nav.posts',
   '/dashboard/admin/dicts': 'nav.dicts',
   '/dashboard/admin/configs': 'nav.configs',
+  '/dashboard/admin/online': 'nav.online',
 };
 
 export function translateNavData(data: NavData, t: TranslateFn): NavData {

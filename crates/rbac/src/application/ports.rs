@@ -26,6 +26,7 @@ pub trait RbacRepository: Send + Sync + 'static {
     async fn page_roles_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<Page<Role>>;
     async fn role_options(&self) -> RbacResult<Vec<RoleOption>>;
     async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<Page<RoleUser>>;
+    async fn scoped_user_ids(&self, user_ids: &[String], scope: DataScopeFilter) -> RbacResult<Vec<String>>;
     async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()>;
     async fn delete_role_user(&self, role_id: &str, user_id: &str) -> RbacResult<()>;
     async fn delete_role_users(&self, role_id: &str, user_ids: &[String]) -> RbacResult<()>;
@@ -76,6 +77,7 @@ pub trait RbacAdminUseCase: Send + Sync + 'static {
     async fn page_roles_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<Page<Role>>;
     async fn role_options(&self) -> RbacResult<Vec<RoleOption>>;
     async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<Page<RoleUser>>;
+    async fn ensure_user_ids_scoped(&self, user_ids: Vec<String>, scope: DataScopeFilter) -> RbacResult<()>;
     async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()>;
     async fn delete_role_user(&self, role_id: &str, user_id: &str) -> RbacResult<()>;
     async fn delete_role_users(&self, role_id: &str, user_ids: Vec<String>) -> RbacResult<()>;

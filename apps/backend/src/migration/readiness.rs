@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use sqlx::{PgPool, query_as, query_scalar};
+use sqlx::{PgPool, migrate::Migrator, query_as, query_scalar};
 
 use crate::BackendResult;
 
-use super::{MANAGED_TABLES, MIGRATOR};
+use super::{MANAGED_TABLES, migrator};
 
 const MIGRATION_UP_COMMAND: &str = "cargo run -p backend -- migration up";
 const MIGRATION_REFRESH_COMMAND: &str = "cargo run -p backend -- migration refresh";
@@ -16,13 +16,14 @@ pub async fn prepare_runtime_schema(pool: &PgPool, auto_migrate: bool) -> Backen
         return Err(dirty_schema_error(version).into());
     }
 
-    validate_applied_migration_sources(pool).await?;
+    let migrator = migrator().await?;
+    validate_applied_migration_sources(pool, &migrator).await?;
 
-    let pending_versions = pending_migration_versions(pool).await?;
+    let pending_versions = pending_migration_versions(pool, &migrator).await?;
     log_pending_state(&pending_versions, auto_migrate);
 
     if auto_migrate && !pending_versions.is_empty() {
-        MIGRATOR.run(pool).await?;
+        migrator.run(pool).await?;
         hook_tracing::info_with_fields!("database auto migration completed", applied = pending_versions.join(","));
     }
 
@@ -34,9 +35,10 @@ pub async fn ensure_runtime_schema_ready(pool: &PgPool) -> BackendResult<()> {
         return Err(dirty_schema_error(version).into());
     }
 
-    validate_applied_migration_sources(pool).await?;
+    let migrator = migrator().await?;
+    validate_applied_migration_sources(pool, &migrator).await?;
 
-    let pending_versions = pending_migration_versions(pool).await?;
+    let pending_versions = pending_migration_versions(pool, &migrator).await?;
     if !pending_versions.is_empty() {
         let versions = pending_versions.join(", ");
         return Err(format!("database schema is not ready: pending migrations [{versions}]. Run `{MIGRATION_UP_COMMAND}` before starting backend.").into());
@@ -51,7 +53,7 @@ pub async fn ensure_runtime_schema_ready(pool: &PgPool) -> BackendResult<()> {
     Err(format!("database schema is incomplete: missing managed tables [{tables}]. Run `{MIGRATION_REFRESH_COMMAND}` before starting backend.").into())
 }
 
-async fn validate_applied_migration_sources(pool: &PgPool) -> BackendResult<()> {
+async fn validate_applied_migration_sources(pool: &PgPool, migrator: &Migrator) -> BackendResult<()> {
     if !managed_table_exists(pool, MIGRATIONS_TABLE).await? {
         return Ok(());
     }
@@ -61,7 +63,7 @@ async fn validate_applied_migration_sources(pool: &PgPool) -> BackendResult<()> 
         .await?;
 
     for (version, checksum) in rows {
-        let migration = MIGRATOR.iter().find(|item| item.version == version && item.migration_type.is_up_migration());
+        let migration = migrator.iter().find(|item| item.version == version && item.migration_type.is_up_migration());
         match migration {
             Some(item) if item.checksum.as_ref() == checksum.as_slice() => {}
             Some(_) => return Err(format!("database schema migration checksum mismatch at version {version}").into()),
@@ -72,9 +74,9 @@ async fn validate_applied_migration_sources(pool: &PgPool) -> BackendResult<()> 
     Ok(())
 }
 
-async fn pending_migration_versions(pool: &PgPool) -> BackendResult<Vec<String>> {
+async fn pending_migration_versions(pool: &PgPool, migrator: &Migrator) -> BackendResult<Vec<String>> {
     let applied_versions = applied_migration_versions(pool).await?;
-    Ok(MIGRATOR
+    Ok(migrator
         .iter()
         .filter(|migration| migration.migration_type.is_up_migration())
         .filter(|migration| !applied_versions.contains(&migration.version))

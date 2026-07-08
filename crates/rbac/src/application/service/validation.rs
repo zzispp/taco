@@ -94,6 +94,13 @@ pub(super) fn reject_empty_ids(ids: &[String]) -> RbacResult<()> {
     Ok(())
 }
 
+pub(super) fn reject_unscoped_user_ids(requested: &[String], scoped: &[String]) -> RbacResult<()> {
+    if requested.iter().all(|id| scoped.contains(id)) {
+        return Ok(());
+    }
+    Err(RbacError::Forbidden)
+}
+
 pub(super) fn validate_page(page: PageRequest) -> RbacResult<()> {
     if page.page == 0 || page.page_size == 0 {
         return Err(RbacError::InvalidInput(localized("errors.validation.page_and_size_positive")));

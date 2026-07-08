@@ -19,8 +19,8 @@ use self::{
     localization::localized,
     validation::{
         clean_ids, ensure_menu_exists, ensure_role_exists, reject_duplicate_role, reject_empty_ids, reject_invalid_menu, reject_menu_delete,
-        reject_role_in_use, reject_system_role_update, required, sanitize_menu, sanitize_menu_filter, sanitize_role, sanitize_role_data_scope,
-        sanitize_role_filter, sanitize_role_user_filter, sanitize_role_users, validate_page,
+        reject_role_in_use, reject_system_role_update, reject_unscoped_user_ids, required, sanitize_menu, sanitize_menu_filter, sanitize_role,
+        sanitize_role_data_scope, sanitize_role_filter, sanitize_role_user_filter, sanitize_role_users, validate_page,
     },
 };
 
@@ -114,6 +114,13 @@ where
         validate_page(filter.page)?;
         ensure_role_exists(&self.repository, &filter.role_id).await?;
         self.repository.page_role_users(filter, scope).await
+    }
+
+    pub async fn ensure_user_ids_scoped(&self, user_ids: Vec<String>, scope: DataScopeFilter) -> RbacResult<()> {
+        let user_ids = clean_ids(user_ids);
+        reject_empty_ids(&user_ids)?;
+        let scoped = self.repository.scoped_user_ids(&user_ids, scope).await?;
+        reject_unscoped_user_ids(&user_ids, &scoped)
     }
 
     pub async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()> {

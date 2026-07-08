@@ -84,6 +84,10 @@ pub(super) fn role_users_total_sql(scoped: bool) -> String {
     format!("SELECT COUNT(*) {}", role_users_base(scoped))
 }
 
+pub(super) fn scoped_user_ids_sql() -> &'static str {
+    "SELECT u.user_id FROM sys_user u LEFT JOIN sys_dept d ON d.dept_id=u.dept_id WHERE u.del_flag='0' AND u.user_id = ANY($1) AND ($2='1' OR ($2='2' AND u.dept_id = ANY($5)) OR ($2='3' AND $4::text IS NOT NULL AND u.dept_id=$4) OR ($2='4' AND $4::text IS NOT NULL AND (u.dept_id=$4 OR (',' || d.ancestors || ',') LIKE '%,' || $4 || ',%')) OR ($2='5' AND u.user_id=$3))"
+}
+
 fn role_where() -> &'static str {
     "r.del_flag='0' AND ($1::text IS NULL OR r.role_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR r.role_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR r.status=$3) AND ($4::text IS NULL OR r.create_time::date >= $4::date) AND ($5::text IS NULL OR r.create_time::date <= $5::date)"
 }

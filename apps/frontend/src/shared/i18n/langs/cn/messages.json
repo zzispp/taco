@@ -3,5 +3,67 @@
     "success": "语言已更改！",
     "error": "更改语言时出错！",
     "loading": "加载中..."
+  },
+  "auth": {
+    "signIn": {
+      "documentTitle": "登录",
+      "title": "登录您的账号",
+      "noAccount": "还没有账号？",
+      "getStarted": "立即开始",
+      "identifierLabel": "用户名或邮箱",
+      "identifierPlaceholder": "username 或 name@example.com",
+      "forgotPassword": "忘记密码？",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "8 位以上字符",
+      "submit": "登录",
+      "submitting": "登录中...",
+      "registrationLoading": "注册配置加载中",
+      "registrationDisabled": "注册已关闭"
+    },
+    "signUp": {
+      "documentTitle": "注册",
+      "loading": "注册配置加载中...",
+      "disabledTitle": "注册已关闭",
+      "disabledDescription": "当前未开放账号自助注册。",
+      "backToSignIn": "返回登录",
+      "title": "免费开始使用",
+      "hasAccount": "已有账号？",
+      "signInLink": "去登录",
+      "usernameLabel": "用户名",
+      "usernamePlaceholder": "username",
+      "emailLabel": "邮箱地址",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "8 位以上字符",
+      "submit": "创建账号",
+      "submitting": "创建中...",
+      "termsPrefix": "注册即表示我同意",
+      "terms": "服务条款",
+      "termsConnector": "和",
+      "privacy": "隐私政策"
+    },
+    "captcha": {
+      "required": "请先完成人机验证",
+      "loading": "验证码配置加载中",
+      "initial": "验证您是真人",
+      "verifying": "验证中...",
+      "solved": "已通过验证",
+      "error": "验证出错，请重试。",
+      "unsupportedProvider": "不支持的验证码提供方：{{provider}}",
+      "turnstileSiteKeyRequired": "Cloudflare Turnstile site_key 不能为空"
+    },
+    "validation": {
+      "usernameLength": "用户名长度必须在 {{min}} 到 {{max}} 个字符之间",
+      "usernamePattern": "用户名只能包含字母、数字、下划线和连字符，并且必须以字母或数字开头和结尾",
+      "passwordLength": "密码长度必须在 {{min}} 到 {{max}} 个字符之间",
+      "passwordLetterRequired": "密码必须包含字母",
+      "passwordNumberRequired": "密码必须包含数字",
+      "passwordSymbolRequired": "密码必须包含特殊字符",
+      "passwordContainsUsername": "密码不能包含用户名",
+      "emailRequired": "邮箱不能为空",
+      "emailInvalid": "邮箱格式不正确",
+      "identifierRequired": "请输入用户名或邮箱",
+      "identifierInvalid": "请输入有效的用户名或邮箱地址"
+    }
   }
 }

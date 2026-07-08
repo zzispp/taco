@@ -93,6 +93,10 @@ where
         self.page_role_users(filter, scope).await
     }
 
+    async fn ensure_user_ids_scoped(&self, user_ids: Vec<String>, scope: DataScopeFilter) -> RbacResult<()> {
+        self.ensure_user_ids_scoped(user_ids, scope).await
+    }
+
     async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()> {
         self.replace_role_users(role_id, input).await
     }

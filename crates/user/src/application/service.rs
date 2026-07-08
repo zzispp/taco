@@ -1,9 +1,11 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use kernel::error::LocalizedError;
 
 use crate::application::{
-    AppError, AppResult, PasswordHasher, PasswordPolicy, PasswordPolicyProvider, ReplaceUserRecord, SystemUserProvider, SystemUserRecord, UserAuthRecord,
-    UserImportInput, UserImportReport, UserImportRow, UserListFilter, UserRepository, UserUseCase,
+    AppError, AppResult, OnlineSession, PasswordHasher, PasswordPolicy, PasswordPolicyProvider, ReplaceUserRecord, SystemUserProvider, SystemUserRecord,
+    UserAuthRecord, UserImportInput, UserImportMessage, UserImportReport, UserImportRow, UserListFilter, UserRepository, UserUseCase,
 };
 use kernel::pagination::Page;
 
@@ -11,6 +13,9 @@ use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser, User, User
 use types::rbac::DataScopeFilter;
 
 const IMPORTED_USER_ROLE_ID: &str = "2";
+const IMPORT_ACCOUNT_CREATED_KEY: &str = "messages.user.import_account_created";
+const IMPORT_ACCOUNT_UPDATED_KEY: &str = "messages.user.import_account_updated";
+const DATA_SCOPE_FORBIDDEN_KEY: &str = "errors.user.data_scope_forbidden";
 
 use self::{
     system_user::{find_auth_by_identifier, list_with_system_user, reject_conflicting_system_user, reject_protected_user_id, system_user_by_id},
@@ -254,6 +259,13 @@ fn reject_blank_avatar(avatar: &str) -> AppResult<()> {
         return Err(AppError::InvalidInput(localized("errors.user.avatar_blank")));
     }
     Ok(())
+}
+
+fn reject_unscoped_user_ids(requested: &[UserId], scoped: &[UserId]) -> AppResult<()> {
+    if requested.iter().all(|id| scoped.contains(id)) {
+        return Ok(());
+    }
+    Err(AppError::Forbidden(localized(DATA_SCOPE_FORBIDDEN_KEY)))
 }
 
 fn hash_optional_password<H: PasswordHasher>(hasher: &H, password: Option<String>) -> AppResult<Option<String>> {

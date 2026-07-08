@@ -12,7 +12,8 @@
     "depts": "Departments",
     "posts": "Posts",
     "dicts": "Dictionaries",
-    "configs": "Configs"
+    "configs": "Configs",
+    "online": "Online Users"
   },
   "common": {
     "active": "Active",
@@ -71,7 +72,8 @@
     "saved": "Saved",
     "deleted": "Deleted",
     "all": "All",
-    "reset": "Reset"
+    "reset": "Reset",
+    "index": "No."
   },
   "pages": {
     "menuManagement": "Menu Management",
@@ -80,7 +82,8 @@
     "deptManagement": "Department Management",
     "postManagement": "Post Management",
     "dictManagement": "Dictionary Management",
-    "configManagement": "Config Management"
+    "configManagement": "Config Management",
+    "onlineManagement": "Online Users"
   },
   "actions": {
     "addMenuItem": "Add menu item",
@@ -254,7 +257,17 @@
     "viewAll": "View all",
     "markComplete": "Mark complete",
     "share": "Share",
-    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"],
+    "months": [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep"
+    ],
     "regions": {
       "america": "America",
       "asia": "Asia",
@@ -419,6 +432,34 @@
     "invalidPhone": "Mobile phone format is invalid",
     "logout": "Logout",
     "logoutFailed": "Unable to logout",
-    "authorizedNavigation": "Authorized navigation"
+    "authorizedNavigation": "Authorized navigation",
+    "usernameRuleDynamic": "Username must be between {{min}} and {{max}} characters",
+    "usernamePattern": "Username can only contain letters, numbers, underscores, and hyphens, and must start and end with a letter or number",
+    "passwordLetterRequired": "Password must contain a letter",
+    "passwordNumberRequired": "Password must contain a number",
+    "passwordSymbolRequired": "Password must contain a symbol",
+    "passwordContainsUsername": "Password cannot contain username",
+    "emailRequired": "Email is required",
+    "identifierRequired": "Username or email is required",
+    "identifierInvalid": "Enter a valid username or email address"
+  },
+  "onlineSessions": {
+    "tokenId": "Session ID",
+    "userName": "Login Name",
+    "ipaddr": "Login Address",
+    "host": "Host",
+    "loginLocation": "Login Location",
+    "browser": "Browser",
+    "os": "Operating System",
+    "loginTime": "Login Time",
+    "forceLogout": "Force Logout",
+    "forceLogoutConfirm": "Force logout user \"{{name}}\"?",
+    "forceLogoutSuccess": "Force logout succeeded"
+  },
+  "authExpired": {
+    "title": "System prompt",
+    "content": "Your login status has expired. You can stay on this page or log in again.",
+    "stay": "Stay on this page",
+    "relogin": "Log in again"
   }
 }

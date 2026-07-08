@@ -90,6 +90,10 @@ impl RbacRepository for StorageRbacRepository {
         self.roles.page_users(filter, scope).await.map_err(storage_error)
     }
 
+    async fn scoped_user_ids(&self, user_ids: &[String], scope: DataScopeFilter) -> RbacResult<Vec<String>> {
+        self.roles.scoped_user_ids(user_ids, scope).await.map_err(storage_error)
+    }
+
     async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()> {
         self.roles.replace_users(role_id, input).await.map_err(storage_error)
     }

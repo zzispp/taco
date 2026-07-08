@@ -3,9 +3,13 @@ import type { BoxProps } from '@mui/material/Box';
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 
+import { useTranslate } from 'src/shared/i18n';
+
 // ----------------------------------------------------------------------
 
 export function SignUpTerms({ sx, ...other }: BoxProps) {
+  const { t } = useTranslate('messages');
+
   return (
     <Box
       component="span"
@@ -21,13 +25,13 @@ export function SignUpTerms({ sx, ...other }: BoxProps) {
       ]}
       {...other}
     >
-      {'By signing up, I agree to '}
+      {`${t('auth.signUp.termsPrefix')} `}
       <Link underline="always" color="text.primary">
-        Terms of service
+        {t('auth.signUp.terms')}
       </Link>
-      {' and '}
+      {` ${t('auth.signUp.termsConnector')} `}
       <Link underline="always" color="text.primary">
-        Privacy policy
+        {t('auth.signUp.privacy')}
       </Link>
       .
     </Box>

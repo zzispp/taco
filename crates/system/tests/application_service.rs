@@ -1,9 +1,11 @@
 mod support;
 
 use system::application::{PostListFilter, SystemError, SystemService, SystemUseCase};
+use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_SELF, DataScopeFilter};
 
 use support::{ConfigInputSeed, MemoryRepository, config_input, dept, dict_type, page, post_input, public_config_item};
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn delete_dict_type_rejects_existing_data() {
     let repository = MemoryRepository::default().with_dict_type(dict_type("1", "sys_user_sex")).with_dict_data(true);
@@ -15,6 +17,7 @@ async fn delete_dict_type_rejects_existing_data() {
     assert_eq!(repository.deleted_dict_types(), Vec::<String>::new());
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn config_by_key_returns_value_or_not_found() {
     let repository = MemoryRepository::default().with_config("sys.user.initPassword", "12345678");
@@ -27,6 +30,7 @@ async fn config_by_key_returns_value_or_not_found() {
     assert!(matches!(missing, Err(SystemError::NotFound)));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn public_configs_return_only_public_values() {
     let repository = MemoryRepository::default()
@@ -45,6 +49,7 @@ async fn public_configs_return_only_public_values() {
     assert_eq!(values.get("sys.site.displayConfig").map(String::as_str), Some(r#"{"site_name":"taco"}"#));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn public_configs_reject_private_or_missing_keys() {
     let repository = MemoryRepository::default().with_config("sys.user.initPassword", "12345678");
@@ -57,6 +62,7 @@ async fn public_configs_reject_private_or_missing_keys() {
     assert!(matches!(missing_result, Err(SystemError::NotFound)));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn built_in_config_cannot_be_deleted_or_renamed() {
     let repository = MemoryRepository::default().with_config_item(public_config_item("sys.index.skinName", "skin-blue"));
@@ -71,6 +77,7 @@ async fn built_in_config_cannot_be_deleted_or_renamed() {
     assert!(matches!(replace_result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.builtin_config_key_change"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn initial_password_config_cannot_be_public() {
     let service = SystemService::new(MemoryRepository::default());
@@ -82,6 +89,7 @@ async fn initial_password_config_cannot_be_public() {
     assert!(matches!(result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.initial_password_public"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn captcha_config_cannot_be_public() {
     let service = SystemService::new(MemoryRepository::default());
@@ -91,6 +99,7 @@ async fn captcha_config_cannot_be_public() {
     assert!(matches!(result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.captcha_private_public"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn create_post_rejects_duplicate_code_and_name() {
     let code_repository = MemoryRepository::default().with_duplicate_post_code(true);
@@ -114,6 +123,7 @@ fn public_config_input(key: &str, value: &str) -> system::domain::ConfigInput {
     }
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn delete_dept_rejects_children_or_users() {
     let children_result = SystemService::new(MemoryRepository::default().with_dept_children(true))
@@ -125,6 +135,7 @@ async fn delete_dept_rejects_children_or_users() {
     assert!(matches!(users_result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.dept_has_children_or_users"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn page_post_filter_is_trimmed_and_empty_values_are_removed() {
     let repository = MemoryRepository::default();
@@ -148,6 +159,7 @@ async fn page_post_filter_is_trimmed_and_empty_values_are_removed() {
     );
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn update_dept_sort_forwards_requested_order() {
     let repository = MemoryRepository::default().with_dept(dept("103", "100", "研发部门"));
@@ -157,4 +169,33 @@ async fn update_dept_sort_forwards_requested_order() {
 
     assert_eq!(updated.order_num, 7);
     assert_eq!(repository.updated_dept_sorts(), vec![("103".into(), 7)]);
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn ensure_dept_ids_scoped_rejects_out_of_scope_dept() {
+    let service = SystemService::new(MemoryRepository::default().with_dept(dept("104", "100", "市场部门")));
+
+    let result = service.ensure_dept_ids_scoped(vec!["104".into()], data_scope(DATA_SCOPE_SELF, "103")).await;
+
+    assert!(matches!(result, Err(SystemError::Forbidden(message)) if message.key() == "errors.system.data_scope_forbidden"));
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn ensure_dept_ids_scoped_allows_all_scope() {
+    let service = SystemService::new(MemoryRepository::default().with_dept(dept("104", "100", "市场部门")));
+
+    let result = service.ensure_dept_ids_scoped(vec!["104".into()], data_scope(DATA_SCOPE_ALL, "103")).await;
+
+    assert!(result.is_ok());
+}
+
+fn data_scope(kind: &str, dept_id: &str) -> DataScopeFilter {
+    DataScopeFilter {
+        data_scope: kind.into(),
+        user_id: "1".into(),
+        dept_id: Some(dept_id.into()),
+        dept_ids: vec![],
+    }
 }

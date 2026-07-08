@@ -1,7 +1,9 @@
 'use client';
 
+import type { TranslateFn } from 'src/shared/i18n';
+
 import * as z from 'zod';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useBoolean } from 'minimal-shared/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,6 +16,7 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
 import { toast } from 'src/shared/ui/snackbar';
+import { useTranslate } from 'src/shared/i18n';
 import { paths } from 'src/shared/routes/paths';
 import { Iconify } from 'src/shared/ui/iconify';
 import { useRouter } from 'src/shared/routes/hooks';
@@ -25,23 +28,17 @@ import { SiteDocumentTitle } from 'src/shared/config/site-document-title';
 import { formatPageDocumentTitle } from 'src/shared/i18n/document-title-format';
 
 import { usePublicConfigs, isRegisterEnabled } from 'src/entities/system';
-import { useAuthContext, passwordSchema, identifierSchema } from 'src/entities/session';
+import {
+  useAuthContext,
+  createIdentifierSchema,
+  createBasicPasswordSchema,
+} from 'src/entities/session';
 
 import { signInWithPassword } from 'src/features/auth';
 import { FormHead } from 'src/features/auth/ui/form-head';
 import { CaptchaWidget, isCaptchaReady, useCaptchaConfig } from 'src/features/auth/captcha';
 
-const CAPTCHA_REQUIRED_MESSAGE = 'Complete CAPTCHA first';
-const CAPTCHA_LOADING_MESSAGE = 'Captcha config is loading';
-const REGISTRATION_LOADING_MESSAGE = 'Registration config is loading';
-const REGISTRATION_DISABLED_MESSAGE = 'Registration is disabled';
-
-export type SignInSchemaType = z.infer<typeof SignInSchema>;
-
-export const SignInSchema = z.object({
-  identifier: identifierSchema,
-  password: passwordSchema,
-});
+export type SignInSchemaType = z.infer<ReturnType<typeof createSignInSchema>>;
 
 export function JwtSignInView() {
   const controller = useSignInController();
@@ -49,7 +46,7 @@ export function JwtSignInView() {
   return (
     <>
       <SiteDocumentTitle title={controller.documentTitle} />
-      <SignInHead onGetStarted={controller.handleGetStarted} />
+      <SignInHead t={controller.t} onGetStarted={controller.handleGetStarted} />
       <AuthErrorAlert message={controller.errorMessage} />
       <Form methods={controller.methods} onSubmit={controller.onSubmit}>
         <SignInForm controller={controller} />
@@ -60,22 +57,32 @@ export function JwtSignInView() {
 
 function useSignInController() {
   const router = useRouter();
+  const { t } = useTranslate('messages');
   const showPassword = useBoolean();
   const { siteName } = useSiteDisplay();
   const { checkUserSession } = useAuthContext();
   const { data: publicConfigs, isLoading: loadingConfig } = usePublicConfigs();
   const captcha = useCaptchaConfig();
   const captchaState = useCaptchaTokenState();
+  const schema = useMemo(() => createSignInSchema(t), [t]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const methods = useForm({
-    resolver: zodResolver(SignInSchema),
+  const methods = useForm<SignInSchemaType>({
+    resolver: zodResolver(schema),
     defaultValues: { identifier: '', password: '' },
   });
-  const onSubmit = useSignInSubmit({ methods, captcha, captchaState, setErrorMessage, checkUserSession, router });
-  const handleGetStarted = useGetStartedHandler({ router, publicConfigs, loadingConfig });
-  const documentTitle = formatPageDocumentTitle('Sign in', siteName);
+  const onSubmit = useSignInSubmit({ methods, captcha, captchaState, setErrorMessage, checkUserSession, router, t });
+  const handleGetStarted = useGetStartedHandler({ router, publicConfigs, loadingConfig, t });
+  const documentTitle = formatPageDocumentTitle(t('auth.signIn.documentTitle'), siteName);
 
-  return { methods, onSubmit, showPassword, captcha, captchaState, errorMessage, handleGetStarted, documentTitle };
+  return { methods, onSubmit, showPassword, captcha, captchaState, errorMessage, handleGetStarted, documentTitle, t };
+}
+
+function createSignInSchema(t: TranslateFn) {
+  const messages = validationMessages(t);
+  return z.object({
+    identifier: createIdentifierSchema(messages),
+    password: createBasicPasswordSchema(messages),
+  });
 }
 
 type CaptchaTokenState = ReturnType<typeof useCaptchaTokenState>;
@@ -98,13 +105,14 @@ type SignInSubmitOptions = {
   setErrorMessage: (message: string) => void;
   checkUserSession?: () => Promise<void>;
   router: ReturnType<typeof useRouter>;
+  t: TranslateFn;
 };
 
 function useSignInSubmit(options: SignInSubmitOptions) {
-  const { methods, captcha, captchaState, setErrorMessage, checkUserSession, router } = options;
+  const { methods, captcha, captchaState, setErrorMessage, checkUserSession, router, t } = options;
 
   return methods.handleSubmit(async (data) => {
-    if (!validateCaptcha(captcha, captchaState.token, setErrorMessage)) return;
+    if (!validateCaptcha(captcha, captchaState.token, setErrorMessage, t)) return;
     try {
       await signInWithPassword({
         identifier: data.identifier,
@@ -125,16 +133,17 @@ type GetStartedOptions = {
   router: ReturnType<typeof useRouter>;
   publicConfigs: ReturnType<typeof usePublicConfigs>['data'];
   loadingConfig: boolean;
+  t: TranslateFn;
 };
 
-function useGetStartedHandler({ router, publicConfigs, loadingConfig }: GetStartedOptions) {
+function useGetStartedHandler({ router, publicConfigs, loadingConfig, t }: GetStartedOptions) {
   return () => {
     if (loadingConfig) {
-      toast.info(REGISTRATION_LOADING_MESSAGE);
+      toast.info(t('auth.signIn.registrationLoading'));
       return;
     }
     if (!isRegisterEnabled(publicConfigs)) {
-      toast.warning(REGISTRATION_DISABLED_MESSAGE);
+      toast.warning(t('auth.signIn.registrationDisabled'));
       return;
     }
     router.push(paths.auth.jwt.signUp);
@@ -143,15 +152,15 @@ function useGetStartedHandler({ router, publicConfigs, loadingConfig }: GetStart
 
 type SignInController = ReturnType<typeof useSignInController>;
 
-function SignInHead({ onGetStarted }: { onGetStarted: () => void }) {
+function SignInHead({ t, onGetStarted }: { t: TranslateFn; onGetStarted: () => void }) {
   return (
     <FormHead
-      title="Sign in to your account"
+      title={t('auth.signIn.title')}
       description={
         <>
-          {`Don’t have an account? `}
+          {`${t('auth.signIn.noAccount')} `}
           <Link component="button" type="button" variant="subtitle2" onClick={onGetStarted}>
-            Get started
+            {t('auth.signIn.getStarted')}
           </Link>
         </>
       }
@@ -170,39 +179,53 @@ function AuthErrorAlert({ message }: { message: string | null }) {
 }
 
 function SignInForm({ controller }: { controller: SignInController }) {
-  const { methods, showPassword, captcha, captchaState } = controller;
+  const { methods, showPassword, captcha, captchaState, t } = controller;
   const { isSubmitting } = methods.formState;
 
   return (
     <Box sx={{ gap: 3, display: 'flex', flexDirection: 'column' }}>
-      <Field.Text name="identifier" label="Username or email" placeholder="username or name@example.com" slotProps={{ inputLabel: { shrink: true } }} />
+      <Field.Text
+        name="identifier"
+        label={t('auth.signIn.identifierLabel')}
+        placeholder={t('auth.signIn.identifierPlaceholder')}
+        slotProps={{ inputLabel: { shrink: true } }}
+      />
       <Box sx={{ gap: 1.5, display: 'flex', flexDirection: 'column' }}>
-        <ForgotPasswordLink />
-        <PasswordField show={showPassword.value} onToggle={showPassword.onToggle} />
+        <ForgotPasswordLink t={t} />
+        <PasswordField t={t} show={showPassword.value} onToggle={showPassword.onToggle} />
       </Box>
       <CaptchaWidget config={captcha.data} resetKey={captchaState.resetKey} onTokenChange={captchaState.setToken} />
       {captcha.error ? <Alert severity="error">{getErrorMessage(captcha.error)}</Alert> : null}
-      <Button fullWidth color="inherit" size="large" type="submit" variant="contained" loading={isSubmitting || captcha.isLoading} disabled={!!captcha.error} loadingIndicator={captcha.isLoading ? 'Loading captcha...' : 'Sign in...'}>
-        Sign in
+      <Button
+        fullWidth
+        color="inherit"
+        size="large"
+        type="submit"
+        variant="contained"
+        loading={isSubmitting || captcha.isLoading}
+        disabled={!!captcha.error}
+        loadingIndicator={captcha.isLoading ? t('auth.captcha.loading') : t('auth.signIn.submitting')}
+      >
+        {t('auth.signIn.submit')}
       </Button>
     </Box>
   );
 }
 
-function ForgotPasswordLink() {
+function ForgotPasswordLink({ t }: { t: TranslateFn }) {
   return (
     <Link component={RouterLink} href="#" variant="body2" color="inherit" sx={{ alignSelf: 'flex-end' }}>
-      Forgot password?
+      {t('auth.signIn.forgotPassword')}
     </Link>
   );
 }
 
-function PasswordField({ show, onToggle }: { show: boolean; onToggle: () => void }) {
+function PasswordField({ t, show, onToggle }: { t: TranslateFn; show: boolean; onToggle: () => void }) {
   return (
     <Field.Text
       name="password"
-      label="Password"
-      placeholder="8+ characters"
+      label={t('auth.signIn.passwordLabel')}
+      placeholder={t('auth.signIn.passwordPlaceholder')}
       type={show ? 'text' : 'password'}
       slotProps={{ inputLabel: { shrink: true }, input: { endAdornment: <PasswordAdornment show={show} onToggle={onToggle} /> } }}
     />
@@ -222,19 +245,36 @@ function PasswordAdornment({ show, onToggle }: { show: boolean; onToggle: () => 
 function validateCaptcha(
   captcha: ReturnType<typeof useCaptchaConfig>,
   token: string | null,
-  setErrorMessage: (message: string) => void
+  setErrorMessage: (message: string) => void,
+  t: TranslateFn
 ) {
   if (captcha.error) {
     setErrorMessage(getErrorMessage(captcha.error));
     return false;
   }
   if (captcha.isLoading) {
-    setErrorMessage(CAPTCHA_LOADING_MESSAGE);
+    setErrorMessage(t('auth.captcha.loading'));
     return false;
   }
   if (!isCaptchaReady(captcha.data, token)) {
-    setErrorMessage(CAPTCHA_REQUIRED_MESSAGE);
+    setErrorMessage(t('auth.captcha.required'));
     return false;
   }
   return true;
+}
+
+function validationMessages(t: TranslateFn) {
+  return {
+    usernameLength: (min: number, max: number) => t('auth.validation.usernameLength', { min, max }),
+    usernamePattern: t('auth.validation.usernamePattern'),
+    passwordLength: (min: number, max: number) => t('auth.validation.passwordLength', { min, max }),
+    passwordLetterRequired: t('auth.validation.passwordLetterRequired'),
+    passwordNumberRequired: t('auth.validation.passwordNumberRequired'),
+    passwordSymbolRequired: t('auth.validation.passwordSymbolRequired'),
+    passwordContainsUsername: t('auth.validation.passwordContainsUsername'),
+    emailRequired: t('auth.validation.emailRequired'),
+    emailInvalid: t('auth.validation.emailInvalid'),
+    identifierRequired: t('auth.validation.identifierRequired'),
+    identifierInvalid: t('auth.validation.identifierInvalid'),
+  };
 }

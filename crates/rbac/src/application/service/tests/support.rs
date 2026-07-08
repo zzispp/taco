@@ -1,8 +1,17 @@
 use super::*;
 use crate::domain::PermissionSnapshot;
+use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_SELF};
 
 #[derive(Clone, Default)]
-pub(super) struct MemoryRepository;
+pub(super) struct MemoryRepository {
+    users: Vec<TestUser>,
+}
+
+#[derive(Clone)]
+struct TestUser {
+    user_id: String,
+    dept_id: Option<String>,
+}
 
 #[derive(Clone)]
 pub(super) struct MemoryCache {
@@ -10,7 +19,21 @@ pub(super) struct MemoryCache {
 }
 
 pub(super) fn test_service(snapshot: PermissionSnapshot) -> RbacService<MemoryRepository, MemoryCache> {
-    RbacService::new(MemoryRepository, MemoryCache { snapshot })
+    RbacService::new(MemoryRepository::default(), MemoryCache { snapshot })
+}
+
+pub(super) fn test_admin_service(repository: MemoryRepository) -> RbacService<MemoryRepository, MemoryCache> {
+    RbacService::new(repository, MemoryCache { snapshot: snapshot(vec![]) })
+}
+
+impl MemoryRepository {
+    pub(super) fn with_user(mut self, user_id: &str, dept_id: &str) -> Self {
+        self.users.push(TestUser {
+            user_id: user_id.into(),
+            dept_id: Some(dept_id.into()),
+        });
+        self
+    }
 }
 
 pub(super) fn config() -> AuthorizationConfig {
@@ -164,6 +187,15 @@ impl RbacRepository for MemoryRepository {
         Ok(empty_page(filter.page))
     }
 
+    async fn scoped_user_ids(&self, user_ids: &[String], scope: DataScopeFilter) -> RbacResult<Vec<String>> {
+        Ok(self
+            .users
+            .iter()
+            .filter(|user| user_ids.contains(&user.user_id) && test_user_scope_matches(user, &scope))
+            .map(|user| user.user_id.clone())
+            .collect())
+    }
+
     async fn replace_role_users(&self, _role_id: &str, _input: RoleUserBindingInput) -> RbacResult<()> {
         Ok(())
     }
@@ -243,5 +275,13 @@ fn empty_page<T>(page: PageRequest) -> Page<T> {
         total: 0,
         page: page.page,
         page_size: page.page_size,
+    }
+}
+
+fn test_user_scope_matches(user: &TestUser, scope: &DataScopeFilter) -> bool {
+    match scope.data_scope.as_str() {
+        DATA_SCOPE_ALL => true,
+        DATA_SCOPE_SELF => user.user_id == scope.user_id,
+        _ => user.dept_id == scope.dept_id,
     }
 }

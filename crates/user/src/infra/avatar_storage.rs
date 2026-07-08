@@ -98,6 +98,7 @@ fn localized_param(key: &'static str, param: &'static str, value: impl Into<Stri
 mod tests {
     use super::*;
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn stores_image_avatar_and_returns_url() {
         let dir = tempfile::tempdir().unwrap();
@@ -109,6 +110,7 @@ mod tests {
         assert!(url.ends_with(".png"));
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn rejects_empty_avatar() {
         let dir = tempfile::tempdir().unwrap();
@@ -119,6 +121,7 @@ mod tests {
         assert!(matches!(result, Err(AppError::InvalidInput(_))));
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn rejects_non_image_avatar() {
         let dir = tempfile::tempdir().unwrap();

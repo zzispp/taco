@@ -1,5 +1,5 @@
 use kernel::pagination::{Page, PageSliceRequest};
-use sqlx::{query_as, query_scalar};
+use sqlx::{AssertSqlSafe, query_as, query_scalar};
 use storage::{
     StorageError, StorageResult,
     database::{to_i64, to_u64},
@@ -69,7 +69,7 @@ impl UserQueries {
 
     async fn filtered_records_slice(&self, filter: &UserListFilter, limit: u64, offset: u64) -> StorageResult<Vec<UserRecord>> {
         let sql = sql::filtered_users("ORDER BY u.create_time ASC LIMIT $7 OFFSET $8");
-        query_as::<_, UserRecord>(&sql)
+        query_as::<_, UserRecord>(AssertSqlSafe(sql))
             .bind(&filter.username)
             .bind(&filter.phonenumber)
             .bind(&filter.status)
@@ -119,7 +119,22 @@ impl UserQueries {
             .map_err(StorageError::from)
     }
 
-    pub(super) async fn find_record(&self, predicate: &str, value: &str) -> StorageResult<Option<User>> {
+    pub async fn scoped_existing_user_ids(&self, ids: Vec<String>, scope: &DataScopeFilter) -> StorageResult<Vec<String>> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        query_scalar(sql::scoped_existing_user_ids())
+            .bind(&scope.data_scope)
+            .bind(&scope.user_id)
+            .bind(&scope.dept_id)
+            .bind(&scope.dept_ids)
+            .bind(&ids)
+            .fetch_all(self.database.pool())
+            .await
+            .map_err(StorageError::from)
+    }
+
+    pub(super) async fn find_record(&self, predicate: &'static str, value: &str) -> StorageResult<Option<User>> {
         let record = self.raw_record(predicate, value).await?;
         match record {
             Some(record) => self.user(record).await.map(Some),
@@ -127,7 +142,7 @@ impl UserQueries {
         }
     }
 
-    pub(super) async fn find_auth_record(&self, predicate: &str, value: &str) -> StorageResult<Option<(User, String)>> {
+    pub(super) async fn find_auth_record(&self, predicate: &'static str, value: &str) -> StorageResult<Option<(User, String)>> {
         let record = self.raw_record(predicate, value).await?;
         match record {
             Some(record) => self.auth_user(record).await.map(Some),
@@ -135,12 +150,15 @@ impl UserQueries {
         }
     }
 
-    async fn raw_record(&self, predicate: &str, value: &str) -> StorageResult<Option<UserRecord>> {
-        query_as::<_, UserRecord>(&format!("SELECT {} FROM sys_user WHERE del_flag = '0' AND {predicate}", sql::USER_COLUMNS))
-            .bind(value)
-            .fetch_optional(self.database.pool())
-            .await
-            .map_err(StorageError::from)
+    async fn raw_record(&self, predicate: &'static str, value: &str) -> StorageResult<Option<UserRecord>> {
+        query_as::<_, UserRecord>(AssertSqlSafe(format!(
+            "SELECT {} FROM sys_user WHERE del_flag = '0' AND {predicate}",
+            sql::USER_COLUMNS
+        )))
+        .bind(value)
+        .fetch_optional(self.database.pool())
+        .await
+        .map_err(StorageError::from)
     }
 
     async fn auth_user(&self, record: UserRecord) -> StorageResult<(User, String)> {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use captcha::application::{CaptchaError, CaptchaSettingsReader, CaptchaUseCase};
-use constants::system_config::{AVATAR_CONFIG_KEY, CAPTCHA_CONFIG_KEY, EXPORT_BATCH_CONFIG_KEY, PASSWORD_POLICY_KEY, TOKEN_CONFIG_KEY};
+use constants::system_config::{AVATAR_CONFIG_KEY, CAPTCHA_CONFIG_KEY, EXPORT_BATCH_CONFIG_KEY, IP_LOCATION_CONFIG_KEY, PASSWORD_POLICY_KEY, TOKEN_CONFIG_KEY};
 use kernel::runtime_config::{ExportBatchConfig, ExportConfigProvider};
 use rbac::application::RbacError;
 use serde_json::Value;
@@ -14,8 +14,8 @@ const REQUIRED_SYSTEM_CONFIG_ERROR: &str = "infra.system_config.required_missing
 use user::{
     api::{TokenSettingsReader, TokenTtlConfig, parse_token_ttl_config},
     application::{
-        AccountVerifier, AppError, AppResult, AvatarConfig, AvatarConfigProvider, PasswordPolicy, PasswordPolicyProvider, SystemConfigProvider,
-        parse_avatar_config, parse_export_batch_config, parse_password_policy,
+        AccountVerifier, AppError, AppResult, AvatarConfig, AvatarConfigProvider, IpLocationConfig, IpLocationSettingsReader, PasswordPolicy,
+        PasswordPolicyProvider, SystemConfigProvider, parse_avatar_config, parse_export_batch_config, parse_ip_location_config, parse_password_policy,
     },
 };
 
@@ -86,6 +86,13 @@ impl ExportConfigProvider for RuntimeUserConfig {
 impl TokenSettingsReader for RuntimeUserConfig {
     async fn token_ttl_config(&self) -> AppResult<TokenTtlConfig> {
         parse_token_ttl_config(&self.user_config(TOKEN_CONFIG_KEY).await?)
+    }
+}
+
+#[async_trait]
+impl IpLocationSettingsReader for RuntimeUserConfig {
+    async fn ip_location_config(&self) -> AppResult<IpLocationConfig> {
+        parse_ip_location_config(&self.user_config(IP_LOCATION_CONFIG_KEY).await?)
     }
 }
 

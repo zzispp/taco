@@ -15,6 +15,8 @@ import { MotionLazy } from 'src/shared/ui/animate/motion-lazy';
 import { SettingsDrawer, defaultSettings } from 'src/shared/ui/settings';
 import { themeConfig, ThemeProvider, primary as primaryColor } from 'src/shared/theme';
 
+import { SessionExpiredDialog } from 'src/features/auth/session-expired';
+
 import { AuthProvider, AppSettingsProvider } from 'src/app/providers';
 
 export const viewport: Viewport = {
@@ -82,6 +84,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
                       <Snackbar />
                       <ProgressBar />
                       <SettingsDrawer />
+                      <SessionExpiredDialog />
                       {children}
                     </MotionLazy>
                   </ThemeProvider>

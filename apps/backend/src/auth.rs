@@ -22,6 +22,10 @@ const AUTHENTICATED_ONLY_ROUTES: &[AuthenticatedOnlyRoute] = &[
         path: "/api/navbar",
     },
     AuthenticatedOnlyRoute {
+        method: "POST",
+        path: "/api/auth/logout",
+    },
+    AuthenticatedOnlyRoute {
         method: "GET",
         path: "/api/account/profile",
     },
@@ -98,7 +102,7 @@ fn is_authenticated_only_route(method: &str, path: &str) -> bool {
 
 async fn authenticate_current_user(state: &AuthState, headers: &HeaderMap) -> Result<CurrentUser, RbacError> {
     let token = bearer_token(headers)?;
-    let user_id = state.tokens.validate_access(token).map_err(|_| RbacError::Unauthorized)?;
+    let user_id = state.tokens.validate_access(token).await.map_err(|_| RbacError::Unauthorized)?;
     let user = state.users.authenticated_user(user_id).await.map_err(user_error)?;
     Ok(current_user(user))
 }

@@ -5,7 +5,7 @@ use rust_xlsxwriter::{Workbook, XlsxError};
 
 pub type ExcelResult<T> = Result<T, String>;
 
-pub fn write_xlsx(sheet_name: &str, headers: &[&str], rows: &[Vec<String>]) -> ExcelResult<Vec<u8>> {
+pub fn write_xlsx<S: AsRef<str>>(sheet_name: &str, headers: &[S], rows: &[Vec<String>]) -> ExcelResult<Vec<u8>> {
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
     worksheet.set_name(sheet_name).map_err(excel_write_error)?;
@@ -24,9 +24,9 @@ pub fn read_xlsx(bytes: &[u8]) -> ExcelResult<Vec<Vec<String>>> {
     Ok(range.rows().map(row_values).collect())
 }
 
-fn write_headers(worksheet: &mut rust_xlsxwriter::Worksheet, headers: &[&str]) -> ExcelResult<()> {
+fn write_headers<S: AsRef<str>>(worksheet: &mut rust_xlsxwriter::Worksheet, headers: &[S]) -> ExcelResult<()> {
     for (column, header) in headers.iter().enumerate() {
-        worksheet.write_string(0, column_index(column)?, *header).map_err(excel_write_error)?;
+        worksheet.write_string(0, column_index(column)?, header.as_ref()).map_err(excel_write_error)?;
     }
     Ok(())
 }
@@ -88,6 +88,7 @@ fn excel_read_error(error: impl std::fmt::Display) -> String {
 mod tests {
     use super::{read_xlsx, write_xlsx};
 
+    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn writes_and_reads_xlsx_rows() {
         let bytes = write_xlsx("用户数据", &["登录名称", "用户名称"], &[vec!["alice".into(), "Alice".into()]]).unwrap();

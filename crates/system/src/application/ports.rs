@@ -16,6 +16,7 @@ pub trait SystemUseCase: Send + Sync + 'static {
     async fn page_depts_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> SystemResult<Page<Dept>>;
     async fn get_dept(&self, id: &str) -> SystemResult<Dept>;
     async fn dept_tree(&self, filter: DeptListFilter, scope: Option<DataScopeFilter>) -> SystemResult<Vec<TreeSelectNode>>;
+    async fn ensure_dept_ids_scoped(&self, ids: Vec<String>, scope: DataScopeFilter) -> SystemResult<()>;
     async fn exclude_dept_tree(&self, id: &str) -> SystemResult<Vec<TreeSelectNode>>;
     async fn create_dept(&self, input: DeptInput) -> SystemResult<Dept>;
     async fn replace_dept(&self, id: &str, input: DeptInput) -> SystemResult<Dept>;

@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest, PageSliceRequest};
+use serde::{Deserialize, Serialize};
+use types::http::Locale;
 
-use super::{AppResult, AvatarConfig, PasswordPolicy};
+use super::{AppResult, AvatarConfig, IpLocationConfig, PasswordPolicy};
 use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfile, UserProfileGroups};
 use types::rbac::DataScopeFilter;
 
@@ -64,7 +66,41 @@ pub struct UserImportInput {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UserImportReport {
     pub success_count: usize,
-    pub message: String,
+    pub messages: Vec<UserImportMessage>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UserImportMessage {
+    pub key: &'static str,
+    pub username: String,
+}
+
+impl UserImportMessage {
+    pub fn new(key: &'static str, username: impl Into<String>) -> Self {
+        Self {
+            key,
+            username: username.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OnlineSession {
+    pub token_id: String,
+    pub user_id: UserId,
+    pub dept_name: Option<String>,
+    pub user_name: String,
+    pub ipaddr: String,
+    pub login_location: String,
+    pub browser: String,
+    pub os: String,
+    pub login_time: i64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OnlineSessionFilter {
+    pub ipaddr: Option<String>,
+    pub user_name: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -93,6 +129,7 @@ pub trait UserRepository: Send + Sync + 'static {
     async fn record_login(&self, id: UserId) -> AppResult<()>;
     async fn list(&self, filter: UserListFilter) -> AppResult<Page<User>>;
     async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<Page<User>>;
+    async fn list_scoped_ids(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<Vec<UserId>>;
     async fn list_slice(&self, filter: UserListFilter, request: PageSliceRequest) -> AppResult<Page<User>>;
     async fn update_password(&self, id: UserId, password_hash: String) -> AppResult<()>;
     async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> AppResult<User>;
@@ -119,8 +156,31 @@ pub trait AccountVerifier: Send + Sync + 'static {
 }
 
 #[async_trait]
+pub trait PublicIpResolver: Send + Sync + 'static {
+    async fn resolve_public_ip(&self) -> AppResult<String>;
+}
+
+#[async_trait]
+pub trait IpLocationSettingsReader: Send + Sync + 'static {
+    async fn ip_location_config(&self) -> AppResult<IpLocationConfig>;
+}
+
+#[async_trait]
+pub trait IpLocationResolver: Send + Sync + 'static {
+    async fn resolve_login_location(&self, ipaddr: &str, locale: Locale) -> AppResult<String>;
+}
+
+#[async_trait]
 pub trait SystemConfigProvider: Send + Sync + 'static {
     async fn config_by_key(&self, key: &str) -> AppResult<String>;
+}
+
+#[async_trait]
+pub trait OnlineSessionStore: Send + Sync + 'static {
+    async fn save(&self, session: &OnlineSession, ttl_seconds: u64) -> AppResult<()>;
+    async fn find(&self, token_id: &str) -> AppResult<Option<OnlineSession>>;
+    async fn delete(&self, token_id: &str) -> AppResult<()>;
+    async fn list(&self) -> AppResult<Vec<OnlineSession>>;
 }
 
 #[async_trait]
@@ -152,6 +212,8 @@ pub trait UserUseCase: Send + Sync + 'static {
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User>;
     async fn list_users(&self, filter: UserListFilter) -> AppResult<Page<User>>;
     async fn list_users_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<Page<User>>;
+    async fn ensure_user_ids_scoped(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<()>;
+    async fn filter_online_sessions_scoped(&self, sessions: Vec<OnlineSession>, scope: DataScopeFilter) -> AppResult<Vec<OnlineSession>>;
     async fn import_users(&self, input: UserImportInput) -> AppResult<UserImportReport>;
     async fn form_options(&self) -> AppResult<UserFormOptions>;
 }

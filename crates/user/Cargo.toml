@@ -2,26 +2,30 @@
 name = "user"
 version.workspace = true
 edition.workspace = true
+publish.workspace = true
 
 [dependencies]
 argon2.workspace = true
 async-trait.workspace = true
 axum.workspace = true
-configuration.workspace = true
 constants.workspace = true
-hook_tracing.workspace = true
+encoding_rs.workspace = true
 inventory.workspace = true
 jsonwebtoken.workspace = true
+public-ip-address.workspace = true
 kernel.workspace = true
 rand_core.workspace = true
+redis.workspace = true
 rbac.workspace = true
 rbac_macros.workspace = true
 regex.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
 storage.workspace = true
 thiserror.workspace = true
+hook_tracing.workspace = true
 time.workspace = true
 tokio.workspace = true
 types.workspace = true

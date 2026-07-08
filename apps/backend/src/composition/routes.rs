@@ -71,6 +71,7 @@ pub(super) fn ensure_auth_whitelist_rule(rules: &mut Vec<AuthWhitelistRule>, met
 pub(super) fn route_permissions() -> Vec<RoutePermissionRule> {
     let mut rules = dashboard_routes();
     rules.extend(user_routes());
+    rules.extend(online_routes());
     rules.extend(role_routes());
     rules.extend(menu_routes());
     rules.extend(dept_routes());
@@ -84,11 +85,29 @@ pub(super) fn data_scope_handlers() -> Vec<&'static str> {
     vec![
         "list_users",
         "export_users",
+        "get_user",
+        "replace_user",
+        "delete_user",
+        "delete_users",
+        "reset_user_password",
+        "update_user_status",
+        "user_roles",
+        "replace_user_roles",
         "list_roles",
         "export_roles",
         "role_users",
+        "replace_role_users",
+        "delete_role_user",
+        "delete_role_users",
+        "list_online_sessions",
+        "force_logout_online_session",
         "list_depts",
         "dept_tree_select",
+        "get_dept",
+        "replace_dept",
+        "update_dept_sort",
+        "update_dept_sorts",
+        "delete_dept",
     ]
 }
 
@@ -118,6 +137,18 @@ fn user_routes() -> Vec<RoutePermissionRule> {
         rule_spec!(PUT, "/api/system/users/{id}/status", "system:user:edit", "update_user_status"),
         rule_spec!(GET, "/api/system/users/{id}/roles", "system:user:query", "user_roles"),
         rule_spec!(PUT, "/api/system/users/{id}/roles", "system:user:edit", "replace_user_roles"),
+    ])
+}
+
+fn online_routes() -> Vec<RoutePermissionRule> {
+    from_specs(&[
+        rule_spec!(GET, "/api/system/online/list", "system:online:list", "list_online_sessions"),
+        rule_spec!(
+            DELETE,
+            "/api/system/online/{token_id}",
+            "system:online:forceLogout",
+            "force_logout_online_session"
+        ),
     ])
 }
 

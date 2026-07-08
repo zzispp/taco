@@ -7,7 +7,7 @@ use kernel::pagination::{Page, PageRequest};
 use rbac_macros::{data_scope, require_perms};
 use serde::Deserialize;
 use types::{
-    http::{RequestJson, xlsx_attachment},
+    http::{RequestJson, current_locale, xlsx_attachment},
     rbac::DataScopeFilter,
     system::{BatchIdsInput, SortBatchInput},
 };
@@ -26,7 +26,10 @@ use crate::{
 
 type ApiJson<T> = Json<T>;
 
+mod role_user_handlers;
 mod support;
+
+pub use role_user_handlers::{delete_role_user, delete_role_users, replace_role_users, role_users};
 
 use self::support::{ExportRolesInput, all_export_roles, checked_keys_for_tree, menu_tree, ok, role_user_filter};
 
@@ -34,16 +37,6 @@ type ExportRolesRequest = (State<RbacApiState>, Extension<CurrentUser>, Extensio
 type ListRolesRequest = (State<RbacApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<RbacListQuery>);
 type RoleMenuRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleMenuBindingInput>);
 type RoleDeptRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleDeptBindingInput>);
-type RoleUsersRequest = (
-    State<RbacApiState>,
-    Extension<CurrentUser>,
-    Extension<DataScopeFilter>,
-    Path<String>,
-    Query<RoleUsersQuery>,
-);
-type RoleUserReplaceRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleUserBindingInput>);
-type DeleteRoleUserRequest = (State<RbacApiState>, Path<(String, String)>);
-type DeleteRoleUsersRequest = (State<RbacApiState>, Path<String>, RequestJson<BatchIdsInput>);
 type ApiResult<T> = Result<T, RbacApiError>;
 
 #[derive(Debug, Deserialize)]
@@ -101,7 +94,7 @@ pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
         query: &query,
     })
     .await?;
-    Ok(xlsx_attachment("roles.xlsx", export_roles_xlsx(&roles)?))
+    Ok(xlsx_attachment("roles.xlsx", export_roles_xlsx(&roles, current_locale())?))
 }
 
 #[require_perms("system:role:list")]
@@ -234,32 +227,6 @@ pub async fn role_dept_bindings(State(state): State<RbacApiState>, Path(id): Pat
 #[require_perms("system:role:edit")]
 pub async fn replace_role_depts((State(state), Path(id), RequestJson(payload)): RoleDeptRequest) -> ApiResult<ApiJson<()>> {
     state.rbac_admin.replace_role_depts(&id, payload).await?;
-    Ok(ok(()))
-}
-
-#[require_perms("system:role:list")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn role_users(request: RoleUsersRequest) -> ApiResult<ApiJson<Page<RoleUser>>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(id), Query(query)) = request;
-    let scope = (!current_user.admin).then_some(data_scope);
-    Ok(ok(state.rbac_admin.page_role_users(role_user_filter(id, query), scope).await?))
-}
-
-#[require_perms("system:role:edit")]
-pub async fn replace_role_users((State(state), Path(id), RequestJson(payload)): RoleUserReplaceRequest) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.replace_role_users(&id, payload).await?;
-    Ok(ok(()))
-}
-
-#[require_perms("system:role:remove")]
-pub async fn delete_role_user((State(state), Path((id, user_id))): DeleteRoleUserRequest) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.delete_role_user(&id, &user_id).await?;
-    Ok(ok(()))
-}
-
-#[require_perms("system:role:remove")]
-pub async fn delete_role_users((State(state), Path(id), RequestJson(payload)): DeleteRoleUsersRequest) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.delete_role_users(&id, payload.ids).await?;
     Ok(ok(()))
 }
 

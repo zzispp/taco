@@ -7,7 +7,7 @@ use kernel::pagination::{Page, PageRequest};
 use rbac::api::CurrentUser;
 use rbac_macros::{data_scope, require_perms};
 use serde::Deserialize;
-use types::http::{RequestJson, xlsx_attachment};
+use types::http::{RequestJson, current_locale, xlsx_attachment};
 use types::rbac::{DataScopeFilter, RoleDeptTreeSelect};
 use types::system::BatchIdsInput;
 
@@ -46,6 +46,14 @@ type ListDeptsRequest = (
     Query<SystemListQuery>,
 );
 type DeptTreeRequest = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<DeptTreeQuery>);
+type DeptPathRequest = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
+type DeptJsonRequest<T> = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>, T);
+type DeptSortsRequest = (
+    State<SystemApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    RequestJson<SortBatchInput>,
+);
 type ApiResult<T> = Result<T, SystemApiError>;
 
 #[derive(Debug, Deserialize)]
@@ -123,7 +131,10 @@ pub async fn create_dept(State(state): State<SystemApiState>, RequestJson(payloa
     Ok(ok(state.system.create_dept(payload).await?))
 }
 #[require_perms("system:dept:query")]
-pub async fn get_dept(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<Dept>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn get_dept(request: DeptPathRequest) -> ApiResult<ApiJson<Dept>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id)) = request;
+    DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     Ok(ok(state.system.get_dept(&id).await?))
 }
 
@@ -152,29 +163,62 @@ pub async fn role_dept_tree_select(State(state): State<SystemApiState>, Path(id)
 }
 
 #[require_perms("system:dept:edit")]
-pub async fn replace_dept(
-    State(state): State<SystemApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<DeptInput>,
-) -> ApiResult<ApiJson<Dept>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn replace_dept(request: DeptJsonRequest<RequestJson<DeptInput>>) -> ApiResult<ApiJson<Dept>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+    DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     Ok(ok(state.system.replace_dept(&id, payload).await?))
 }
 #[require_perms("system:dept:edit")]
-pub async fn update_dept_sort(
-    State(state): State<SystemApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<SortPayload>,
-) -> ApiResult<ApiJson<Dept>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn update_dept_sort(request: DeptJsonRequest<RequestJson<SortPayload>>) -> ApiResult<ApiJson<Dept>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+    DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     Ok(ok(state.system.update_dept_sort(&id, payload.order_num).await?))
 }
 
 #[require_perms("system:dept:edit")]
-pub async fn update_dept_sorts(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<SortBatchInput>) -> ApiResult<ApiJson<Vec<Dept>>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn update_dept_sorts(request: DeptSortsRequest) -> ApiResult<ApiJson<Vec<Dept>>> {
+    let (State(state), Extension(current_user), Extension(data_scope), RequestJson(payload)) = request;
+    let ids = payload.items.iter().map(|item| item.id.clone()).collect();
+    DeptScopeGuard::new(&state, &current_user, data_scope).ensure_many(ids).await?;
     Ok(ok(state.system.update_dept_sorts(payload).await?))
 }
 
 #[require_perms("system:dept:remove")]
-pub async fn delete_dept(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn delete_dept(request: DeptPathRequest) -> ApiResult<ApiJson<()>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id)) = request;
+    DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     state.system.delete_dept(&id).await?;
     Ok(ok(()))
+}
+
+struct DeptScopeGuard<'a> {
+    state: &'a SystemApiState,
+    current_user: &'a CurrentUser,
+    data_scope: DataScopeFilter,
+}
+
+impl<'a> DeptScopeGuard<'a> {
+    const fn new(state: &'a SystemApiState, current_user: &'a CurrentUser, data_scope: DataScopeFilter) -> Self {
+        Self {
+            state,
+            current_user,
+            data_scope,
+        }
+    }
+
+    async fn ensure_one(&self, id: &str) -> ApiResult<()> {
+        self.ensure_many(vec![id.into()]).await
+    }
+
+    async fn ensure_many(&self, ids: Vec<String>) -> ApiResult<()> {
+        if self.current_user.admin {
+            return Ok(());
+        }
+        self.state.system.ensure_dept_ids_scoped(ids, self.data_scope.clone()).await?;
+        Ok(())
+    }
 }

@@ -3,8 +3,8 @@
 import { useSetState } from 'minimal-shared/hooks';
 import { useMemo, useEffect, useCallback } from 'react';
 
-import axios from 'src/shared/api/http-client';
 import { resolveServerAssetUrl } from 'src/shared/lib/asset-url';
+import axios, { isAuthSessionRejected } from 'src/shared/api/http-client';
 
 import {
   setSession,
@@ -135,13 +135,4 @@ async function resolveSession() {
     }
     throw error;
   }
-}
-
-function isAuthSessionRejected(error: unknown) {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-
-  const { status, code } = error as { status?: number; code?: string };
-  return status === 401 || code === 'unauthorized';
 }

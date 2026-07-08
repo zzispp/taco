@@ -10,6 +10,7 @@ use crate::{
     },
 };
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn public_config_returns_frontend_turnstile_settings() {
     let provider = provider(success_response());
@@ -21,6 +22,7 @@ async fn public_config_returns_frontend_turnstile_settings() {
     assert_eq!(config["script_url"], "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit");
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_sends_secret_and_token_to_verifier() {
     let verifier = TestVerifier::new(success_response());
@@ -35,6 +37,7 @@ async fn verify_sends_secret_and_token_to_verifier() {
     );
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_rejects_missing_token() {
     let provider = provider(success_response());
@@ -44,6 +47,7 @@ async fn verify_rejects_missing_token() {
     assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_required"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_maps_failed_token_to_invalid_input() {
     let provider = provider(CloudflareTurnstileVerifyResponse {
@@ -56,6 +60,7 @@ async fn verify_maps_failed_token_to_invalid_input() {
     assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_failed"));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_maps_secret_errors_to_infrastructure_error() {
     let provider = provider(CloudflareTurnstileVerifyResponse {

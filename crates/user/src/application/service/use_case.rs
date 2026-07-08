@@ -146,6 +146,17 @@ where
         self.repository.list_scoped(filter, scope).await
     }
 
+    async fn ensure_user_ids_scoped(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<()> {
+        let scoped = self.repository.list_scoped_ids(ids.clone(), scope).await?;
+        reject_unscoped_user_ids(&ids, &scoped)
+    }
+
+    async fn filter_online_sessions_scoped(&self, sessions: Vec<OnlineSession>, scope: DataScopeFilter) -> AppResult<Vec<OnlineSession>> {
+        let allowed_ids = self.repository.list_scoped_ids(online_session_user_ids(&sessions), scope).await?;
+        let allowed_ids = allowed_ids.into_iter().map(|id| id.0).collect::<HashSet<_>>();
+        Ok(sessions.into_iter().filter(|session| allowed_ids.contains(&session.user_id.0)).collect())
+    }
+
     async fn import_users(&self, input: UserImportInput) -> AppResult<UserImportReport> {
         if input.rows.is_empty() {
             return Err(AppError::InvalidInput(localized("errors.user.import_empty")));
@@ -167,13 +178,24 @@ where
         }
         Ok(UserImportReport {
             success_count: successes.len(),
-            message: format!("用户导入成功，共 {} 条。{}", successes.len(), successes.join("；")),
+            messages: successes,
         })
     }
 
     async fn form_options(&self) -> AppResult<UserFormOptions> {
         self.repository.form_options().await
     }
+}
+
+fn online_session_user_ids(sessions: &[OnlineSession]) -> Vec<UserId> {
+    let mut seen = HashSet::new();
+    sessions
+        .iter()
+        .filter_map(|session| {
+            let id = session.user_id.0.clone();
+            seen.insert(id).then(|| session.user_id.clone())
+        })
+        .collect()
 }
 
 impl<R, H, P, S> UserService<R, H, P, S>
@@ -183,7 +205,7 @@ where
     P: PasswordPolicyProvider,
     S: SystemUserProvider,
 {
-    async fn import_user_row(&self, row: UserImportRow, update_support: bool, default_password: &str) -> AppResult<String> {
+    async fn import_user_row(&self, row: UserImportRow, update_support: bool, default_password: &str) -> AppResult<UserImportMessage> {
         let username = row.username.trim().to_owned();
         let found = self.repository.find_auth_by_username(&username).await?;
         match found {
@@ -193,7 +215,7 @@ where
         }
     }
 
-    async fn create_imported_user(&self, row: UserImportRow, default_password: &str) -> AppResult<String> {
+    async fn create_imported_user(&self, row: UserImportRow, default_password: &str) -> AppResult<UserImportMessage> {
         let username = row.username.trim().to_owned();
         self.create_unique_user(NewUser {
             username: username.clone(),
@@ -209,10 +231,10 @@ where
             post_ids: vec![],
         })
         .await?;
-        Ok(format!("账号 {username} 导入成功"))
+        Ok(UserImportMessage::new(IMPORT_ACCOUNT_CREATED_KEY, username))
     }
 
-    async fn update_imported_user(&self, row: UserImportRow, existing: User) -> AppResult<String> {
+    async fn update_imported_user(&self, row: UserImportRow, existing: User) -> AppResult<UserImportMessage> {
         let username = row.username.trim().to_owned();
         self.replace_user(
             existing.id.clone(),
@@ -231,6 +253,6 @@ where
             },
         )
         .await?;
-        Ok(format!("账号 {username} 更新成功"))
+        Ok(UserImportMessage::new(IMPORT_ACCOUNT_UPDATED_KEY, username))
     }
 }

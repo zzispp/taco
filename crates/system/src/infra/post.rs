@@ -1,5 +1,5 @@
 use kernel::pagination::Page;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
@@ -23,13 +23,13 @@ impl PostQueries {
     }
 
     pub async fn page(&self, filter: PostListFilter) -> StorageResult<Page<Post>> {
-        let total = query_scalar::<_, i64>(&total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(total_sql()))
             .bind(&filter.post_code)
             .bind(&filter.post_name)
             .bind(&filter.status)
             .fetch_one(self.database.pool())
             .await?;
-        let records = query_as::<_, PostRecord>(&page_sql())
+        let records = query_as::<_, PostRecord>(AssertSqlSafe(page_sql()))
             .bind(&filter.post_code)
             .bind(&filter.post_name)
             .bind(&filter.status)
@@ -41,7 +41,7 @@ impl PostQueries {
     }
 
     pub async fn options(&self) -> StorageResult<Vec<Post>> {
-        query_as::<_, PostRecord>(&format!("SELECT {COLUMNS} FROM sys_post WHERE status='0' ORDER BY post_sort ASC"))
+        query_as::<_, PostRecord>(AssertSqlSafe(format!("SELECT {COLUMNS} FROM sys_post WHERE status='0' ORDER BY post_sort ASC")))
             .fetch_all(self.database.pool())
             .await
             .map(|rows| rows.into_iter().map(post).collect())
@@ -116,7 +116,7 @@ impl PostQueries {
     }
 
     pub async fn find(&self, id: &str) -> StorageResult<Option<Post>> {
-        query_as::<_, PostRecord>(&format!("SELECT {COLUMNS} FROM sys_post WHERE post_id = $1"))
+        query_as::<_, PostRecord>(AssertSqlSafe(format!("SELECT {COLUMNS} FROM sys_post WHERE post_id = $1")))
             .bind(id)
             .fetch_optional(self.database.pool())
             .await

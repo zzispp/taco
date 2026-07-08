@@ -104,6 +104,7 @@ mod tests {
     use configuration::{CorsSettings, Settings};
     use tower::{Layer, Service, ServiceExt, service_fn};
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn cors_allows_wildcard_origin_for_normal_request() {
         let layer = cors_layer(&test_settings()).unwrap();
@@ -125,6 +126,7 @@ mod tests {
         assert!(response.headers().get(ACCESS_CONTROL_ALLOW_CREDENTIALS).is_none());
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn cors_answers_preflight_with_wildcards() {
         let layer = cors_layer(&test_settings()).unwrap();
@@ -150,6 +152,7 @@ mod tests {
         assert!(response.headers().get(ACCESS_CONTROL_EXPOSE_HEADERS).is_none());
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn cors_can_be_restricted_by_config() {
         let mut settings = test_settings();
@@ -190,6 +193,7 @@ mod tests {
         assert!(response.headers().get(ACCESS_CONTROL_EXPOSE_HEADERS).is_none());
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn cors_exposes_restricted_headers_on_actual_response() {
         let mut settings = test_settings();
@@ -229,6 +233,7 @@ mod tests {
         assert_eq!(values, vec![HeaderValue::from_static("http://localhost:8082")]);
     }
 
+    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn timeout_layer_returns_request_timeout() {
         let mut settings = test_settings();

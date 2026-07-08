@@ -98,6 +98,14 @@ impl UserRepository for StorageUserRepository {
         self.queries.list_scoped(filter, scope).await.map_err(storage_error)
     }
 
+    async fn list_scoped_ids(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<Vec<UserId>> {
+        self.queries
+            .scoped_existing_user_ids(ids.into_iter().map(|id| id.0).collect(), &scope)
+            .await
+            .map(|ids| ids.into_iter().map(UserId).collect())
+            .map_err(storage_error)
+    }
+
     async fn list_slice(&self, filter: UserListFilter, request: PageSliceRequest) -> AppResult<Page<User>> {
         self.queries.list_slice(filter, request).await.map_err(storage_error)
     }

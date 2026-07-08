@@ -3,7 +3,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use sqlx::{PgPool, postgres::PgPoolOptions, query, query_scalar};
+use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions, query, query_scalar};
 
 mod seed_assertions;
 
@@ -13,11 +13,12 @@ use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, re
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
 const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
-const MIGRATION_TOTAL: usize = 7;
+const MIGRATION_TOTAL: usize = 11;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn migrations_support_full_up_down_cycle() {
     let database = TestDatabase::create().await;
@@ -53,6 +54,7 @@ async fn migrations_support_full_up_down_cycle() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_readiness_fails_when_migrations_are_pending() {
     let database = TestDatabase::create().await;
@@ -64,6 +66,7 @@ async fn runtime_schema_readiness_fails_when_migrations_are_pending() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_preparation_auto_migrates_fresh_database() {
     let database = TestDatabase::create().await;
@@ -77,6 +80,7 @@ async fn runtime_schema_preparation_auto_migrates_fresh_database() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_preparation_is_idempotent_after_migration() {
     let database = TestDatabase::create().await;
@@ -90,6 +94,7 @@ async fn runtime_schema_preparation_is_idempotent_after_migration() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_preparation_does_not_auto_migrate_when_disabled() {
     let database = TestDatabase::create().await;
@@ -102,6 +107,7 @@ async fn runtime_schema_preparation_does_not_auto_migrate_when_disabled() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_preparation_fails_when_migration_is_dirty() {
     let database = TestDatabase::create().await;
@@ -117,6 +123,7 @@ async fn runtime_schema_preparation_fails_when_migration_is_dirty() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_preparation_fails_on_checksum_mismatch() {
     let database = TestDatabase::create().await;
@@ -136,6 +143,7 @@ async fn runtime_schema_preparation_fails_on_checksum_mismatch() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_preparation_fails_when_applied_migration_file_is_missing() {
     let database = TestDatabase::create().await;
@@ -149,6 +157,7 @@ async fn runtime_schema_preparation_fails_when_applied_migration_file_is_missing
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_readiness_fails_when_a_managed_table_is_missing() {
     let database = TestDatabase::create().await;
@@ -162,6 +171,7 @@ async fn runtime_schema_readiness_fails_when_a_managed_table_is_missing() {
     database.drop().await;
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn runtime_schema_readiness_passes_after_all_migrations() {
     let database = TestDatabase::create().await;
@@ -183,7 +193,7 @@ impl TestDatabase {
         let admin_pool = PgPoolOptions::new().max_connections(1).connect(TEST_DB_ADMIN_URL).await.unwrap();
         let name = test_database_name();
 
-        query(&format!(r#"CREATE DATABASE "{name}""#)).execute(&admin_pool).await.unwrap();
+        query(AssertSqlSafe(format!(r#"CREATE DATABASE "{name}""#))).execute(&admin_pool).await.unwrap();
 
         let pool = PgPoolOptions::new()
             .max_connections(5)
@@ -205,7 +215,7 @@ impl TestDatabase {
             .execute(&self.admin_pool)
             .await
             .unwrap();
-        query(&format!(r#"DROP DATABASE IF EXISTS "{}""#, self.name))
+        query(AssertSqlSafe(format!(r#"DROP DATABASE IF EXISTS "{}""#, self.name)))
             .execute(&self.admin_pool)
             .await
             .unwrap();

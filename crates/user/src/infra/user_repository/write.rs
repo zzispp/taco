@@ -1,4 +1,4 @@
-use sqlx::{Postgres, QueryBuilder, query, query_scalar};
+use sqlx::{AssertSqlSafe, Postgres, QueryBuilder, query, query_scalar};
 use storage::{StorageError, StorageResult};
 use types::user::UserId;
 
@@ -127,7 +127,7 @@ pub async fn ensure_dept_exists(pool: &sqlx::PgPool, dept_id: Option<&str>) -> S
 pub async fn ensure_ids_exist(pool: &sqlx::PgPool, reference: ReferenceTable, ids: &[String]) -> StorageResult<()> {
     for id in ids {
         let sql = format!("SELECT EXISTS(SELECT 1 FROM {} WHERE {} = $1)", reference.table, reference.column);
-        if !query_scalar::<_, bool>(&sql).bind(id).fetch_one(pool).await? {
+        if !query_scalar::<_, bool>(AssertSqlSafe(sql)).bind(id).fetch_one(pool).await? {
             return Err(StorageError::Conflict(format!("{}.{} does not exist: {id}", reference.table, reference.column)));
         }
     }

@@ -3,5 +3,67 @@
     "success": "Language has been changed!",
     "error": "Error changing language!",
     "loading": "Loading..."
+  },
+  "auth": {
+    "signIn": {
+      "documentTitle": "Sign in",
+      "title": "Sign in to your account",
+      "noAccount": "Don’t have an account?",
+      "getStarted": "Get started",
+      "identifierLabel": "Username or email",
+      "identifierPlaceholder": "username or name@example.com",
+      "forgotPassword": "Forgot password?",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "8+ characters",
+      "submit": "Sign in",
+      "submitting": "Sign in...",
+      "registrationLoading": "Registration config is loading",
+      "registrationDisabled": "Registration is disabled"
+    },
+    "signUp": {
+      "documentTitle": "Sign up",
+      "loading": "Loading registration config...",
+      "disabledTitle": "Registration is disabled",
+      "disabledDescription": "Account self-registration is currently closed.",
+      "backToSignIn": "Back to sign in",
+      "title": "Get started absolutely free",
+      "hasAccount": "Already have an account?",
+      "signInLink": "Sign in",
+      "usernameLabel": "Username",
+      "usernamePlaceholder": "username",
+      "emailLabel": "Email address",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "8+ characters",
+      "submit": "Create account",
+      "submitting": "Create account...",
+      "termsPrefix": "By signing up, I agree to",
+      "terms": "Terms of service",
+      "termsConnector": "and",
+      "privacy": "Privacy policy"
+    },
+    "captcha": {
+      "required": "Complete CAPTCHA first",
+      "loading": "Captcha config is loading",
+      "initial": "Verify you are human",
+      "verifying": "Verifying...",
+      "solved": "You are human",
+      "error": "Error. Try again.",
+      "unsupportedProvider": "Unsupported captcha provider: {{provider}}",
+      "turnstileSiteKeyRequired": "Cloudflare Turnstile site_key is required"
+    },
+    "validation": {
+      "usernameLength": "Username must be between {{min}} and {{max}} characters",
+      "usernamePattern": "Username can only contain letters, numbers, underscores, and hyphens, and must start and end with a letter or number",
+      "passwordLength": "Password must be between {{min}} and {{max}} characters",
+      "passwordLetterRequired": "Password must contain a letter",
+      "passwordNumberRequired": "Password must contain a number",
+      "passwordSymbolRequired": "Password must contain a symbol",
+      "passwordContainsUsername": "Password cannot contain username",
+      "emailRequired": "Email is required!",
+      "emailInvalid": "Email must be a valid email address!",
+      "identifierRequired": "Username or email is required!",
+      "identifierInvalid": "Enter a valid username or email address"
+    }
   }
 }

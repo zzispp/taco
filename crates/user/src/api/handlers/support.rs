@@ -81,6 +81,75 @@ pub(super) fn ok<T>(data: T) -> ApiJson<T> {
     Json(data)
 }
 
+const UNKNOWN_BROWSER: &str = "Unknown";
+const UNKNOWN_OS: &str = "Unknown";
+const USER_AGENT: &str = "user-agent";
+
+pub(super) async fn issue_tokens_for_user(state: &ApiState, headers: &HeaderMap, user: &User) -> ApiResult<TokenPair> {
+    let ipaddr = state.public_ip_resolver.resolve_public_ip().await?;
+    let login_location = state.ip_location_resolver.resolve_login_location(&ipaddr, current_locale()).await?;
+    let user_agent = header_value(headers, USER_AGENT);
+    let profile = state.users.profile(user.id.clone()).await?;
+    state
+        .tokens
+        .issue_pair(TokenIssueInput {
+            user_id: user.id.clone(),
+            dept_name: profile.dept_name,
+            user_name: user.username.clone(),
+            ipaddr,
+            login_location,
+            browser: browser_name(user_agent),
+            os: os_name(user_agent),
+        })
+        .await
+        .map_err(ApiError)
+}
+
+fn header_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers.get(name).and_then(|value| value.to_str().ok()).filter(|value| !value.trim().is_empty())
+}
+
+fn browser_name(user_agent: Option<&str>) -> String {
+    let Some(agent) = user_agent else {
+        return UNKNOWN_BROWSER.into();
+    };
+    if agent.contains("Edg/") {
+        return "Edge".into();
+    }
+    if agent.contains("Firefox/") {
+        return "Firefox".into();
+    }
+    if agent.contains("Chrome/") {
+        return "Chrome".into();
+    }
+    if agent.contains("Safari/") {
+        return "Safari".into();
+    }
+    UNKNOWN_BROWSER.into()
+}
+
+fn os_name(user_agent: Option<&str>) -> String {
+    let Some(agent) = user_agent else {
+        return UNKNOWN_OS.into();
+    };
+    if agent.contains("Windows") {
+        return "Windows".into();
+    }
+    if agent.contains("Mac OS X") || agent.contains("Macintosh") {
+        return "macOS".into();
+    }
+    if agent.contains("Android") {
+        return "Android".into();
+    }
+    if agent.contains("iPhone") || agent.contains("iPad") {
+        return "iOS".into();
+    }
+    if agent.contains("Linux") {
+        return "Linux".into();
+    }
+    UNKNOWN_OS.into()
+}
+
 pub(super) async fn verify_account_captcha(state: &ApiState, token: Option<&str>) -> ApiResult<()> {
     state.account_verifier.verify_account(token).await.map_err(ApiError)
 }

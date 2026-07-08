@@ -1,42 +1,83 @@
 use kernel::excel::write_xlsx;
 use kernel::pagination::PageRequest;
-use types::system::{ConfigItem, DictData, DictType, Post};
+use types::{
+    http::{Locale, translate_message},
+    system::{ConfigItem, DictData, DictType, Post},
+};
 
 use crate::application::{ConfigListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemError, SystemResult};
 
 use super::handlers::SystemExportQuery;
 
-const POST_HEADERS: &[&str] = &["岗位序号", "岗位编码", "岗位名称", "岗位排序", "状态", "备注", "创建时间"];
-const DICT_TYPE_HEADERS: &[&str] = &["字典主键", "字典名称", "字典类型", "状态", "备注", "创建时间"];
-const DICT_DATA_HEADERS: &[&str] = &[
-    "字典编码",
-    "字典排序",
-    "字典标签",
-    "字典键值",
-    "字典类型",
-    "样式属性",
-    "表格回显样式",
-    "是否默认",
-    "状态",
-    "备注",
-    "创建时间",
+const POST_SHEET_KEY: &str = "excel.system.post.sheet";
+const DICT_TYPE_SHEET_KEY: &str = "excel.system.dict_type.sheet";
+const DICT_DATA_SHEET_KEY: &str = "excel.system.dict_data.sheet";
+const CONFIG_SHEET_KEY: &str = "excel.system.config.sheet";
+const POST_HEADER_KEYS: &[&str] = &[
+    "excel.system.post.headers.post_id",
+    "excel.system.post.headers.post_code",
+    "excel.system.post.headers.post_name",
+    "excel.system.post.headers.post_sort",
+    "excel.common.headers.status",
+    "excel.common.headers.remark",
+    "excel.common.headers.create_time",
 ];
-const CONFIG_HEADERS: &[&str] = &["参数主键", "参数名称", "参数键名", "参数键值", "系统内置", "公开读取", "备注", "创建时间"];
+const DICT_TYPE_HEADER_KEYS: &[&str] = &[
+    "excel.system.dict_type.headers.dict_id",
+    "excel.system.dict_type.headers.dict_name",
+    "excel.system.dict_type.headers.dict_type",
+    "excel.common.headers.status",
+    "excel.common.headers.remark",
+    "excel.common.headers.create_time",
+];
+const DICT_DATA_HEADER_KEYS: &[&str] = &[
+    "excel.system.dict_data.headers.dict_code",
+    "excel.system.dict_data.headers.dict_sort",
+    "excel.system.dict_data.headers.dict_label",
+    "excel.system.dict_data.headers.dict_value",
+    "excel.system.dict_data.headers.dict_type",
+    "excel.system.dict_data.headers.css_class",
+    "excel.system.dict_data.headers.list_class",
+    "excel.system.dict_data.headers.is_default",
+    "excel.common.headers.status",
+    "excel.common.headers.remark",
+    "excel.common.headers.create_time",
+];
+const CONFIG_HEADER_KEYS: &[&str] = &[
+    "excel.system.config.headers.config_id",
+    "excel.system.config.headers.config_name",
+    "excel.system.config.headers.config_key",
+    "excel.system.config.headers.config_value",
+    "excel.system.config.headers.config_type",
+    "excel.system.config.headers.public_read",
+    "excel.common.headers.remark",
+    "excel.common.headers.create_time",
+];
 
-pub fn export_posts_xlsx(items: &[Post]) -> SystemResult<Vec<u8>> {
-    write_xlsx("岗位数据", POST_HEADERS, &items.iter().map(post_row).collect::<Vec<_>>()).map_err(excel_error)
+pub fn export_posts_xlsx(items: &[Post], locale: Locale) -> SystemResult<Vec<u8>> {
+    write_export(POST_SHEET_KEY, POST_HEADER_KEYS, &items.iter().map(post_row).collect::<Vec<_>>(), locale)
 }
 
-pub fn export_dict_types_xlsx(items: &[DictType]) -> SystemResult<Vec<u8>> {
-    write_xlsx("字典类型", DICT_TYPE_HEADERS, &items.iter().map(dict_type_row).collect::<Vec<_>>()).map_err(excel_error)
+pub fn export_dict_types_xlsx(items: &[DictType], locale: Locale) -> SystemResult<Vec<u8>> {
+    write_export(
+        DICT_TYPE_SHEET_KEY,
+        DICT_TYPE_HEADER_KEYS,
+        &items.iter().map(dict_type_row).collect::<Vec<_>>(),
+        locale,
+    )
 }
 
-pub fn export_dict_data_xlsx(items: &[DictData]) -> SystemResult<Vec<u8>> {
-    write_xlsx("字典数据", DICT_DATA_HEADERS, &items.iter().map(dict_data_row).collect::<Vec<_>>()).map_err(excel_error)
+pub fn export_dict_data_xlsx(items: &[DictData], locale: Locale) -> SystemResult<Vec<u8>> {
+    write_export(
+        DICT_DATA_SHEET_KEY,
+        DICT_DATA_HEADER_KEYS,
+        &items.iter().map(dict_data_row).collect::<Vec<_>>(),
+        locale,
+    )
 }
 
-pub fn export_configs_xlsx(items: &[ConfigItem]) -> SystemResult<Vec<u8>> {
-    write_xlsx("参数数据", CONFIG_HEADERS, &items.iter().map(config_row).collect::<Vec<_>>()).map_err(excel_error)
+pub fn export_configs_xlsx(items: &[ConfigItem], locale: Locale) -> SystemResult<Vec<u8>> {
+    write_export(CONFIG_SHEET_KEY, CONFIG_HEADER_KEYS, &items.iter().map(config_row).collect::<Vec<_>>(), locale)
 }
 
 pub fn post_export_page(query: &SystemExportQuery, page: u64, page_size: u64) -> PostListFilter {
@@ -77,6 +118,18 @@ pub fn config_export_page(query: &SystemExportQuery, page: u64, page_size: u64) 
         begin_time: query.begin_time.clone(),
         end_time: query.end_time.clone(),
     }
+}
+
+fn write_export(sheet_key: &str, header_keys: &[&str], rows: &[Vec<String>], locale: Locale) -> SystemResult<Vec<u8>> {
+    write_xlsx(&text(locale, sheet_key), &localized_headers(locale, header_keys), rows).map_err(excel_error)
+}
+
+fn localized_headers(locale: Locale, keys: &[&str]) -> Vec<String> {
+    keys.iter().map(|key| text(locale, key)).collect()
+}
+
+fn text(locale: Locale, key: &str) -> String {
+    translate_message(locale, key)
 }
 
 fn post_row(item: &Post) -> Vec<String> {
@@ -133,4 +186,28 @@ fn config_row(item: &ConfigItem) -> Vec<String> {
 
 fn excel_error(error: String) -> SystemError {
     SystemError::Infrastructure(error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{export_configs_xlsx, export_posts_xlsx};
+    use types::http::Locale;
+
+    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
+    #[test]
+    fn export_posts_headers_use_requested_locale() {
+        let rows = kernel::excel::read_xlsx(&export_posts_xlsx(&[], Locale::En).unwrap()).unwrap();
+
+        assert_eq!(rows[0][0], "Post ID");
+        assert_eq!(rows[0][1], "Post code");
+    }
+
+    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
+    #[test]
+    fn export_configs_headers_use_requested_locale() {
+        let rows = kernel::excel::read_xlsx(&export_configs_xlsx(&[], Locale::ZhTw).unwrap()).unwrap();
+
+        assert_eq!(rows[0][0], "參數主鍵");
+        assert_eq!(rows[0][5], "公開讀取");
+    }
 }

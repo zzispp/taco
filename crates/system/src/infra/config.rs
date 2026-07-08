@@ -1,5 +1,5 @@
 use kernel::pagination::Page;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
@@ -23,7 +23,7 @@ impl ConfigQueries {
     }
 
     pub async fn page(&self, filter: ConfigListFilter) -> StorageResult<Page<ConfigItem>> {
-        let total = query_scalar::<_, i64>(&total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(total_sql()))
             .bind(&filter.config_name)
             .bind(&filter.config_key)
             .bind(&filter.config_type)
@@ -31,7 +31,7 @@ impl ConfigQueries {
             .bind(&filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
-        let rows = query_as::<_, ConfigRecord>(&page_sql())
+        let rows = query_as::<_, ConfigRecord>(AssertSqlSafe(page_sql()))
             .bind(&filter.config_name)
             .bind(&filter.config_key)
             .bind(&filter.config_type)
@@ -45,7 +45,7 @@ impl ConfigQueries {
     }
 
     pub async fn list(&self, filter: ConfigListFilter) -> StorageResult<Vec<ConfigItem>> {
-        query_as::<_, ConfigRecord>(&list_sql())
+        query_as::<_, ConfigRecord>(AssertSqlSafe(list_sql()))
             .bind(&filter.config_name)
             .bind(&filter.config_key)
             .bind(&filter.config_type)
@@ -104,7 +104,7 @@ impl ConfigQueries {
     }
 
     pub async fn find(&self, id: &str) -> StorageResult<Option<ConfigItem>> {
-        query_as::<_, ConfigRecord>(&format!("SELECT {COLUMNS} FROM sys_config WHERE config_id = $1"))
+        query_as::<_, ConfigRecord>(AssertSqlSafe(format!("SELECT {COLUMNS} FROM sys_config WHERE config_id = $1")))
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
@@ -113,7 +113,7 @@ impl ConfigQueries {
     }
 
     pub async fn find_by_key(&self, key: &str) -> StorageResult<Option<ConfigItem>> {
-        query_as::<_, ConfigRecord>(&format!("SELECT {COLUMNS} FROM sys_config WHERE config_key = $1"))
+        query_as::<_, ConfigRecord>(AssertSqlSafe(format!("SELECT {COLUMNS} FROM sys_config WHERE config_key = $1")))
             .bind(key)
             .fetch_optional(self.database.pool())
             .await

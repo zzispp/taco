@@ -30,7 +30,7 @@ use tower_http::{
 use user::{
     api::{ApiState, ApiStateParts, TokenService, TokenSettings, create_router as create_user_router},
     application::{UserService, UserUseCase},
-    infra::{Argon2PasswordHasher, LocalAvatarStorage, StorageUserRepository},
+    infra::{Argon2PasswordHasher, LocalAvatarStorage, PconlineIpLocationResolver, PublicIpAddressResolver, RedisOnlineSessionStore, StorageUserRepository},
 };
 
 use self::{
@@ -68,12 +68,13 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let metrics: Arc<dyn ServerMetricsUseCase> = Arc::new(SystemMetricsService::new(SysinfoServerMetricsCollector));
     rebuild_system_cache(&system).await?;
     let runtime_config = RuntimeUserConfig::new(system.clone());
+    let online_sessions = RedisOnlineSessionStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
     let users: Arc<dyn UserUseCase> = Arc::new(UserService::with_password_policy(
         StorageUserRepository::new(database.clone()),
         Argon2PasswordHasher,
         runtime_config.clone(),
     ));
-    let tokens = TokenService::with_ttl_reader(token_settings(settings)?, Arc::new(runtime_config));
+    let tokens = TokenService::with_ttl_reader(token_settings(settings)?, Arc::new(runtime_config), Arc::new(online_sessions));
     let captcha = build_captcha_service(settings, system.clone()).await?;
 
     Ok(AppState {
@@ -111,6 +112,8 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tra
         rbac: state.rbac.clone(),
         config: user_config.clone(),
         account_verifier,
+        public_ip_resolver: Arc::new(PublicIpAddressResolver),
+        ip_location_resolver: Arc::new(PconlineIpLocationResolver::new(user_config.clone())),
     })
     .with_avatar_storage(avatar_storage)
     .with_avatar_config(user_config.clone())

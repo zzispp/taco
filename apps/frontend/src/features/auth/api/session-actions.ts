@@ -6,6 +6,7 @@ import { setSession, trimCredential } from 'src/entities/session';
 
 const AUTH_SIGN_IN_ENDPOINT = '/api/auth/sign-in';
 const AUTH_SIGN_UP_ENDPOINT = '/api/auth/sign-up';
+const AUTH_LOGOUT_ENDPOINT = '/api/auth/logout';
 
 // ----------------------------------------------------------------------
 
@@ -82,6 +83,7 @@ export const signUp = async ({
  *************************************** */
 export const signOut = async (): Promise<void> => {
   try {
+    await axios.post(AUTH_LOGOUT_ENDPOINT);
     await setSession(null);
   } catch (error) {
     console.error('Error during sign out:', error);

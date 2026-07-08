@@ -149,6 +149,30 @@ pub fn scoped_user_total() -> &'static str {
     "#
 }
 
+pub fn scoped_existing_user_ids() -> &'static str {
+    r#"
+    SELECT u.user_id
+    FROM sys_user u
+    WHERE u.del_flag = '0'
+      AND u.user_id = ANY($5)
+      AND (
+        $1 = '1'
+        OR ($1 = '2' AND u.dept_id = ANY($4))
+        OR ($1 = '3' AND $3 IS NOT NULL AND u.dept_id = $3)
+        OR (
+            $1 = '4' AND $3 IS NOT NULL AND EXISTS (
+                SELECT 1 FROM sys_dept d
+                WHERE d.dept_id = u.dept_id
+                  AND d.del_flag = '0'
+                  AND (d.dept_id = $3 OR (',' || d.ancestors || ',') LIKE '%,' || $3 || ',%')
+            )
+        )
+        OR ($1 = '5' AND u.user_id = $2)
+    )
+    ORDER BY u.create_time ASC
+    "#
+}
+
 pub fn filtered_users(suffix: &str) -> String {
     format!(
         r#"

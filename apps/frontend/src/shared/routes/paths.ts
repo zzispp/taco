@@ -28,6 +28,7 @@ export const paths = {
       posts: `${ROOTS.DASHBOARD}/admin/posts`,
       dicts: `${ROOTS.DASHBOARD}/admin/dicts`,
       configs: `${ROOTS.DASHBOARD}/admin/configs`,
+      online: `${ROOTS.DASHBOARD}/admin/online`,
     },
   },
 };

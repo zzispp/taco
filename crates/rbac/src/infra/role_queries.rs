@@ -1,5 +1,5 @@
 use kernel::pagination::Page;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{
     Database, StorageError, StorageResult,
     database::{to_i64, to_u64},
@@ -16,6 +16,7 @@ use crate::{
 };
 
 mod relations;
+mod scoped_users;
 mod sql;
 mod support;
 
@@ -121,12 +122,14 @@ impl RoleQueries {
     }
 
     pub async fn find(&self, id: &str) -> StorageResult<Option<Role>> {
-        query_as::<_, RoleRecord>(&format!("SELECT {ROLE_COLUMNS} FROM sys_role r WHERE r.role_id = $1 AND r.del_flag = '0'"))
-            .bind(id)
-            .fetch_optional(self.database.pool())
-            .await
-            .map(|record| record.map(role))
-            .map_err(StorageError::from)
+        query_as::<_, RoleRecord>(AssertSqlSafe(format!(
+            "SELECT {ROLE_COLUMNS} FROM sys_role r WHERE r.role_id = $1 AND r.del_flag = '0'"
+        )))
+        .bind(id)
+        .fetch_optional(self.database.pool())
+        .await
+        .map(|record| record.map(role))
+        .map_err(StorageError::from)
     }
 
     pub async fn role_name_exists(&self, name: &str, current_id: Option<&str>) -> StorageResult<bool> {
@@ -146,7 +149,7 @@ impl RoleQueries {
     }
 
     pub async fn page(&self, filter: RoleListFilter) -> StorageResult<Page<Role>> {
-        let total = query_scalar::<_, i64>(&role_total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(role_total_sql()))
             .bind(&filter.role_name)
             .bind(&filter.role_key)
             .bind(&filter.status)
@@ -154,7 +157,7 @@ impl RoleQueries {
             .bind(&filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, RoleRecord>(&role_page_sql())
+        let items = query_as::<_, RoleRecord>(AssertSqlSafe(role_page_sql()))
             .bind(&filter.role_name)
             .bind(&filter.role_key)
             .bind(&filter.status)
@@ -168,7 +171,7 @@ impl RoleQueries {
     }
 
     pub async fn page_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> StorageResult<Page<Role>> {
-        let total = query_scalar::<_, i64>(&role_scoped_total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(role_scoped_total_sql()))
             .bind(&filter.role_name)
             .bind(&filter.role_key)
             .bind(&filter.status)
@@ -180,7 +183,7 @@ impl RoleQueries {
             .bind(&scope.dept_ids)
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, RoleRecord>(&role_scoped_page_sql())
+        let items = query_as::<_, RoleRecord>(AssertSqlSafe(role_scoped_page_sql()))
             .bind(&filter.role_name)
             .bind(&filter.role_key)
             .bind(&filter.status)
@@ -206,7 +209,7 @@ impl RoleQueries {
     }
 
     pub async fn page_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> StorageResult<Page<RoleUser>> {
-        let total = query_scalar::<_, i64>(&role_users_total_sql(scope.is_some()))
+        let total = query_scalar::<_, i64>(AssertSqlSafe(role_users_total_sql(scope.is_some())))
             .bind(&filter.role_id)
             .bind(&filter.username)
             .bind(&filter.phonenumber)
@@ -217,7 +220,7 @@ impl RoleQueries {
             .bind(scope.as_ref().map(|s| s.dept_ids.as_slice()).unwrap_or(&[]))
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, RoleUserRecord>(&role_users_page_sql(scope.is_some()))
+        let items = query_as::<_, RoleUserRecord>(AssertSqlSafe(role_users_page_sql(scope.is_some())))
             .bind(&filter.role_id)
             .bind(&filter.username)
             .bind(&filter.phonenumber)

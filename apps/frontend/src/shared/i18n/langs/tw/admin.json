@@ -12,7 +12,8 @@
     "depts": "部門管理",
     "posts": "崗位管理",
     "dicts": "字典管理",
-    "configs": "參數設置"
+    "configs": "參數設置",
+    "online": "在線用戶"
   },
   "common": {
     "active": "啟用",
@@ -71,7 +72,8 @@
     "saved": "已保存",
     "deleted": "已刪除",
     "all": "全部",
-    "reset": "重置"
+    "reset": "重置",
+    "index": "序號"
   },
   "pages": {
     "menuManagement": "菜單管理",
@@ -80,7 +82,8 @@
     "deptManagement": "部門管理",
     "postManagement": "崗位管理",
     "dictManagement": "字典管理",
-    "configManagement": "參數設置"
+    "configManagement": "參數設置",
+    "onlineManagement": "在線用戶"
   },
   "actions": {
     "addMenuItem": "新增菜單",
@@ -254,7 +257,17 @@
     "viewAll": "查看全部",
     "markComplete": "標記完成",
     "share": "分享",
-    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
+    "months": [
+      "1月",
+      "2月",
+      "3月",
+      "4月",
+      "5月",
+      "6月",
+      "7月",
+      "8月",
+      "9月"
+    ],
     "regions": {
       "america": "美洲",
       "asia": "亞洲",
@@ -419,6 +432,34 @@
     "invalidPhone": "手機號格式不正確",
     "logout": "退出登錄",
     "logoutFailed": "退出登錄失敗",
-    "authorizedNavigation": "授權菜單"
+    "authorizedNavigation": "授權菜單",
+    "usernameRuleDynamic": "使用者名稱長度必須在 {{min}} 到 {{max}} 個字符之間",
+    "usernamePattern": "使用者名稱只能包含字母、數字、底線和連字號，並且必須以字母或數字開頭和結尾",
+    "passwordLetterRequired": "密碼必須包含字母",
+    "passwordNumberRequired": "密碼必須包含數字",
+    "passwordSymbolRequired": "密碼必須包含特殊字符",
+    "passwordContainsUsername": "密碼不能包含使用者名稱",
+    "emailRequired": "郵箱不能為空",
+    "identifierRequired": "請輸入使用者名稱或郵箱",
+    "identifierInvalid": "請輸入有效的使用者名稱或郵箱地址"
+  },
+  "onlineSessions": {
+    "tokenId": "會話編號",
+    "userName": "登錄名稱",
+    "ipaddr": "登錄地址",
+    "host": "主機",
+    "loginLocation": "登錄地點",
+    "browser": "瀏覽器",
+    "os": "操作系統",
+    "loginTime": "登錄時間",
+    "forceLogout": "強退",
+    "forceLogoutConfirm": "是否確認強退名稱為「{{name}}」的用戶？",
+    "forceLogoutSuccess": "強退成功"
+  },
+  "authExpired": {
+    "title": "系統提示",
+    "content": "登入狀態已過期，您可以繼續留在此頁面，或重新登入",
+    "stay": "繼續留在此頁面",
+    "relogin": "重新登入"
   }
 }

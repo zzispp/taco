@@ -7,6 +7,8 @@ use crate::application::{
 };
 use crate::domain::{ConfigInput, ConfigItem, DeptInput, DictTypeInput, PostInput};
 
+const DATA_SCOPE_FORBIDDEN_KEY: &str = "errors.system.data_scope_forbidden";
+
 pub(super) fn all_configs_filter() -> ConfigListFilter {
     ConfigListFilter {
         page: PageRequest { page: 1, page_size: 100_000 },
@@ -23,6 +25,16 @@ pub(super) fn all_dict_types_filter() -> DictTypeListFilter {
         page: PageRequest { page: 1, page_size: 100_000 },
         dict_name: None,
         dict_type: None,
+        status: None,
+        begin_time: None,
+        end_time: None,
+    }
+}
+
+pub(super) fn all_depts_filter() -> DeptListFilter {
+    DeptListFilter {
+        page: PageRequest { page: 1, page_size: 100_000 },
+        dept_name: None,
         status: None,
         begin_time: None,
         end_time: None,
@@ -53,6 +65,13 @@ pub(super) fn reject_invalid_dept_parent(id: &str, input: &DeptInput) -> SystemR
         return Err(SystemError::Conflict(localized("errors.system.dept_parent_self")));
     }
     Ok(())
+}
+
+pub(super) fn reject_unscoped_dept_ids(requested: &[String], scoped: &[String]) -> SystemResult<()> {
+    if requested.iter().all(|id| scoped.contains(id)) {
+        return Ok(());
+    }
+    Err(SystemError::Forbidden(localized(DATA_SCOPE_FORBIDDEN_KEY)))
 }
 
 pub(super) async fn reject_duplicate_dict_type<R: SystemRepository>(repository: &R, input: &DictTypeInput, current_id: Option<&str>) -> SystemResult<()> {

@@ -13,7 +13,7 @@ use crate::application::{
     SystemUseCase,
 };
 
-use super::{SystemService, tree::dept_tree, validation::*};
+use super::{SystemService, dept_scope, tree::dept_tree, validation::*};
 
 #[async_trait]
 impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> {
@@ -32,12 +32,11 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
     }
 
     async fn dept_tree(&self, filter: DeptListFilter, scope: Option<DataScopeFilter>) -> SystemResult<Vec<TreeSelectNode>> {
-        let filter = sanitize_dept_filter(filter);
-        let depts = match scope {
-            Some(scope) => self.repository.list_depts_scoped(filter, scope).await?,
-            None => self.repository.list_depts(filter).await?,
-        };
-        Ok(dept_tree(depts))
+        dept_scope::scoped_dept_tree(&self.repository, filter, scope).await
+    }
+
+    async fn ensure_dept_ids_scoped(&self, ids: Vec<String>, scope: DataScopeFilter) -> SystemResult<()> {
+        dept_scope::ensure_dept_ids_scoped(&self.repository, ids, scope).await
     }
 
     async fn exclude_dept_tree(&self, id: &str) -> SystemResult<Vec<TreeSelectNode>> {

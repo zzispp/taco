@@ -1,5 +1,5 @@
 use kernel::pagination::Page;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{
     Database, StorageError, StorageResult,
     database::{to_i64, to_u64},
@@ -111,7 +111,7 @@ impl MenuQueries {
     }
 
     pub async fn find(&self, id: &str) -> StorageResult<Option<Menu>> {
-        query_as::<_, MenuRecord>(&format!("SELECT {MENU_COLUMNS} FROM sys_menu WHERE menu_id = $1"))
+        query_as::<_, MenuRecord>(AssertSqlSafe(format!("SELECT {MENU_COLUMNS} FROM sys_menu WHERE menu_id = $1")))
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
@@ -136,20 +136,22 @@ impl MenuQueries {
     }
 
     pub async fn list(&self) -> StorageResult<Vec<Menu>> {
-        query_as::<_, MenuRecord>(&format!("SELECT {MENU_COLUMNS} FROM sys_menu ORDER BY parent_id ASC, order_num ASC"))
-            .fetch_all(self.database.pool())
-            .await
-            .map(|records| records.into_iter().map(menu).collect())
-            .map_err(StorageError::from)
+        query_as::<_, MenuRecord>(AssertSqlSafe(format!(
+            "SELECT {MENU_COLUMNS} FROM sys_menu ORDER BY parent_id ASC, order_num ASC"
+        )))
+        .fetch_all(self.database.pool())
+        .await
+        .map(|records| records.into_iter().map(menu).collect())
+        .map_err(StorageError::from)
     }
 
     pub async fn page(&self, filter: MenuListFilter) -> StorageResult<Page<Menu>> {
-        let total = query_scalar::<_, i64>(&menu_total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(menu_total_sql()))
             .bind(&filter.menu_name)
             .bind(&filter.status)
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, MenuRecord>(&menu_page_sql())
+        let items = query_as::<_, MenuRecord>(AssertSqlSafe(menu_page_sql()))
             .bind(&filter.menu_name)
             .bind(&filter.status)
             .bind(to_i64(filter.page.page_size)?)

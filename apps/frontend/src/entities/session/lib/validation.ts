@@ -9,6 +9,20 @@ export type PasswordPolicy = {
   forbid_username_contains: boolean;
 };
 
+export type SessionValidationMessages = {
+  usernameLength: (min: number, max: number) => string;
+  usernamePattern: string;
+  passwordLength: (min: number, max: number) => string;
+  passwordLetterRequired: string;
+  passwordNumberRequired: string;
+  passwordSymbolRequired: string;
+  passwordContainsUsername: string;
+  emailRequired: string;
+  emailInvalid: string;
+  identifierRequired: string;
+  identifierInvalid: string;
+};
+
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 30;
 export const PASSWORD_MIN_LENGTH = 8;
@@ -18,28 +32,44 @@ const USERNAME_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$/;
 
 export const trimCredential = (value: string) => value.trim();
 
-export const usernameSchema = z
-  .string()
-  .transform(trimCredential)
-  .pipe(
-    z
-      .string()
-      .min(USERNAME_MIN_LENGTH, { error: usernameLengthMessage })
-      .max(USERNAME_MAX_LENGTH, { error: usernameLengthMessage })
-      .regex(USERNAME_PATTERN, { error: usernamePatternMessage })
-  );
+export function createUsernameSchema(messages: SessionValidationMessages) {
+  return z
+    .string()
+    .transform(trimCredential)
+    .pipe(
+      z
+        .string()
+        .min(USERNAME_MIN_LENGTH, {
+          error: () => messages.usernameLength(USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH),
+        })
+        .max(USERNAME_MAX_LENGTH, {
+          error: () => messages.usernameLength(USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH),
+        })
+        .regex(USERNAME_PATTERN, { error: messages.usernamePattern })
+    );
+}
 
-export const passwordSchema = z
-  .string()
-  .transform(trimCredential)
-  .pipe(
-    z
-      .string()
-      .min(PASSWORD_MIN_LENGTH, { error: passwordLengthMessage })
-      .max(PASSWORD_MAX_LENGTH, { error: passwordLengthMessage })
-  );
+export function createBasicPasswordSchema(messages: SessionValidationMessages) {
+  return z
+    .string()
+    .transform(trimCredential)
+    .pipe(
+      z
+        .string()
+        .min(PASSWORD_MIN_LENGTH, {
+          error: () => messages.passwordLength(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH),
+        })
+        .max(PASSWORD_MAX_LENGTH, {
+          error: () => messages.passwordLength(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH),
+        })
+    );
+}
 
-export function createPasswordSchema(policy?: PasswordPolicy, username?: string) {
+export function createPasswordSchema(
+  messages: SessionValidationMessages,
+  policy?: PasswordPolicy,
+  username?: string
+) {
   const activePolicy = policy ?? defaultPasswordPolicy();
   return z
     .string()
@@ -47,60 +77,56 @@ export function createPasswordSchema(policy?: PasswordPolicy, username?: string)
     .pipe(
       z
         .string()
-        .min(activePolicy.min_length, { error: () => passwordPolicyLengthMessage(activePolicy) })
-        .max(activePolicy.max_length, { error: () => passwordPolicyLengthMessage(activePolicy) })
+        .min(activePolicy.min_length, {
+          error: () => messages.passwordLength(activePolicy.min_length, activePolicy.max_length),
+        })
+        .max(activePolicy.max_length, {
+          error: () => messages.passwordLength(activePolicy.min_length, activePolicy.max_length),
+        })
         .refine((value) => !activePolicy.require_letter || hasLetter(value), {
-          error: 'Password must contain a letter',
+          error: messages.passwordLetterRequired,
         })
         .refine((value) => !activePolicy.require_number || hasNumber(value), {
-          error: 'Password must contain a number',
+          error: messages.passwordNumberRequired,
         })
         .refine((value) => !activePolicy.require_symbol || hasSymbol(value), {
-          error: 'Password must contain a symbol',
+          error: messages.passwordSymbolRequired,
         })
         .refine((value) => !containsUsername(value, username, activePolicy), {
-          error: 'Password cannot contain username',
+          error: messages.passwordContainsUsername,
         })
     );
 }
 
-export const emailSchema = z
-  .string()
-  .transform(trimCredential)
-  .pipe(
-    z.email({
-      error: ({ input }) => (input ? 'Email must be a valid email address!' : 'Email is required!'),
-    })
-  );
+export function createEmailSchema(messages: SessionValidationMessages) {
+  return z
+    .string()
+    .transform(trimCredential)
+    .pipe(
+      z.email({
+        error: ({ input }) => (input ? messages.emailInvalid : messages.emailRequired),
+      })
+    );
+}
 
-export const identifierSchema = z
-  .string()
-  .transform(trimCredential)
-  .pipe(
-    z
-      .string()
-      .min(1, { error: 'Username or email is required!' })
-      .refine(isValidIdentifier, { error: 'Enter a valid username or email address' })
-  );
+export function createIdentifierSchema(messages: SessionValidationMessages) {
+  return z
+    .string()
+    .transform(trimCredential)
+    .pipe(
+      z
+        .string()
+        .min(1, { error: messages.identifierRequired })
+        .refine((value) => isValidIdentifier(value, messages), { error: messages.identifierInvalid })
+    );
+}
 
-function isValidIdentifier(value: string) {
+function isValidIdentifier(value: string, messages: SessionValidationMessages) {
   if (value.includes('@')) {
-    return emailSchema.safeParse(value).success;
+    return createEmailSchema(messages).safeParse(value).success;
   }
 
-  return usernameSchema.safeParse(value).success;
-}
-
-function usernameLengthMessage() {
-  return `Username must be between ${USERNAME_MIN_LENGTH} and ${USERNAME_MAX_LENGTH} characters`;
-}
-
-function passwordLengthMessage() {
-  return `Password must be between ${PASSWORD_MIN_LENGTH} and ${PASSWORD_MAX_LENGTH} characters`;
-}
-
-function usernamePatternMessage() {
-  return 'Username can only contain letters, numbers, underscores, and hyphens, and must start and end with a letter or number';
+  return createUsernameSchema(messages).safeParse(value).success;
 }
 
 function defaultPasswordPolicy(): PasswordPolicy {
@@ -112,10 +138,6 @@ function defaultPasswordPolicy(): PasswordPolicy {
     require_symbol: false,
     forbid_username_contains: false,
   };
-}
-
-function passwordPolicyLengthMessage(policy: PasswordPolicy) {
-  return `Password must be between ${policy.min_length} and ${policy.max_length} characters`;
 }
 
 function hasLetter(value: string) {

@@ -3,7 +3,7 @@ use super::*;
 #[require_perms("system:post:export")]
 pub async fn export_posts(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
     let items = all_export_posts(&state, &query).await?;
-    Ok(xlsx_attachment("posts.xlsx", export_posts_xlsx(&items)?))
+    Ok(xlsx_attachment("posts.xlsx", export_posts_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:post:list")]
@@ -49,7 +49,7 @@ pub async fn delete_posts(State(state): State<SystemApiState>, RequestJson(paylo
 #[require_perms("system:dict:export")]
 pub async fn export_dict_types(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
     let items = all_export_dict_types(&state, &query).await?;
-    Ok(xlsx_attachment("dict_types.xlsx", export_dict_types_xlsx(&items)?))
+    Ok(xlsx_attachment("dict_types.xlsx", export_dict_types_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:dict:list")]
@@ -101,7 +101,7 @@ pub async fn delete_dict_types(State(state): State<SystemApiState>, RequestJson(
 #[require_perms("system:dict:export")]
 pub async fn export_dict_data(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
     let items = all_export_dict_data(&state, &query).await?;
-    Ok(xlsx_attachment("dict_data.xlsx", export_dict_data_xlsx(&items)?))
+    Ok(xlsx_attachment("dict_data.xlsx", export_dict_data_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:dict:list")]
@@ -147,7 +147,7 @@ pub async fn delete_dict_data_batch(State(state): State<SystemApiState>, Request
 #[require_perms("system:config:export")]
 pub async fn export_configs(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
     let items = all_export_configs(&state, &query).await?;
-    Ok(xlsx_attachment("configs.xlsx", export_configs_xlsx(&items)?))
+    Ok(xlsx_attachment("configs.xlsx", export_configs_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:config:list")]

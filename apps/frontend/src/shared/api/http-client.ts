@@ -19,6 +19,10 @@ export type NormalizedApiError = Error & {
   details?: string;
 };
 
+type AuthSessionRejectedListener = (error: NormalizedApiError) => void;
+
+const authSessionRejectedListeners = new Set<AuthSessionRejectedListener>();
+
 const axiosInstance = axios.create({
   baseURL: CONFIG.serverUrl,
   headers: {
@@ -30,7 +34,13 @@ axiosInstance.interceptors.request.use((config) => applyAcceptLanguageHeader(con
 
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(normalizeApiError(error))
+  (error) => {
+    const normalizedError = normalizeApiError(error);
+    if (shouldNotifyAuthSessionRejected(error, normalizedError)) {
+      notifyAuthSessionRejected(normalizedError);
+    }
+    return Promise.reject(normalizedError);
+  }
 );
 
 export default axiosInstance;
@@ -85,6 +95,22 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
   return normalizedError;
 }
 
+export function subscribeAuthSessionRejected(listener: AuthSessionRejectedListener) {
+  authSessionRejectedListeners.add(listener);
+  return () => {
+    authSessionRejectedListeners.delete(listener);
+  };
+}
+
+export function isAuthSessionRejected(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const { status, code } = error as { status?: number; code?: string };
+  return status === 401 || code === 'unauthorized';
+}
+
 export const fetcher = async <T = unknown>(
   args: string | [string, AxiosRequestConfig]
 ): Promise<T> => {
@@ -95,7 +121,9 @@ export const fetcher = async <T = unknown>(
 
     return res.data;
   } catch (error) {
-    console.error('Fetcher failed:', error);
+    if (!isAuthSessionRejected(error)) {
+      console.error('Fetcher failed:', error);
+    }
     throw error;
   }
 };
@@ -120,6 +148,23 @@ function storedAcceptLanguage(): string | undefined {
   }
 
   return mapLanguageToAcceptLanguage(localStorage.getItem(storageConfig.localStorage.key));
+}
+
+function shouldNotifyAuthSessionRejected(error: unknown, normalizedError: NormalizedApiError) {
+  return isAuthSessionRejected(normalizedError) && requestHasAuthorizationHeader(error);
+}
+
+function requestHasAuthorizationHeader(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  const authorization = AxiosHeaders.from(error.config?.headers).get('Authorization');
+  return typeof authorization === 'string' ? authorization.trim().length > 0 : Boolean(authorization);
+}
+
+function notifyAuthSessionRejected(error: NormalizedApiError) {
+  authSessionRejectedListeners.forEach((listener) => listener(error));
 }
 
 function axiosErrorMessage(error: unknown): string {

@@ -123,14 +123,23 @@ pub fn localized_error_response(locale: Locale, kind: ApiErrorKind, details: Opt
 }
 
 pub fn translate_error(locale: Locale, key: &str) -> String {
+    translate_message(locale, key)
+}
+
+pub fn translate_message(locale: Locale, key: &str) -> String {
     t!(key, locale = locale.as_str()).into_owned()
 }
 
-fn translate_localized_error(locale: Locale, error: &LocalizedError) -> String {
-    let template = translate_error(locale, error.key());
-    let patterns = error.params().iter().map(|param| param.key()).collect::<Vec<_>>();
-    let values = error.params().iter().map(|param| param.value().to_owned()).collect::<Vec<_>>();
+pub fn translate_message_with_params(locale: Locale, key: &str, params: &[(&str, String)]) -> String {
+    let template = translate_message(locale, key);
+    let patterns = params.iter().map(|param| param.0).collect::<Vec<_>>();
+    let values = params.iter().map(|param| param.1.clone()).collect::<Vec<_>>();
     rust_i18n::replace_patterns(&template, &patterns, &values)
+}
+
+fn translate_localized_error(locale: Locale, error: &LocalizedError) -> String {
+    let params = error.params().iter().map(|param| (param.key(), param.value().to_owned())).collect::<Vec<_>>();
+    translate_message_with_params(locale, error.key(), &params)
 }
 
 fn header_language_range(part: &str) -> Option<&str> {

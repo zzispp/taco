@@ -1,5 +1,6 @@
 mod cache;
 mod core;
+mod dept_scope;
 mod tree;
 mod use_cases;
 mod validation;

@@ -3,5 +3,67 @@
     "success": "語言已更改！",
     "error": "更改語言時出錯！",
     "loading": "加載中..."
+  },
+  "auth": {
+    "signIn": {
+      "documentTitle": "登入",
+      "title": "登入您的帳號",
+      "noAccount": "還沒有帳號？",
+      "getStarted": "立即開始",
+      "identifierLabel": "使用者名稱或郵箱",
+      "identifierPlaceholder": "username 或 name@example.com",
+      "forgotPassword": "忘記密碼？",
+      "passwordLabel": "密碼",
+      "passwordPlaceholder": "8 位以上字符",
+      "submit": "登入",
+      "submitting": "登入中...",
+      "registrationLoading": "註冊配置載入中",
+      "registrationDisabled": "註冊已關閉"
+    },
+    "signUp": {
+      "documentTitle": "註冊",
+      "loading": "註冊配置載入中...",
+      "disabledTitle": "註冊已關閉",
+      "disabledDescription": "目前未開放帳號自助註冊。",
+      "backToSignIn": "返回登入",
+      "title": "免費開始使用",
+      "hasAccount": "已有帳號？",
+      "signInLink": "去登入",
+      "usernameLabel": "使用者名稱",
+      "usernamePlaceholder": "username",
+      "emailLabel": "郵箱地址",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "密碼",
+      "passwordPlaceholder": "8 位以上字符",
+      "submit": "建立帳號",
+      "submitting": "建立中...",
+      "termsPrefix": "註冊即表示我同意",
+      "terms": "服務條款",
+      "termsConnector": "和",
+      "privacy": "隱私政策"
+    },
+    "captcha": {
+      "required": "請先完成人機驗證",
+      "loading": "驗證碼配置載入中",
+      "initial": "驗證您是真人",
+      "verifying": "驗證中...",
+      "solved": "已通過驗證",
+      "error": "驗證出錯，請重試。",
+      "unsupportedProvider": "不支援的驗證碼提供方：{{provider}}",
+      "turnstileSiteKeyRequired": "Cloudflare Turnstile site_key 不能為空"
+    },
+    "validation": {
+      "usernameLength": "使用者名稱長度必須在 {{min}} 到 {{max}} 個字符之間",
+      "usernamePattern": "使用者名稱只能包含字母、數字、底線和連字號，並且必須以字母或數字開頭和結尾",
+      "passwordLength": "密碼長度必須在 {{min}} 到 {{max}} 個字符之間",
+      "passwordLetterRequired": "密碼必須包含字母",
+      "passwordNumberRequired": "密碼必須包含數字",
+      "passwordSymbolRequired": "密碼必須包含特殊字符",
+      "passwordContainsUsername": "密碼不能包含使用者名稱",
+      "emailRequired": "郵箱不能為空",
+      "emailInvalid": "郵箱格式不正確",
+      "identifierRequired": "請輸入使用者名稱或郵箱",
+      "identifierInvalid": "請輸入有效的使用者名稱或郵箱地址"
+    }
   }
 }

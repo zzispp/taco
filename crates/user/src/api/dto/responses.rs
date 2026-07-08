@@ -1,7 +1,17 @@
 use kernel::pagination::Page;
 use serde::Serialize;
+use types::http::{current_locale, translate_message_with_params};
 
-use crate::domain::{User, UserFormOptions};
+use crate::{
+    application::{OnlineSession, UserImportMessage},
+    domain::{User, UserFormOptions},
+};
+
+const IMPORT_SUCCESS_SUMMARY_KEY: &str = "messages.user.import_success_summary";
+const IMPORT_DETAIL_SEPARATOR: &str = "; ";
+const USERNAME_PARAM: &str = "username";
+const COUNT_PARAM: &str = "count";
+const DETAILS_PARAM: &str = "details";
 
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
@@ -79,6 +89,25 @@ pub struct UserImportResponse {
     pub message: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineSessionResponse {
+    pub token_id: String,
+    pub dept_name: Option<String>,
+    pub user_name: String,
+    pub ipaddr: String,
+    pub login_location: String,
+    pub browser: String,
+    pub os: String,
+    pub login_time: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OnlineSessionsResponse {
+    pub rows: Vec<OnlineSessionResponse>,
+    pub total: usize,
+}
+
 impl From<User> for UserResponse {
     fn from(value: User) -> Self {
         Self {
@@ -139,9 +168,46 @@ impl From<types::user::UserProfile> for ProfileResponse {
 
 impl From<crate::application::UserImportReport> for UserImportResponse {
     fn from(value: crate::application::UserImportReport) -> Self {
+        let message = localized_import_summary(value.success_count, &value.messages);
         Self {
             success_count: value.success_count,
-            message: value.message,
+            message,
+        }
+    }
+}
+
+fn localized_import_summary(success_count: usize, messages: &[UserImportMessage]) -> String {
+    let locale = current_locale();
+    let count = success_count.to_string();
+    let details = messages
+        .iter()
+        .map(|message| translate_message_with_params(locale, message.key, &[(USERNAME_PARAM, message.username.clone())]))
+        .collect::<Vec<_>>()
+        .join(IMPORT_DETAIL_SEPARATOR);
+    translate_message_with_params(locale, IMPORT_SUCCESS_SUMMARY_KEY, &[(COUNT_PARAM, count), (DETAILS_PARAM, details)])
+}
+
+impl From<OnlineSession> for OnlineSessionResponse {
+    fn from(value: OnlineSession) -> Self {
+        Self {
+            token_id: value.token_id,
+            dept_name: value.dept_name,
+            user_name: value.user_name,
+            ipaddr: value.ipaddr,
+            login_location: value.login_location,
+            browser: value.browser,
+            os: value.os,
+            login_time: value.login_time,
+        }
+    }
+}
+
+impl From<Vec<OnlineSession>> for OnlineSessionsResponse {
+    fn from(value: Vec<OnlineSession>) -> Self {
+        let total = value.len();
+        Self {
+            rows: value.into_iter().map(OnlineSessionResponse::from).collect(),
+            total,
         }
     }
 }

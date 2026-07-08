@@ -1,5 +1,5 @@
 use kernel::pagination::Page;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
@@ -24,14 +24,14 @@ impl DeptQueries {
     }
 
     pub async fn page(&self, filter: DeptListFilter) -> StorageResult<Page<Dept>> {
-        let total = query_scalar::<_, i64>(&total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(total_sql()))
             .bind(&filter.dept_name)
             .bind(&filter.status)
             .bind(&filter.begin_time)
             .bind(&filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, DeptRecord>(&page_sql())
+        let items = query_as::<_, DeptRecord>(AssertSqlSafe(page_sql()))
             .bind(&filter.dept_name)
             .bind(&filter.status)
             .bind(&filter.begin_time)
@@ -44,7 +44,7 @@ impl DeptQueries {
     }
 
     pub async fn page_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> StorageResult<Page<Dept>> {
-        let total = query_scalar::<_, i64>(&scoped_total_sql())
+        let total = query_scalar::<_, i64>(AssertSqlSafe(scoped_total_sql()))
             .bind(&filter.dept_name)
             .bind(&filter.status)
             .bind(&filter.begin_time)
@@ -54,7 +54,7 @@ impl DeptQueries {
             .bind(&scope.dept_ids)
             .fetch_one(self.database.pool())
             .await?;
-        let items = query_as::<_, DeptRecord>(&scoped_page_sql())
+        let items = query_as::<_, DeptRecord>(AssertSqlSafe(scoped_page_sql()))
             .bind(&filter.dept_name)
             .bind(&filter.status)
             .bind(&filter.begin_time)
@@ -70,7 +70,7 @@ impl DeptQueries {
     }
 
     pub async fn list(&self, filter: DeptListFilter) -> StorageResult<Vec<Dept>> {
-        query_as::<_, DeptRecord>(&list_sql())
+        query_as::<_, DeptRecord>(AssertSqlSafe(list_sql()))
             .bind(&filter.dept_name)
             .bind(&filter.status)
             .bind(&filter.begin_time)
@@ -82,7 +82,7 @@ impl DeptQueries {
     }
 
     pub async fn list_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> StorageResult<Vec<Dept>> {
-        query_as::<_, DeptRecord>(&scoped_list_sql())
+        query_as::<_, DeptRecord>(AssertSqlSafe(scoped_list_sql()))
             .bind(&filter.dept_name)
             .bind(&filter.status)
             .bind(&filter.begin_time)
@@ -97,7 +97,7 @@ impl DeptQueries {
     }
 
     pub async fn list_excluding(&self, id: &str) -> StorageResult<Vec<Dept>> {
-        query_as::<_, DeptRecord>(&format!("SELECT {COLUMNS} FROM sys_dept WHERE del_flag='0' AND dept_id<>$1 AND (',' || ancestors || ',') NOT LIKE '%,' || $1 || ',%' ORDER BY parent_id ASC, order_num ASC"))
+        query_as::<_, DeptRecord>(AssertSqlSafe(format!("SELECT {COLUMNS} FROM sys_dept WHERE del_flag='0' AND dept_id<>$1 AND (',' || ancestors || ',') NOT LIKE '%,' || $1 || ',%' ORDER BY parent_id ASC, order_num ASC")))
             .bind(id)
             .fetch_all(self.database.pool())
             .await
@@ -201,7 +201,7 @@ impl DeptQueries {
     }
 
     pub async fn find(&self, id: &str) -> StorageResult<Option<Dept>> {
-        query_as::<_, DeptRecord>(&format!("SELECT {COLUMNS} FROM sys_dept WHERE dept_id = $1 AND del_flag = '0'"))
+        query_as::<_, DeptRecord>(AssertSqlSafe(format!("SELECT {COLUMNS} FROM sys_dept WHERE dept_id = $1 AND del_flag = '0'")))
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
@@ -222,7 +222,7 @@ async fn ancestors(pool: &sqlx::PgPool, parent_id: &str) -> StorageResult<String
     Ok(format!("{parent},{parent_id}"))
 }
 
-async fn exists(pool: &sqlx::PgPool, sql: &str, id: &str) -> StorageResult<bool> {
+async fn exists(pool: &sqlx::PgPool, sql: &'static str, id: &str) -> StorageResult<bool> {
     query_scalar::<_, bool>(sql).bind(id).fetch_one(pool).await.map_err(StorageError::from)
 }
 

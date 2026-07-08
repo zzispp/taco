@@ -8,54 +8,67 @@ use constants::system_config::{INIT_PASSWORD_KEY, REGISTER_USER_KEY};
 use kernel::error::LocalizedError;
 use rbac::api::CurrentUser;
 use rbac_macros::{data_scope, require_perms};
-use types::rbac::DataScopeFilter;
 use types::{
-    http::{RequestJson, xlsx_attachment},
+    http::{RequestJson, current_locale, xlsx_attachment},
+    rbac::DataScopeFilter,
     system::BatchIdsInput,
 };
 
 use crate::{
     api::{
-        ApiState, TokenPair,
+        ApiState, TokenIssueInput, TokenPair,
         dto::{
-            AuthSessionResponse, AvatarResponse, ChangePasswordPayload, ListUsersQuery, MeResponse, ProfilePayload, ProfileResponse, RefreshTokenPayload,
-            ResetPasswordPayload, SignInPayload, SignUpPayload, StatusPayload, TokenPairResponse, UserExportQuery, UserFormOptionsResponse, UserImportResponse,
-            UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
+            AuthSessionResponse, AvatarResponse, ChangePasswordPayload, ListUsersQuery, MeResponse, OnlineSessionsQuery, OnlineSessionsResponse,
+            ProfilePayload, ProfileResponse, RefreshTokenPayload, ResetPasswordPayload, SignInPayload, SignUpPayload, StatusPayload, TokenPairResponse,
+            UserExportQuery, UserFormOptionsResponse, UserImportResponse, UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
         },
         error::ApiError,
         import_export::{export_query_page, export_users_xlsx, import_template_xlsx, parse_import_rows},
     },
-    application::{AppError, AvatarFile, UserImportInput},
+    application::{AppError, AvatarFile, OnlineSession, UserImportInput},
     domain::{NewUser, User, UserId},
 };
 
 type ApiResult<T> = Result<T, ApiError>;
 type ApiJson<T> = Json<T>;
 
+mod online;
 mod support;
 
+pub use online::{force_logout_online_session, list_online_sessions};
+
 use self::support::{
-    ExportUsersInput, all_export_users, avatar_file, bearer_token, new_admin_user, new_sign_up_user, ok, reject_disabled_registration, user_import_form,
-    verify_account_captcha,
+    ExportUsersInput, all_export_users, avatar_file, bearer_token, issue_tokens_for_user, new_admin_user, new_sign_up_user, ok, reject_disabled_registration,
+    user_import_form, verify_account_captcha,
 };
 
 type AccountPasswordRequest = (State<ApiState>, Extension<CurrentUser>, RequestJson<ChangePasswordPayload>);
 type ExportUsersRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<UserExportQuery>);
-type ResetPasswordRequest = (State<ApiState>, Path<String>, RequestJson<ResetPasswordPayload>);
 type ListUsersRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<ListUsersQuery>);
+type UserPathRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
+type UserJsonRequest<T> = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>, T);
+type UserBatchRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, RequestJson<BatchIdsInput>);
 
-pub async fn sign_up(State(state): State<ApiState>, RequestJson(payload): RequestJson<SignUpPayload>) -> ApiResult<ApiJson<AuthSessionResponse>> {
+pub async fn sign_up(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    RequestJson(payload): RequestJson<SignUpPayload>,
+) -> ApiResult<ApiJson<AuthSessionResponse>> {
     reject_disabled_registration(&state).await?;
     verify_account_captcha(&state, payload.captcha_token.as_deref()).await?;
     let user = state.users.sign_up(new_sign_up_user(payload)).await?;
-    let tokens = state.tokens.issue_pair(user.id.clone()).await?;
+    let tokens = issue_tokens_for_user(&state, &headers, &user).await?;
     Ok(ok(AuthSessionResponse::new(user.into(), tokens)))
 }
 
-pub async fn sign_in(State(state): State<ApiState>, RequestJson(payload): RequestJson<SignInPayload>) -> ApiResult<ApiJson<AuthSessionResponse>> {
+pub async fn sign_in(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    RequestJson(payload): RequestJson<SignInPayload>,
+) -> ApiResult<ApiJson<AuthSessionResponse>> {
     verify_account_captcha(&state, payload.captcha_token.as_deref()).await?;
     let user = state.users.sign_in(payload.into()).await?;
-    let tokens = state.tokens.issue_pair(user.id.clone()).await?;
+    let tokens = issue_tokens_for_user(&state, &headers, &user).await?;
     Ok(ok(AuthSessionResponse::new(user.into(), tokens)))
 }
 
@@ -67,9 +80,15 @@ pub async fn refresh(State(state): State<ApiState>, RequestJson(payload): Reques
 
 pub async fn me(State(state): State<ApiState>, headers: HeaderMap) -> ApiResult<ApiJson<MeResponse>> {
     let access_token = bearer_token(&headers)?;
-    let user_id = state.tokens.validate_access(access_token)?;
+    let user_id = state.tokens.validate_access(access_token).await?;
     let user = state.users.authenticated_user(user_id).await?;
     Ok(ok(MeResponse { user: user.into() }))
+}
+
+pub async fn logout(State(state): State<ApiState>, headers: HeaderMap) -> ApiResult<ApiJson<()>> {
+    let access_token = bearer_token(&headers)?;
+    state.tokens.logout_access(access_token).await?;
+    Ok(ok(()))
 }
 
 pub async fn account_profile(State(state): State<ApiState>, Extension(current_user): Extension<CurrentUser>) -> ApiResult<ApiJson<ProfileResponse>> {
@@ -117,7 +136,7 @@ pub async fn export_users(request: ExportUsersRequest) -> ApiResult<Response> {
         query: &query,
     })
     .await?;
-    let bytes = export_users_xlsx(&users)?;
+    let bytes = export_users_xlsx(&users, current_locale())?;
     Ok(xlsx_attachment("users.xlsx", bytes))
 }
 
@@ -125,7 +144,7 @@ pub async fn export_users(request: ExportUsersRequest) -> ApiResult<Response> {
 pub async fn import_users(State(state): State<ApiState>, multipart: Multipart) -> ApiResult<ApiJson<UserImportResponse>> {
     let form = user_import_form(multipart).await?;
     let default_password = state.config.config_by_key(INIT_PASSWORD_KEY).await?;
-    let rows = parse_import_rows(&form.file)?;
+    let rows = parse_import_rows(&form.file, current_locale())?;
     let report = state
         .users
         .import_users(UserImportInput {
@@ -139,7 +158,7 @@ pub async fn import_users(State(state): State<ApiState>, multipart: Multipart) -
 
 #[require_perms("system:user:import")]
 pub async fn user_import_template() -> ApiResult<Response> {
-    Ok(xlsx_attachment("user_template.xlsx", import_template_xlsx()?))
+    Ok(xlsx_attachment("user_template.xlsx", import_template_xlsx(current_locale())?))
 }
 
 #[require_perms("system:user:add")]
@@ -149,61 +168,74 @@ pub async fn create_user(State(state): State<ApiState>, RequestJson(payload): Re
 }
 
 #[require_perms("system:user:edit")]
-pub async fn replace_user(
-    State(state): State<ApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<UserPayload>,
-) -> ApiResult<ApiJson<UserResponse>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn replace_user(request: UserJsonRequest<RequestJson<UserPayload>>) -> ApiResult<ApiJson<UserResponse>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     let user = state.users.replace_user(UserId(id), payload.into()).await?;
     Ok(ok(user.into()))
 }
 
 #[require_perms("system:user:remove")]
-pub async fn delete_user(State(state): State<ApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn delete_user(request: UserPathRequest) -> ApiResult<ApiJson<()>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id)) = request;
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     state.users.delete_user(UserId(id)).await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:user:remove")]
-pub async fn delete_users(State(state): State<ApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
-    state.users.delete_users(payload.ids.into_iter().map(UserId).collect()).await?;
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn delete_users(request: UserBatchRequest) -> ApiResult<ApiJson<()>> {
+    let (State(state), Extension(current_user), Extension(data_scope), RequestJson(payload)) = request;
+    let ids = user_ids(payload.ids);
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_many(ids.clone()).await?;
+    state.users.delete_users(ids).await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:user:query")]
-pub async fn get_user(State(state): State<ApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<UserResponse>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn get_user(request: UserPathRequest) -> ApiResult<ApiJson<UserResponse>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id)) = request;
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     let user = state.users.get_user(UserId(id)).await?;
     Ok(ok(user.into()))
 }
 
 #[require_perms("system:user:resetPwd")]
-pub async fn reset_user_password((State(state), Path(id), RequestJson(payload)): ResetPasswordRequest) -> ApiResult<ApiJson<()>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn reset_user_password(request: UserJsonRequest<RequestJson<ResetPasswordPayload>>) -> ApiResult<ApiJson<()>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     state.users.reset_password(UserId(id), payload.password).await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:user:edit")]
-pub async fn update_user_status(
-    State(state): State<ApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<StatusPayload>,
-) -> ApiResult<ApiJson<UserResponse>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn update_user_status(request: UserJsonRequest<RequestJson<StatusPayload>>) -> ApiResult<ApiJson<UserResponse>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     let user = state.users.update_status(UserId(id), payload.status).await?;
     Ok(ok(user.into()))
 }
 
 #[require_perms("system:user:query")]
-pub async fn user_roles(State(state): State<ApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<UserRolesPayload>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn user_roles(request: UserPathRequest) -> ApiResult<ApiJson<UserRolesPayload>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id)) = request;
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     let user = state.users.get_user(UserId(id)).await?;
     Ok(ok(UserRolesPayload { role_ids: user.role_ids }))
 }
 
 #[require_perms("system:user:edit")]
-pub async fn replace_user_roles(
-    State(state): State<ApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<UserRolesPayload>,
-) -> ApiResult<ApiJson<UserResponse>> {
+#[data_scope(dept_alias = "d", user_alias = "u")]
+pub async fn replace_user_roles(request: UserJsonRequest<RequestJson<UserRolesPayload>>) -> ApiResult<ApiJson<UserResponse>> {
+    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+    UserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
     let user = state.users.replace_roles(UserId(id), payload.role_ids).await?;
     Ok(ok(user.into()))
 }
@@ -229,4 +261,35 @@ pub async fn list_users(request: ListUsersRequest) -> ApiResult<ApiJson<UsersPag
         state.users.list_users_scoped(query.into(), data_scope).await?
     };
     Ok(ok(page.into()))
+}
+
+struct UserScopeGuard<'a> {
+    state: &'a ApiState,
+    current_user: &'a CurrentUser,
+    data_scope: DataScopeFilter,
+}
+
+impl<'a> UserScopeGuard<'a> {
+    const fn new(state: &'a ApiState, current_user: &'a CurrentUser, data_scope: DataScopeFilter) -> Self {
+        Self {
+            state,
+            current_user,
+            data_scope,
+        }
+    }
+
+    async fn ensure_one(&self, id: &str) -> ApiResult<()> {
+        self.ensure_many(vec![UserId(id.into())]).await
+    }
+
+    async fn ensure_many(&self, ids: Vec<UserId>) -> ApiResult<()> {
+        if self.current_user.admin {
+            return Ok(());
+        }
+        self.state.users.ensure_user_ids_scoped(ids, self.data_scope.clone()).await.map_err(ApiError)
+    }
+}
+
+fn user_ids(ids: Vec<String>) -> Vec<UserId> {
+    ids.into_iter().map(UserId).collect()
 }

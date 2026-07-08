@@ -8,6 +8,7 @@ use crate::{
     test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user, system_user, user_id},
 };
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn system_user_can_sign_in_by_username() {
     let service = service_with_system_user(MemoryUserRepository::default());
@@ -24,6 +25,7 @@ async fn system_user_can_sign_in_by_username() {
     assert!(user.system);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn system_user_can_sign_in_by_email() {
     let service = service_with_system_user(MemoryUserRepository::default());
@@ -40,6 +42,7 @@ async fn system_user_can_sign_in_by_email() {
     assert!(user.system);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn authenticated_user_returns_system_user_from_provider() {
     let service = service_with_system_user(MemoryUserRepository::default());
@@ -50,6 +53,7 @@ async fn authenticated_user_returns_system_user_from_provider() {
     assert!(user.system);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn create_user_rejects_system_username() {
     let service = service_with_system_user(MemoryUserRepository::default());
@@ -59,6 +63,7 @@ async fn create_user_rejects_system_username() {
     assert!(matches!(result, Err(AppError::Conflict(_))));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn create_user_rejects_system_email() {
     let service = service_with_system_user(MemoryUserRepository::default());
@@ -69,6 +74,7 @@ async fn create_user_rejects_system_email() {
     assert!(matches!(result, Err(AppError::Conflict(_))));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn replace_user_rejects_system_user_id() {
     let repository = MemoryUserRepository::default();
@@ -80,6 +86,7 @@ async fn replace_user_rejects_system_user_id() {
     assert!(repository.replaced_records().is_empty());
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn replace_user_rejects_system_username() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -90,6 +97,7 @@ async fn replace_user_rejects_system_username() {
     assert!(matches!(result, Err(AppError::Conflict(_))));
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn delete_user_rejects_system_user_id() {
     let repository = MemoryUserRepository::default();
@@ -101,6 +109,7 @@ async fn delete_user_rejects_system_user_id() {
     assert!(repository.deleted_records().is_empty());
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_prepends_system_user_to_first_page() {
     let service = service_with_system_user(users_repository());
@@ -113,6 +122,7 @@ async fn list_users_prepends_system_user_to_first_page() {
     assert_eq!(page.items.len(), 2);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_offsets_database_page_after_system_user() {
     let service = service_with_system_user(users_repository());
@@ -124,6 +134,7 @@ async fn list_users_offsets_database_page_after_system_user() {
     assert_eq!(page.total, 4);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_applies_dept_filter_when_system_user_is_configured() {
     let repository = MemoryUserRepository::with_users(vec![
@@ -139,6 +150,7 @@ async fn list_users_applies_dept_filter_when_system_user_is_configured() {
     assert_eq!(page.total, 1);
 }
 
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_returns_empty_for_unmatched_dept_filter_when_system_user_is_configured() {
     let service = service_with_system_user(users_repository());

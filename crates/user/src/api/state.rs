@@ -9,7 +9,10 @@ const EXPORT_CONFIG_DISABLED_ERROR: &str = "infra.user.export_config_disabled";
 
 use crate::{
     api::TokenService,
-    application::{AccountVerifier, AppError, AppResult, AvatarConfigProvider, AvatarFile, AvatarStorage, SystemConfigProvider, UserUseCase},
+    application::{
+        AccountVerifier, AppError, AppResult, AvatarConfigProvider, AvatarFile, AvatarStorage, IpLocationResolver, PublicIpResolver, SystemConfigProvider,
+        UserUseCase,
+    },
 };
 
 #[derive(Clone)]
@@ -19,6 +22,8 @@ pub struct ApiState {
     pub rbac: Arc<dyn RbacUseCase>,
     pub config: Arc<dyn SystemConfigProvider>,
     pub account_verifier: Arc<dyn AccountVerifier>,
+    pub public_ip_resolver: Arc<dyn PublicIpResolver>,
+    pub ip_location_resolver: Arc<dyn IpLocationResolver>,
     pub avatar_storage: Arc<dyn AvatarStorage>,
     pub avatar_config: Arc<dyn AvatarConfigProvider>,
     pub export_config: Arc<dyn ExportConfigProvider<Error = AppError>>,
@@ -30,6 +35,8 @@ pub struct ApiStateParts {
     pub rbac: Arc<dyn RbacUseCase>,
     pub config: Arc<dyn SystemConfigProvider>,
     pub account_verifier: Arc<dyn AccountVerifier>,
+    pub public_ip_resolver: Arc<dyn PublicIpResolver>,
+    pub ip_location_resolver: Arc<dyn IpLocationResolver>,
 }
 
 impl ApiState {
@@ -40,6 +47,8 @@ impl ApiState {
             rbac: parts.rbac,
             config: parts.config,
             account_verifier: parts.account_verifier,
+            public_ip_resolver: parts.public_ip_resolver,
+            ip_location_resolver: parts.ip_location_resolver,
             avatar_storage: Arc::new(DisabledAvatarStorage),
             avatar_config: Arc::new(DisabledAvatarConfigProvider),
             export_config: Arc::new(DisabledExportConfigProvider),
