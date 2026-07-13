@@ -3,7 +3,8 @@ use sqlx::{PgPool, query, query_as, query_scalar};
 
 use super::{MIGRATION_TOTAL, TestDatabase, down, fresh, managed_table_exists, up};
 
-const MIGRATIONS_BEFORE_DETAIL: u32 = MIGRATION_TOTAL as u32 - 1;
+const MIGRATIONS_BEFORE_DETAIL: u32 = 13;
+const MIGRATIONS_FROM_DETAIL: u32 = MIGRATION_TOTAL as u32 - MIGRATIONS_BEFORE_DETAIL;
 const DETAIL_MENU_ID: &str = "1093";
 const DETAIL_PERMISSION: &str = "system:job:log:detail";
 const PERMISSION_CONFLICT_MENU_ID: &str = "scheduler-detail-permission-conflict";
@@ -81,7 +82,7 @@ async fn execution_detail_down_removes_owned_schema_menu_and_bindings() {
         .await
         .unwrap();
 
-    down(database.pool(), Some(1)).await.unwrap();
+    down(database.pool(), Some(MIGRATIONS_FROM_DETAIL)).await.unwrap();
 
     assert_eq!(detail_column_count(database.pool()).await, 0);
     assert_eq!(detail_menu_count(database.pool()).await, 0);

@@ -36,5 +36,5 @@ export type AuthContextValue = {
   error: Error | null;
   authenticated: boolean;
   unauthenticated: boolean;
-  checkUserSession?: () => Promise<void>;
+  checkUserSession: () => Promise<void>;
 };

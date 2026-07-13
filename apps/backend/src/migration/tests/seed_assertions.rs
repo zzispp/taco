@@ -2,11 +2,17 @@ use sqlx::{PgPool, query_scalar};
 
 use super::scheduler_assertions::assert_scheduler_seed;
 
+mod navigation;
+mod notice;
+
+use navigation::assert_navigation_seed;
+use notice::assert_notice_seed;
+
 const EXPECTED_ROLE_COUNT: i64 = 2;
-const EXPECTED_MENU_COUNT: i64 = 60;
+const EXPECTED_MENU_COUNT: i64 = 67;
 const EXPECTED_DEPT_COUNT: i64 = 10;
 const EXPECTED_POST_COUNT: i64 = 4;
-const EXPECTED_DICT_TYPE_COUNT: i64 = 7;
+const EXPECTED_DICT_TYPE_COUNT: i64 = 9;
 const EXPECTED_CONFIG_COUNT: i64 = 11;
 const EXPECTED_PUBLIC_CONFIG_COUNT: i64 = 5;
 const EXPECTED_CAPTCHA_DIFFICULTY: i64 = 4;
@@ -14,19 +20,6 @@ const EXPECTED_REFRESH_TTL_SECONDS: i64 = 604_800;
 const EXPECTED_PASSWORD_MIN_LENGTH: i64 = 8;
 const EXPECTED_AVATAR_MAX_BYTES: i64 = 2_097_152;
 const EXPECTED_EXPORT_PAGE_SIZE: i64 = 100;
-const EXPECTED_DASHBOARD_MENU_COUNT: i64 = 1;
-const EXPECTED_ONLINE_MENU_COUNT: i64 = 1;
-const EXPECTED_ONLINE_QUERY_PERMISSION_COUNT: i64 = 1;
-const EXPECTED_ONLINE_FORCE_LOGOUT_PERMISSION_COUNT: i64 = 1;
-const EXPECTED_DASHBOARD_MENU_ICONS: &[(&str, &str)] = &[
-    ("103", "icon.dept"),
-    ("104", "icon.post"),
-    ("105", "icon.dict"),
-    ("106", "icon.config"),
-    ("107", "icon.online"),
-    ("108", "icon.job"),
-    ("109", "icon.job-log"),
-];
 
 pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_eq!(table_count(pool, "sys_role").await, EXPECTED_ROLE_COUNT);
@@ -38,11 +31,8 @@ pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_eq!(public_config_count(pool).await, EXPECTED_PUBLIC_CONFIG_COUNT);
     assert_seed_config_values(pool).await;
     assert_seed_config_remarks(pool).await;
-    assert_dashboard_menu_exists(pool).await;
-    assert_online_menu_exists(pool).await;
-    assert_online_query_permission_exists(pool).await;
-    assert_online_force_logout_permission_exists(pool).await;
-    assert_dashboard_menu_icons(pool).await;
+    assert_navigation_seed(pool).await;
+    assert_notice_seed(pool).await;
     assert_scheduler_seed(pool).await;
 }
 
@@ -124,55 +114,6 @@ async fn assert_legacy_captcha_configs_removed(pool: &PgPool) {
         .await
         .unwrap();
     assert_eq!(legacy_count, 0);
-}
-
-async fn assert_dashboard_menu_exists(pool: &PgPool) {
-    let count: i64 =
-        query_scalar("SELECT COUNT(*) FROM sys_menu WHERE path = '/dashboard' AND perms = 'system:dashboard:view' AND visible = '0' AND status = '0'")
-            .fetch_one(pool)
-            .await
-            .unwrap();
-    assert_eq!(count, EXPECTED_DASHBOARD_MENU_COUNT);
-}
-
-async fn assert_online_menu_exists(pool: &PgPool) {
-    let count: i64 = query_scalar(
-        "SELECT COUNT(*) FROM sys_menu WHERE path = '/dashboard/admin/online' AND perms = 'system:online:list' AND parent_id = '1' AND visible = '0' AND status = '0'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    assert_eq!(count, EXPECTED_ONLINE_MENU_COUNT);
-}
-
-async fn assert_online_force_logout_permission_exists(pool: &PgPool) {
-    let count: i64 =
-        query_scalar("SELECT COUNT(*) FROM sys_menu WHERE parent_id = '107' AND perms = 'system:online:forceLogout' AND menu_type = 'F' AND status = '0'")
-            .fetch_one(pool)
-            .await
-            .unwrap();
-    assert_eq!(count, EXPECTED_ONLINE_FORCE_LOGOUT_PERMISSION_COUNT);
-}
-
-async fn assert_online_query_permission_exists(pool: &PgPool) {
-    let count: i64 =
-        query_scalar("SELECT COUNT(*) FROM sys_menu WHERE parent_id = '107' AND perms = 'system:online:query' AND menu_type = 'F' AND status = '0'")
-            .fetch_one(pool)
-            .await
-            .unwrap();
-    assert_eq!(count, EXPECTED_ONLINE_QUERY_PERMISSION_COUNT);
-}
-
-async fn assert_dashboard_menu_icons(pool: &PgPool) {
-    for (menu_id, icon) in EXPECTED_DASHBOARD_MENU_ICONS {
-        let count: i64 = query_scalar("SELECT COUNT(*) FROM sys_menu WHERE menu_id = $1 AND icon = $2")
-            .bind(*menu_id)
-            .bind(*icon)
-            .fetch_one(pool)
-            .await
-            .unwrap();
-        assert_eq!(count, 1, "menu {menu_id} should use icon {icon}");
-    }
 }
 
 async fn captcha_config(pool: &PgPool) -> serde_json::Value {

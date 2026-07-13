@@ -10,21 +10,29 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { ConfirmDialog } from 'src/shared/ui/custom-dialog';
 import { subscribeAuthSessionRejected } from 'src/shared/api/http-client';
 
-import { setSession } from 'src/entities/session';
+import { setSession, useAuthContext } from 'src/entities/session';
+
+import { reloginAfterSessionExpired } from '../model/relogin';
 
 export function SessionExpiredDialog() {
   const { t } = useTranslate('admin');
   const router = useRouter();
+  const { checkUserSession } = useAuthContext();
   const [open, setOpen] = useState(false);
 
   useEffect(() => subscribeAuthSessionRejected(() => setOpen(true)), []);
 
   const stayOnPage = useCallback(() => setOpen(false), []);
   const relogin = useCallback(async () => {
-    await setSession(null);
-    setOpen(false);
-    router.replace(paths.auth.jwt.signIn);
-  }, [router]);
+    await reloginAfterSessionExpired({
+      clearSession: () => setSession(null),
+      refreshAuthState: checkUserSession,
+      redirectToSignIn: () => {
+        setOpen(false);
+        router.replace(paths.auth.jwt.signIn);
+      },
+    });
+  }, [checkUserSession, router]);
 
   return (
     <ConfirmDialog

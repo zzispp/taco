@@ -103,7 +103,7 @@ type SignInSubmitOptions = {
   captcha: ReturnType<typeof useCaptchaConfig>;
   captchaState: CaptchaTokenState;
   setErrorMessage: (message: string) => void;
-  checkUserSession?: () => Promise<void>;
+  checkUserSession: () => Promise<void>;
   router: ReturnType<typeof useRouter>;
   t: TranslateFn;
 };
@@ -119,7 +119,7 @@ function useSignInSubmit(options: SignInSubmitOptions) {
         password: data.password,
         captchaToken: captcha.data?.enabled ? (captchaState.token ?? undefined) : undefined,
       });
-      await checkUserSession?.();
+      await checkUserSession();
       router.refresh();
     } catch (error) {
       console.error(error);

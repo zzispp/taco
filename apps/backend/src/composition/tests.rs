@@ -66,6 +66,57 @@ fn route_permissions_use_the_handler_permission_contract() {
     assert_eq!(registered.requirement, job_log_detail.requirement);
 }
 
+#[test]
+fn notice_routes_use_the_complete_permission_contract() {
+    let rules = route_permissions();
+    let expected = [
+        (
+            "list_notices",
+            vec!["GET"],
+            "/api/system/notices",
+            PermissionRequirement::all_of(&["system:notice:list"]),
+        ),
+        (
+            "create_notice",
+            vec!["POST"],
+            "/api/system/notices",
+            PermissionRequirement::all_of(&["system:notice:add"]),
+        ),
+        (
+            "replace_notice",
+            vec!["PUT"],
+            "/api/system/notices/{id}",
+            PermissionRequirement::all_of(&["system:notice:edit"]),
+        ),
+        (
+            "delete_notice",
+            vec!["DELETE"],
+            "/api/system/notices/{id}",
+            PermissionRequirement::all_of(&["system:notice:remove"]),
+        ),
+        (
+            "delete_notices",
+            vec!["DELETE"],
+            "/api/system/notices/batch",
+            PermissionRequirement::all_of(&["system:notice:remove"]),
+        ),
+        (
+            "list_notice_readers",
+            vec!["GET"],
+            "/api/system/notices/{id}/readers",
+            PermissionRequirement::all_of(&["system:notice:list"]),
+        ),
+    ];
+
+    for (handler, methods, path, requirement) in expected {
+        let rule = rules.iter().find(|rule| rule.handler == handler).unwrap();
+        assert_eq!(rule.methods, methods, "unexpected methods for {handler}");
+        assert_eq!(rule.path_pattern, path, "unexpected path for {handler}");
+        assert_eq!(rule.requirement, requirement, "unexpected permission for {handler}");
+    }
+    assert!(rules.iter().all(|rule| rule.handler != "get_notice"));
+}
+
 fn test_settings() -> Settings {
     Settings {
         server: test_server_settings(),

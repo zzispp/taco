@@ -7,21 +7,39 @@ import { useMemo } from 'react';
 import { pageKey } from './pagination';
 import { fetcher } from './http-client';
 
-const swrOptions = {
+const defaultSWRConfig = {
   keepPreviousData: true,
   revalidateOnFocus: false,
 };
 
-export function usePagedResource<T>(
-  endpoint: string,
-  page: number,
-  pageSize: number,
-  params: QueryParams = {}
-) {
+export type PagedResourceOptions = Readonly<{
+  endpoint: string;
+  page: number;
+  pageSize: number;
+  params?: QueryParams;
+  keepPreviousData?: boolean;
+}>;
+
+export type PagedResourceState<T> = Readonly<{
+  data: PageResponse<T> | undefined;
+  items: T[];
+  total: number;
+  isLoading: boolean;
+  error: unknown;
+  isValidating: boolean;
+}>;
+
+export function usePagedResource<T>({
+  endpoint,
+  page,
+  pageSize,
+  params = {},
+  keepPreviousData = true,
+}: PagedResourceOptions): PagedResourceState<T> {
   const { data, isLoading, error, isValidating } = useSWR<PageResponse<T>>(
-    endpoint ? pageKey(endpoint, page, pageSize, params) : null,
+    pagedResourceKey({ endpoint, page, pageSize, params, keepPreviousData }),
     fetcher,
-    swrOptions
+    pagedResourceConfig(keepPreviousData)
   );
 
   return useMemo(
@@ -37,4 +55,14 @@ export function usePagedResource<T>(
   );
 }
 
-export const stableSWRConfig = swrOptions;
+export function pagedResourceKey(options: PagedResourceOptions) {
+  return options.endpoint
+    ? pageKey(options.endpoint, options.page, options.pageSize, options.params ?? {})
+    : null;
+}
+
+export function pagedResourceConfig(keepPreviousData = true) {
+  return { ...defaultSWRConfig, keepPreviousData };
+}
+
+export const stableSWRConfig = defaultSWRConfig;

@@ -12,6 +12,7 @@ configuration.workspace = true
 constants.workspace = true
 hook_tracing.workspace = true
 kernel.workspace = true
+matchit.workspace = true
 rbac.workspace = true
 reqwest.workspace = true
 serde.workspace = true

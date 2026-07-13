@@ -6,6 +6,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use matchit::Router;
 use rbac::{
     api::{CurrentUser, RbacApiError},
     application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacUseCase},
@@ -40,6 +41,22 @@ const AUTHENTICATED_ONLY_ROUTES: &[AuthenticatedOnlyRoute] = &[
     AuthenticatedOnlyRoute {
         method: "POST",
         path: "/api/account/profile/avatar",
+    },
+    AuthenticatedOnlyRoute {
+        method: "GET",
+        path: "/api/system/notices/top",
+    },
+    AuthenticatedOnlyRoute {
+        method: "GET",
+        path: "/api/system/notices/{id}",
+    },
+    AuthenticatedOnlyRoute {
+        method: "PUT",
+        path: "/api/system/notices/{id}/read",
+    },
+    AuthenticatedOnlyRoute {
+        method: "PUT",
+        path: "/api/system/notices/read-all",
     },
 ];
 
@@ -97,7 +114,14 @@ pub async fn auth_middleware(State(state): State<AuthState>, mut request: Reques
 fn is_authenticated_only_route(method: &str, path: &str) -> bool {
     AUTHENTICATED_ONLY_ROUTES
         .iter()
-        .any(|route| route.path == path && route.method.eq_ignore_ascii_case(method))
+        .filter(|route| route.method.eq_ignore_ascii_case(method))
+        .any(|route| authenticated_path_matches(route.path, path))
+}
+
+fn authenticated_path_matches(pattern: &str, path: &str) -> bool {
+    let mut router = Router::new();
+    router.insert(pattern, ()).expect("authenticated-only route patterns must be valid");
+    router.at(path).is_ok()
 }
 
 async fn authenticate_current_user(state: &AuthState, headers: &HeaderMap) -> Result<CurrentUser, RbacError> {
@@ -168,5 +192,15 @@ mod tests {
         assert!(is_authenticated_only_route("PUT", "/api/account/profile"));
         assert!(is_authenticated_only_route("PUT", "/api/account/profile/password"));
         assert!(is_authenticated_only_route("POST", "/api/account/profile/avatar"));
+    }
+
+    #[test]
+    fn authenticated_only_route_matches_notice_patterns() {
+        assert!(is_authenticated_only_route("GET", "/api/system/notices/top"));
+        assert!(is_authenticated_only_route("GET", "/api/system/notices/notice-1"));
+        assert!(is_authenticated_only_route("PUT", "/api/system/notices/notice-1/read"));
+        assert!(is_authenticated_only_route("PUT", "/api/system/notices/read-all"));
+        assert!(!is_authenticated_only_route("DELETE", "/api/system/notices/notice-1"));
+        assert!(!is_authenticated_only_route("GET", "/api/system/notices/notice-1/readers"));
     }
 }

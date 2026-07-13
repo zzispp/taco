@@ -14,8 +14,6 @@ use crate::{
 use super::records::{MenuRecord, RoleDeptRecord, RoleMenuRecord, RoleOptionRecord, RolePermissionRecord, RoleRecord, RoleUserRecord};
 
 const MENU_ROOT_PARENT_ID: &str = "0";
-const NAV_OVERVIEW_SECTION_CODE: &str = "overview";
-const NAV_OVERVIEW_SECTION_TITLE: &str = "Overview";
 const EXTERNAL_HTTP_SCHEME: &str = "http://";
 const EXTERNAL_HTTPS_SCHEME: &str = "https://";
 
@@ -127,48 +125,26 @@ fn role_menus(rows: Vec<RoleMenuRecord>) -> Vec<RoleMenuSnapshot> {
 }
 
 fn nav_sections(rows: Vec<RoleMenuRecord>) -> Vec<NavSectionResponse> {
-    let mut sections = Vec::new();
-    push_section(
-        &mut sections,
-        NavSectionDraft {
-            code: NAV_OVERVIEW_SECTION_CODE,
-            subheader: NAV_OVERVIEW_SECTION_TITLE,
-            items: root_menu_items(&rows),
-        },
-    );
-    sections.extend(directory_sections(&rows));
-    sections
+    rows.iter()
+        .filter(|row| row.parent_id == MENU_ROOT_PARENT_ID)
+        .filter_map(|row| root_section(row, &rows))
+        .collect()
 }
 
-fn push_section(sections: &mut Vec<NavSectionResponse>, draft: NavSectionDraft) {
-    if draft.items.is_empty() {
-        return;
+fn root_section(root: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> Option<NavSectionResponse> {
+    match root.menu_type.as_str() {
+        MENU_TYPE_DIRECTORY => directory_section(root, rows),
+        MENU_TYPE_MENU => Some(single_menu_section(root)),
+        _ => None,
     }
-    sections.push(NavSectionResponse {
-        code: draft.code.into(),
-        subheader: draft.subheader.into(),
-        items: draft.items,
-    });
 }
 
-struct NavSectionDraft {
-    code: &'static str,
-    subheader: &'static str,
-    items: Vec<NavItemResponse>,
-}
-
-fn root_menu_items(rows: &[RoleMenuRecord]) -> Vec<NavItemResponse> {
-    rows.iter()
-        .filter(|row| row.parent_id == MENU_ROOT_PARENT_ID && row.menu_type == MENU_TYPE_MENU)
-        .map(nav_item)
-        .collect()
-}
-
-fn directory_sections(rows: &[RoleMenuRecord]) -> Vec<NavSectionResponse> {
-    rows.iter()
-        .filter(|row| row.parent_id == MENU_ROOT_PARENT_ID && row.menu_type == MENU_TYPE_DIRECTORY)
-        .filter_map(|row| directory_section(row, rows))
-        .collect()
+fn single_menu_section(menu: &RoleMenuRecord) -> NavSectionResponse {
+    NavSectionResponse {
+        code: menu.menu_id.clone(),
+        subheader: menu.menu_name.clone(),
+        items: vec![nav_item(menu)],
+    }
 }
 
 fn directory_section(directory: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> Option<NavSectionResponse> {

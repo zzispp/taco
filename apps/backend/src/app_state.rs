@@ -5,6 +5,7 @@ use kernel::runtime_config::ExportConfigProvider;
 use rbac::application::{AuthorizationConfig, RbacAdminUseCase, RbacUseCase};
 use scheduler::application::{SchedulerError, SchedulerRuntimeHandle, SchedulerUseCase};
 use system::application::{ServerMetricsUseCase, SystemUseCase};
+use system::notice::NoticeUseCase;
 use user::{api::TokenService, application::UserUseCase};
 
 pub struct AppState {
@@ -13,6 +14,7 @@ pub struct AppState {
     pub rbac: Arc<dyn RbacUseCase>,
     pub rbac_admin: Arc<dyn RbacAdminUseCase>,
     pub system: Arc<dyn SystemUseCase>,
+    pub notices: Arc<dyn NoticeUseCase>,
     pub metrics: Arc<dyn ServerMetricsUseCase>,
     pub captcha: Arc<dyn CaptchaUseCase>,
     pub scheduler: Arc<dyn SchedulerUseCase>,

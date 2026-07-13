@@ -23,6 +23,8 @@ time.workspace = true
 tokio.workspace = true
 types.workspace = true
 nix.workspace = true
+pulldown-cmark.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+tower.workspace = true

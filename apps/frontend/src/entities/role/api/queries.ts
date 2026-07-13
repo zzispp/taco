@@ -6,7 +6,7 @@ import { usePagedResource } from 'src/shared/api/use-paged-resource';
 import { roleEndpoints } from './endpoints';
 
 export function useRoles(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Role>(roleEndpoints.roles, page, pageSize, params);
+  return usePagedResource<Role>({ endpoint: roleEndpoints.roles, page, pageSize, params });
 }
 
 export function useRoleUsers(
@@ -15,10 +15,10 @@ export function useRoleUsers(
   pageSize: number,
   params: QueryParams = {}
 ) {
-  return usePagedResource<RoleUser>(
-    roleId ? roleEndpoints.users(roleId) : '',
+  return usePagedResource<RoleUser>({
+    endpoint: roleId ? roleEndpoints.users(roleId) : '',
     page,
     pageSize,
-    params
-  );
+    params,
+  });
 }

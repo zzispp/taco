@@ -28,6 +28,8 @@ import { MainSection, layoutClasses, HeaderSection, LayoutSection } from 'src/sh
 
 import { NAV_ICONS } from 'src/entities/menu';
 
+import { NotificationsDrawer } from 'src/features/notice-reading';
+
 import { Searchbar } from 'src/widgets/dashboard-shell/ui/searchbar';
 import { useNavbar } from 'src/widgets/dashboard-shell/model/nav-data';
 import { AccountDrawer } from 'src/widgets/dashboard-shell/ui/account-drawer';
@@ -144,6 +146,7 @@ export function DashboardLayout({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0, sm: 0.75 } }}>
           <Searchbar data={navData} />
           <LanguagePopover data={allLangs} />
+          <NotificationsDrawer />
           <SettingsButton />
           <AccountDrawer data={accountLinks} navTitle={t('profile.authorizedNavigation')} />
         </Box>

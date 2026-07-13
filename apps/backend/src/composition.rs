@@ -4,6 +4,7 @@ use ::system::{
     api::{SystemApiState, SystemApiStateParts, create_router as create_system_router},
     application::{ServerMetricsUseCase, SystemMetricsService, SystemService, SystemUseCase},
     infra::{RedisSystemCache, StorageSystemRepository, SysinfoServerMetricsCollector},
+    notice::{NoticeApiState, NoticeService, NoticeUseCase, StorageNoticeRepository, create_router as create_notice_router},
 };
 use axum::{Router, middleware};
 use captcha::{
@@ -68,6 +69,7 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     rbac.use_case.validate_data_scope_handlers(&data_scope_handlers())?;
     let system_cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
     let system: Arc<dyn SystemUseCase> = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database.clone()), system_cache));
+    let notices: Arc<dyn NoticeUseCase> = Arc::new(NoticeService::new(StorageNoticeRepository::new(database.clone())));
     let metrics: Arc<dyn ServerMetricsUseCase> = Arc::new(SystemMetricsService::new(SysinfoServerMetricsCollector));
     rebuild_system_cache(&system).await?;
     let runtime_config = RuntimeUserConfig::new(system.clone());
@@ -87,6 +89,7 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         rbac: rbac.use_case,
         rbac_admin: rbac.admin,
         system,
+        notices,
         metrics,
         captcha,
         scheduler: scheduler.use_case,
@@ -134,6 +137,9 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tra
     })
     .with_export_config(system_config);
     let captcha_state = CaptchaApiState::new(state.captcha.clone());
+    let notice_state = NoticeApiState {
+        notices: state.notices.clone(),
+    };
     let auth_state = AuthState::new(AuthStateParts {
         users: state.users,
         tokens: state.tokens,
@@ -145,6 +151,7 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tra
         .merge(create_user_router(user_state))
         .merge(create_rbac_router(rbac_state))
         .merge(create_system_router(system_state))
+        .merge(create_notice_router(notice_state))
         .merge(create_captcha_router(captcha_state))
         .merge(create_scheduler_router(SchedulerApiState::new(SchedulerApiStateParts {
             scheduler: state.scheduler,

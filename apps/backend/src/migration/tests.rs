@@ -5,6 +5,9 @@ use std::{
 
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions, query, query_scalar};
 
+mod notice_repository;
+mod notice_rollback;
+mod overview_menu;
 mod scheduler_assertions;
 mod scheduler_conflicts;
 mod scheduler_execution_detail;
@@ -14,6 +17,7 @@ mod scheduler_runtime;
 mod scheduler_schema;
 mod scheduler_supervisor;
 mod seed_assertions;
+mod system_monitor_menu;
 
 use seed_assertions::assert_seed_data_exists;
 
@@ -21,7 +25,7 @@ use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, re
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
 const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
-const MIGRATION_TOTAL: usize = 14;
+const MIGRATION_TOTAL: usize = 17;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);

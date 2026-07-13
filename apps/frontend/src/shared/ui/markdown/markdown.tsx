@@ -22,7 +22,11 @@ import { htmlToMarkdown, isMarkdownContent } from './html-to-markdown';
 
 // ----------------------------------------------------------------------
 
-export type MarkdownProps = React.ComponentProps<typeof MarkdownRoot> & Options;
+export type MarkdownProps = React.ComponentProps<typeof MarkdownRoot> &
+  Options & {
+    allowRawHtml?: boolean;
+    sourceFormat?: 'auto' | 'markdown';
+  };
 
 export function Markdown({
   sx,
@@ -30,17 +34,23 @@ export function Markdown({
   className,
   components,
   rehypePlugins,
+  remarkPlugins,
+  allowRawHtml = true,
+  sourceFormat = 'auto',
   ...other
 }: MarkdownProps) {
-  const content = useMemo(() => {
-    const cleanedContent = String(children).trim();
-
-    return isMarkdownContent(cleanedContent) ? cleanedContent : htmlToMarkdown(cleanedContent);
-  }, [children]);
+  const content = useMemo(
+    () => normalizeMarkdownContent(children, sourceFormat),
+    [children, sourceFormat]
+  );
 
   const allRehypePlugins = useMemo(
-    () => [...defaultRehypePlugins, ...(rehypePlugins ?? [])],
-    [rehypePlugins]
+    () => [...(allowRawHtml ? [rehypeRaw] : []), ...defaultRehypePlugins, ...(rehypePlugins ?? [])],
+    [allowRawHtml, rehypePlugins]
+  );
+  const allRemarkPlugins = useMemo(
+    () => [...defaultRemarkPlugins, ...(remarkPlugins ?? [])],
+    [remarkPlugins]
   );
 
   return (
@@ -48,6 +58,7 @@ export function Markdown({
       <ReactMarkdown
         components={{ ...defaultComponents, ...components }}
         rehypePlugins={allRehypePlugins}
+        remarkPlugins={allRemarkPlugins}
         /* base64-encoded images
          * https://github.com/remarkjs/react-markdown/issues/774
          * urlTransform={(value: string) => value}
@@ -60,12 +71,21 @@ export function Markdown({
   );
 }
 
+export function normalizeMarkdownContent(
+  children: React.ReactNode,
+  sourceFormat: 'auto' | 'markdown'
+) {
+  const rawContent = String(children);
+  if (sourceFormat === 'markdown') return rawContent;
+  const cleanedContent = rawContent.trim();
+  return isMarkdownContent(cleanedContent) ? cleanedContent : htmlToMarkdown(cleanedContent);
+}
+
 /** **************************************
  * @rehypePlugins
  *************************************** */
-const defaultRehypePlugins: NonNullable<Options['rehypePlugins']> = [
-  rehypeRaw,
-  rehypeHighlight,
+const defaultRehypePlugins: NonNullable<Options['rehypePlugins']> = [rehypeHighlight];
+const defaultRemarkPlugins: NonNullable<Options['remarkPlugins']> = [
   [remarkGfm, { singleTilde: false }],
 ];
 

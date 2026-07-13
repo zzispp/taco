@@ -39,7 +39,7 @@ export function AccountProfilePanel() {
 
   const refreshProfile = useCallback(async () => {
     await mutate();
-    await checkUserSession?.();
+    await checkUserSession();
   }, [checkUserSession, mutate]);
 
   if (isLoading || loadingConfig) return <LoadingScreen portal={false} />;

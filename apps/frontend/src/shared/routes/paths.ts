@@ -19,6 +19,8 @@ export const paths = {
   dashboard: {
     root: ROOTS.DASHBOARD,
     profile: `${ROOTS.DASHBOARD}/profile`,
+    overview: `${ROOTS.DASHBOARD}/overview`,
+    monitor: `${ROOTS.DASHBOARD}/monitor`,
     admin: {
       root: `${ROOTS.DASHBOARD}/admin`,
       users: `${ROOTS.DASHBOARD}/admin/users`,
@@ -31,6 +33,7 @@ export const paths = {
       online: `${ROOTS.DASHBOARD}/admin/online`,
       jobs: `${ROOTS.DASHBOARD}/admin/jobs`,
       jobLogs: `${ROOTS.DASHBOARD}/admin/job-logs`,
+      notices: `${ROOTS.DASHBOARD}/admin/notices`,
     },
   },
 };

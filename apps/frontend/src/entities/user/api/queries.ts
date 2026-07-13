@@ -9,7 +9,7 @@ import { usePagedResource } from 'src/shared/api/use-paged-resource';
 import { userEndpoints } from './endpoints';
 
 export function useUsers(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<SystemUser>(userEndpoints.users, page, pageSize, params);
+  return usePagedResource<SystemUser>({ endpoint: userEndpoints.users, page, pageSize, params });
 }
 
 export function useUserFormOptions() {

@@ -10,22 +10,28 @@ type NavItem = NavData[number]['items'][number];
 type TranslateFn = ReturnType<typeof useTranslate>['t'];
 
 const SECTION_KEY_BY_CODE: Record<string, string> = {
-  overview: 'nav.overview',
   account: 'nav.account',
   resources: 'nav.resources',
   system_management: 'nav.systemManagement',
+  system_monitor: 'nav.systemMonitor',
+  '1': 'nav.systemManagement',
+  '3': 'nav.systemMonitor',
+  '4': 'nav.overview',
 };
 
 const SECTION_KEY_BY_TITLE: Record<string, string> = {
   Management: 'nav.systemManagement',
-  Overview: 'nav.overview',
   Resources: 'nav.resources',
   'System Management': 'nav.systemManagement',
+  'System Monitor': 'nav.systemMonitor',
+  系统管理: 'nav.systemManagement',
+  系统监控: 'nav.systemMonitor',
+  概览: 'nav.overview',
+  概覽: 'nav.overview',
 };
 
 const ITEM_KEY_BY_CODE: Record<string, string> = {
-  dashboard_home: 'nav.dashboard',
-  system_management: 'nav.systemManagement',
+  '2': 'nav.dashboard',
   '100': 'nav.users',
   '101': 'nav.roles',
   '102': 'nav.menus',
@@ -34,6 +40,9 @@ const ITEM_KEY_BY_CODE: Record<string, string> = {
   '105': 'nav.dicts',
   '106': 'nav.configs',
   '107': 'nav.online',
+  '108': 'nav.jobs',
+  '109': 'nav.jobLogs',
+  '110': 'nav.notices',
 };
 
 const ITEM_KEY_BY_PATH: Record<string, string> = {
@@ -47,6 +56,7 @@ const ITEM_KEY_BY_PATH: Record<string, string> = {
   '/dashboard/admin/dicts': 'nav.dicts',
   '/dashboard/admin/configs': 'nav.configs',
   '/dashboard/admin/online': 'nav.online',
+  '/dashboard/admin/notices': 'nav.notices',
 };
 
 export function translateNavData(data: NavData, t: TranslateFn): NavData {

@@ -19,23 +19,33 @@ export function useServerDashboard() {
 }
 
 export function useDepts(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Dept>(systemEndpoints.depts, page, pageSize, params);
+  return usePagedResource<Dept>({ endpoint: systemEndpoints.depts, page, pageSize, params });
 }
 
 export function usePosts(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Post>(systemEndpoints.posts, page, pageSize, params);
+  return usePagedResource<Post>({ endpoint: systemEndpoints.posts, page, pageSize, params });
 }
 
 export function useDictTypes(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<DictType>(systemEndpoints.dictTypes, page, pageSize, params);
+  return usePagedResource<DictType>({
+    endpoint: systemEndpoints.dictTypes,
+    page,
+    pageSize,
+    params,
+  });
 }
 
 export function useDictData(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<DictData>(systemEndpoints.dictData, page, pageSize, params);
+  return usePagedResource<DictData>({ endpoint: systemEndpoints.dictData, page, pageSize, params });
 }
 
 export function useConfigs(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<ConfigItem>(systemEndpoints.configs, page, pageSize, params);
+  return usePagedResource<ConfigItem>({
+    endpoint: systemEndpoints.configs,
+    page,
+    pageSize,
+    params,
+  });
 }
 
 export function usePublicConfigs(keys: string[] = publicConfigKeys()) {

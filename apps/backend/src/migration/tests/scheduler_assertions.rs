@@ -15,6 +15,7 @@ const SCHEDULER_MENUS: &[(&str, &str)] = &[
     ("1092", "system:job:log:export"),
     ("1093", "system:job:log:detail"),
 ];
+const SCHEDULER_PAGE_RELATIONS: &[(&str, &str, i64)] = &[("108", "3", 2), ("109", "3", 3)];
 
 const SCHEDULER_DICT_TYPES: &[(&str, &str)] = &[("scheduler-job-group", "sys_job_group"), ("scheduler-job-status", "sys_job_status")];
 
@@ -38,10 +39,18 @@ const SCHEDULER_INDEXES: &[&str] = &[
 
 pub(super) async fn assert_scheduler_seed(pool: &PgPool) {
     assert_eq!(scheduler_menus(pool).await, owned_pairs(SCHEDULER_MENUS));
+    assert_eq!(scheduler_page_relations(pool).await, owned_triples_with_order(SCHEDULER_PAGE_RELATIONS));
     assert_eq!(scheduler_role_bindings(pool).await, 0);
     assert_eq!(scheduler_dict_types(pool).await, owned_pairs(SCHEDULER_DICT_TYPES));
     assert_eq!(scheduler_dict_data(pool).await, owned_triples(SCHEDULER_DICT_DATA));
     assert_eq!(scheduler_indexes(pool).await, owned_strings(SCHEDULER_INDEXES));
+}
+
+async fn scheduler_page_relations(pool: &PgPool) -> Vec<(String, String, i64)> {
+    query_as("SELECT menu_id,parent_id,order_num FROM sys_menu WHERE menu_id IN ('108','109') ORDER BY menu_id")
+        .fetch_all(pool)
+        .await
+        .unwrap()
 }
 
 async fn scheduler_menus(pool: &PgPool) -> Vec<(String, String)> {
@@ -92,4 +101,11 @@ fn owned_triples(values: &[(&str, &str, &str)]) -> Vec<(String, String, String)>
 
 fn owned_strings(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).into()).collect()
+}
+
+fn owned_triples_with_order(values: &[(&str, &str, i64)]) -> Vec<(String, String, i64)> {
+    values
+        .iter()
+        .map(|(menu_id, parent_id, order)| ((*menu_id).into(), (*parent_id).into(), *order))
+        .collect()
 }

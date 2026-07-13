@@ -1,8 +1,8 @@
 use sqlx::query;
 
-use super::{MIGRATION_TOTAL, TestDatabase, managed_table_exists, up};
+use super::{TestDatabase, managed_table_exists, up};
 
-const MIGRATIONS_BEFORE_SCHEDULER: u32 = MIGRATION_TOTAL as u32 - 2;
+const MIGRATIONS_BEFORE_SCHEDULER: u32 = 12;
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]

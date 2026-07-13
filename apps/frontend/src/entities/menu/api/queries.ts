@@ -6,5 +6,5 @@ import { usePagedResource } from 'src/shared/api/use-paged-resource';
 import { menuEndpoints } from './endpoints';
 
 export function useMenus(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Menu>(menuEndpoints.menus, page, pageSize, params);
+  return usePagedResource<Menu>({ endpoint: menuEndpoints.menus, page, pageSize, params });
 }
