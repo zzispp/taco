@@ -55,8 +55,8 @@ pub(super) fn sanitize_role_filter(input: RoleListFilter) -> RoleListFilter {
         role_key: trim_optional(input.role_key),
         status: trim_optional(input.status),
         system: input.system,
-        begin_time: trim_optional(input.begin_time),
-        end_time: trim_optional(input.end_time),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 
@@ -65,6 +65,8 @@ pub(super) fn sanitize_menu_filter(input: MenuListFilter) -> MenuListFilter {
         page: input.page,
         menu_name: trim_optional(input.menu_name),
         status: trim_optional(input.status),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 
@@ -210,17 +212,19 @@ pub(super) async fn ensure_menu_exists<R: RbacRepository>(repository: &R, id: &s
 #[cfg(test)]
 mod tests {
     use super::*;
+    use time::format_description::well_known::Rfc3339;
 
     #[test]
     fn sanitize_role_filter_trims_text_and_preserves_system_filter() {
+        let begin_time = time::OffsetDateTime::parse("2026-07-01T00:00:00Z", &Rfc3339).unwrap();
         let filter = RoleListFilter {
             page: PageRequest { page: 1, page_size: 10 },
             role_name: Some(" 管理员 ".into()),
             role_key: Some("   ".into()),
             status: Some(" 0 ".into()),
             system: Some(false),
-            begin_time: Some("2026-07-01".into()),
-            end_time: Some("  ".into()),
+            begin_time: Some(begin_time),
+            end_time: None,
         };
 
         assert_eq!(
@@ -231,7 +235,7 @@ mod tests {
                 role_key: None,
                 status: Some("0".into()),
                 system: Some(false),
-                begin_time: Some("2026-07-01".into()),
+                begin_time: Some(begin_time),
                 end_time: None,
             }
         );

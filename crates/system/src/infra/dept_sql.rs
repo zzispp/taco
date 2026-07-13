@@ -37,11 +37,11 @@ pub(super) fn scoped_total_sql() -> String {
 }
 
 fn predicate() -> &'static str {
-    "del_flag='0' AND ($1::text IS NULL OR dept_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR leader ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR phone ILIKE '%' || $3 || '%') AND ($4::text IS NULL OR email ILIKE '%' || $4 || '%') AND ($5::text IS NULL OR status=$5) AND ($6::text IS NULL OR create_time::date >= $6::date) AND ($7::text IS NULL OR create_time::date <= $7::date)"
+    "del_flag='0' AND ($1::text IS NULL OR dept_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR leader ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR phone ILIKE '%' || $3 || '%') AND ($4::text IS NULL OR email ILIKE '%' || $4 || '%') AND ($5::text IS NULL OR status=$5) AND ($6::timestamptz IS NULL OR create_time >= $6) AND ($7::timestamptz IS NULL OR create_time <= $7)"
 }
 
 fn scoped_filter_predicate() -> &'static str {
-    "d.del_flag='0' AND ($1::text IS NULL OR d.dept_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR d.leader ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR d.phone ILIKE '%' || $3 || '%') AND ($4::text IS NULL OR d.email ILIKE '%' || $4 || '%') AND ($5::text IS NULL OR d.status=$5) AND ($6::text IS NULL OR d.create_time::date >= $6::date) AND ($7::text IS NULL OR d.create_time::date <= $7::date)"
+    "d.del_flag='0' AND ($1::text IS NULL OR d.dept_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR d.leader ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR d.phone ILIKE '%' || $3 || '%') AND ($4::text IS NULL OR d.email ILIKE '%' || $4 || '%') AND ($5::text IS NULL OR d.status=$5) AND ($6::timestamptz IS NULL OR d.create_time >= $6) AND ($7::timestamptz IS NULL OR d.create_time <= $7)"
 }
 
 fn scoped_predicate() -> &'static str {
@@ -59,6 +59,15 @@ mod tests {
             assert!(sql.contains("leader ILIKE"));
             assert!(sql.contains("phone ILIKE"));
             assert!(sql.contains("email ILIKE"));
+        }
+    }
+
+    #[test]
+    fn dept_time_filters_compare_timestamps_without_date_truncation() {
+        for sql in [page_sql(), scoped_page_sql()] {
+            assert!(sql.contains("create_time >="));
+            assert!(sql.contains("create_time <="));
+            assert!(!sql.contains("::date"));
         }
     }
 }

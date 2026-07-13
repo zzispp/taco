@@ -1,6 +1,5 @@
 packages:
   - apps/frontend
-  - apps/hook_mock_api
 allowBuilds:
   sharp: true
   unrs-resolver: true

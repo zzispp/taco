@@ -4,11 +4,8 @@
   "packageManager": "pnpm@10.33.4",
   "scripts": {
     "dev:frontend": "pnpm --filter frontend dev",
-    "dev:mock-api": "pnpm --filter hook_mock_api dev",
     "build:frontend": "pnpm --filter frontend build",
-    "build:mock-api": "pnpm --filter hook_mock_api build",
     "lint:frontend": "pnpm --filter frontend lint",
-    "lint:mock-api": "pnpm --filter hook_mock_api lint",
     "dev:backend": "cargo run -p backend",
     "check:backend": "cargo check -p backend",
     "build:backend": "cargo build -p backend"

@@ -1,13 +1,10 @@
 use kernel::excel::write_xlsx;
-use kernel::pagination::PageRequest;
 use types::{
     http::{Locale, translate_message},
     system::{ConfigItem, DictData, DictType, Post},
 };
 
-use crate::application::{ConfigListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemError, SystemResult};
-
-use super::handlers::SystemExportQuery;
+use crate::application::{SystemError, SystemResult};
 
 const POST_SHEET_KEY: &str = "excel.system.post.sheet";
 const DICT_TYPE_SHEET_KEY: &str = "excel.system.dict_type.sheet";
@@ -78,50 +75,6 @@ pub fn export_dict_data_xlsx(items: &[DictData], locale: Locale) -> SystemResult
 pub fn export_configs_xlsx(items: &[ConfigItem], locale: Locale) -> SystemResult<Vec<u8>> {
     let rows = items.iter().map(config_row).collect::<Vec<_>>();
     write_export(export_sheet(CONFIG_SHEET_KEY, CONFIG_HEADER_KEYS, &rows), locale)
-}
-
-pub fn post_export_page(query: &SystemExportQuery, page: u64, page_size: u64) -> PostListFilter {
-    PostListFilter {
-        page: PageRequest { page, page_size },
-        post_code: query.post_code.clone(),
-        post_name: query.post_name.clone(),
-        status: query.status.clone(),
-        remark: query.remark.clone(),
-        begin_time: query.begin_time.clone(),
-        end_time: query.end_time.clone(),
-    }
-}
-
-pub fn dict_type_export_page(query: &SystemExportQuery, page: u64, page_size: u64) -> DictTypeListFilter {
-    DictTypeListFilter {
-        page: PageRequest { page, page_size },
-        dict_name: query.dict_name.clone(),
-        dict_type: query.dict_type.clone(),
-        status: query.status.clone(),
-        begin_time: query.begin_time.clone(),
-        end_time: query.end_time.clone(),
-    }
-}
-
-pub fn dict_data_export_page(query: &SystemExportQuery, page: u64, page_size: u64) -> DictDataListFilter {
-    DictDataListFilter {
-        page: PageRequest { page, page_size },
-        dict_type: query.dict_type.clone(),
-        dict_label: query.dict_label.clone(),
-        status: query.status.clone(),
-    }
-}
-
-pub fn config_export_page(query: &SystemExportQuery, page: u64, page_size: u64) -> ConfigListFilter {
-    ConfigListFilter {
-        page: PageRequest { page, page_size },
-        config_name: query.config_name.clone(),
-        config_key: query.config_key.clone(),
-        config_type: query.config_type.clone(),
-        public_read: query.public_read,
-        begin_time: query.begin_time.clone(),
-        end_time: query.end_time.clone(),
-    }
 }
 
 fn export_sheet<'a>(sheet_key: &'a str, header_keys: &'a [&'a str], rows: &'a [Vec<String>]) -> ExportSheet<'a> {

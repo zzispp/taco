@@ -7,10 +7,7 @@ use types::{
     user::User,
 };
 
-use crate::{
-    api::dto::UserExportQuery,
-    application::{AppError, AppResult, UserImportRow, UserListFilter},
-};
+use crate::application::{AppError, AppResult, UserImportRow};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 enum ImportField {
@@ -101,10 +98,6 @@ pub fn parse_import_rows(bytes: &[u8], locale: Locale) -> AppResult<Vec<UserImpo
         .filter(|row| !row_is_blank(row))
         .map(|row| import_row(row, &columns, locale))
         .collect()
-}
-
-pub fn export_query_page(query: &UserExportQuery, page: u64, page_size: u64) -> UserListFilter {
-    query.to_filter(page, page_size)
 }
 
 fn user_row(user: &User) -> Vec<String> {

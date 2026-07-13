@@ -1,0 +1,6 @@
+error: widget is incompatible with this task parameter type
+ --> tests/trybuild/fail/invalid_widget.rs:6:5
+  |
+6 | /     #[param_field(widget = "text")]
+7 | |     count: u32,
+  | |______________^

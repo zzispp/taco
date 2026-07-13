@@ -10,6 +10,7 @@ pub struct Settings {
     pub http: HttpSettings,
     pub metrics: MetricsSettings,
     pub redis: RedisSettings,
+    pub scheduler: SchedulerSettings,
     #[serde(default)]
     pub uploads: UploadSettings,
     pub tracing: TracingSettings,
@@ -72,6 +73,27 @@ pub struct HttpSettings {
 pub struct MetricsSettings {
     #[serde(default = "default_metrics_enabled")]
     pub enabled: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SchedulerSettings {
+    pub http_client: SchedulerHttpClientSettings,
+    pub runtime: SchedulerRuntimeSettings,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SchedulerHttpClientSettings {
+    /// Total timeout for one scheduled HTTP request.
+    pub request_timeout_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SchedulerRuntimeSettings {
+    /// Interval for leader health checks, notification recovery, and retries.
+    pub reconcile_interval_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

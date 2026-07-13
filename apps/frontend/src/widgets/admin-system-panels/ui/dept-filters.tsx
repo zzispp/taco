@@ -1,12 +1,18 @@
 import type { TranslateFn } from 'src/shared/i18n';
 import type { DeptFiltersValue } from './dept-constants';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
+import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import {
+  FilterDateTimePicker,
+  FilterDateTimeErrorAlert,
+} from 'src/shared/ui/filter-date-time-picker';
 
 import { DEFAULT_FILTERS } from './dept-constants';
 
@@ -20,20 +26,26 @@ type TextFilter = {
 
 const TEXT_FILTER_MIN_WIDTH = 150;
 const STATUS_FILTER_MIN_WIDTH = 140;
-const DATE_FILTER_MIN_WIDTH = 170;
 
-export function DeptFilters({ filters, onChange }: DeptFiltersProps) {
+export function DeptFilters({ filters, error, onChange }: DeptFiltersProps) {
   const { t } = useTranslate('admin');
   const write: FilterWriter = (key, value) => onChange({ ...filters, [key]: value });
   return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>
-      <DeptTextFilters filters={filters} write={write} t={t} />
-      <DeptStatusFilter value={filters.status} t={t} onChange={(value) => write('status', value)} />
-      <DeptDateFilters filters={filters} write={write} t={t} />
-      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
-        {t('common.reset')}
-      </Button>
-    </Stack>
+    <Box sx={{ p: 2 }}>
+      <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ alignItems: 'center' }}>
+        <DeptTextFilters filters={filters} write={write} t={t} />
+        <DeptStatusFilter
+          value={filters.status}
+          t={t}
+          onChange={(value) => write('status', value)}
+        />
+        <DeptDateFilters filters={filters} write={write} t={t} />
+        <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
+          {t('common.reset')}
+        </Button>
+      </Stack>
+      <FilterDateTimeErrorAlert error={error} />
+    </Box>
   );
 }
 
@@ -74,23 +86,15 @@ function DeptStatusFilter({ value, t, onChange }: SelectFilterProps) {
 function DeptDateFilters({ filters, write, t }: DeptFilterSectionProps) {
   return (
     <>
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.beginTime')}
         value={filters.begin_time}
-        InputLabelProps={{ shrink: true }}
-        sx={{ minWidth: DATE_FILTER_MIN_WIDTH }}
-        onChange={(event) => write('begin_time', event.target.value)}
+        onChange={(value) => write('begin_time', value)}
       />
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.endTime')}
         value={filters.end_time}
-        InputLabelProps={{ shrink: true }}
-        sx={{ minWidth: DATE_FILTER_MIN_WIDTH }}
-        onChange={(event) => write('end_time', event.target.value)}
+        onChange={(value) => write('end_time', value)}
       />
     </>
   );
@@ -107,6 +111,7 @@ function textFilters(t: TranslateFn): TextFilter[] {
 
 type DeptFiltersProps = {
   filters: DeptFiltersValue;
+  error: LocalDateTimeFilterError | null;
   onChange: (filters: DeptFiltersValue) => void;
 };
 

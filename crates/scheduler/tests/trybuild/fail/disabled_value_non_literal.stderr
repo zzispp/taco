@@ -1,0 +1,5 @@
+error: disabled_when_values accepts only String, bool, and numeric literals
+ --> tests/trybuild/fail/disabled_value_non_literal.rs:7:75
+  |
+7 |     #[param_field(disabled_when_path = "enabled", disabled_when_values = [true || false])]
+  |                                                                           ^^^^^^^^^^^^^

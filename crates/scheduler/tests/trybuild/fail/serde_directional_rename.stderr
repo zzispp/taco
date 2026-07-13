@@ -1,0 +1,5 @@
+error: serde rename must use the same serialize and deserialize name
+ --> tests/trybuild/fail/serde_directional_rename.rs:6:13
+  |
+6 |     #[serde(rename(serialize = "out", deserialize = "in"))]
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

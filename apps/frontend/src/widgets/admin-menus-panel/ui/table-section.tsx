@@ -19,7 +19,11 @@ export function MenuTableSection({ resources, dialogs, actions }: MenuManagement
 
   return (
     <Card>
-      <MenuFilters filters={resources.filters} onChange={resources.setFilters} />
+      <MenuFilters
+        filters={resources.filters}
+        error={resources.filterError}
+        onChange={resources.setFilters}
+      />
       <MenuSortToolbar controller={{ resources, dialogs, actions }} />
       <Scrollbar>
         <Table sx={{ minWidth: 1240 }}>
@@ -40,7 +44,10 @@ export function MenuTableSection({ resources, dialogs, actions }: MenuManagement
                 }
               />
             ))}
-            <TableNoData title={t('common.noData')} notFound={!menus.isLoading && treeRows.length === 0} />
+            <TableNoData
+              title={t('common.noData')}
+              notFound={!menus.isLoading && treeRows.length === 0}
+            />
           </TableBody>
         </Table>
       </Scrollbar>

@@ -1,0 +1,5 @@
+error: unsupported scheduled_task argument: unknown
+  --> tests/trybuild/fail/unknown_scheduled_task_argument.rs:10:5
+   |
+10 |     unknown = "value",
+   |     ^^^^^^^

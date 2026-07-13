@@ -122,8 +122,8 @@ pub(super) fn sanitize_filter(input: UserListFilter) -> UserListFilter {
         dept_name: trim_optional(input.dept_name),
         post_ids: trim_ids(input.post_ids),
         role_ids: trim_ids(input.role_ids),
-        begin_time: trim_optional(input.begin_time),
-        end_time: trim_optional(input.end_time),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 

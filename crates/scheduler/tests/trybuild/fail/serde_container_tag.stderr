@@ -1,0 +1,5 @@
+error: this serde container attribute is incompatible with ScheduledTaskParams
+ --> tests/trybuild/fail/serde_container_tag.rs:5:9
+  |
+5 | #[serde(tag = "kind")]
+  |         ^^^^^^^^^^^^

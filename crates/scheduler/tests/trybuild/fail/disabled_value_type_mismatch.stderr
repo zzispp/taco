@@ -1,0 +1,5 @@
+error: disabled_when_values must match the referenced field's JSON scalar type
+ --> tests/trybuild/fail/disabled_value_type_mismatch.rs:7:75
+  |
+7 |     #[param_field(disabled_when_path = "enabled", disabled_when_values = ["false"])]
+  |                                                                           ^^^^^^^

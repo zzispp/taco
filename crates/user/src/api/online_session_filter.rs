@@ -1,12 +1,12 @@
 use kernel::error::LocalizedError;
-use time::{Date, Month, Time};
+use time::OffsetDateTime;
+use types::http::{DATE_OR_RFC3339_FORMAT, DateTimeRangeError, parse_date_time_range};
 
 use crate::application::{AppError, AppResult, OnlineSession, OnlineSessionFilter};
 
-const DATE_FILTER_FORMAT: &str = "YYYY-MM-DD";
-const MILLISECONDS_PER_SECOND: i64 = 1_000;
-const MILLISECOND_BEFORE_NEXT_DAY: i64 = 1;
+const NANOSECONDS_PER_MILLISECOND: i128 = 1_000_000;
 const ONLINE_LOGIN_TIME_FILTER_ERROR_KEY: &str = "errors.user.invalid_online_login_time_filter";
+const ONLINE_LOGIN_TIME_RANGE_ERROR_KEY: &str = "errors.user.invalid_online_login_time_range";
 const ONLINE_LOGIN_TIME_OVERFLOW_ERROR: &str = "online login time filter timestamp overflow";
 
 pub(super) struct OnlineSessionMatcher {
@@ -17,9 +17,10 @@ pub(super) struct OnlineSessionMatcher {
 
 impl OnlineSessionMatcher {
     pub(super) fn new(filter: OnlineSessionFilter) -> AppResult<Self> {
+        let (begin_millis, end_millis) = login_time_millis_range(&filter)?;
         Ok(Self {
-            begin_millis: parse_boundary_millis(&filter.begin_time, TimeBoundary::Start)?,
-            end_millis: parse_boundary_millis(&filter.end_time, TimeBoundary::End)?,
+            begin_millis,
+            end_millis,
             filter,
         })
     }
@@ -39,74 +40,79 @@ fn case_insensitive_contains_filter(value: &str, filter: &Option<String>) -> boo
     filter.as_ref().is_none_or(|needle| value.to_lowercase().contains(&needle.to_lowercase()))
 }
 
-fn parse_boundary_millis(value: &Option<String>, boundary: TimeBoundary) -> AppResult<Option<i64>> {
-    let Some(value) = value else {
-        return Ok(None);
-    };
-    let date = parse_date(value)?;
-    boundary_millis(date, boundary).map(Some)
+fn login_time_millis_range(filter: &OnlineSessionFilter) -> AppResult<(Option<i64>, Option<i64>)> {
+    let range = parse_date_time_range(filter.begin_time.as_deref(), filter.end_time.as_deref()).map_err(login_time_error)?;
+    Ok((to_millis(range.begin_time)?, to_millis(range.end_time)?))
 }
 
-fn parse_date(value: &str) -> AppResult<Date> {
-    let mut parts = value.split('-');
-    let Some(year) = parts.next() else {
-        return Err(invalid_date_filter());
-    };
-    let Some(month) = parts.next() else {
-        return Err(invalid_date_filter());
-    };
-    let Some(day) = parts.next() else {
-        return Err(invalid_date_filter());
-    };
-    if parts.next().is_some() {
-        return Err(invalid_date_filter());
+fn to_millis(timestamp: Option<OffsetDateTime>) -> AppResult<Option<i64>> {
+    timestamp
+        .map(|value| i64::try_from(value.unix_timestamp_nanos().div_euclid(NANOSECONDS_PER_MILLISECOND)).map_err(|_| timestamp_overflow()))
+        .transpose()
+}
+
+fn login_time_error(error: DateTimeRangeError) -> AppError {
+    match error {
+        DateTimeRangeError::InvalidBoundary(_) => invalid_date_filter(),
+        DateTimeRangeError::Reversed => AppError::InvalidInput(LocalizedError::new(ONLINE_LOGIN_TIME_RANGE_ERROR_KEY)),
     }
-    calendar_date(year, month, day)
-}
-
-fn calendar_date(year: &str, month: &str, day: &str) -> AppResult<Date> {
-    let year = year.parse::<i32>().map_err(|_| invalid_date_filter())?;
-    let month = month
-        .parse::<u8>()
-        .ok()
-        .and_then(|value| Month::try_from(value).ok())
-        .ok_or_else(invalid_date_filter)?;
-    let day = day.parse::<u8>().map_err(|_| invalid_date_filter())?;
-    Date::from_calendar_date(year, month, day).map_err(|_| invalid_date_filter())
-}
-
-fn boundary_millis(date: Date, boundary: TimeBoundary) -> AppResult<i64> {
-    match boundary {
-        TimeBoundary::Start => start_of_day_millis(date),
-        TimeBoundary::End => end_of_day_millis(date),
-    }
-}
-
-fn start_of_day_millis(date: Date) -> AppResult<i64> {
-    date.with_time(Time::MIDNIGHT)
-        .assume_utc()
-        .unix_timestamp()
-        .checked_mul(MILLISECONDS_PER_SECOND)
-        .ok_or_else(timestamp_overflow)
-}
-
-fn end_of_day_millis(date: Date) -> AppResult<i64> {
-    let next_day = date.next_day().ok_or_else(timestamp_overflow)?;
-    start_of_day_millis(next_day)?
-        .checked_sub(MILLISECOND_BEFORE_NEXT_DAY)
-        .ok_or_else(timestamp_overflow)
 }
 
 fn invalid_date_filter() -> AppError {
-    AppError::InvalidInput(LocalizedError::new(ONLINE_LOGIN_TIME_FILTER_ERROR_KEY).with_param("format", DATE_FILTER_FORMAT))
+    AppError::InvalidInput(LocalizedError::new(ONLINE_LOGIN_TIME_FILTER_ERROR_KEY).with_param("format", DATE_OR_RFC3339_FORMAT))
 }
 
 fn timestamp_overflow() -> AppError {
     AppError::Infrastructure(ONLINE_LOGIN_TIME_OVERFLOW_ERROR.into())
 }
 
-#[derive(Clone, Copy)]
-enum TimeBoundary {
-    Start,
-    End,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const JULY_8_2026_START_UTC_MILLIS: i64 = 1_783_468_800_000;
+    const JULY_8_2026_END_UTC_MILLIS: i64 = 1_783_555_199_999;
+    const JULY_8_2026_NOON_UTC_MILLIS: i64 = 1_783_512_000_000;
+
+    #[test]
+    fn legacy_date_boundaries_cover_the_complete_utc_day() {
+        let filter = login_time_filter("2026-07-08", "2026-07-08");
+
+        assert_eq!(
+            login_time_millis_range(&filter).unwrap(),
+            (Some(JULY_8_2026_START_UTC_MILLIS), Some(JULY_8_2026_END_UTC_MILLIS))
+        );
+    }
+
+    #[test]
+    fn rfc3339_boundaries_are_converted_to_utc_milliseconds() {
+        let filter = login_time_filter("2026-07-08T20:00:00.000+08:00", "2026-07-08T12:00:00.000Z");
+
+        assert_eq!(
+            login_time_millis_range(&filter).unwrap(),
+            (Some(JULY_8_2026_NOON_UTC_MILLIS), Some(JULY_8_2026_NOON_UTC_MILLIS))
+        );
+    }
+
+    #[test]
+    fn matcher_rejects_reversed_login_time_range() {
+        let result = OnlineSessionMatcher::new(OnlineSessionFilter {
+            begin_time: Some("2026-07-08T12:00:00.001Z".into()),
+            end_time: Some("2026-07-08T12:00:00.000Z".into()),
+            ..Default::default()
+        });
+
+        let Err(AppError::InvalidInput(error)) = result else {
+            panic!("expected invalid login time range");
+        };
+        assert_eq!(error.key(), "errors.user.invalid_online_login_time_range");
+    }
+
+    fn login_time_filter(begin_time: &str, end_time: &str) -> OnlineSessionFilter {
+        OnlineSessionFilter {
+            begin_time: Some(begin_time.into()),
+            end_time: Some(end_time.into()),
+            ..Default::default()
+        }
+    }
 }

@@ -7,6 +7,7 @@ import { useRef, useEffect } from 'react';
 import { getStorage } from 'minimal-shared/utils';
 import { initReactI18next, I18nextProvider as Provider } from 'react-i18next';
 
+import { I18N_NAMESPACES } from './types';
 import enAdmin from './langs/en/admin.json';
 import cnAdmin from './langs/cn/admin.json';
 import twAdmin from './langs/tw/admin.json';
@@ -19,6 +20,9 @@ import twNavbar from './langs/tw/navbar.json';
 import enMessages from './langs/en/messages.json';
 import cnMessages from './langs/cn/messages.json';
 import twMessages from './langs/tw/messages.json';
+import enScheduler from './langs/en/scheduler.json';
+import cnScheduler from './langs/cn/scheduler.json';
+import twScheduler from './langs/tw/scheduler.json';
 import { i18nOptions, fallbackLng, storageConfig } from './locales-config';
 
 // ----------------------------------------------------------------------
@@ -28,11 +32,29 @@ import { i18nOptions, fallbackLng, storageConfig } from './locales-config';
  */
 i18next.use(initReactI18next).init({
   ...i18nOptions(fallbackLng),
-  ns: ['common', 'messages', 'admin', 'navbar'],
+  ns: I18N_NAMESPACES,
   resources: {
-    cn: { admin: cnAdmin, common: cnCommon, messages: cnMessages, navbar: cnNavbar },
-    en: { admin: enAdmin, common: enCommon, messages: enMessages, navbar: enNavbar },
-    tw: { admin: twAdmin, common: twCommon, messages: twMessages, navbar: twNavbar },
+    cn: {
+      admin: cnAdmin,
+      common: cnCommon,
+      messages: cnMessages,
+      navbar: cnNavbar,
+      scheduler: cnScheduler,
+    },
+    en: {
+      admin: enAdmin,
+      common: enCommon,
+      messages: enMessages,
+      navbar: enNavbar,
+      scheduler: enScheduler,
+    },
+    tw: {
+      admin: twAdmin,
+      common: twCommon,
+      messages: twMessages,
+      navbar: twNavbar,
+      scheduler: twScheduler,
+    },
   },
 });
 

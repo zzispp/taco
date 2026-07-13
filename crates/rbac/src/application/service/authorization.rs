@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
 use matchit::Router;
+use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_SELF};
 
 use crate::{
     api::CurrentUser,
-    application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacResult},
+    application::{ApiCheckRequest, AuthorizationConfig, PermissionRequirement, RbacError, RbacResult, RoutePermissionRule},
     domain::{DataScopeFilter, PermissionSnapshot},
 };
 
@@ -15,10 +16,10 @@ pub(super) fn data_scope_filter(user: &CurrentUser, snapshot: &PermissionSnapsho
         .roles
         .iter()
         .filter(|role| role.status == constants::system::STATUS_NORMAL && user.role_keys.contains(&role.role_key));
-    let data_scope = roles.clone().map(|role| role.data_scope.as_str()).min().unwrap_or("5");
+    let data_scope = roles.clone().map(|role| role.data_scope.as_str()).min().unwrap_or(DATA_SCOPE_SELF);
     let dept_ids = roles.flat_map(|role| role.dept_ids.clone()).collect::<HashSet<_>>();
     DataScopeFilter {
-        data_scope: if user.admin { "1".into() } else { data_scope.into() },
+        data_scope: if user.admin { DATA_SCOPE_ALL.into() } else { data_scope.into() },
         user_id: user.id.clone(),
         dept_id: user.dept_id.clone(),
         dept_ids: dept_ids.into_iter().collect(),
@@ -26,12 +27,12 @@ pub(super) fn data_scope_filter(user: &CurrentUser, snapshot: &PermissionSnapsho
 }
 
 pub(super) fn validate_protected_handlers(config: &AuthorizationConfig) -> RbacResult<()> {
-    let declared = inventory::iter::<crate::application::ProtectedHandler>
-        .into_iter()
-        .map(|handler| (handler.function, handler.permission))
-        .collect::<HashSet<_>>();
+    let declared = inventory::iter::<crate::application::ProtectedHandler>.into_iter().collect::<Vec<_>>();
     for rule in &config.route_permissions {
-        if !declared.contains(&(rule.handler, rule.permission.as_str())) {
+        let matches = declared
+            .iter()
+            .any(|handler| handler.function == rule.handler && handler.requirement.is_equivalent_to(rule.requirement));
+        if !matches {
             return Err(RbacError::InvalidInput(localized_param(
                 "errors.rbac.missing_handler_permission",
                 "handler",
@@ -55,16 +56,16 @@ pub(super) fn validate_data_scope_handlers(handlers: &[&str]) -> RbacResult<()> 
     Ok(())
 }
 
-pub(super) fn required_permission<'a>(config: &'a AuthorizationConfig, request: &ApiCheckRequest) -> RbacResult<&'a str> {
-    config
-        .route_permissions
-        .iter()
-        .find(|rule| route_rule_matches(rule, request).unwrap_or(false))
-        .map(|rule| rule.permission.as_str())
-        .ok_or(RbacError::Forbidden)
+pub(super) fn required_permission(config: &AuthorizationConfig, request: &ApiCheckRequest) -> RbacResult<PermissionRequirement> {
+    for rule in &config.route_permissions {
+        if route_rule_matches(rule, request)? {
+            return Ok(rule.requirement);
+        }
+    }
+    Err(RbacError::Forbidden)
 }
 
-pub(super) fn route_rule_matches(rule: &types::rbac::RoutePermissionRule, request: &ApiCheckRequest) -> RbacResult<bool> {
+pub(super) fn route_rule_matches(rule: &RoutePermissionRule, request: &ApiCheckRequest) -> RbacResult<bool> {
     if !rule.methods.iter().any(|method| method.eq_ignore_ascii_case(&request.method)) {
         return Ok(false);
     }

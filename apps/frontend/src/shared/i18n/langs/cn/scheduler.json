@@ -1,0 +1,220 @@
+{
+  "importJob": "导入任务",
+  "editJob": "编辑任务",
+  "taskKey": "任务标识",
+  "jobName": "任务名称",
+  "jobGroup": "任务分组",
+  "invokeTarget": "调用目标",
+  "cronExpression": "Cron 表达式",
+  "registryStatus": "注册状态",
+  "misfirePolicy": "错过执行策略",
+  "concurrent": "并发策略",
+  "runOnce": "执行一次",
+  "runAccepted": "任务已进入执行队列",
+  "cronBuilder": "Cron 表达式生成器",
+  "customExpression": "自定义表达式",
+  "nextTimes": "最近 5 次运行时间",
+  "cronInvalid": "Cron 表达式无效",
+  "jobMessage": "日志信息",
+  "executionId": "执行编号",
+  "copyExecutionId": "复制执行编号",
+  "copyExecutionIdSuccess": "执行编号已复制",
+  "copyExecutionIdFailed": "复制执行编号失败",
+  "triggerType": "触发方式",
+  "scheduledAt": "计划时间",
+  "startTime": "开始时间",
+  "endTime": "结束时间",
+  "runtimeError": "运行错误",
+  "notStarted": "未启动",
+  "clearLogs": "清空日志",
+  "clearLogsConfirm": "确认清空所有已结束的调度日志？",
+  "clearLogsGlobalConfirm": "确认清空全部已结束的调度日志？当前筛选条件不会限制清空范围。",
+  "filters": {
+    "createdFrom": "日志生成起始时间",
+    "createdTo": "日志生成截止时间",
+    "invalidDateTime": "请输入有效的日志生成时间",
+    "invalidRange": "筛选开始时间不能晚于筛选结束时间"
+  },
+  "jobDetail": {
+    "title": "任务详情",
+    "open": "查看任务详情",
+    "tabs": {
+      "configuration": "任务配置",
+      "schedule": "调度信息",
+      "method": "执行方法",
+      "metadata": "元信息"
+    },
+    "fields": {
+      "jobId": "任务编号",
+      "repeatable": "允许重复导入",
+      "scheduleRevision": "调度版本",
+      "nextRunAt": "下次执行时间",
+      "runtimeErrorAt": "运行错误时间",
+      "paramsSchemaVersion": "参数协议版本",
+      "taskParameters": "任务参数",
+      "createdBy": "创建人",
+      "createdAt": "创建时间",
+      "updatedBy": "更新人",
+      "updatedAt": "更新时间"
+    }
+  },
+  "executionDetail": {
+    "title": "执行详情",
+    "open": "查看执行详情",
+    "openLegacy": "查看执行快照（无请求响应记录）",
+    "tabs": {
+      "overview": "概览",
+      "parameters": "参数",
+      "request": "请求",
+      "response": "响应"
+    },
+    "notAvailable": "不可用",
+    "legacy": "无执行详情",
+    "unknown": "未知详情类型",
+    "httpExchange": "HTTP 请求响应",
+    "durationMs": "{{value}} 毫秒",
+    "byteLength": "{{value}} 字节",
+    "none": "无",
+    "legacyDescription": "该执行记录没有请求响应详情，但仍可查看执行快照和任务参数。",
+    "noResponse": "请求未收到响应。",
+    "noHeaders": "无 HTTP 标头",
+    "noBody": "无正文",
+    "encoding": {
+      "utf8": "UTF-8 文本",
+      "base64": "Base64"
+    },
+    "fields": {
+      "jobRevision": "任务版本",
+      "requestedBy": "请求人",
+      "detailKind": "详情类型",
+      "schemaVersion": "详情协议版本",
+      "duration": "耗时",
+      "failure": "失败类型",
+      "exceptionInfo": "异常信息",
+      "createdAt": "记录创建时间",
+      "method": "请求方法",
+      "url": "请求地址",
+      "statusCode": "响应状态码",
+      "finalUrl": "最终地址",
+      "headers": "HTTP 标头",
+      "body": "正文"
+    },
+    "failureValues": {
+      "requestBuild": "请求构建失败",
+      "timeout": "请求超时",
+      "connect": "连接失败",
+      "request": "请求发送失败",
+      "responseBody": "响应正文读取失败",
+      "httpStatus": "HTTP 状态码表示失败"
+    }
+  },
+  "confirmDelete": "确认删除任务“{{name}}”？",
+  "confirmBatchDelete": "确认删除选中的 {{count}} 个任务？",
+  "noPreview": "暂无可用的运行时间预览",
+  "paramKey": "键",
+  "paramValue": "值",
+  "addParamRow": "添加参数行",
+  "mode": {
+    "builder": "表达式生成器",
+    "custom": "自定义表达式"
+  },
+  "paramErrors": {
+    "invalidJson": "请输入有效的 JSON",
+    "emptyKey": "参数键不能为空",
+    "duplicateKey": "参数键不能重复",
+    "invalidKeyValue": "键值参数必须是仅包含字符串值的对象",
+    "invalidValue": "参数值无效"
+  },
+  "mutation": {
+    "saveFailed": "保存任务失败",
+    "deleteFailed": "删除任务失败",
+    "exportFailed": "导出失败",
+    "statusFailed": "更新任务状态失败",
+    "runFailed": "触发任务失败"
+  },
+  "registryStatusValues": {
+    "ok": "正常",
+    "missing": "任务未注册",
+    "repeatableMismatch": "重复执行配置不一致",
+    "invalidParams": "任务参数无效"
+  },
+  "runtimeErrorValues": {
+    "taskMissing": "任务未注册",
+    "repeatableMismatch": "重复执行配置不一致",
+    "invalidParams": "任务参数无效",
+    "invalidCron": "Cron 表达式无效"
+  },
+  "jobStatus": {
+    "normal": "启用",
+    "paused": "暂停"
+  },
+  "concurrentPolicy": {
+    "allow": "允许并发",
+    "disallow": "禁止并发"
+  },
+  "misfirePolicyValues": {
+    "fireOnce": "补跑一次",
+    "doNothing": "跳过"
+  },
+  "statuses": {
+    "execution": {
+      "success": "成功",
+      "failed": "失败",
+      "skipped": "已跳过",
+      "interrupted": "已中断"
+    }
+  },
+  "trigger": {
+    "scheduled": "计划调度",
+    "manual": "手动触发",
+    "misfire": "错过补偿"
+  },
+  "job": {
+    "success": "任务执行成功",
+    "failed": "任务执行失败"
+  },
+  "cron": {
+    "second": "秒",
+    "minute": "分钟",
+    "hour": "小时",
+    "day": "日",
+    "month": "月",
+    "week": "周",
+    "year": "年"
+  },
+  "cronBuilderUi": {
+    "allowed": "{{field}}，允许的通配符{{chars}}",
+    "range": "周期从",
+    "from": "从",
+    "start": "开始",
+    "end": "结束",
+    "intervalEvery": "开始，每",
+    "step": "间隔",
+    "executeOnce": "执行一次",
+    "specific": "指定",
+    "multiPlaceholder": "可多选",
+    "unspecified": "不指定",
+    "nearestWorkdayPrefix": "每月",
+    "nearestWorkdaySuffix": "号最近的那个工作日",
+    "lastDay": "本月最后一天",
+    "weekRange": "周期从星期",
+    "nthWeekdayPrefix": "第",
+    "nth": "周数",
+    "nthWeekdayMiddle": "周的星期",
+    "lastWeekdayPrefix": "本月最后一个星期",
+    "yearBlankAllowed": "不填，允许的通配符[, - * /]",
+    "yearly": "每年",
+    "timeExpression": "时间表达式",
+    "calculating": "计算结果中...",
+    "confirm": "确定",
+    "weekdays": {
+      "1": "星期日",
+      "2": "星期一",
+      "3": "星期二",
+      "4": "星期三",
+      "5": "星期四",
+      "6": "星期五",
+      "7": "星期六"
+    }
+  }
+}

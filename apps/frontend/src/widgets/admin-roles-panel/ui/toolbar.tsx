@@ -11,6 +11,7 @@ export function RoleToolbar({
   canAdd,
   canDelete,
   canExport,
+  exportDisabled,
   selectedCount,
   onCreate,
   onBatchDelete,
@@ -20,6 +21,7 @@ export function RoleToolbar({
   canAdd: boolean;
   canDelete: boolean;
   canExport: boolean;
+  exportDisabled: boolean;
   selectedCount: number;
   onCreate: () => void;
   onBatchDelete: () => void;
@@ -31,6 +33,7 @@ export function RoleToolbar({
       {canExport && (
         <Button
           variant="outlined"
+          disabled={exportDisabled}
           startIcon={<Iconify icon="solar:export-bold" />}
           onClick={onExport}
         >

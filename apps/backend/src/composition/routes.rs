@@ -1,7 +1,4 @@
-use rbac::{
-    application::{AuthWhitelistRule, AuthorizationConfig},
-    domain::RoutePermissionRule,
-};
+use rbac::application::{AuthWhitelistRule, AuthorizationConfig, PermissionRequirement, RoutePermissionRule};
 
 use configuration::Settings;
 
@@ -14,7 +11,7 @@ const DELETE: &[&str] = &["DELETE"];
 struct RouteRuleSpec {
     methods: &'static [&'static str],
     path_pattern: &'static str,
-    permission: &'static str,
+    requirement: PermissionRequirement,
     handler: &'static str,
 }
 
@@ -23,7 +20,7 @@ macro_rules! rule_spec {
         RouteRuleSpec {
             methods: $methods,
             path_pattern: $path_pattern,
-            permission: $permission,
+            requirement: PermissionRequirement::all_of(&[$permission]),
             handler: $handler,
         }
     };
@@ -78,6 +75,8 @@ pub(super) fn route_permissions() -> Vec<RoutePermissionRule> {
     rules.extend(post_routes());
     rules.extend(dict_routes());
     rules.extend(config_routes());
+    rules.extend(job_routes());
+    rules.extend(job_log_routes());
     rules
 }
 
@@ -112,12 +111,7 @@ pub(super) fn data_scope_handlers() -> Vec<&'static str> {
 }
 
 fn dashboard_routes() -> Vec<RoutePermissionRule> {
-    from_specs(&[RouteRuleSpec {
-        methods: GET,
-        path_pattern: "/api/system/dashboard",
-        permission: "system:dashboard:view",
-        handler: "get_server_dashboard",
-    }])
+    from_specs(&[rule_spec!(GET, "/api/system/dashboard", "system:dashboard:view", "get_server_dashboard")])
 }
 
 fn user_routes() -> Vec<RoutePermissionRule> {
@@ -254,6 +248,44 @@ fn config_routes() -> Vec<RoutePermissionRule> {
     ])
 }
 
+fn job_routes() -> Vec<RoutePermissionRule> {
+    from_specs(&[
+        rule_spec!(GET, "/api/system/jobs", "system:job:list", "list_jobs"),
+        rule_spec!(POST, "/api/system/jobs/export", "system:job:export", "export_jobs"),
+        rule_spec!(GET, "/api/system/jobs/importable", "system:job:import", "importable_tasks"),
+        rule_spec!(POST, "/api/system/jobs/import", "system:job:import", "import_job"),
+        RouteRuleSpec {
+            methods: POST,
+            path_pattern: "/api/system/jobs/cron/next-times",
+            requirement: PermissionRequirement::any_of(&["system:job:import", "system:job:edit"]),
+            handler: "cron_next_times",
+        },
+        rule_spec!(DELETE, "/api/system/jobs/batch", "system:job:remove", "delete_jobs"),
+        rule_spec!(GET, "/api/system/jobs/{id}", "system:job:query", "get_job"),
+        rule_spec!(PUT, "/api/system/jobs/{id}", "system:job:edit", "replace_job"),
+        rule_spec!(DELETE, "/api/system/jobs/{id}", "system:job:remove", "delete_job"),
+        rule_spec!(PUT, "/api/system/jobs/{id}/status", "system:job:changeStatus", "update_job_status"),
+        rule_spec!(POST, "/api/system/jobs/{id}/run", "system:job:run", "run_job"),
+    ])
+}
+
+fn job_log_routes() -> Vec<RoutePermissionRule> {
+    from_specs(&[
+        rule_spec!(GET, "/api/system/job-logs", "system:job:log:list", "list_job_logs"),
+        rule_spec!(POST, "/api/system/job-logs/export", "system:job:log:export", "export_job_logs"),
+        rule_spec!(DELETE, "/api/system/job-logs/clean", "system:job:log:remove", "clear_job_logs"),
+        rule_spec!(DELETE, "/api/system/job-logs/batch", "system:job:log:remove", "delete_job_logs"),
+        RouteRuleSpec {
+            methods: GET,
+            path_pattern: "/api/system/job-logs/{id}/detail",
+            requirement: PermissionRequirement::all_of(&["system:job:log:query", "system:job:log:detail"]),
+            handler: "get_job_log_detail",
+        },
+        rule_spec!(GET, "/api/system/job-logs/{id}", "system:job:log:query", "get_job_log"),
+        rule_spec!(DELETE, "/api/system/job-logs/{id}", "system:job:log:remove", "delete_job_log"),
+    ])
+}
+
 fn from_specs(specs: &[RouteRuleSpec]) -> Vec<RoutePermissionRule> {
     specs.iter().map(|spec| route_rule(*spec)).collect()
 }
@@ -262,7 +294,7 @@ fn route_rule(spec: RouteRuleSpec) -> RoutePermissionRule {
     RoutePermissionRule {
         methods: spec.methods.iter().map(|method| (*method).into()).collect(),
         path_pattern: spec.path_pattern.into(),
-        permission: spec.permission.into(),
+        requirement: spec.requirement,
         handler: spec.handler,
     }
 }

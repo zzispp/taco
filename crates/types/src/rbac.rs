@@ -179,22 +179,6 @@ pub struct RoleMenuSnapshot {
     pub sections: Vec<NavSectionResponse>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ProtectedHandler {
-    pub function: &'static str,
-    pub permission: &'static str,
-}
-
-inventory::collect!(ProtectedHandler);
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RoutePermissionRule {
-    pub methods: Vec<String>,
-    pub path_pattern: String,
-    pub permission: String,
-    pub handler: &'static str,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DataScopeFilter {
     pub data_scope: String,

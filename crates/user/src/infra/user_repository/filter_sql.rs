@@ -17,8 +17,8 @@ const FILTERED_USERS_TEMPLATE: &str = r#"
                 AND (',' || d.ancestors || ',') LIKE '%,' || $4 || ',%'
           )
       )
-      AND ($5::text IS NULL OR u.create_time::date >= $5::date)
-      AND ($6::text IS NULL OR u.create_time::date <= $6::date)
+      AND ($5::timestamptz IS NULL OR u.create_time >= $5)
+      AND ($6::timestamptz IS NULL OR u.create_time <= $6)
       AND ($7::text IS NULL OR u.nick_name ILIKE '%' || $7 || '%')
       AND (
           $8::text IS NULL
@@ -57,8 +57,8 @@ const FILTERED_USERS_TOTAL: &str = r#"
                 AND (',' || d.ancestors || ',') LIKE '%,' || $4 || ',%'
           )
       )
-      AND ($5::text IS NULL OR u.create_time::date >= $5::date)
-      AND ($6::text IS NULL OR u.create_time::date <= $6::date)
+      AND ($5::timestamptz IS NULL OR u.create_time >= $5)
+      AND ($6::timestamptz IS NULL OR u.create_time <= $6)
       AND ($7::text IS NULL OR u.nick_name ILIKE '%' || $7 || '%')
       AND (
           $8::text IS NULL
@@ -109,8 +109,8 @@ const SCOPED_USER_IDS: &str = r#"
               AND (',' || d.ancestors || ',') LIKE '%,' || $8 || ',%'
         )
     )
-    AND ($9::text IS NULL OR u.create_time::date >= $9::date)
-    AND ($10::text IS NULL OR u.create_time::date <= $10::date)
+    AND ($9::timestamptz IS NULL OR u.create_time >= $9)
+    AND ($10::timestamptz IS NULL OR u.create_time <= $10)
     AND ($11::text IS NULL OR u.nick_name ILIKE '%' || $11 || '%')
     AND (
         $12::text IS NULL
@@ -163,8 +163,8 @@ const SCOPED_USER_TOTAL: &str = r#"
               AND (',' || d.ancestors || ',') LIKE '%,' || $8 || ',%'
         )
     )
-    AND ($9::text IS NULL OR u.create_time::date >= $9::date)
-    AND ($10::text IS NULL OR u.create_time::date <= $10::date)
+    AND ($9::timestamptz IS NULL OR u.create_time >= $9)
+    AND ($10::timestamptz IS NULL OR u.create_time <= $10)
     AND ($11::text IS NULL OR u.nick_name ILIKE '%' || $11 || '%')
     AND (
         $12::text IS NULL
@@ -235,5 +235,19 @@ mod tests {
         assert!(sql.contains("cardinality($11::text[]) = 0"));
         assert!(sql.contains("cardinality($12::text[]) = 0"));
         assert!(sql.contains("LIMIT $13 OFFSET $14"));
+    }
+
+    #[test]
+    fn all_user_queries_compare_typed_timestamps_without_casting_the_column_to_date() {
+        let filtered = filtered_users("ORDER BY u.create_time ASC LIMIT $13 OFFSET $14");
+        let queries = [filtered.as_str(), filtered_users_total(), scoped_user_ids(), scoped_user_total()];
+
+        for sql in queries {
+            assert!(!sql.contains("create_time::date"));
+            assert!(!sql.contains("::date"));
+            assert!(sql.contains("::timestamptz IS NULL"));
+            assert!(sql.contains("u.create_time >="));
+            assert!(sql.contains("u.create_time <="));
+        }
     }
 }

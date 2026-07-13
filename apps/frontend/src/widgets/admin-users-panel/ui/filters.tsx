@@ -3,6 +3,7 @@ import type { Post } from 'src/entities/system';
 import type { TranslateFn } from 'src/shared/i18n';
 import type { RoleOption } from 'src/entities/role';
 import type { UserFiltersValue } from './constants';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -11,6 +12,10 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import {
+  FilterDateTimePicker,
+  FilterDateTimeErrorAlert,
+} from 'src/shared/ui/filter-date-time-picker';
 
 import { translatedRoleName } from 'src/entities/role';
 
@@ -19,7 +24,6 @@ import { SearchMultiSelect } from './search-multi-select';
 
 const TEXT_FILTER_WIDTH = 150;
 const SELECT_FILTER_WIDTH = 140;
-const DATE_FILTER_WIDTH = 170;
 const MULTI_SELECT_FILTER_WIDTH = 220;
 const ID_SEPARATOR = ',';
 
@@ -27,31 +31,35 @@ type FilterWriter = (key: keyof UserFiltersValue, value: string) => void;
 
 type UserFiltersProps = {
   filters: UserFiltersValue;
+  error: LocalDateTimeFilterError | null;
   roles: RoleOption[];
   posts: Post[];
   onChange: (filters: UserFiltersValue) => void;
 };
 
-export function UserFilters({ filters, roles, posts, onChange }: UserFiltersProps) {
+export function UserFilters({ filters, error, roles, posts, onChange }: UserFiltersProps) {
   const { t } = useTranslate('admin');
   const write: FilterWriter = (key, value) => onChange({ ...filters, [key]: value });
 
   return (
-    <Stack
-      direction="row"
-      useFlexGap
-      flexWrap="wrap"
-      spacing={2}
-      sx={{ p: 2, alignItems: 'center' }}
-    >
-      <TextFilterFields filters={filters} write={write} t={t} />
-      <SelectFilterFields filters={filters} write={write} t={t} />
-      <MultiSelectFilterFields filters={filters} write={write} roles={roles} posts={posts} t={t} />
-      <DateFilterFields filters={filters} write={write} t={t} />
-      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
-        {t('common.reset')}
-      </Button>
-    </Stack>
+    <Box sx={{ p: 2 }}>
+      <Stack direction="row" useFlexGap flexWrap="wrap" spacing={2} sx={{ alignItems: 'center' }}>
+        <TextFilterFields filters={filters} write={write} t={t} />
+        <SelectFilterFields filters={filters} write={write} t={t} />
+        <MultiSelectFilterFields
+          filters={filters}
+          write={write}
+          roles={roles}
+          posts={posts}
+          t={t}
+        />
+        <DateFilterFields filters={filters} write={write} t={t} />
+        <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
+          {t('common.reset')}
+        </Button>
+      </Stack>
+      <FilterDateTimeErrorAlert error={error} />
+    </Box>
   );
 }
 
@@ -145,23 +153,15 @@ function MultiSelectFilterFields({ filters, write, roles, posts, t }: MultiSelec
 function DateFilterFields({ filters, write, t }: BaseFilterProps) {
   return (
     <>
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.beginTime')}
         value={filters.begin_time}
-        sx={{ minWidth: DATE_FILTER_WIDTH }}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('begin_time', event.target.value)}
+        onChange={(value) => write('begin_time', value)}
       />
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.endTime')}
         value={filters.end_time}
-        sx={{ minWidth: DATE_FILTER_WIDTH }}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('end_time', event.target.value)}
+        onChange={(value) => write('end_time', value)}
       />
     </>
   );

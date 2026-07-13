@@ -6,6 +6,7 @@ mod online_session_filter;
 mod routes;
 mod state;
 mod tokens;
+mod user_list_filter;
 
 pub use dto::{
     AuthSessionResponse, AvatarResponse, ChangePasswordPayload, ListUsersQuery, MeResponse, OnlineSessionResponse, OnlineSessionsQuery, OnlineSessionsResponse,

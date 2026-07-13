@@ -1,17 +1,22 @@
 use axum::{
     Json,
-    extract::{FromRequest, Request, rejection::JsonRejection},
-    http::{StatusCode, header::ACCEPT_LANGUAGE},
+    extract::{
+        FromRequest, FromRequestParts, Query, Request,
+        rejection::{JsonRejection, QueryRejection},
+    },
+    http::{StatusCode, header::ACCEPT_LANGUAGE, request::Parts},
     response::{IntoResponse, Response},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use utoipa::ToSchema;
 
 mod locale;
+mod time_range;
 
 pub use locale::{
     ApiErrorKind, Locale, current_locale, locale_middleware, localized_error_response, translate_error, translate_message, translate_message_with_params,
 };
+pub use time_range::{DATE_OR_RFC3339_FORMAT, DateTimeRange, DateTimeRangeError, DateTimeRangeField, parse_date_time_range};
 
 #[derive(Debug, PartialEq, Eq, Serialize, ToSchema)]
 pub struct ApiErrorResponse {
@@ -55,6 +60,46 @@ where
             .await
             .map(|Json(value)| Self(value))
             .map_err(|error| RequestJsonRejection::from_parts(error, locale))
+    }
+}
+
+/// Localized query extractor that preserves the shared API error shape.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RequestQuery<T>(pub T);
+
+impl<T, S> FromRequestParts<S> for RequestQuery<T>
+where
+    T: DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = RequestQueryRejection;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let locale = Locale::from_header_value(parts.headers.get(ACCEPT_LANGUAGE));
+        Query::<T>::from_request_parts(parts, state)
+            .await
+            .map(|Query(value)| Self(value))
+            .map_err(|error| RequestQueryRejection::new(error, locale))
+    }
+}
+
+#[derive(Debug)]
+pub struct RequestQueryRejection {
+    body: ApiErrorResponse,
+}
+
+impl RequestQueryRejection {
+    fn new(_error: QueryRejection, locale: Locale) -> Self {
+        let details = kernel::error::LocalizedError::new("errors.common.invalid_input");
+        Self {
+            body: localized_error_response(locale, ApiErrorKind::InvalidInput, Some(&details)),
+        }
+    }
+}
+
+impl IntoResponse for RequestQueryRejection {
+    fn into_response(self) -> Response {
+        (StatusCode::BAD_REQUEST, Json(self.body)).into_response()
     }
 }
 
@@ -138,7 +183,7 @@ mod tests {
     use axum::response::IntoResponse;
     use serde_json::json;
 
-    use super::{ApiErrorResponse, Locale, RequestJsonRejection};
+    use super::{ApiErrorResponse, Locale, RequestJsonRejection, RequestQueryRejection};
 
     #[test]
     fn api_error_response_serializes_without_envelope() {
@@ -162,6 +207,24 @@ mod tests {
         let response = rejection.into_response();
 
         assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn request_query_rejection_uses_localized_stable_shape() {
+        let error = axum::extract::Query::<QueryFixture>::try_from_uri(&"/?page=invalid".parse().unwrap()).unwrap_err();
+        let rejection = RequestQueryRejection::new(error, Locale::En);
+
+        assert_eq!(
+            rejection.body,
+            ApiErrorResponse::with_details("invalid_input", "Invalid input", "Invalid input")
+        );
+        assert_eq!(rejection.into_response().status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[derive(Debug, serde::Deserialize)]
+    struct QueryFixture {
+        #[allow(dead_code)]
+        page: u64,
     }
 
     #[test]

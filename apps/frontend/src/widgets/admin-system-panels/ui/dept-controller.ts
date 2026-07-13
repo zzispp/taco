@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 
 import { useDepts } from 'src/entities/system';
 import { useHasPermission } from 'src/entities/session';
@@ -15,9 +16,13 @@ import { toInput, deptHead, flattenDeptRows } from './dept-helpers';
 
 export function useDeptManagementController() {
   const state = useDeptState();
-  const resources = useDeptResources(state.filters, state.expanded);
+  const resources = useDeptResources(state.filterQuery, state.expanded);
   const parent = useDeptParentLoader({ state, t: resources.t });
-  const crud = useDeptCrudActions({ state, loadParentNodes: parent.loadParentNodes, t: resources.t });
+  const crud = useDeptCrudActions({
+    state,
+    loadParentNodes: parent.loadParentNodes,
+    t: resources.t,
+  });
   const sort = useDeptSortAction({ state, t: resources.t });
   const deletion = useDeptDeleteAction({ state, t: resources.t });
 
@@ -27,7 +32,7 @@ export function useDeptManagementController() {
 export type DeptManagementController = ReturnType<typeof useDeptManagementController>;
 
 function useDeptState() {
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const filters = useLocalDateTimeFilterState(DEFAULT_FILTERS);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [form, setForm] = useState(DEFAULT_INPUT);
   const [editing, setEditing] = useState<Dept | null>(null);
@@ -37,10 +42,31 @@ function useDeptState() {
   const [sortEdits, setSortEdits] = useState<Record<string, number>>({});
   const [parentNodes, setParentNodes] = useState<TreeSelectNode[]>([]);
 
-  return { filters, setFilters, expanded, setExpanded, form, setForm, editing, setEditing, creating, setCreating, submitting, setSubmitting, deleteTarget, setDeleteTarget, sortEdits, setSortEdits, parentNodes, setParentNodes };
+  return {
+    filters: filters.draft,
+    setFilters: filters.change,
+    filterQuery: filters.query,
+    filterError: filters.error,
+    expanded,
+    setExpanded,
+    form,
+    setForm,
+    editing,
+    setEditing,
+    creating,
+    setCreating,
+    submitting,
+    setSubmitting,
+    deleteTarget,
+    setDeleteTarget,
+    sortEdits,
+    setSortEdits,
+    parentNodes,
+    setParentNodes,
+  };
 }
 
-function useDeptResources(filters: typeof DEFAULT_FILTERS, expanded: string[]) {
+function useDeptResources(filters: Readonly<Record<string, string>>, expanded: string[]) {
   const { t } = useTranslate('admin');
   const resource = useDepts(0, 1000, filters);
   const head = useMemo(() => deptHead(t), [t]);
@@ -59,13 +85,16 @@ type DeptActionOptions = {
 type DeptParentOptions = DeptActionOptions;
 
 function useDeptParentLoader({ state, t }: DeptParentOptions) {
-  const loadParentNodes = useCallback(async (loader: () => Promise<TreeSelectNode[]>) => {
-    try {
-      state.setParentNodes(await loader());
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
-    }
-  }, [state, t]);
+  const loadParentNodes = useCallback(
+    async (loader: () => Promise<TreeSelectNode[]>) => {
+      try {
+        state.setParentNodes(await loader());
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
+      }
+    },
+    [state, t]
+  );
 
   return { loadParentNodes };
 }
@@ -86,17 +115,23 @@ function useDeptCrudActions({ state, loadParentNodes, t }: DeptCrudOptions) {
     state.setForm(DEFAULT_INPUT);
     await loadParentNodes(() => getDeptTree());
   }, [loadParentNodes, state]);
-  const openCreateChild = useCallback(async (dept: Dept) => {
-    state.setEditing(null);
-    state.setCreating(true);
-    state.setForm({ ...DEFAULT_INPUT, parent_id: dept.dept_id });
-    await loadParentNodes(() => getDeptTree());
-  }, [loadParentNodes, state]);
-  const openEdit = useCallback(async (dept: Dept) => {
-    state.setEditing(dept);
-    state.setForm(toInput(dept));
-    await loadParentNodes(() => getDeptExclude(dept.dept_id));
-  }, [loadParentNodes, state]);
+  const openCreateChild = useCallback(
+    async (dept: Dept) => {
+      state.setEditing(null);
+      state.setCreating(true);
+      state.setForm({ ...DEFAULT_INPUT, parent_id: dept.dept_id });
+      await loadParentNodes(() => getDeptTree());
+    },
+    [loadParentNodes, state]
+  );
+  const openEdit = useCallback(
+    async (dept: Dept) => {
+      state.setEditing(dept);
+      state.setForm(toInput(dept));
+      await loadParentNodes(() => getDeptExclude(dept.dept_id));
+    },
+    [loadParentNodes, state]
+  );
   const submitDept = useSubmitDept({ state, closeDialog, t });
 
   return { closeDialog, openCreate, openCreateChild, openEdit, submitDept };

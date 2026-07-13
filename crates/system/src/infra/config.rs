@@ -28,8 +28,8 @@ impl ConfigQueries {
             .bind(&filter.config_key)
             .bind(&filter.config_type)
             .bind(filter.public_read)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
         let rows = query_as::<_, ConfigRecord>(AssertSqlSafe(page_sql()))
@@ -37,8 +37,8 @@ impl ConfigQueries {
             .bind(&filter.config_key)
             .bind(&filter.config_type)
             .bind(filter.public_read)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .bind(page::limit(filter.page)?)
             .bind(page::offset(filter.page)?)
             .fetch_all(self.database.pool())
@@ -52,8 +52,8 @@ impl ConfigQueries {
             .bind(&filter.config_key)
             .bind(&filter.config_type)
             .bind(filter.public_read)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .fetch_all(self.database.pool())
             .await
             .map(|rows| rows.into_iter().map(config).collect())
@@ -134,7 +134,7 @@ impl ConfigQueries {
 }
 
 fn predicate() -> &'static str {
-    "($1::text IS NULL OR config_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR config_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR config_type=$3) AND ($4::boolean IS NULL OR public_read=$4::boolean) AND ($5::text IS NULL OR create_time::date >= $5::date) AND ($6::text IS NULL OR create_time::date <= $6::date)"
+    "($1::text IS NULL OR config_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR config_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR config_type=$3) AND ($4::boolean IS NULL OR public_read=$4::boolean) AND ($5::timestamptz IS NULL OR create_time >= $5) AND ($6::timestamptz IS NULL OR create_time <= $6)"
 }
 fn list_sql() -> String {
     format!("SELECT {COLUMNS} FROM sys_config WHERE {} ORDER BY config_id ASC", predicate())
@@ -178,5 +178,14 @@ mod tests {
 
         assert!(sql.contains("config_name ILIKE"));
         assert!(sql.contains("config_key ILIKE"));
+    }
+
+    #[test]
+    fn config_time_filters_compare_timestamps_without_date_truncation() {
+        let sql = page_sql();
+
+        assert!(sql.contains("create_time >="));
+        assert!(sql.contains("create_time <="));
+        assert!(!sql.contains("::date"));
     }
 }

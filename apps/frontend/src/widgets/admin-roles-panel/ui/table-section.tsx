@@ -1,7 +1,8 @@
 import type { TranslateFn } from 'src/shared/i18n';
 import type { DEFAULT_FILTERS } from './constants';
-import type { Role , useRoles } from 'src/entities/role';
-import type { useTable , TableHeadCellProps } from 'src/shared/ui/table';
+import type { Role, useRoles } from 'src/entities/role';
+import type { useTable, TableHeadCellProps } from 'src/shared/ui/table';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
 import Card from '@mui/material/Card';
 import Table from '@mui/material/Table';
@@ -21,6 +22,7 @@ type RoleTableSectionProps = {
   t: TranslateFn;
   table: ReturnType<typeof useTable>;
   filters: typeof DEFAULT_FILTERS;
+  filterError: LocalDateTimeFilterError | null;
   roles: ReturnType<typeof useRoles>;
   head: TableHeadCellProps[];
   loadingHead: TableHeadCellProps[];
@@ -37,11 +39,12 @@ type RoleTableSectionProps = {
 };
 
 export function RoleTableSection(props: RoleTableSectionProps) {
-  const { table, filters, roles, head, selectableRoles, selected, canDelete, onFilterChange } = props;
+  const { table, filters, roles, head, selectableRoles, selected, canDelete, onFilterChange } =
+    props;
 
   return (
     <Card>
-      <RoleFilters filters={filters} onChange={onFilterChange} />
+      <RoleFilters filters={filters} error={props.filterError} onChange={onFilterChange} />
       <Scrollbar>
         <Table sx={{ minWidth: 1260 }}>
           <ManagementTableHead
@@ -74,7 +77,10 @@ function RoleRows(props: RoleTableSectionProps) {
       ) : (
         roles.items.map((row) => <RoleDataRow key={row.role_id} row={row} {...props} />)
       )}
-      <TableNoData title={t('common.noData')} notFound={!roles.isLoading && roles.items.length === 0} />
+      <TableNoData
+        title={t('common.noData')}
+        notFound={!roles.isLoading && roles.items.length === 0}
+      />
     </TableBody>
   );
 }

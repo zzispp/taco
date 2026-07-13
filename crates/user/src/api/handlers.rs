@@ -1,15 +1,15 @@
 use axum::{
     Extension, Json,
-    extract::{Multipart, Path, Query, State},
+    extract::{Multipart, Path, State},
     http::{HeaderMap, header::AUTHORIZATION},
     response::Response,
 };
 use constants::system_config::{INIT_PASSWORD_KEY, REGISTER_USER_KEY};
-use kernel::error::LocalizedError;
+use kernel::{error::LocalizedError, pagination::PageRequest};
 use rbac::api::CurrentUser;
 use rbac_macros::{data_scope, require_perms};
 use types::{
-    http::{RequestJson, current_locale, xlsx_attachment},
+    http::{RequestJson, RequestQuery, current_locale, xlsx_attachment},
     rbac::DataScopeFilter,
     system::BatchIdsInput,
 };
@@ -23,9 +23,10 @@ use crate::{
             UserExportQuery, UserFormOptionsResponse, UserImportResponse, UserPayload, UserResponse, UserRolesPayload, UsersPageResponse,
         },
         error::ApiError,
-        import_export::{export_query_page, export_users_xlsx, import_template_xlsx, parse_import_rows},
+        import_export::{export_users_xlsx, import_template_xlsx, parse_import_rows},
+        user_list_filter::{export_filter_page, export_user_filter, list_user_filter},
     },
-    application::{AppError, AvatarFile, OnlineSession, UserImportInput},
+    application::{AppError, AvatarFile, OnlineSession, UserImportInput, UserListFilter},
     domain::{NewUser, User, UserId},
 };
 
@@ -38,16 +39,10 @@ mod support;
 pub use online::{force_logout_online_session, list_online_sessions};
 
 use self::support::{
-    ExportUsersInput, all_export_users, avatar_file, bearer_token, issue_tokens_for_user, new_admin_user, new_sign_up_user, ok, reject_disabled_registration,
-    user_import_form, verify_account_captcha,
+    AccountPasswordRequest, ExportUsersInput, ExportUsersRequest, ListUsersRequest, UserBatchRequest, UserJsonRequest, UserPathRequest, all_export_users,
+    avatar_file, bearer_token, issue_tokens_for_user, new_admin_user, new_sign_up_user, ok, reject_disabled_registration, user_import_form,
+    verify_account_captcha,
 };
-
-type AccountPasswordRequest = (State<ApiState>, Extension<CurrentUser>, RequestJson<ChangePasswordPayload>);
-type ExportUsersRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<UserExportQuery>);
-type ListUsersRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<ListUsersQuery>);
-type UserPathRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
-type UserJsonRequest<T> = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>, T);
-type UserBatchRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, RequestJson<BatchIdsInput>);
 
 pub async fn sign_up(
     State(state): State<ApiState>,
@@ -128,12 +123,13 @@ pub async fn upload_account_avatar(
 #[require_perms("system:user:export")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn export_users(request: ExportUsersRequest) -> ApiResult<Response> {
-    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let filter = export_user_filter(&query)?;
     let users = all_export_users(ExportUsersInput {
         state: &state,
         current_user: &current_user,
         data_scope,
-        query: &query,
+        filter,
     })
     .await?;
     let bytes = export_users_xlsx(&users, current_locale())?;
@@ -254,11 +250,12 @@ pub async fn user_dept_tree(State(state): State<ApiState>) -> ApiResult<ApiJson<
 #[require_perms("system:user:list")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn list_users(request: ListUsersRequest) -> ApiResult<ApiJson<UsersPageResponse>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let filter = list_user_filter(query)?;
     let page = if current_user.admin {
-        state.users.list_users(query.into()).await?
+        state.users.list_users(filter).await?
     } else {
-        state.users.list_users_scoped(query.into(), data_scope).await?
+        state.users.list_users_scoped(filter, data_scope).await?
     };
     Ok(ok(page.into()))
 }

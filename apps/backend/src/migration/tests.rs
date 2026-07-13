@@ -5,6 +5,14 @@ use std::{
 
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions, query, query_scalar};
 
+mod scheduler_assertions;
+mod scheduler_conflicts;
+mod scheduler_execution_detail;
+mod scheduler_execution_persistence;
+mod scheduler_log_query;
+mod scheduler_runtime;
+mod scheduler_schema;
+mod scheduler_supervisor;
 mod seed_assertions;
 
 use seed_assertions::assert_seed_data_exists;
@@ -13,7 +21,7 @@ use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, re
 
 const TEST_DB_ADMIN_URL: &str = "postgres://postgres:123456@localhost:5433/postgres";
 const TEST_DB_URL_PREFIX: &str = "postgres://postgres:123456@localhost:5433";
-const MIGRATION_TOTAL: usize = 12;
+const MIGRATION_TOTAL: usize = 14;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
@@ -50,6 +58,23 @@ async fn migrations_support_full_up_down_cycle() {
     assert_status_counts(pool, MIGRATION_TOTAL, 0).await;
     assert!(users_table_exists(pool).await);
     assert_seed_data_exists(pool).await;
+
+    database.drop().await;
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn fresh_drops_scheduler_tables_when_migration_state_is_missing() {
+    let database = TestDatabase::create().await;
+    let pool = database.pool();
+    up(pool, None).await.unwrap();
+    query("DROP TABLE _sqlx_migrations").execute(pool).await.unwrap();
+
+    fresh(pool).await.unwrap();
+
+    assert_status_counts(pool, MIGRATION_TOTAL, 0).await;
+    assert!(managed_table_exists(pool, "sys_job").await);
+    assert!(managed_table_exists(pool, "sys_job_execution").await);
 
     database.drop().await;
 }
@@ -230,8 +255,12 @@ async fn assert_status_counts(pool: &PgPool, applied: usize, pending: usize) {
 }
 
 async fn users_table_exists(pool: &PgPool) -> bool {
+    managed_table_exists(pool, USERS_TABLE_REGCLASS).await
+}
+
+async fn managed_table_exists(pool: &PgPool, table: &str) -> bool {
     query_scalar::<_, bool>("SELECT to_regclass($1) IS NOT NULL")
-        .bind(USERS_TABLE_REGCLASS)
+        .bind(table)
         .fetch_one(pool)
         .await
         .unwrap()

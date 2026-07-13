@@ -1,23 +1,24 @@
 use axum::{
     Extension, Json,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     response::Response,
 };
 use kernel::pagination::{Page, PageRequest};
 use rbac_macros::{data_scope, require_perms};
 use serde::Deserialize;
 use types::{
-    http::{RequestJson, current_locale, xlsx_attachment},
+    http::{RequestJson, RequestQuery, current_locale, xlsx_attachment},
     rbac::DataScopeFilter,
     system::{BatchIdsInput, SortBatchInput},
 };
 
 use crate::api::{
     CurrentUser, RbacApiError, RbacApiState,
-    export::{export_roles_xlsx, role_export_page},
+    export::export_roles_xlsx,
+    input::{MenuListQuery, RoleExportFilter, RoleExportQuery, RoleListQuery, menu_list_filter, role_export_filter, role_list_filter},
 };
 use crate::{
-    application::{MenuListFilter, RoleListFilter, RoleUserListFilter},
+    application::RoleUserListFilter,
     domain::{
         Menu, MenuInput, NavResponse, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleMenuTreeSelect, RoleOption,
         RoleUser, RoleUserBindingInput,
@@ -33,34 +34,21 @@ pub use role_user_handlers::{delete_role_user, delete_role_users, replace_role_u
 
 use self::support::{ExportRolesInput, all_export_roles, checked_keys_for_tree, menu_tree, ok, role_user_filter};
 
-type ExportRolesRequest = (State<RbacApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<RoleExportQuery>);
-type ListRolesRequest = (State<RbacApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<RbacListQuery>);
+type ExportRolesRequest = (
+    State<RbacApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    RequestQuery<RoleExportQuery>,
+);
+type ListRolesRequest = (
+    State<RbacApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    RequestQuery<RoleListQuery>,
+);
 type RoleMenuRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleMenuBindingInput>);
 type RoleDeptRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleDeptBindingInput>);
 type ApiResult<T> = Result<T, RbacApiError>;
-
-#[derive(Debug, Deserialize)]
-pub struct RbacListQuery {
-    pub page: u64,
-    pub page_size: u64,
-    pub role_name: Option<String>,
-    pub role_key: Option<String>,
-    pub menu_name: Option<String>,
-    pub status: Option<String>,
-    pub system: Option<bool>,
-    pub begin_time: Option<String>,
-    pub end_time: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize)]
-pub struct RoleExportQuery {
-    pub role_name: Option<String>,
-    pub role_key: Option<String>,
-    pub status: Option<String>,
-    pub system: Option<bool>,
-    pub begin_time: Option<String>,
-    pub end_time: Option<String>,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct RoleUsersQuery {
@@ -88,12 +76,13 @@ pub async fn navbar(State(state): State<RbacApiState>, current_user: CurrentUser
 #[require_perms("system:role:export")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
-    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let filter = role_export_filter(query)?;
     let roles = all_export_roles(ExportRolesInput {
         state: &state,
         current_user: &current_user,
         data_scope,
-        query: &query,
+        filter,
     })
     .await?;
     Ok(xlsx_attachment("roles.xlsx", export_roles_xlsx(&roles, current_locale())?))
@@ -102,11 +91,12 @@ pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
 #[require_perms("system:role:list")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn list_roles(request: ListRolesRequest) -> ApiResult<ApiJson<Page<Role>>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let filter = role_list_filter(query)?;
     let page = if current_user.admin {
-        state.rbac_admin.page_roles(query.into()).await?
+        state.rbac_admin.page_roles(filter).await?
     } else {
-        state.rbac_admin.page_roles_scoped(query.into(), data_scope).await?
+        state.rbac_admin.page_roles_scoped(filter, data_scope).await?
     };
     Ok(ok(page))
 }
@@ -162,8 +152,8 @@ pub async fn delete_roles(State(state): State<RbacApiState>, RequestJson(payload
 }
 
 #[require_perms("system:menu:list")]
-pub async fn list_menus(State(state): State<RbacApiState>, Query(query): Query<RbacListQuery>) -> ApiResult<ApiJson<Page<Menu>>> {
-    Ok(ok(state.rbac_admin.page_menus(query.into()).await?))
+pub async fn list_menus(State(state): State<RbacApiState>, RequestQuery(query): RequestQuery<MenuListQuery>) -> ApiResult<ApiJson<Page<Menu>>> {
+    Ok(ok(state.rbac_admin.page_menus(menu_list_filter(query)?).await?))
 }
 
 #[require_perms("system:menu:query")]

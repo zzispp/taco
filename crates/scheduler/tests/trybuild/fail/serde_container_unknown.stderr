@@ -1,0 +1,5 @@
+error: this serde container attribute is incompatible with ScheduledTaskParams
+ --> tests/trybuild/fail/serde_container_unknown.rs:5:9
+  |
+5 | #[serde(bound = "")]
+  |         ^^^^^^^^^^

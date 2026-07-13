@@ -1,0 +1,5 @@
+error: this serde attribute is incompatible with ScheduledTaskParams
+ --> tests/trybuild/fail/serde_skip.rs:6:13
+  |
+6 |     #[serde(skip)]
+  |             ^^^^

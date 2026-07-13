@@ -1,0 +1,5 @@
+error: duplicate macro argument: widget
+ --> tests/trybuild/fail/duplicate_param_argument.rs:6:36
+  |
+6 |     #[param_field(widget = "text", widget = "text")]
+  |                                    ^^^^^^^^^^^^^^^

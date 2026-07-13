@@ -2,6 +2,7 @@ mod dashboard;
 mod error;
 mod export;
 mod handlers;
+mod input;
 
 use std::sync::Arc;
 

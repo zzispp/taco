@@ -1,0 +1,6 @@
+error: disabled_when_path and disabled_when_values must be specified together
+ --> tests/trybuild/fail/invalid_attribute_combination.rs:7:5
+  |
+7 | /     #[param_field(disabled_when_path = "enabled")]
+8 | |     name: String,
+  | |________________^

@@ -149,11 +149,15 @@ impl MenuQueries {
         let total = query_scalar::<_, i64>(AssertSqlSafe(menu_total_sql()))
             .bind(&filter.menu_name)
             .bind(&filter.status)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
         let items = query_as::<_, MenuRecord>(AssertSqlSafe(menu_page_sql()))
             .bind(&filter.menu_name)
             .bind(&filter.status)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .bind(to_i64(filter.page.page_size)?)
             .bind(to_i64((filter.page.page - 1) * filter.page.page_size)?)
             .fetch_all(self.database.pool())
@@ -215,12 +219,12 @@ fn ensure_rows_affected(rows_affected: u64) -> StorageResult<()> {
 }
 
 fn menu_where() -> &'static str {
-    "($1::text IS NULL OR menu_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR status=$2)"
+    "($1::text IS NULL OR menu_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR status=$2) AND ($3::timestamptz IS NULL OR create_time >= $3) AND ($4::timestamptz IS NULL OR create_time <= $4)"
 }
 
 fn menu_page_sql() -> String {
     format!(
-        "SELECT {MENU_COLUMNS} FROM sys_menu WHERE {} ORDER BY parent_id ASC, order_num ASC LIMIT $3 OFFSET $4",
+        "SELECT {MENU_COLUMNS} FROM sys_menu WHERE {} ORDER BY parent_id ASC, order_num ASC LIMIT $5 OFFSET $6",
         menu_where()
     )
 }
@@ -234,9 +238,13 @@ mod tests {
     use super::menu_page_sql;
 
     #[test]
-    fn menu_text_filters_use_case_insensitive_search() {
+    fn menu_filters_include_name_status_and_precise_create_time() {
         let sql = menu_page_sql();
 
         assert!(sql.contains("menu_name ILIKE"));
+        assert!(sql.contains("create_time >= $3"));
+        assert!(sql.contains("create_time <= $4"));
+        assert!(!sql.contains("create_time::date"));
+        assert!(sql.contains("LIMIT $5 OFFSET $6"));
     }
 }

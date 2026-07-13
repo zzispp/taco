@@ -3,7 +3,10 @@ use kernel::pagination::{Page, PageRequest};
 use types::rbac::DATA_SCOPE_SELF;
 
 use super::*;
-use crate::{application::AuthWhitelistRule, domain::RolePermissionSnapshot};
+use crate::{
+    application::{AuthWhitelistRule, PermissionRequirement},
+    domain::RolePermissionSnapshot,
+};
 
 mod support;
 
@@ -26,6 +29,22 @@ async fn authorize_api_rejects_missing_permission() {
     let service = test_service(snapshot(vec![]));
     let result = service.authorize_api(&config(), request(vec!["system:role:list"], false)).await;
     assert!(matches!(result, Err(RbacError::Forbidden)));
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn authorize_api_accepts_any_declared_permission() {
+    let service = test_service(snapshot(vec![]));
+    let mut authorization = config();
+    authorization.route_permissions[0].requirement = PermissionRequirement::any_of(&["system:user:import", "system:user:edit"]);
+
+    let imported = service.authorize_api(&authorization, request(vec!["system:user:import"], false)).await;
+    let edited = service.authorize_api(&authorization, request(vec!["system:user:edit"], false)).await;
+    let rejected = service.authorize_api(&authorization, request(vec!["system:user:list"], false)).await;
+
+    assert!(imported.is_ok());
+    assert!(edited.is_ok());
+    assert!(matches!(rejected, Err(RbacError::Forbidden)));
 }
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]

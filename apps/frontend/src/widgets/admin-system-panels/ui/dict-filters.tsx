@@ -1,26 +1,50 @@
 import type { DictDataFiltersValue, DictTypeFiltersValue } from './dict-constants';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
+import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import {
+  FilterDateTimePicker,
+  FilterDateTimeErrorAlert,
+} from 'src/shared/ui/filter-date-time-picker';
 
 import { DEFAULT_DATA_FILTERS, DEFAULT_TYPE_FILTERS } from './dict-constants';
 
+const SELECT_FILTER_MIN_WIDTH = 140;
+
 export function DictTypeFilters({
   filters,
+  error,
   onChange,
 }: {
   filters: DictTypeFiltersValue;
+  error: LocalDateTimeFilterError | null;
   onChange: (filters: DictTypeFiltersValue) => void;
 }) {
   const { t } = useTranslate('admin');
   const write = (key: keyof DictTypeFiltersValue, value: string) =>
     onChange({ ...filters, [key]: value });
   return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>
+    <Box sx={{ p: 2 }}>
+      <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ alignItems: 'center' }}>
+        <DictTypeFilterFields filters={filters} write={write} t={t} />
+        <Button variant="outlined" onClick={() => onChange(DEFAULT_TYPE_FILTERS)}>
+          {t('common.reset')}
+        </Button>
+      </Stack>
+      <FilterDateTimeErrorAlert error={error} />
+    </Box>
+  );
+}
+
+function DictTypeFilterFields({ filters, write, t }: DictTypeFilterFieldsProps) {
+  return (
+    <>
       <TextField
         size="small"
         label={t('fields.dictName')}
@@ -38,33 +62,24 @@ export function DictTypeFilters({
         size="small"
         label={t('common.status')}
         value={filters.status}
-        sx={{ minWidth: 140 }}
+        sx={{ minWidth: SELECT_FILTER_MIN_WIDTH }}
         onChange={(event) => write('status', event.target.value)}
       >
         <MenuItem value="">{t('common.all')}</MenuItem>
         <MenuItem value="0">{t('common.enabled')}</MenuItem>
         <MenuItem value="1">{t('common.disabled')}</MenuItem>
       </TextField>
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.beginTime')}
         value={filters.begin_time}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('begin_time', event.target.value)}
+        onChange={(value) => write('begin_time', value)}
       />
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.endTime')}
         value={filters.end_time}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('end_time', event.target.value)}
+        onChange={(value) => write('end_time', value)}
       />
-      <Button variant="outlined" onClick={() => onChange(DEFAULT_TYPE_FILTERS)}>
-        {t('common.reset')}
-      </Button>
-    </Stack>
+    </>
   );
 }
 
@@ -91,7 +106,7 @@ export function DictDataFilters({
         size="small"
         label={t('common.status')}
         value={filters.status}
-        sx={{ minWidth: 140 }}
+        sx={{ minWidth: SELECT_FILTER_MIN_WIDTH }}
         onChange={(event) => write('status', event.target.value)}
       >
         <MenuItem value="">{t('common.all')}</MenuItem>
@@ -104,3 +119,9 @@ export function DictDataFilters({
     </Stack>
   );
 }
+
+type DictTypeFilterFieldsProps = Readonly<{
+  filters: DictTypeFiltersValue;
+  write: (key: keyof DictTypeFiltersValue, value: string) => void;
+  t: ReturnType<typeof useTranslate>['t'];
+}>;

@@ -1,0 +1,17 @@
+export const schedulerEndpoints = {
+  jobs: '/api/system/jobs',
+  jobsBatch: '/api/system/jobs/batch',
+  jobsExport: '/api/system/jobs/export',
+  importableJobs: '/api/system/jobs/importable',
+  importJob: '/api/system/jobs/import',
+  cronNextTimes: '/api/system/jobs/cron/next-times',
+  job: (id: string) => `/api/system/jobs/${id}`,
+  jobStatus: (id: string) => `/api/system/jobs/${id}/status`,
+  jobRun: (id: string) => `/api/system/jobs/${id}/run`,
+  jobLogs: '/api/system/job-logs',
+  jobLogsBatch: '/api/system/job-logs/batch',
+  jobLogsClean: '/api/system/job-logs/clean',
+  jobLogsExport: '/api/system/job-logs/export',
+  jobLog: (id: string) => `/api/system/job-logs/${id}`,
+  jobLogDetail: (id: string) => `/api/system/job-logs/${id}/detail`,
+} as const;

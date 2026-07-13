@@ -1,8 +1,7 @@
-use kernel::pagination::PageRequest;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::{OnlineSessionFilter, UserListFilter},
+    application::OnlineSessionFilter,
     domain::{Credentials, NewUser, ReplaceUser},
 };
 
@@ -175,49 +174,6 @@ impl From<SignInPayload> for Credentials {
     }
 }
 
-impl From<ListUsersQuery> for UserListFilter {
-    fn from(value: ListUsersQuery) -> Self {
-        Self {
-            page: PageRequest {
-                page: value.page,
-                page_size: value.page_size,
-            },
-            username: value.username,
-            nick_name: value.nick_name,
-            phonenumber: value.phonenumber,
-            email: value.email,
-            sex: value.sex,
-            status: value.status,
-            dept_id: value.dept_id,
-            dept_name: value.dept_name,
-            post_ids: split_ids(value.post_ids),
-            role_ids: split_ids(value.role_ids),
-            begin_time: value.begin_time,
-            end_time: value.end_time,
-        }
-    }
-}
-
-impl UserExportQuery {
-    pub(crate) fn to_filter(&self, page: u64, page_size: u64) -> UserListFilter {
-        UserListFilter {
-            page: PageRequest { page, page_size },
-            username: self.username.clone(),
-            nick_name: self.nick_name.clone(),
-            phonenumber: self.phonenumber.clone(),
-            email: self.email.clone(),
-            sex: self.sex.clone(),
-            status: self.status.clone(),
-            dept_id: self.dept_id.clone(),
-            dept_name: self.dept_name.clone(),
-            post_ids: split_ids(self.post_ids.clone()),
-            role_ids: split_ids(self.role_ids.clone()),
-            begin_time: self.begin_time.clone(),
-            end_time: self.end_time.clone(),
-        }
-    }
-}
-
 impl From<OnlineSessionsQuery> for OnlineSessionFilter {
     fn from(value: OnlineSessionsQuery) -> Self {
         Self {
@@ -234,11 +190,4 @@ impl From<OnlineSessionsQuery> for OnlineSessionFilter {
 
 fn trim_optional(value: Option<String>) -> Option<String> {
     value.map(|item| item.trim().to_owned()).filter(|item| !item.is_empty())
-}
-
-fn split_ids(value: Option<String>) -> Vec<String> {
-    let Some(value) = value else {
-        return vec![];
-    };
-    value.split(',').map(str::trim).filter(|item| !item.is_empty()).map(str::to_owned).collect()
 }

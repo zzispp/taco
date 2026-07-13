@@ -1,13 +1,19 @@
 import type React from 'react';
 import type { TranslateFn } from 'src/shared/i18n';
 import type { RoleFiltersValue } from './constants';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
+import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import {
+  FilterDateTimePicker,
+  FilterDateTimeErrorAlert,
+} from 'src/shared/ui/filter-date-time-picker';
 
 import { DEFAULT_FILTERS } from './constants';
 
@@ -18,21 +24,25 @@ type FilterWriter = (key: RoleFilterKey, value: string) => void;
 
 type RoleFiltersProps = {
   filters: RoleFiltersValue;
+  error: LocalDateTimeFilterError | null;
   onChange: (filters: RoleFiltersValue) => void;
 };
 
-export function RoleFilters({ filters, onChange }: RoleFiltersProps) {
+export function RoleFilters({ filters, error, onChange }: RoleFiltersProps) {
   const { t } = useTranslate('admin');
   const write: FilterWriter = (key, value) => onChange({ ...filters, [key]: value });
   return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ p: 2 }}>
-      <RoleTextFilters filters={filters} write={write} t={t} />
-      <RoleSelectFilters filters={filters} write={write} t={t} />
-      <RoleDateFilters filters={filters} write={write} t={t} />
-      <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
-        {t('common.reset')}
-      </Button>
-    </Stack>
+    <Box sx={{ p: 2 }}>
+      <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ alignItems: 'center' }}>
+        <RoleTextFilters filters={filters} write={write} t={t} />
+        <RoleSelectFilters filters={filters} write={write} t={t} />
+        <RoleDateFilters filters={filters} write={write} t={t} />
+        <Button variant="outlined" onClick={() => onChange(DEFAULT_FILTERS)}>
+          {t('common.reset')}
+        </Button>
+      </Stack>
+      <FilterDateTimeErrorAlert error={error} />
+    </Box>
   );
 }
 
@@ -83,21 +93,15 @@ function RoleSelectFilters({ filters, write, t }: RoleFilterSectionProps) {
 function RoleDateFilters({ filters, write, t }: RoleFilterSectionProps) {
   return (
     <>
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.beginTime')}
         value={filters.begin_time}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('begin_time', event.target.value)}
+        onChange={(value) => write('begin_time', value)}
       />
-      <TextField
-        size="small"
-        type="date"
+      <FilterDateTimePicker
         label={t('fields.endTime')}
         value={filters.end_time}
-        InputLabelProps={{ shrink: true }}
-        onChange={(event) => write('end_time', event.target.value)}
+        onChange={(value) => write('end_time', value)}
       />
     </>
   );

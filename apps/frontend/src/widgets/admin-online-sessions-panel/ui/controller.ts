@@ -1,4 +1,9 @@
-import type { OnlineSession, OnlineSessionFilters } from 'src/entities/online-session';
+import type {
+  OnlineSession,
+  OnlineSessionQuery,
+  OnlineSessionFilters,
+  OnlineSessionFilterError,
+} from 'src/entities/online-session';
 
 import { useMemo, useState, useCallback } from 'react';
 
@@ -7,43 +12,76 @@ import { useTable } from 'src/shared/ui/table';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
 import { useHasPermission } from 'src/entities/session';
-import { useOnlineSessions } from 'src/entities/online-session';
+import {
+  useOnlineSessions,
+  ONLINE_SESSION_FILTER_ERROR,
+  DEFAULT_ONLINE_SESSION_QUERY,
+  updateOnlineSessionFilterState,
+  DEFAULT_ONLINE_SESSION_FILTERS,
+} from 'src/entities/online-session';
 
 import { forceLogoutOnlineSession } from 'src/features/online-session-management';
 
-import { DEFAULT_FILTERS } from './constants';
 import { pageRows, onlineSessionHead } from './helpers';
+
+const FILTER_ERROR_TRANSLATION_KEY = {
+  [ONLINE_SESSION_FILTER_ERROR.INVALID_DATE_TIME]: 'onlineSessions.invalidDateTime',
+  [ONLINE_SESSION_FILTER_ERROR.INVALID_RANGE]: 'onlineSessions.invalidTimeRange',
+} as const;
 
 export function useOnlineSessionsController() {
   const { t } = useTranslate('admin');
   const table = useTable({ defaultRowsPerPage: 10 });
-  const [filters, setFiltersState] = useState(DEFAULT_FILTERS);
+  const [filters, setFiltersState] = useState(DEFAULT_ONLINE_SESSION_FILTERS);
+  const [query, setQuery] = useState(DEFAULT_ONLINE_SESSION_QUERY);
+  const [filterError, setFilterError] = useState<OnlineSessionFilterError | null>(null);
   const [forceTarget, setForceTarget] = useState<OnlineSession | null>(null);
-  const sessions = useOnlineSessions(filters);
+  const sessions = useOnlineSessions(query);
   const canForceLogout = useHasPermission('system:online:forceLogout');
   const head = useMemo(() => onlineSessionHead(t), [t]);
   const rows = useMemo(
     () => pageRows(sessions.rows, table.page, table.rowsPerPage),
     [sessions.rows, table.page, table.rowsPerPage]
   );
-  const setFilters = useFilterWriter(setFiltersState, table.onResetPage);
+  const setFilters = useFilterWriter({
+    query,
+    setQuery,
+    setFilterError,
+    setFiltersState,
+    resetPage: table.onResetPage,
+  });
   const confirmForceLogout = useForceLogoutAction(forceTarget, setForceTarget, t);
+  const filterErrorMessage = filterError ? t(FILTER_ERROR_TRANSLATION_KEY[filterError]) : null;
 
   return {
-    resources: { t, table, filters, sessions, rows, head, canForceLogout },
+    resources: {
+      t,
+      table,
+      filters,
+      sessions,
+      rows,
+      head,
+      canForceLogout,
+      filterErrorMessage,
+    },
     state: { forceTarget, setForceTarget },
     actions: { setFilters, confirmForceLogout },
   };
 }
 
-function useFilterWriter(
-  setFiltersState: (filters: OnlineSessionFilters) => void,
-  resetPage: () => void
-) {
-  return useCallback((next: OnlineSessionFilters) => {
-    resetPage();
-    setFiltersState(next);
-  }, [resetPage, setFiltersState]);
+function useFilterWriter(options: FilterWriterOptions) {
+  const { query, setQuery, setFilterError, setFiltersState, resetPage } = options;
+  return useCallback(
+    (next: OnlineSessionFilters) => {
+      const transition = updateOnlineSessionFilterState(query, next);
+      setFiltersState(transition.draft);
+      setFilterError(transition.error);
+      if (!transition.resetTable) return;
+      resetPage();
+      setQuery(transition.query);
+    },
+    [query, resetPage, setFilterError, setFiltersState, setQuery]
+  );
 }
 
 function useForceLogoutAction(
@@ -62,3 +100,11 @@ function useForceLogoutAction(
     }
   }, [setTarget, t, target]);
 }
+
+type FilterWriterOptions = Readonly<{
+  query: OnlineSessionQuery;
+  setQuery: (query: OnlineSessionQuery) => void;
+  setFilterError: (error: OnlineSessionFilterError | null) => void;
+  setFiltersState: (filters: OnlineSessionFilters) => void;
+  resetPage: () => void;
+}>;

@@ -3,8 +3,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use captcha::application::{CaptchaError, CaptchaSettingsReader, CaptchaUseCase};
 use constants::system_config::{AVATAR_CONFIG_KEY, CAPTCHA_CONFIG_KEY, EXPORT_BATCH_CONFIG_KEY, IP_LOCATION_CONFIG_KEY, PASSWORD_POLICY_KEY, TOKEN_CONFIG_KEY};
-use kernel::runtime_config::{ExportBatchConfig, ExportConfigProvider};
+use kernel::runtime_config::{ExportBatchConfig, ExportConfigProvider, RuntimeConfigError, parse_export_batch_config};
 use rbac::application::RbacError;
+use scheduler::application::SchedulerError;
 use serde_json::Value;
 use system::application::{SystemError, SystemUseCase};
 
@@ -15,7 +16,7 @@ use user::{
     api::{TokenSettingsReader, TokenTtlConfig, parse_token_ttl_config},
     application::{
         AccountVerifier, AppError, AppResult, AvatarConfig, AvatarConfigProvider, IpLocationConfig, IpLocationSettingsReader, PasswordPolicy,
-        PasswordPolicyProvider, SystemConfigProvider, parse_avatar_config, parse_export_batch_config, parse_ip_location_config, parse_password_policy,
+        PasswordPolicyProvider, SystemConfigProvider, parse_avatar_config, parse_ip_location_config, parse_password_policy,
     },
 };
 
@@ -78,7 +79,7 @@ impl ExportConfigProvider for RuntimeUserConfig {
     type Error = AppError;
 
     async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
-        parse_export_batch_config(&self.user_config(EXPORT_BATCH_CONFIG_KEY).await?)
+        parse_export_batch_config(&self.user_config(EXPORT_BATCH_CONFIG_KEY).await?).map_err(runtime_config_to_user)
     }
 }
 
@@ -113,7 +114,7 @@ impl ExportConfigProvider for RuntimeRbacConfig {
 
     async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
         let value = self.system.config_by_key(EXPORT_BATCH_CONFIG_KEY).await.map_err(rbac_config_error)?;
-        parse_export_batch_config(&value).map_err(user_error_to_rbac)
+        parse_export_batch_config(&value).map_err(runtime_config_to_rbac)
     }
 }
 
@@ -134,7 +135,28 @@ impl ExportConfigProvider for RuntimeSystemConfig {
 
     async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
         let value = self.system.config_by_key(EXPORT_BATCH_CONFIG_KEY).await?;
-        parse_export_batch_config(&value).map_err(user_error_to_system)
+        parse_export_batch_config(&value).map_err(runtime_config_to_system)
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct RuntimeSchedulerConfig {
+    system: Arc<dyn SystemUseCase>,
+}
+
+impl RuntimeSchedulerConfig {
+    pub(super) fn new(system: Arc<dyn SystemUseCase>) -> Self {
+        Self { system }
+    }
+}
+
+#[async_trait]
+impl ExportConfigProvider for RuntimeSchedulerConfig {
+    type Error = SchedulerError;
+
+    async fn export_batch_config(&self) -> Result<ExportBatchConfig, Self::Error> {
+        let value = self.system.config_by_key(EXPORT_BATCH_CONFIG_KEY).await.map_err(system_error_to_scheduler)?;
+        parse_export_batch_config(&value).map_err(runtime_config_to_scheduler)
     }
 }
 
@@ -156,7 +178,7 @@ impl AccountVerifier for CaptchaAccountVerifier {
 }
 
 fn captcha_json_error(error: serde_json::Error) -> CaptchaError {
-    let _ = error;
+    hook_tracing::error_with_fields!("invalid captcha runtime config JSON", &error, key = CAPTCHA_CONFIG_KEY);
     CaptchaError::InvalidInput(kernel::error::LocalizedError::new("errors.captcha.invalid_config_json").with_param("key", CAPTCHA_CONFIG_KEY))
 }
 
@@ -188,25 +210,40 @@ fn rbac_config_error(error: SystemError) -> RbacError {
     }
 }
 
-fn user_error_to_rbac(error: AppError) -> RbacError {
-    match error {
-        AppError::InvalidInput(message) => RbacError::InvalidInput(message),
-        AppError::Unauthorized => RbacError::Unauthorized,
-        AppError::Forbidden(_) => RbacError::Forbidden,
-        AppError::Conflict(message) => RbacError::Conflict(message),
-        AppError::NotFound => RbacError::NotFound,
-        AppError::Infrastructure(message) => RbacError::Infrastructure(message),
-    }
+fn runtime_config_to_user(error: RuntimeConfigError) -> AppError {
+    trace_invalid_export_config(&error);
+    AppError::InvalidInput(kernel::error::LocalizedError::new("errors.user.invalid_system_config").with_param("key", EXPORT_BATCH_CONFIG_KEY))
 }
 
-fn user_error_to_system(error: AppError) -> SystemError {
+fn runtime_config_to_rbac(error: RuntimeConfigError) -> RbacError {
+    trace_invalid_export_config(&error);
+    RbacError::InvalidInput(kernel::error::LocalizedError::new("errors.rbac.invalid_export_batch_config"))
+}
+
+fn runtime_config_to_system(error: RuntimeConfigError) -> SystemError {
+    trace_invalid_export_config(&error);
+    SystemError::InvalidInput(kernel::error::LocalizedError::new("errors.system.invalid_export_batch_config"))
+}
+
+fn runtime_config_to_scheduler(error: RuntimeConfigError) -> SchedulerError {
+    trace_invalid_export_config(&error);
+    SchedulerError::InvalidInput(kernel::error::LocalizedError::new("errors.scheduler.invalid_export_batch_config"))
+}
+
+fn trace_invalid_export_config(error: &RuntimeConfigError) {
+    hook_tracing::error_with_fields!("invalid export runtime config", error, key = EXPORT_BATCH_CONFIG_KEY);
+}
+
+fn system_error_to_scheduler(error: SystemError) -> SchedulerError {
     match error {
-        AppError::InvalidInput(message) => SystemError::InvalidInput(message),
-        AppError::Unauthorized => SystemError::Forbidden(kernel::error::LocalizedError::new("errors.common.forbidden")),
-        AppError::Forbidden(message) => SystemError::Forbidden(message),
-        AppError::Conflict(message) => SystemError::Conflict(message),
-        AppError::NotFound => SystemError::NotFound,
-        AppError::Infrastructure(message) => SystemError::Infrastructure(message),
+        SystemError::NotFound => SchedulerError::Infrastructure(REQUIRED_SYSTEM_CONFIG_ERROR.into()),
+        SystemError::Forbidden(message) => SchedulerError::Forbidden(message),
+        SystemError::Conflict(message) => SchedulerError::Conflict {
+            code: "scheduler_config_conflict",
+            details: message,
+        },
+        SystemError::InvalidInput(message) => SchedulerError::InvalidInput(message),
+        SystemError::Infrastructure(message) => SchedulerError::Infrastructure(message),
     }
 }
 

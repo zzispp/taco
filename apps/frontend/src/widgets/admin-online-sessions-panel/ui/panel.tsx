@@ -21,6 +21,7 @@ export function OnlineSessionsPanel() {
         head={resources.head}
         loading={resources.sessions.isLoading}
         canForceLogout={resources.canForceLogout}
+        filterErrorMessage={resources.filterErrorMessage}
         onFilterChange={actions.setFilters}
         onForceLogout={state.setForceTarget}
       />

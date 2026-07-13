@@ -1,14 +1,10 @@
 import type { SystemUser } from 'src/entities/user';
+import type { useTranslate } from 'src/shared/i18n/use-locales';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
-import { useTable } from 'src/shared/ui/table';
-import { withSelectionHead } from 'src/shared/ui/admin';
-import { useTranslate } from 'src/shared/i18n/use-locales';
-
-import { useHasPermission } from 'src/entities/session';
-import { useUsers, useUserFormOptions } from 'src/entities/user';
+import { LOCAL_DATE_TIME_FILTER_ERROR_TRANSLATION_KEY } from 'src/shared/lib/local-date-time-filter';
 
 import {
   createUser,
@@ -23,8 +19,9 @@ import {
   downloadUserImportTemplate,
 } from 'src/features/user-management';
 
-import { DEFAULT_FORM, DEFAULT_FILTERS } from './constants';
-import { toInput, userHead, flattenDeptNames } from './helpers';
+import { toInput } from './helpers';
+import { DEFAULT_FORM } from './constants';
+import { useUserResources } from './resources';
 
 export function useUserManagementController() {
   const state = useUserState();
@@ -36,7 +33,11 @@ export function useUserManagementController() {
   const deletion = useUserDeleteActions({ state, t: resources.t });
   const table = useUserTableActions({ state, resources });
 
-  return { resources, state, actions: { ...crud, ...roles, ...password, ...imports, ...deletion, ...table } };
+  return {
+    resources,
+    state,
+    actions: { ...crud, ...roles, ...password, ...imports, ...deletion, ...table },
+  };
 }
 
 export type UserManagementController = ReturnType<typeof useUserManagementController>;
@@ -57,28 +58,36 @@ function useUserState() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [updateSupport, setUpdateSupport] = useState(false);
 
-  return { form, setForm, editing, setEditing, creating, setCreating, submitting, setSubmitting, deleteTarget, setDeleteTarget, batchDeleteOpen, setBatchDeleteOpen, selected, setSelected, passwordTarget, setPasswordTarget, newPassword, setNewPassword, roleTarget, setRoleTarget, assignedRoles, setAssignedRoles, importOpen, setImportOpen, importFile, setImportFile, updateSupport, setUpdateSupport };
-}
-
-function useUserResources() {
-  const { t } = useTranslate('admin');
-  const table = useTable({ defaultRowsPerPage: 10 });
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const users = useUsers(table.page, table.rowsPerPage, filters);
-  const options = useUserFormOptions();
-  const roles = useMemo(() => options.data?.roles ?? [], [options.data?.roles]);
-  const posts = useMemo(() => options.data?.posts ?? [], [options.data?.posts]);
-  const deptTree = useMemo(() => options.data?.depts ?? [], [options.data?.depts]);
-  const depts = useMemo(() => flattenDeptNames(deptTree), [deptTree]);
-  const head = useMemo(() => userHead(t), [t]);
-  const canAdd = useHasPermission('system:user:add');
-  const canDelete = useHasPermission('system:user:remove');
-  const canImport = useHasPermission('system:user:import');
-  const canExport = useHasPermission('system:user:export');
-  const loadingHead = useMemo(() => (canDelete ? withSelectionHead(head) : head), [canDelete, head]);
-  const selectableUsers = useMemo(() => users.items.filter((user) => !user.system), [users.items]);
-
-  return { t, table, filters, setFilters, users, roles, posts, deptTree, depts, head, canAdd, canDelete, canImport, canExport, loadingHead, selectableUsers };
+  return {
+    form,
+    setForm,
+    editing,
+    setEditing,
+    creating,
+    setCreating,
+    submitting,
+    setSubmitting,
+    deleteTarget,
+    setDeleteTarget,
+    batchDeleteOpen,
+    setBatchDeleteOpen,
+    selected,
+    setSelected,
+    passwordTarget,
+    setPasswordTarget,
+    newPassword,
+    setNewPassword,
+    roleTarget,
+    setRoleTarget,
+    assignedRoles,
+    setAssignedRoles,
+    importOpen,
+    setImportOpen,
+    importFile,
+    setImportFile,
+    updateSupport,
+    setUpdateSupport,
+  };
 }
 
 type UserActionOptions = {
@@ -87,7 +96,10 @@ type UserActionOptions = {
   t?: ReturnType<typeof useTranslate>['t'];
 };
 
-function useUserCrudActions({ state, resources }: Required<Pick<UserActionOptions, 'state' | 'resources'>>) {
+function useUserCrudActions({
+  state,
+  resources,
+}: Required<Pick<UserActionOptions, 'state' | 'resources'>>) {
   const closeDialog = useCallback(() => {
     state.setEditing(null);
     state.setCreating(false);
@@ -96,12 +108,18 @@ function useUserCrudActions({ state, resources }: Required<Pick<UserActionOption
   const openCreate = useCallback(() => {
     state.setEditing(null);
     state.setCreating(true);
-    state.setForm({ ...DEFAULT_FORM, role_ids: [resources.roles[0]?.role_id ?? ''].filter(Boolean) });
+    state.setForm({
+      ...DEFAULT_FORM,
+      role_ids: [resources.roles[0]?.role_id ?? ''].filter(Boolean),
+    });
   }, [resources.roles, state]);
-  const openEdit = useCallback((user: SystemUser) => {
-    state.setEditing(user);
-    state.setForm(toInput(user));
-  }, [state]);
+  const openEdit = useCallback(
+    (user: SystemUser) => {
+      state.setEditing(user);
+      state.setForm(toInput(user));
+    },
+    [state]
+  );
   const submitUser = useSubmitUser({ state, closeDialog, t: resources.t });
 
   return { closeDialog, openCreate, openEdit, submitUser };
@@ -130,15 +148,18 @@ function useSubmitUser({ state, closeDialog, t }: SubmitUserOptions) {
 }
 
 function useUserRoleActions({ state, t }: Required<Pick<UserActionOptions, 'state' | 't'>>) {
-  const openRoles = useCallback(async (user: SystemUser) => {
-    state.setRoleTarget(user);
-    try {
-      const payload = await getUserRoles(user.user_id);
-      state.setAssignedRoles(payload.role_ids);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.loadBindingsFailed'));
-    }
-  }, [state, t]);
+  const openRoles = useCallback(
+    async (user: SystemUser) => {
+      state.setRoleTarget(user);
+      try {
+        const payload = await getUserRoles(user.user_id);
+        state.setAssignedRoles(payload.role_ids);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t('messages.loadBindingsFailed'));
+      }
+    },
+    [state, t]
+  );
   const submitRoles = useCallback(async () => {
     if (!state.roleTarget) return;
     state.setSubmitting(true);
@@ -225,20 +246,36 @@ function useUserDeleteActions({ state, t }: Required<Pick<UserActionOptions, 'st
   return { confirmDelete, confirmBatchDelete };
 }
 
-function useUserTableActions({ state, resources }: Required<Pick<UserActionOptions, 'state' | 'resources'>>) {
-  const selectDept = useCallback((dept_id: string) => {
-    resources.setFilters((current) => ({ ...current, dept_id }));
-  }, [resources]);
-  const toggleAll = useCallback((checked: boolean) => {
-    state.setSelected(checked ? resources.selectableUsers.map((user) => user.user_id) : []);
-  }, [resources.selectableUsers, state]);
-  const openPassword = useCallback((user: SystemUser) => {
-    state.setPasswordTarget(user);
-    state.setNewPassword('');
-  }, [state]);
+function useUserTableActions({
+  state,
+  resources,
+}: Required<Pick<UserActionOptions, 'state' | 'resources'>>) {
+  const selectDept = useCallback(
+    (dept_id: string) => {
+      resources.setFilters({ ...resources.filters, dept_id });
+    },
+    [resources]
+  );
+  const toggleAll = useCallback(
+    (checked: boolean) => {
+      state.setSelected(checked ? resources.selectableUsers.map((user) => user.user_id) : []);
+    },
+    [resources.selectableUsers, state]
+  );
+  const openPassword = useCallback(
+    (user: SystemUser) => {
+      state.setPasswordTarget(user);
+      state.setNewPassword('');
+    },
+    [state]
+  );
   const submitExport = useCallback(async () => {
+    if (resources.filterError) {
+      toast.error(resources.t(LOCAL_DATE_TIME_FILTER_ERROR_TRANSLATION_KEY[resources.filterError]));
+      return;
+    }
     try {
-      await exportUsers(resources.filters);
+      await exportUsers(resources.filterQuery);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : resources.t('messages.exportFailed'));
     }

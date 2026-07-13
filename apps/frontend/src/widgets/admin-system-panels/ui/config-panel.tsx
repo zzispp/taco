@@ -2,10 +2,11 @@
 
 import type { ConfigItem, ConfigInput } from 'src/entities/system';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { useTable } from 'src/shared/ui/table';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 
 import { useConfigs } from 'src/entities/system';
 
@@ -26,8 +27,10 @@ import {
 export function ConfigManagementPanel() {
   const { t } = useTranslate('admin');
   const table = useTable({ defaultRowsPerPage: 10 });
-  const [filters, setFilters] = useState(DEFAULT_CONFIG_FILTERS);
-  const resource = useConfigs(table.page, table.rowsPerPage, filters);
+  const filters = useLocalDateTimeFilterState(DEFAULT_CONFIG_FILTERS, {
+    onValidQuery: table.onResetPage,
+  });
+  const resource = useConfigs(table.page, table.rowsPerPage, filters.query);
   const fields = useMemo(() => configFields(t), [t]);
   const filterFields = useMemo(() => configFilterFields(t), [t]);
 
@@ -44,16 +47,17 @@ export function ConfigManagementPanel() {
       page={table.page}
       rowsPerPage={table.rowsPerPage}
       filters={filterFields}
-      filterValues={filters}
+      filterValues={filters.draft}
+      filterError={filters.error}
       permissionPrefix="system:config"
-      onFilterChange={(next) => setFilters(toConfigFilters(next))}
+      onFilterChange={(next) => filters.change(toConfigFilters(next))}
       onPageChange={table.onChangePage}
       onRowsPerPageChange={table.onChangeRowsPerPage}
       createItem={(input) => systemMutations.createConfig(normalizeConfigInput(input))}
       updateItem={(id, input) => systemMutations.updateConfig(id, normalizeConfigInput(input))}
       deleteItem={systemMutations.deleteConfig}
       batchDeleteItems={systemMutations.deleteConfigs}
-      toolbarAction={<ConfigToolbar filters={filters} />}
+      toolbarAction={<ConfigToolbar filters={filters.query} filterError={filters.error} />}
     />
   );
 }

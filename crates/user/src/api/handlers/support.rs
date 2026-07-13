@@ -1,10 +1,32 @@
 use super::*;
 
+#[cfg(test)]
+mod pagination_tests;
+
+const EXPORT_PAGE_INCREMENT: u64 = 1;
+
+pub(super) type AccountPasswordRequest = (State<ApiState>, Extension<CurrentUser>, RequestJson<ChangePasswordPayload>);
+pub(super) type ExportUsersRequest = (
+    State<ApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    RequestQuery<UserExportQuery>,
+);
+pub(super) type ListUsersRequest = (
+    State<ApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    RequestQuery<ListUsersQuery>,
+);
+pub(super) type UserPathRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
+pub(super) type UserJsonRequest<T> = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>, T);
+pub(super) type UserBatchRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, RequestJson<BatchIdsInput>);
+
 pub(super) struct ExportUsersInput<'a> {
     pub(super) state: &'a ApiState,
     pub(super) current_user: &'a CurrentUser,
     pub(super) data_scope: DataScopeFilter,
-    pub(super) query: &'a UserExportQuery,
+    pub(super) filter: UserListFilter,
 }
 
 pub(super) async fn all_export_users(input: ExportUsersInput<'_>) -> ApiResult<Vec<User>> {
@@ -12,19 +34,42 @@ pub(super) async fn all_export_users(input: ExportUsersInput<'_>) -> ApiResult<V
     let mut page = 1;
     let mut users = Vec::new();
     loop {
-        let filter = export_query_page(input.query, page, export_page_size);
+        let filter = export_filter_page(
+            &input.filter,
+            PageRequest {
+                page,
+                page_size: export_page_size,
+            },
+        );
         let current = if input.current_user.admin {
             input.state.users.list_users(filter).await?
         } else {
             input.state.users.list_users_scoped(filter, input.data_scope.clone()).await?
         };
-        let is_last = current.items.is_empty() || users.len() + current.items.len() >= current.total as usize;
+        let is_last = is_last_export_page(users.len(), current.items.len(), current.total)?;
         users.extend(current.items);
         if is_last {
             return Ok(users);
         }
-        page += 1;
+        page = next_export_page(page)?;
     }
+}
+
+fn is_last_export_page(existing: usize, current: usize, total: u64) -> ApiResult<bool> {
+    let loaded = existing.checked_add(current).ok_or_else(pagination_overflow)?;
+    Ok(current == 0 || loaded >= export_total(total)?)
+}
+
+fn export_total(total: u64) -> ApiResult<usize> {
+    usize::try_from(total).map_err(|_| pagination_overflow())
+}
+
+fn next_export_page(page: u64) -> ApiResult<u64> {
+    page.checked_add(EXPORT_PAGE_INCREMENT).ok_or_else(pagination_overflow)
+}
+
+fn pagination_overflow() -> ApiError {
+    AppError::InvalidInput(localized("errors.validation.page_overflow")).into()
 }
 
 pub(super) struct UserImportForm {

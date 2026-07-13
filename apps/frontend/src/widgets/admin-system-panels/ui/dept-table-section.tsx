@@ -19,7 +19,7 @@ export function DeptTableSection({ resources, state, actions }: DeptManagementCo
 
   return (
     <Card>
-      <DeptFilters filters={state.filters} onChange={state.setFilters} />
+      <DeptFilters filters={state.filters} error={state.filterError} onChange={state.setFilters} />
       <DeptSortToolbar resources={resources} state={state} actions={actions} />
       <Scrollbar>
         <Table sx={{ minWidth: 1080 }}>
@@ -40,7 +40,10 @@ export function DeptTableSection({ resources, state, actions }: DeptManagementCo
                 onDelete={state.setDeleteTarget}
               />
             ))}
-            <TableNoData title={t('common.noData')} notFound={!resource.isLoading && rows.length === 0} />
+            <TableNoData
+              title={t('common.noData')}
+              notFound={!resource.isLoading && rows.length === 0}
+            />
           </TableBody>
         </Table>
       </Scrollbar>
@@ -62,7 +65,12 @@ function DeptSortToolbar({ resources, state, actions }: DeptSortToolbarProps) {
       <Button size="small" onClick={() => state.setExpanded([])}>
         {t('actions.collapseAll')}
       </Button>
-      <Button size="small" variant="contained" disabled={!hasSortEdits || state.submitting} onClick={actions.saveSorts}>
+      <Button
+        size="small"
+        variant="contained"
+        disabled={!hasSortEdits || state.submitting}
+        onClick={actions.saveSorts}
+      >
         {t('actions.saveSort')}
       </Button>
     </Stack>

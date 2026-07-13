@@ -23,3 +23,5 @@ export type OnlineSessionFilters = {
   begin_time: string;
   end_time: string;
 };
+
+export type OnlineSessionQuery = Readonly<Partial<OnlineSessionFilters>>;

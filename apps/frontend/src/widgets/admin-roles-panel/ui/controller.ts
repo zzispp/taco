@@ -1,21 +1,15 @@
 import type { Role } from 'src/entities/role';
 import type { TreeSelectNode } from 'src/entities/system';
+import type { useTranslate } from 'src/shared/i18n/use-locales';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
-import { useTable } from 'src/shared/ui/table';
-import { withSelectionHead } from 'src/shared/ui/admin';
-import { useTranslate } from 'src/shared/i18n/use-locales';
-
-import { useRoles } from 'src/entities/role';
-import { useHasPermission } from 'src/entities/session';
 
 import {
   createRole,
   deleteRole,
   updateRole,
-  exportRoles,
   deleteRoles,
   getRoleDeptTree,
   getRoleMenuTree,
@@ -23,8 +17,9 @@ import {
   updateRoleDataScope,
 } from 'src/features/role-management';
 
-import { DEFAULT_FORM, DEFAULT_FILTERS } from './constants';
-import { toInput, roleHead, deptBindingIds } from './helpers';
+import { DEFAULT_FORM } from './constants';
+import { toInput, deptBindingIds } from './helpers';
+import { useRoleResources, useRoleExportAction } from './resources';
 
 export function useRoleManagementController() {
   const resources = useRoleResources();
@@ -32,31 +27,26 @@ export function useRoleManagementController() {
   const binding = useRoleBindingState();
   const crud = useRoleCrudActions({ dialogs, t: resources.t });
   const bindingActions = useRoleBindingActions({ binding, dialogs, t: resources.t });
-  const deletion = useRoleDeletionActions({ dialogs, selectableRoles: resources.selectableRoles, t: resources.t });
-  const exportAction = useRoleExportAction({ filters: resources.filters, t: resources.t });
+  const deletion = useRoleDeletionActions({
+    dialogs,
+    selectableRoles: resources.selectableRoles,
+    t: resources.t,
+  });
+  const exportAction = useRoleExportAction({
+    filters: resources.filterQuery,
+    filterError: resources.filterError,
+    t: resources.t,
+  });
 
-  return { resources, dialogs, binding, actions: { ...crud, ...bindingActions, ...deletion, ...exportAction } };
+  return {
+    resources,
+    dialogs,
+    binding,
+    actions: { ...crud, ...bindingActions, ...deletion, ...exportAction },
+  };
 }
 
 export type RoleManagementController = ReturnType<typeof useRoleManagementController>;
-
-function useRoleResources() {
-  const { t } = useTranslate('admin');
-  const table = useTable({ defaultRowsPerPage: 10 });
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const roles = useRoles(table.page, table.rowsPerPage, filters);
-  const head = useMemo(() => roleHead(t), [t]);
-  const canAdd = useHasPermission('system:role:add');
-  const canDelete = useHasPermission('system:role:remove');
-  const canExport = useHasPermission('system:role:export');
-  const loadingHead = useMemo(
-    () => (canDelete ? withSelectionHead(head) : head),
-    [canDelete, head]
-  );
-  const selectableRoles = useMemo(() => roles.items.filter((role) => !role.system), [roles.items]);
-
-  return { t, table, filters, setFilters, roles, head, canAdd, canDelete, canExport, loadingHead, selectableRoles };
-}
 
 function useRoleDialogState() {
   const [form, setForm] = useState(DEFAULT_FORM);
@@ -68,7 +58,24 @@ function useRoleDialogState() {
   const [selected, setSelected] = useState<string[]>([]);
   const [usersTarget, setUsersTarget] = useState<Role | null>(null);
 
-  return { form, setForm, editing, setEditing, creating, setCreating, submitting, setSubmitting, deleteTarget, setDeleteTarget, batchDeleteOpen, setBatchDeleteOpen, selected, setSelected, usersTarget, setUsersTarget };
+  return {
+    form,
+    setForm,
+    editing,
+    setEditing,
+    creating,
+    setCreating,
+    submitting,
+    setSubmitting,
+    deleteTarget,
+    setDeleteTarget,
+    batchDeleteOpen,
+    setBatchDeleteOpen,
+    selected,
+    setSelected,
+    usersTarget,
+    setUsersTarget,
+  };
 }
 
 function useRoleBindingState() {
@@ -81,7 +88,24 @@ function useRoleBindingState() {
   const [dataScope, setDataScope] = useState('5');
   const [loading, setLoading] = useState(false);
 
-  return { target, setTarget, type, setType, selected, setSelected, resolvedDeptBindings, setResolvedDeptBindings, nodes, setNodes, strict, setStrict, dataScope, setDataScope, loading, setLoading };
+  return {
+    target,
+    setTarget,
+    type,
+    setType,
+    selected,
+    setSelected,
+    resolvedDeptBindings,
+    setResolvedDeptBindings,
+    nodes,
+    setNodes,
+    strict,
+    setStrict,
+    dataScope,
+    setDataScope,
+    loading,
+    setLoading,
+  };
 }
 
 type RoleCrudOptions = {
@@ -101,10 +125,13 @@ function useRoleCrudActions({ dialogs, t }: RoleCrudOptions) {
     setCreating(true);
     setForm(DEFAULT_FORM);
   }, [setCreating, setEditing, setForm]);
-  const openEdit = useCallback((role: Role) => {
-    setEditing(role);
-    setForm(toInput(role));
-  }, [setEditing, setForm]);
+  const openEdit = useCallback(
+    (role: Role) => {
+      setEditing(role);
+      setForm(toInput(role));
+    },
+    [setEditing, setForm]
+  );
   const submitRole = useCallback(async () => {
     setSubmitting(true);
     try {
@@ -134,21 +161,27 @@ function useRoleBindingActions({ binding, dialogs, t }: RoleBindingOptions) {
   return { openBindings, saveBindings };
 }
 
-function useOpenRoleBindings(binding: ReturnType<typeof useRoleBindingState>, t: ReturnType<typeof useTranslate>['t']) {
-  return useCallback(async (role: Role, type: 'menus' | 'depts') => {
-    binding.setTarget(role);
-    binding.setType(type);
-    binding.setResolvedDeptBindings([]);
-    binding.setLoading(true);
-    try {
-      if (type === 'menus') await loadMenuBindings(role, binding);
-      else await loadDeptBindings(role, binding);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.loadBindingsFailed'));
-    } finally {
-      binding.setLoading(false);
-    }
-  }, [binding, t]);
+function useOpenRoleBindings(
+  binding: ReturnType<typeof useRoleBindingState>,
+  t: ReturnType<typeof useTranslate>['t']
+) {
+  return useCallback(
+    async (role: Role, type: 'menus' | 'depts') => {
+      binding.setTarget(role);
+      binding.setType(type);
+      binding.setResolvedDeptBindings([]);
+      binding.setLoading(true);
+      try {
+        if (type === 'menus') await loadMenuBindings(role, binding);
+        else await loadDeptBindings(role, binding);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t('messages.loadBindingsFailed'));
+      } finally {
+        binding.setLoading(false);
+      }
+    },
+    [binding, t]
+  );
 }
 
 async function loadMenuBindings(role: Role, binding: ReturnType<typeof useRoleBindingState>) {
@@ -177,7 +210,8 @@ function useSaveRoleBindings({ binding, setSubmitting, t }: SaveRoleBindingsOpti
     if (!binding.target) return;
     setSubmitting(true);
     try {
-      if (binding.type === 'menus') await updateRoleMenus(binding.target.role_id, binding.resolvedDeptBindings);
+      if (binding.type === 'menus')
+        await updateRoleMenus(binding.target.role_id, binding.resolvedDeptBindings);
       else await updateRoleDataScope(binding.target.role_id, roleDataScopePayload(binding));
       toast.success(t('messages.rolePermissionsUpdated'));
       binding.setTarget(null);
@@ -193,9 +227,10 @@ function roleDataScopePayload(binding: ReturnType<typeof useRoleBindingState>) {
   return {
     data_scope: binding.dataScope,
     dept_check_strictly: binding.strict,
-    dept_ids: binding.dataScope === '2'
-      ? deptBindingIds(binding.selected, binding.resolvedDeptBindings, binding.strict)
-      : [],
+    dept_ids:
+      binding.dataScope === '2'
+        ? deptBindingIds(binding.selected, binding.resolvedDeptBindings, binding.strict)
+        : [],
   };
 }
 
@@ -209,28 +244,37 @@ function useRoleDeletionActions({ dialogs, selectableRoles, t }: RoleDeletionOpt
   const confirmDelete = useConfirmRoleDelete(dialogs, t);
   const confirmBatchDelete = useConfirmRoleBatchDelete(dialogs, t);
   const toggleAll = useCallback(
-    (checked: boolean) => dialogs.setSelected(checked ? selectableRoles.map((role) => role.role_id) : []),
+    (checked: boolean) =>
+      dialogs.setSelected(checked ? selectableRoles.map((role) => role.role_id) : []),
     [dialogs, selectableRoles]
   );
 
   return { confirmDelete, confirmBatchDelete, toggleAll };
 }
 
-function useConfirmRoleDelete(dialogs: ReturnType<typeof useRoleDialogState>, t: ReturnType<typeof useTranslate>['t']) {
+function useConfirmRoleDelete(
+  dialogs: ReturnType<typeof useRoleDialogState>,
+  t: ReturnType<typeof useTranslate>['t']
+) {
   return useCallback(async () => {
     if (!dialogs.deleteTarget) return;
     try {
       await deleteRole(dialogs.deleteTarget.role_id);
       toast.success(t('messages.deleted'));
       dialogs.setDeleteTarget(null);
-      dialogs.setSelected((current) => current.filter((id) => id !== dialogs.deleteTarget?.role_id));
+      dialogs.setSelected((current) =>
+        current.filter((id) => id !== dialogs.deleteTarget?.role_id)
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
   }, [dialogs, t]);
 }
 
-function useConfirmRoleBatchDelete(dialogs: ReturnType<typeof useRoleDialogState>, t: ReturnType<typeof useTranslate>['t']) {
+function useConfirmRoleBatchDelete(
+  dialogs: ReturnType<typeof useRoleDialogState>,
+  t: ReturnType<typeof useTranslate>['t']
+) {
   return useCallback(async () => {
     if (dialogs.selected.length === 0) return;
     try {
@@ -242,21 +286,4 @@ function useConfirmRoleBatchDelete(dialogs: ReturnType<typeof useRoleDialogState
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
   }, [dialogs, t]);
-}
-
-type RoleExportOptions = {
-  filters: typeof DEFAULT_FILTERS;
-  t: ReturnType<typeof useTranslate>['t'];
-};
-
-function useRoleExportAction({ filters, t }: RoleExportOptions) {
-  const submitExport = useCallback(async () => {
-    try {
-      await exportRoles(filters);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.exportFailed'));
-    }
-  }, [filters, t]);
-
-  return { submitExport };
 }

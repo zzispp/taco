@@ -21,6 +21,7 @@ use rbac::{
     application::{RbacAdminUseCase, RbacService, RbacUseCase},
     infra::{RedisRbacCache, StorageRbacRepository},
 };
+use scheduler::api::{SchedulerApiState, SchedulerApiStateParts, create_router as create_scheduler_router};
 use storage::{Database, connect_database};
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
@@ -36,6 +37,7 @@ use user::{
 use self::{
     routes::{authorization_config, data_scope_handlers},
     runtime_config::{CaptchaAccountVerifier, CaptchaSystemConfig, RuntimeRbacConfig, RuntimeSystemConfig, RuntimeUserConfig},
+    scheduler_wiring::build_scheduler_services,
 };
 use crate::{
     BackendResult,
@@ -46,6 +48,7 @@ use crate::{
 
 mod routes;
 mod runtime_config;
+mod scheduler_wiring;
 #[cfg(test)]
 mod tests;
 
@@ -76,6 +79,7 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     ));
     let tokens = TokenService::with_ttl_reader(token_settings(settings)?, Arc::new(runtime_config), Arc::new(online_sessions));
     let captcha = build_captcha_service(settings, system.clone()).await?;
+    let scheduler = build_scheduler_services(settings, database.clone(), system.clone())?;
 
     Ok(AppState {
         users,
@@ -85,6 +89,9 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         system,
         metrics,
         captcha,
+        scheduler: scheduler.use_case,
+        scheduler_export_config: scheduler.export_config,
+        scheduler_runtime: scheduler.runtime,
         authorization,
     })
 }
@@ -138,7 +145,12 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tra
         .merge(create_user_router(user_state))
         .merge(create_rbac_router(rbac_state))
         .merge(create_system_router(system_state))
-        .merge(create_captcha_router(captcha_state));
+        .merge(create_captcha_router(captcha_state))
+        .merge(create_scheduler_router(SchedulerApiState::new(SchedulerApiStateParts {
+            scheduler: state.scheduler,
+            export_config: state.scheduler_export_config,
+            runtime: state.scheduler_runtime,
+        })));
 
     let app = public_routes(settings).nest("/api", api_router);
     let app = attach_metrics(app, metrics_handle);

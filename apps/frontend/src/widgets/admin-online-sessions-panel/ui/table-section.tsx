@@ -24,13 +24,18 @@ export function OnlineSessionsTableSection({
   head,
   loading,
   canForceLogout,
+  filterErrorMessage,
   onFilterChange,
   onForceLogout,
 }: OnlineSessionsTableSectionProps) {
   const { t } = useTranslate('admin');
   return (
     <Card>
-      <OnlineSessionFiltersBar filters={filters} onChange={onFilterChange} />
+      <OnlineSessionFiltersBar
+        filters={filters}
+        errorMessage={filterErrorMessage}
+        onChange={onFilterChange}
+      />
       <Scrollbar>
         <Table sx={{ minWidth: ONLINE_SESSIONS_TABLE_MIN_WIDTH }}>
           <ManagementTableHead head={head} />
@@ -78,6 +83,7 @@ type OnlineSessionsTableSectionProps = {
   head: TableHeadCellProps[];
   loading: boolean;
   canForceLogout: boolean;
+  filterErrorMessage: string | null;
   onFilterChange: (filters: OnlineSessionFilters) => void;
   onForceLogout: (row: OnlineSession) => void;
 };

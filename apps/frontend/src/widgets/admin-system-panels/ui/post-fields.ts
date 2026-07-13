@@ -5,9 +5,19 @@ export function postFields(t: TranslateFn) {
     { key: 'post_name' as const, label: t('fields.postName') },
     { key: 'post_code' as const, label: t('fields.postCode') },
     { key: 'post_sort' as const, label: t('fields.postSort'), type: 'number' as const },
-    { key: 'status' as const, label: t('common.status'), type: 'select' as const, options: statusOptions(t) },
+    {
+      key: 'status' as const,
+      label: t('common.status'),
+      type: 'select' as const,
+      options: statusOptions(t),
+    },
     { key: 'remark' as const, label: t('common.remark'), type: 'textarea' as const },
-    { key: 'create_time' as const, label: t('fields.createTime'), format: 'dateTime' as const, hiddenInForm: true },
+    {
+      key: 'create_time' as const,
+      label: t('fields.createTime'),
+      format: 'dateTime' as const,
+      hiddenInForm: true,
+    },
   ];
 }
 
@@ -15,10 +25,15 @@ export function postFilterFields(t: TranslateFn) {
   return [
     { key: 'post_name', label: t('fields.postName') },
     { key: 'post_code', label: t('fields.postCode') },
-    { key: 'status', label: t('common.status'), type: 'select' as const, options: allStatusOptions(t) },
+    {
+      key: 'status',
+      label: t('common.status'),
+      type: 'select' as const,
+      options: allStatusOptions(t),
+    },
     { key: 'remark', label: t('common.remark') },
-    { key: 'begin_time', label: t('fields.beginTime'), type: 'date' as const },
-    { key: 'end_time', label: t('fields.endTime'), type: 'date' as const },
+    { key: 'begin_time', label: t('fields.beginTime'), type: 'dateTime' as const },
+    { key: 'end_time', label: t('fields.endTime'), type: 'dateTime' as const },
   ];
 }
 

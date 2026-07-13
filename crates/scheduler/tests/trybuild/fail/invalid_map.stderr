@@ -1,0 +1,5 @@
+error: task parameter maps must use String keys and String values
+ --> tests/trybuild/fail/invalid_map.rs:7:13
+  |
+7 |     values: HashMap<String, u32>,
+  |             ^^^^^^^^^^^^^^^^^^^^

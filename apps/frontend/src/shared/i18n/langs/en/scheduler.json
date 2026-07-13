@@ -1,0 +1,220 @@
+{
+  "importJob": "Import job",
+  "editJob": "Edit job",
+  "taskKey": "Task key",
+  "jobName": "Job name",
+  "jobGroup": "Job group",
+  "invokeTarget": "Invoke target",
+  "cronExpression": "Cron expression",
+  "registryStatus": "Registry status",
+  "misfirePolicy": "Misfire policy",
+  "concurrent": "Concurrency policy",
+  "runOnce": "Run once",
+  "runAccepted": "Job queued for execution",
+  "cronBuilder": "Cron builder",
+  "customExpression": "Custom expression",
+  "nextTimes": "Next 5 run times",
+  "cronInvalid": "Invalid cron expression",
+  "jobMessage": "Message",
+  "executionId": "Execution ID",
+  "copyExecutionId": "Copy execution ID",
+  "copyExecutionIdSuccess": "Execution ID copied",
+  "copyExecutionIdFailed": "Failed to copy execution ID",
+  "triggerType": "Trigger",
+  "scheduledAt": "Scheduled at",
+  "startTime": "Start time",
+  "endTime": "End time",
+  "runtimeError": "Runtime error",
+  "notStarted": "Not started",
+  "clearLogs": "Clear logs",
+  "clearLogsConfirm": "Clear all completed scheduler logs?",
+  "clearLogsGlobalConfirm": "Clear all completed scheduler logs? The current filters do not limit the clear operation.",
+  "filters": {
+    "createdFrom": "Log created from",
+    "createdTo": "Log created to",
+    "invalidDateTime": "Enter a valid log creation time",
+    "invalidRange": "The filter start time cannot be later than the filter end time"
+  },
+  "jobDetail": {
+    "title": "Job details",
+    "open": "View job details",
+    "tabs": {
+      "configuration": "Configuration",
+      "schedule": "Schedule",
+      "method": "Execution method",
+      "metadata": "Metadata"
+    },
+    "fields": {
+      "jobId": "Job ID",
+      "repeatable": "Repeatable import",
+      "scheduleRevision": "Schedule revision",
+      "nextRunAt": "Next run time",
+      "runtimeErrorAt": "Runtime error time",
+      "paramsSchemaVersion": "Parameter schema version",
+      "taskParameters": "Task parameters",
+      "createdBy": "Created by",
+      "createdAt": "Created at",
+      "updatedBy": "Updated by",
+      "updatedAt": "Updated at"
+    }
+  },
+  "executionDetail": {
+    "title": "Execution details",
+    "open": "View execution details",
+    "openLegacy": "View execution snapshot (no request or response record)",
+    "tabs": {
+      "overview": "Overview",
+      "parameters": "Parameters",
+      "request": "Request",
+      "response": "Response"
+    },
+    "notAvailable": "Not available",
+    "legacy": "No execution details",
+    "unknown": "Unknown detail kind",
+    "httpExchange": "HTTP exchange",
+    "durationMs": "{{value}} ms",
+    "byteLength": "{{value}} bytes",
+    "none": "None",
+    "legacyDescription": "This execution has no request or response details. Its snapshot and task parameters remain available.",
+    "noResponse": "The request did not receive a response.",
+    "noHeaders": "No headers",
+    "noBody": "No body",
+    "encoding": {
+      "utf8": "UTF-8 text",
+      "base64": "Base64"
+    },
+    "fields": {
+      "jobRevision": "Job revision",
+      "requestedBy": "Requested by",
+      "detailKind": "Detail kind",
+      "schemaVersion": "Detail schema version",
+      "duration": "Duration",
+      "failure": "Failure type",
+      "exceptionInfo": "Exception information",
+      "createdAt": "Record created at",
+      "method": "Method",
+      "url": "URL",
+      "statusCode": "Status code",
+      "finalUrl": "Final URL",
+      "headers": "Headers",
+      "body": "Body"
+    },
+    "failureValues": {
+      "requestBuild": "Request build failed",
+      "timeout": "Request timed out",
+      "connect": "Connection failed",
+      "request": "Request failed",
+      "responseBody": "Response body read failed",
+      "httpStatus": "HTTP status indicates failure"
+    }
+  },
+  "confirmDelete": "Delete job \"{{name}}\"?",
+  "confirmBatchDelete": "Delete the {{count}} selected jobs?",
+  "noPreview": "No run time preview is available",
+  "paramKey": "Key",
+  "paramValue": "Value",
+  "addParamRow": "Add parameter row",
+  "mode": {
+    "builder": "Expression builder",
+    "custom": "Custom expression"
+  },
+  "paramErrors": {
+    "invalidJson": "Enter valid JSON",
+    "emptyKey": "Parameter keys cannot be empty",
+    "duplicateKey": "Parameter keys must be unique",
+    "invalidKeyValue": "Key-value parameters must be an object with string values",
+    "invalidValue": "Invalid parameter value"
+  },
+  "mutation": {
+    "saveFailed": "Failed to save job",
+    "deleteFailed": "Failed to delete job",
+    "exportFailed": "Export failed",
+    "statusFailed": "Failed to update job status",
+    "runFailed": "Failed to trigger job"
+  },
+  "registryStatusValues": {
+    "ok": "Available",
+    "missing": "Task not registered",
+    "repeatableMismatch": "Repeatable setting mismatch",
+    "invalidParams": "Invalid task parameters"
+  },
+  "runtimeErrorValues": {
+    "taskMissing": "Task not registered",
+    "repeatableMismatch": "Repeatable setting mismatch",
+    "invalidParams": "Invalid task parameters",
+    "invalidCron": "Invalid Cron expression"
+  },
+  "jobStatus": {
+    "normal": "Enabled",
+    "paused": "Paused"
+  },
+  "concurrentPolicy": {
+    "allow": "Allow concurrent runs",
+    "disallow": "Disallow concurrent runs"
+  },
+  "misfirePolicyValues": {
+    "fireOnce": "Run once",
+    "doNothing": "Skip"
+  },
+  "statuses": {
+    "execution": {
+      "success": "Success",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "interrupted": "Interrupted"
+    }
+  },
+  "trigger": {
+    "scheduled": "Scheduled",
+    "manual": "Manual",
+    "misfire": "Misfire recovery"
+  },
+  "job": {
+    "success": "Job executed successfully",
+    "failed": "Job execution failed"
+  },
+  "cron": {
+    "second": "Second",
+    "minute": "Minute",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "week": "Week",
+    "year": "Year"
+  },
+  "cronBuilderUi": {
+    "allowed": "{{field}}, allowed wildcards {{chars}}",
+    "range": "Range from",
+    "from": "From",
+    "start": "Start",
+    "end": "End",
+    "intervalEvery": "then every",
+    "step": "Step",
+    "executeOnce": "run once",
+    "specific": "Specific",
+    "multiPlaceholder": "Multiple values",
+    "unspecified": "Not specified",
+    "nearestWorkdayPrefix": "Nearest weekday to day",
+    "nearestWorkdaySuffix": "of each month",
+    "lastDay": "Last day of the month",
+    "weekRange": "Range from weekday",
+    "nthWeekdayPrefix": "The",
+    "nth": "Nth",
+    "nthWeekdayMiddle": "week weekday",
+    "lastWeekdayPrefix": "Last weekday of the month",
+    "yearBlankAllowed": "Blank, allowed wildcards [, - * /]",
+    "yearly": "Every year",
+    "timeExpression": "Time expression",
+    "calculating": "Calculating...",
+    "confirm": "Confirm",
+    "weekdays": {
+      "1": "Sunday",
+      "2": "Monday",
+      "3": "Tuesday",
+      "4": "Wednesday",
+      "5": "Thursday",
+      "6": "Friday",
+      "7": "Saturday"
+    }
+  }
+}

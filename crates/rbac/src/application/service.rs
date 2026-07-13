@@ -210,12 +210,9 @@ where
         if is_whitelisted(config, &request.method, &request.path)? || request.admin {
             return Ok(());
         }
-        let permission = required_permission(config, &request)?;
-        if request
-            .permissions
-            .iter()
-            .any(|item| item == permission || item == constants::system::ALL_PERMISSION)
-        {
+        let requirement = required_permission(config, &request)?;
+        let has_wildcard = request.permissions.iter().any(|item| item == constants::system::ALL_PERMISSION);
+        if has_wildcard || requirement.is_satisfied_by(&request.permissions) {
             return Ok(());
         }
         Err(RbacError::Forbidden)

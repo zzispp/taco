@@ -1,14 +1,14 @@
 use super::*;
 
 #[require_perms("system:post:export")]
-pub async fn export_posts(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_posts(&state, &query).await?;
+pub async fn export_posts(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_posts(&state, post_export_filter(query)?).await?;
     Ok(xlsx_attachment("posts.xlsx", export_posts_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:post:list")]
-pub async fn list_posts(State(state): State<SystemApiState>, Query(query): Query<SystemListQuery>) -> ApiResult<ApiJson<Page<Post>>> {
-    Ok(ok(state.system.page_posts(query.into()).await?))
+pub async fn list_posts(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<Post>>> {
+    Ok(ok(state.system.page_posts(post_list_filter(query)?).await?))
 }
 #[require_perms("system:post:query")]
 pub async fn get_post(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<Post>> {
@@ -47,14 +47,14 @@ pub async fn delete_posts(State(state): State<SystemApiState>, RequestJson(paylo
 }
 
 #[require_perms("system:dict:export")]
-pub async fn export_dict_types(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_dict_types(&state, &query).await?;
+pub async fn export_dict_types(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_dict_types(&state, dict_type_export_filter(query)?).await?;
     Ok(xlsx_attachment("dict_types.xlsx", export_dict_types_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:dict:list")]
-pub async fn list_dict_types(State(state): State<SystemApiState>, Query(query): Query<SystemListQuery>) -> ApiResult<ApiJson<Page<DictType>>> {
-    Ok(ok(state.system.page_dict_types(query.into()).await?))
+pub async fn list_dict_types(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<DictType>>> {
+    Ok(ok(state.system.page_dict_types(dict_type_list_filter(query)?).await?))
 }
 #[require_perms("system:dict:query")]
 pub async fn get_dict_type(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<DictType>> {
@@ -99,14 +99,14 @@ pub async fn delete_dict_types(State(state): State<SystemApiState>, RequestJson(
 }
 
 #[require_perms("system:dict:export")]
-pub async fn export_dict_data(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_dict_data(&state, &query).await?;
+pub async fn export_dict_data(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_dict_data(&state, dict_data_export_filter(query)?).await?;
     Ok(xlsx_attachment("dict_data.xlsx", export_dict_data_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:dict:list")]
-pub async fn list_dict_data(State(state): State<SystemApiState>, Query(query): Query<SystemListQuery>) -> ApiResult<ApiJson<Page<DictData>>> {
-    Ok(ok(state.system.page_dict_data(query.into()).await?))
+pub async fn list_dict_data(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<DictData>>> {
+    Ok(ok(state.system.page_dict_data(dict_data_list_filter(query)?).await?))
 }
 #[require_perms("system:dict:query")]
 pub async fn get_dict_data(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<DictData>> {
@@ -145,14 +145,14 @@ pub async fn delete_dict_data_batch(State(state): State<SystemApiState>, Request
 }
 
 #[require_perms("system:config:export")]
-pub async fn export_configs(State(state): State<SystemApiState>, Query(query): Query<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_configs(&state, &query).await?;
+pub async fn export_configs(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
+    let items = all_export_configs(&state, config_export_filter(query)?).await?;
     Ok(xlsx_attachment("configs.xlsx", export_configs_xlsx(&items, current_locale())?))
 }
 
 #[require_perms("system:config:list")]
-pub async fn list_configs(State(state): State<SystemApiState>, Query(query): Query<SystemListQuery>) -> ApiResult<ApiJson<Page<ConfigItem>>> {
-    Ok(ok(state.system.page_configs(query.into()).await?))
+pub async fn list_configs(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<ConfigItem>>> {
+    Ok(ok(state.system.page_configs(config_list_filter(query)?).await?))
 }
 #[require_perms("system:config:query")]
 pub async fn get_config(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<ConfigItem>> {

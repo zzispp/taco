@@ -13,8 +13,10 @@ constants.workspace = true
 hook_tracing.workspace = true
 kernel.workspace = true
 rbac.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+scheduler.workspace = true
 sqlx.workspace = true
 storage.workspace = true
 system.workspace = true
@@ -30,4 +32,5 @@ user.workspace = true
 [dev-dependencies]
 http-body-util.workspace = true
 reqwest.workspace = true
+time.workspace = true
 tower.workspace = true

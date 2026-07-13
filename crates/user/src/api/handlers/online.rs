@@ -1,4 +1,5 @@
 use super::*;
+use axum::extract::Query;
 
 const ONLINE_SESSION_FORBIDDEN: &str = "errors.user.online_session_forbidden";
 

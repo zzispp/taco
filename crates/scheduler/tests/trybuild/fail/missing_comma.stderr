@@ -1,0 +1,5 @@
+error: expected `,`
+ --> tests/trybuild/fail/missing_comma.rs:6:35
+  |
+6 |     #[param_field(widget = "text" label_key = "scheduler.param_fields.name")]
+  |                                   ^^^^^^^^^

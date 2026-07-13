@@ -202,8 +202,8 @@ pub(super) fn sanitize_dept_filter(input: DeptListFilter) -> DeptListFilter {
         phone: trim(input.phone),
         email: trim(input.email),
         status: trim(input.status),
-        begin_time: trim(input.begin_time),
-        end_time: trim(input.end_time),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 
@@ -214,8 +214,8 @@ pub(super) fn sanitize_post_filter(input: PostListFilter) -> PostListFilter {
         post_name: trim(input.post_name),
         status: trim(input.status),
         remark: trim(input.remark),
-        begin_time: trim(input.begin_time),
-        end_time: trim(input.end_time),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 
@@ -225,8 +225,8 @@ pub(super) fn sanitize_dict_type_filter(input: DictTypeListFilter) -> DictTypeLi
         dict_name: trim(input.dict_name),
         dict_type: trim(input.dict_type),
         status: trim(input.status),
-        begin_time: trim(input.begin_time),
-        end_time: trim(input.end_time),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 
@@ -236,6 +236,8 @@ pub(super) fn sanitize_dict_data_filter(input: DictDataListFilter) -> DictDataLi
         dict_type: trim(input.dict_type),
         dict_label: trim(input.dict_label),
         status: trim(input.status),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 
@@ -246,8 +248,8 @@ pub(super) fn sanitize_config_filter(input: ConfigListFilter) -> ConfigListFilte
         config_key: trim(input.config_key),
         config_type: trim(input.config_type),
         public_read: input.public_read,
-        begin_time: trim(input.begin_time),
-        end_time: trim(input.end_time),
+        begin_time: input.begin_time,
+        end_time: input.end_time,
     }
 }
 

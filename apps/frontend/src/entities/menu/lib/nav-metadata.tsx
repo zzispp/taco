@@ -6,6 +6,7 @@ import type { IconifyName } from 'src/shared/ui/iconify';
 import type { NavSectionProps } from 'src/shared/ui/nav-section';
 
 import { CONFIG } from 'src/shared/config';
+import { paths } from 'src/shared/routes/paths';
 import { Iconify } from 'src/shared/ui/iconify';
 import { SvgColor } from 'src/shared/ui/svg-color';
 
@@ -29,6 +30,8 @@ export const NAV_ICON_OPTIONS = [
   'icon.dict',
   'icon.config',
   'icon.online',
+  'icon.job',
+  'icon.job-log',
 ];
 
 export const NAV_ICONS: NonNullable<NavSectionProps['render']>['navIcon'] = {
@@ -47,11 +50,17 @@ export const NAV_ICONS: NonNullable<NavSectionProps['render']>['navIcon'] = {
   'icon.mail': icon('ic-mail'),
   'icon.menu': icon('ic-menu-item'),
   'icon.online': iconify('solar:monitor-bold'),
+  'icon.job': iconify('solar:calendar-date-bold'),
+  'icon.job-log': iconify('solar:bill-list-bold-duotone'),
   'icon.post': icon('ic-job'),
   'icon.user': icon('ic-user'),
 };
 
 export function translatedMenuItem(item: Menu, t: TranslateFn) {
+  const keyByPath: Record<string, string> = {
+    [paths.dashboard.admin.jobs]: 'nav.jobs',
+    [paths.dashboard.admin.jobLogs]: 'nav.jobLogs',
+  };
   const keyByPerms: Record<string, string> = {
     'system:dashboard:view': 'nav.dashboard',
     'system:user:list': 'nav.users',
@@ -63,7 +72,7 @@ export function translatedMenuItem(item: Menu, t: TranslateFn) {
     'system:config:list': 'nav.configs',
     'system:online:list': 'nav.online',
   };
-  const key = item.perms ? keyByPerms[item.perms] : undefined;
+  const key = keyByPath[item.path] ?? (item.perms ? keyByPerms[item.perms] : undefined);
   return key ? t(key) : item.menu_name;
 }
 

@@ -1,0 +1,5 @@
+error: unsupported task parameter type; expected String, bool, a numeric type, Option<T>, Vec<T>, or a String map
+ --> tests/trybuild/fail/unknown_type.rs:8:12
+  |
+8 |     value: CustomValue,
+  |            ^^^^^^^^^^^

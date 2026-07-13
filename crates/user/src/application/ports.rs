@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest, PageSliceRequest};
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use types::http::Locale;
 
 use super::{AppResult, AvatarConfig, IpLocationConfig, PasswordPolicy};
@@ -20,8 +21,8 @@ pub struct UserListFilter {
     pub dept_name: Option<String>,
     pub post_ids: Vec<String>,
     pub role_ids: Vec<String>,
-    pub begin_time: Option<String>,
-    pub end_time: Option<String>,
+    pub begin_time: Option<OffsetDateTime>,
+    pub end_time: Option<OffsetDateTime>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

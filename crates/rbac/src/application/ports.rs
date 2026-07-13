@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use kernel::pagination::{Page, PageRequest};
+use time::OffsetDateTime;
 
 use crate::api::CurrentUser;
 use crate::domain::{
@@ -102,8 +103,8 @@ pub struct RoleListFilter {
     pub role_key: Option<String>,
     pub status: Option<String>,
     pub system: Option<bool>,
-    pub begin_time: Option<String>,
-    pub end_time: Option<String>,
+    pub begin_time: Option<OffsetDateTime>,
+    pub end_time: Option<OffsetDateTime>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,6 +112,8 @@ pub struct MenuListFilter {
     pub page: PageRequest,
     pub menu_name: Option<String>,
     pub status: Option<String>,
+    pub begin_time: Option<OffsetDateTime>,
+    pub end_time: Option<OffsetDateTime>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -140,5 +143,5 @@ pub struct AuthWhitelistRule {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorizationConfig {
     pub whitelist: Vec<AuthWhitelistRule>,
-    pub route_permissions: Vec<crate::domain::RoutePermissionRule>,
+    pub route_permissions: Vec<super::RoutePermissionRule>,
 }

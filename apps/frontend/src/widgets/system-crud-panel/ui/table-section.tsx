@@ -31,7 +31,12 @@ export function CrudTableSection<T extends CrudRecord, I extends CrudRecord>({
 
   return (
     <Card>
-      <CrudFilters filters={props.filters ?? []} values={props.filterValues ?? {}} onChange={props.onFilterChange} />
+      <CrudFilters
+        error={props.filterError ?? null}
+        filters={props.filters ?? []}
+        values={props.filterValues ?? {}}
+        onChange={props.onFilterChange}
+      />
       <Scrollbar>
         <Table sx={{ minWidth: 980 }}>
           <ManagementTableHead
@@ -65,16 +70,27 @@ function CrudTableBody<T extends CrudRecord, I extends CrudRecord>({
       {props.resource.isLoading ? (
         <TableLoadingRows head={bodyHead} rows={props.rowsPerPage} />
       ) : (
-        props.resource.items.map((row) => <CrudRow key={String(row[props.idKey])} row={row} props={props} controller={controller} />)
+        props.resource.items.map((row) => (
+          <CrudRow key={String(row[props.idKey])} row={row} props={props} controller={controller} />
+        ))
       )}
-      <TableNoData title={t('common.noData')} notFound={!props.resource.isLoading && props.resource.items.length === 0} />
+      <TableNoData
+        title={t('common.noData')}
+        notFound={!props.resource.isLoading && props.resource.items.length === 0}
+      />
     </TableBody>
   );
 }
 
-type CrudRowProps<T extends CrudRecord, I extends CrudRecord> = CrudTableSectionProps<T, I> & { row: T };
+type CrudRowProps<T extends CrudRecord, I extends CrudRecord> = CrudTableSectionProps<T, I> & {
+  row: T;
+};
 
-function CrudRow<T extends CrudRecord, I extends CrudRecord>({ row, props, controller }: CrudRowProps<T, I>) {
+function CrudRow<T extends CrudRecord, I extends CrudRecord>({
+  row,
+  props,
+  controller,
+}: CrudRowProps<T, I>) {
   const { t, state, permissions } = controller;
   const rowId = String(row[props.idKey]);
   const isRowSelectable = props.isRowSelectable ?? (() => true);
@@ -90,11 +106,16 @@ function CrudRow<T extends CrudRecord, I extends CrudRecord>({ row, props, contr
           />
         </TableCell>
       )}
-      {props.fields.filter((field) => !field.hiddenInTable).map((field) => (
-        <TableCell key={String(field.key)} sx={fieldCellSx(field)}>
-          {displayField(row[field.key as keyof T], field, { yes: t('common.yes'), no: t('common.no') })}
-        </TableCell>
-      ))}
+      {props.fields
+        .filter((field) => !field.hiddenInTable)
+        .map((field) => (
+          <TableCell key={String(field.key)} sx={fieldCellSx(field)}>
+            {displayField(row[field.key as keyof T], field, {
+              yes: t('common.yes'),
+              no: t('common.no'),
+            })}
+          </TableCell>
+        ))}
       <TableCell align="right">
         <TableActions
           permissionPrefix={props.permissionPrefix}

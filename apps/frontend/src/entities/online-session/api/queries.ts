@@ -1,4 +1,4 @@
-import type { OnlineSessionFilters, OnlineSessionsResponse } from '../model/types';
+import type { OnlineSessionQuery, OnlineSessionsResponse } from '../model/types';
 
 import useSWR from 'swr';
 
@@ -12,7 +12,7 @@ const swrOptions = {
   revalidateOnFocus: false,
 };
 
-export function useOnlineSessions(filters: OnlineSessionFilters) {
+export function useOnlineSessions(filters: OnlineSessionQuery) {
   const { data, error, isLoading, isValidating } = useSWR<OnlineSessionsResponse>(
     [onlineSessionEndpoints.list, { params: compactParams(filters) }],
     fetcher,

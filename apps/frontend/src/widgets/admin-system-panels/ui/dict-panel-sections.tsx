@@ -21,6 +21,7 @@ function DictTypePanelSection({ resources, state, actions }: DictPanelSectionPro
     <DictTypeSection
       table={resources.typeTable}
       filters={resources.typeFilters}
+      filterError={resources.typeFilterError}
       resource={resources.dictTypes}
       activeType={resources.activeType}
       head={resources.typeHead}

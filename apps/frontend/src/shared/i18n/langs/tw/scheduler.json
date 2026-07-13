@@ -1,0 +1,220 @@
+{
+  "importJob": "匯入任務",
+  "editJob": "編輯任務",
+  "taskKey": "任務標識",
+  "jobName": "任務名稱",
+  "jobGroup": "任務分組",
+  "invokeTarget": "調用目標",
+  "cronExpression": "Cron 表達式",
+  "registryStatus": "註冊狀態",
+  "misfirePolicy": "錯過執行策略",
+  "concurrent": "併發策略",
+  "runOnce": "執行一次",
+  "runAccepted": "任務已進入執行佇列",
+  "cronBuilder": "Cron 表達式生成器",
+  "customExpression": "自訂表達式",
+  "nextTimes": "最近 5 次執行時間",
+  "cronInvalid": "Cron 表達式無效",
+  "jobMessage": "日誌資訊",
+  "executionId": "執行編號",
+  "copyExecutionId": "複製執行編號",
+  "copyExecutionIdSuccess": "執行編號已複製",
+  "copyExecutionIdFailed": "複製執行編號失敗",
+  "triggerType": "觸發方式",
+  "scheduledAt": "計劃時間",
+  "startTime": "開始時間",
+  "endTime": "結束時間",
+  "runtimeError": "執行錯誤",
+  "notStarted": "未啟動",
+  "clearLogs": "清空日誌",
+  "clearLogsConfirm": "確認清空所有已結束的調度日誌？",
+  "clearLogsGlobalConfirm": "確認清空全部已結束的調度日誌？目前篩選條件不會限制清空範圍。",
+  "filters": {
+    "createdFrom": "日誌產生起始時間",
+    "createdTo": "日誌產生截止時間",
+    "invalidDateTime": "請輸入有效的日誌產生時間",
+    "invalidRange": "篩選開始時間不能晚於篩選結束時間"
+  },
+  "jobDetail": {
+    "title": "任務詳情",
+    "open": "檢視任務詳情",
+    "tabs": {
+      "configuration": "任務設定",
+      "schedule": "調度資訊",
+      "method": "執行方法",
+      "metadata": "中繼資料"
+    },
+    "fields": {
+      "jobId": "任務編號",
+      "repeatable": "允許重複匯入",
+      "scheduleRevision": "調度版本",
+      "nextRunAt": "下次執行時間",
+      "runtimeErrorAt": "執行錯誤時間",
+      "paramsSchemaVersion": "參數協定版本",
+      "taskParameters": "任務參數",
+      "createdBy": "建立人",
+      "createdAt": "建立時間",
+      "updatedBy": "更新人",
+      "updatedAt": "更新時間"
+    }
+  },
+  "executionDetail": {
+    "title": "執行詳情",
+    "open": "查看執行詳情",
+    "openLegacy": "查看執行快照（無請求回應記錄）",
+    "tabs": {
+      "overview": "概覽",
+      "parameters": "參數",
+      "request": "請求",
+      "response": "回應"
+    },
+    "notAvailable": "不可用",
+    "legacy": "無執行詳情",
+    "unknown": "未知詳情類型",
+    "httpExchange": "HTTP 請求回應",
+    "durationMs": "{{value}} 毫秒",
+    "byteLength": "{{value}} 位元組",
+    "none": "無",
+    "legacyDescription": "該執行記錄沒有請求回應詳情，但仍可查看執行快照和任務參數。",
+    "noResponse": "請求未收到回應。",
+    "noHeaders": "無標頭",
+    "noBody": "無正文",
+    "encoding": {
+      "utf8": "UTF-8 文字",
+      "base64": "Base64"
+    },
+    "fields": {
+      "jobRevision": "任務版本",
+      "requestedBy": "請求人",
+      "detailKind": "詳情類型",
+      "schemaVersion": "詳情協議版本",
+      "duration": "耗時",
+      "failure": "失敗類型",
+      "exceptionInfo": "異常資訊",
+      "createdAt": "記錄建立時間",
+      "method": "請求方法",
+      "url": "請求地址",
+      "statusCode": "回應狀態碼",
+      "finalUrl": "最終地址",
+      "headers": "HTTP 標頭",
+      "body": "正文"
+    },
+    "failureValues": {
+      "requestBuild": "請求構建失敗",
+      "timeout": "請求逾時",
+      "connect": "連線失敗",
+      "request": "請求傳送失敗",
+      "responseBody": "回應正文讀取失敗",
+      "httpStatus": "HTTP 狀態碼表示失敗"
+    }
+  },
+  "confirmDelete": "確認刪除任務「{{name}}」？",
+  "confirmBatchDelete": "確認刪除選中的 {{count}} 個任務？",
+  "noPreview": "暫無可用的執行時間預覽",
+  "paramKey": "鍵",
+  "paramValue": "值",
+  "addParamRow": "新增參數列",
+  "mode": {
+    "builder": "表達式生成器",
+    "custom": "自訂表達式"
+  },
+  "paramErrors": {
+    "invalidJson": "請輸入有效的 JSON",
+    "emptyKey": "參數鍵不能為空",
+    "duplicateKey": "參數鍵不能重複",
+    "invalidKeyValue": "鍵值參數必須是僅包含字串值的物件",
+    "invalidValue": "參數值無效"
+  },
+  "mutation": {
+    "saveFailed": "儲存任務失敗",
+    "deleteFailed": "刪除任務失敗",
+    "exportFailed": "匯出失敗",
+    "statusFailed": "更新任務狀態失敗",
+    "runFailed": "觸發任務失敗"
+  },
+  "registryStatusValues": {
+    "ok": "正常",
+    "missing": "任務未註冊",
+    "repeatableMismatch": "重複執行設定不一致",
+    "invalidParams": "任務參數無效"
+  },
+  "runtimeErrorValues": {
+    "taskMissing": "任務未註冊",
+    "repeatableMismatch": "重複執行設定不一致",
+    "invalidParams": "任務參數無效",
+    "invalidCron": "Cron 表達式無效"
+  },
+  "jobStatus": {
+    "normal": "啟用",
+    "paused": "暫停"
+  },
+  "concurrentPolicy": {
+    "allow": "允許併發",
+    "disallow": "禁止併發"
+  },
+  "misfirePolicyValues": {
+    "fireOnce": "補跑一次",
+    "doNothing": "跳過"
+  },
+  "statuses": {
+    "execution": {
+      "success": "成功",
+      "failed": "失敗",
+      "skipped": "已跳過",
+      "interrupted": "已中斷"
+    }
+  },
+  "trigger": {
+    "scheduled": "計劃調度",
+    "manual": "手動觸發",
+    "misfire": "錯過補償"
+  },
+  "job": {
+    "success": "任務執行成功",
+    "failed": "任務執行失敗"
+  },
+  "cron": {
+    "second": "秒",
+    "minute": "分鐘",
+    "hour": "小時",
+    "day": "日",
+    "month": "月",
+    "week": "週",
+    "year": "年"
+  },
+  "cronBuilderUi": {
+    "allowed": "{{field}}，允許的通配符{{chars}}",
+    "range": "週期從",
+    "from": "從",
+    "start": "開始",
+    "end": "結束",
+    "intervalEvery": "開始，每",
+    "step": "間隔",
+    "executeOnce": "執行一次",
+    "specific": "指定",
+    "multiPlaceholder": "可多選",
+    "unspecified": "不指定",
+    "nearestWorkdayPrefix": "每月",
+    "nearestWorkdaySuffix": "號最近的那個工作日",
+    "lastDay": "本月最後一天",
+    "weekRange": "週期從星期",
+    "nthWeekdayPrefix": "第",
+    "nth": "週數",
+    "nthWeekdayMiddle": "週的星期",
+    "lastWeekdayPrefix": "本月最後一個星期",
+    "yearBlankAllowed": "不填，允許的通配符[, - * /]",
+    "yearly": "每年",
+    "timeExpression": "時間表達式",
+    "calculating": "計算結果中...",
+    "confirm": "確定",
+    "weekdays": {
+      "1": "星期日",
+      "2": "星期一",
+      "3": "星期二",
+      "4": "星期三",
+      "5": "星期四",
+      "6": "星期五",
+      "7": "星期六"
+    }
+  }
+}

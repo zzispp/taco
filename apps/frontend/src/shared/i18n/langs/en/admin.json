@@ -13,7 +13,9 @@
     "posts": "Posts",
     "dicts": "Dictionaries",
     "configs": "Configs",
-    "online": "Online Users"
+    "online": "Online Users",
+    "jobs": "Scheduled Jobs",
+    "jobLogs": "Job Logs"
   },
   "common": {
     "active": "Active",
@@ -83,7 +85,9 @@
     "postManagement": "Post Management",
     "dictManagement": "Dictionary Management",
     "configManagement": "Config Management",
-    "onlineManagement": "Online Users"
+    "onlineManagement": "Online Users",
+    "jobManagement": "Scheduled Jobs",
+    "jobLogManagement": "Job Logs"
   },
   "actions": {
     "addMenuItem": "Add menu item",
@@ -257,17 +261,7 @@
     "viewAll": "View all",
     "markComplete": "Mark complete",
     "share": "Share",
-    "months": [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep"
-    ],
+    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"],
     "regions": {
       "america": "America",
       "asia": "Asia",
@@ -443,6 +437,10 @@
     "identifierRequired": "Username or email is required",
     "identifierInvalid": "Enter a valid username or email address"
   },
+  "dateTimeFilters": {
+    "invalidDateTime": "Enter a valid creation time",
+    "invalidTimeRange": "The start time cannot be later than the end time"
+  },
   "onlineSessions": {
     "tokenId": "Session ID",
     "userName": "Login Name",
@@ -452,6 +450,8 @@
     "browser": "Browser",
     "os": "Operating System",
     "loginTime": "Login Time",
+    "invalidDateTime": "Enter a valid login time",
+    "invalidTimeRange": "The login start time cannot be later than the end time",
     "forceLogout": "Force Logout",
     "forceLogoutConfirm": "Force logout user \"{{name}}\"?",
     "forceLogoutSuccess": "Force logout succeeded"

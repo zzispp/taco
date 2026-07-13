@@ -28,8 +28,8 @@ impl PostQueries {
             .bind(&filter.post_name)
             .bind(&filter.status)
             .bind(&filter.remark)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
         let records = query_as::<_, PostRecord>(AssertSqlSafe(page_sql()))
@@ -37,8 +37,8 @@ impl PostQueries {
             .bind(&filter.post_name)
             .bind(&filter.status)
             .bind(&filter.remark)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .bind(page::limit(filter.page)?)
             .bind(page::offset(filter.page)?)
             .fetch_all(self.database.pool())
@@ -132,7 +132,7 @@ impl PostQueries {
 }
 
 fn predicate() -> &'static str {
-    "($1::text IS NULL OR post_code ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR post_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::text IS NULL OR remark ILIKE '%' || $4 || '%') AND ($5::text IS NULL OR create_time::date >= $5::date) AND ($6::text IS NULL OR create_time::date <= $6::date)"
+    "($1::text IS NULL OR post_code ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR post_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::text IS NULL OR remark ILIKE '%' || $4 || '%') AND ($5::timestamptz IS NULL OR create_time >= $5) AND ($6::timestamptz IS NULL OR create_time <= $6)"
 }
 
 fn page_sql() -> String {
@@ -176,5 +176,14 @@ mod tests {
         assert!(sql.contains("post_code ILIKE"));
         assert!(sql.contains("post_name ILIKE"));
         assert!(sql.contains("remark ILIKE"));
+    }
+
+    #[test]
+    fn post_time_filters_compare_timestamps_without_date_truncation() {
+        let sql = page_sql();
+
+        assert!(sql.contains("create_time >="));
+        assert!(sql.contains("create_time <="));
+        assert!(!sql.contains("::date"));
     }
 }

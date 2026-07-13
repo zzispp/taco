@@ -6,6 +6,7 @@ import type { SystemUser } from 'src/entities/user';
 import type { UserFiltersValue } from './constants';
 import type { TableHeadCellProps } from 'src/shared/ui/table';
 import type { Post, TreeSelectNode } from 'src/entities/system';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
@@ -39,7 +40,13 @@ export function UserTableSection(props: UserTableSectionProps) {
         <DeptFilterTree nodes={deptTree} selected={filters.dept_id} onSelect={onDeptSelect} />
       </Card>
       <Card sx={{ flex: 1, minWidth: 0 }}>
-        <UserFilters filters={filters} roles={roles} posts={posts} onChange={onFilterChange} />
+        <UserFilters
+          filters={filters}
+          error={props.filterError}
+          roles={roles}
+          posts={posts}
+          onChange={onFilterChange}
+        />
         <Scrollbar>
           <Table sx={{ minWidth: USER_TABLE_MIN_WIDTH }}>
             <UserTableContent props={{ ...props, t }} />
@@ -116,6 +123,7 @@ type UsersResource = {
 type UserTableSectionProps = {
   table: TableState;
   filters: UserFiltersValue;
+  filterError: LocalDateTimeFilterError | null;
   users: UsersResource;
   roles: RoleOption[];
   depts: FlatNode[];

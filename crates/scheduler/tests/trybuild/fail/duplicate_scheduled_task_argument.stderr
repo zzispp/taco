@@ -1,0 +1,5 @@
+error: duplicate scheduled_task argument: task_key
+ --> tests/trybuild/fail/duplicate_scheduled_task_argument.rs:5:5
+  |
+5 |     task_key = "task.two",
+  |     ^^^^^^^^

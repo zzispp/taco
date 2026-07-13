@@ -97,6 +97,35 @@ fn http_config_rejects_zero_timeout() {
 }
 
 #[test]
+fn scheduler_config_rejects_non_positive_runtime_values() {
+    let mut request_timeout = settings_with_database(database_parts());
+    request_timeout.scheduler.http_client.request_timeout_ms = 0;
+    let mut reconcile_interval = settings_with_database(database_parts());
+    reconcile_interval.scheduler.runtime.reconcile_interval_ms = 0;
+
+    assert!(matches!(
+        request_timeout.scheduler_config(),
+        Err(SettingsError::NonPositiveNumber("scheduler.http_client.request_timeout_ms"))
+    ));
+    assert!(matches!(
+        reconcile_interval.scheduler_config(),
+        Err(SettingsError::NonPositiveNumber("scheduler.runtime.reconcile_interval_ms"))
+    ));
+}
+
+#[test]
+fn scheduler_config_is_required_and_rejects_unknown_fields() {
+    let missing = deserialize_settings(&minimal_config_without_auto_migrate().replace(scheduler_yaml(), ""));
+    let unknown = deserialize_settings(&minimal_config_without_auto_migrate().replace(
+        scheduler_yaml(),
+        &format!("{scheduler}\n  unexpected: true\n", scheduler = scheduler_yaml().trim_end()),
+    ));
+
+    assert!(missing.is_err());
+    assert!(unknown.is_err());
+}
+
+#[test]
 fn explicit_config_path_reads_path_after_config_arg() {
     let args = vec![OsString::from("backend"), OsString::from("--config"), OsString::from("custom.yaml")];
 
@@ -118,33 +147,19 @@ fn default_config_paths_are_ordered() {
 
 #[test]
 fn database_auto_migrate_defaults_to_false() {
-    let settings: Settings = config_rs::Config::builder()
-        .add_source(config_rs::File::from_str(&minimal_config_without_auto_migrate(), config_rs::FileFormat::Yaml))
-        .build()
-        .unwrap()
-        .try_deserialize()
-        .unwrap();
+    let settings = deserialize_settings(&minimal_config_without_auto_migrate()).unwrap();
 
     assert!(!settings.database.auto_migrate);
 }
 
 #[test]
 fn database_auto_migrate_reads_explicit_true() {
-    let settings: Settings = config_rs::Config::builder()
-        .add_source(config_rs::File::from_str(
-            &minimal_config_without_auto_migrate().replace("database:\n", "database:\n  auto_migrate: true\n"),
-            config_rs::FileFormat::Yaml,
-        ))
-        .build()
-        .unwrap()
-        .try_deserialize()
-        .unwrap();
+    let settings = deserialize_settings(&minimal_config_without_auto_migrate().replace("database:\n", "database:\n  auto_migrate: true\n")).unwrap();
 
     assert!(settings.database.auto_migrate);
 }
 
-fn minimal_config_without_auto_migrate() -> String {
-    r#"
+const MINIMAL_CONFIG_WITHOUT_AUTO_MIGRATE: &str = r#"
 server:
   host: "127.0.0.1"
   port: 3000
@@ -172,6 +187,11 @@ http:
   compression_enabled: true
 metrics:
   enabled: true
+scheduler:
+  http_client:
+    request_timeout_ms: 30000
+  runtime:
+    reconcile_interval_ms: 1000
 redis:
   url: "redis://default:@localhost:6380?protocol=resp3"
   scheme: "redis"
@@ -188,6 +208,19 @@ tracing:
     enabled: false
     directory: "logs"
     prefix: "hook.log"
-"#
-    .into()
+"#;
+
+fn minimal_config_without_auto_migrate() -> String {
+    MINIMAL_CONFIG_WITHOUT_AUTO_MIGRATE.into()
+}
+
+fn scheduler_yaml() -> &'static str {
+    "scheduler:\n  http_client:\n    request_timeout_ms: 30000\n  runtime:\n    reconcile_interval_ms: 1000\n"
+}
+
+fn deserialize_settings(value: &str) -> Result<Settings, config_rs::ConfigError> {
+    config_rs::Config::builder()
+        .add_source(config_rs::File::from_str(value, config_rs::FileFormat::Yaml))
+        .build()?
+        .try_deserialize()
 }

@@ -72,7 +72,13 @@ const importRules = () => ({
       zones: [
         {
           target: './src/shared',
-          from: ['./src/entities', './src/features', './src/widgets', './src/pages-layer', './src/app'],
+          from: [
+            './src/entities',
+            './src/features',
+            './src/widgets',
+            './src/pages-layer',
+            './src/app',
+          ],
           message: 'shared 层不能依赖上层业务代码',
         },
         {
@@ -230,4 +236,22 @@ export default [
   ...eslintTs.configs.recommended,
   reactPlugin.configs.flat.recommended,
   customConfig,
+  {
+    files: [
+      'src/entities/scheduler/**/*.{ts,tsx}',
+      'src/features/scheduler-management/**/*.{ts,tsx}',
+      'src/widgets/admin-job-logs-panel/**/*.{ts,tsx}',
+      'src/widgets/admin-scheduler-panel/**/*.{ts,tsx}',
+    ],
+    rules: {
+      complexity: [2, 10],
+      'max-depth': [2, 3],
+      'max-lines': [2, { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        2,
+        { max: 50, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-params': [2, 3],
+    },
+  },
 ];

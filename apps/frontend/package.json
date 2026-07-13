@@ -8,6 +8,7 @@
     "dev": "next dev -p 8082",
     "start": "next start -p 8082",
     "build": "next build",
+    "test": "vitest run",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "eslint --fix \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint:print": "npx eslint --print-config eslint.config.mjs > eslint-show-config.json",
@@ -129,6 +130,7 @@
     "globals": "^16.5.0",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.49.0"
+    "typescript-eslint": "^8.49.0",
+    "vitest": "^3.2.4"
   }
 }

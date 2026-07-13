@@ -12,6 +12,7 @@ export function UserToolbar({
   canDelete,
   canImport,
   canExport,
+  exportDisabled,
   selectedCount,
   onCreate,
   onImport,
@@ -23,6 +24,7 @@ export function UserToolbar({
   canDelete: boolean;
   canImport: boolean;
   canExport: boolean;
+  exportDisabled: boolean;
   selectedCount: number;
   onCreate: () => void;
   onImport: () => void;
@@ -44,6 +46,7 @@ export function UserToolbar({
       {canExport && (
         <Button
           variant="outlined"
+          disabled={exportDisabled}
           startIcon={<Iconify icon="solar:export-bold" />}
           onClick={onExport}
         >

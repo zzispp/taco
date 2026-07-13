@@ -68,18 +68,11 @@ pub fn parse_avatar_config(value: &str) -> AppResult<AvatarConfig> {
 }
 
 pub fn parse_export_batch_config(value: &str) -> AppResult<kernel::runtime_config::ExportBatchConfig> {
-    parse_config(value, "sys.export.batchConfig", validate_export_batch_config)
+    kernel::runtime_config::parse_export_batch_config(value).map_err(|_| invalid_config(constants::system_config::EXPORT_BATCH_CONFIG_KEY))
 }
 
 pub fn parse_ip_location_config(value: &str) -> AppResult<IpLocationConfig> {
     serde_json::from_str::<IpLocationConfig>(value).map_err(|_| invalid_config(constants::system_config::IP_LOCATION_CONFIG_KEY))
-}
-
-fn validate_export_batch_config(value: &kernel::runtime_config::ExportBatchConfig) -> AppResult<()> {
-    if value.page_size == 0 {
-        return Err(invalid_config("sys.export.batchConfig"));
-    }
-    Ok(())
 }
 
 fn parse_config<T>(value: &str, key: &'static str, validate: fn(&T) -> AppResult<()>) -> AppResult<T>
@@ -98,4 +91,26 @@ fn invalid_config(key: &'static str) -> AppError {
 #[allow(dead_code)]
 pub fn json_value(value: &str, key: &'static str) -> AppResult<Value> {
     serde_json::from_str(value).map_err(|_| invalid_config(key))
+}
+
+#[cfg(test)]
+mod tests {
+    use kernel::{error::LocalizedError, runtime_config::ExportBatchConfig};
+
+    use super::{AppError, parse_export_batch_config};
+
+    #[test]
+    fn export_batch_config_reuses_shared_validation_and_preserves_user_error() {
+        assert_eq!(parse_export_batch_config(r#"{"page_size":100}"#).unwrap(), ExportBatchConfig { page_size: 100 });
+
+        for invalid in [r#"{"page_size":0}"#, r#"{"page_size":100,"unexpected":true}"#, "not-json"] {
+            let AppError::InvalidInput(error) = parse_export_batch_config(invalid).unwrap_err() else {
+                panic!("invalid export config must use the user invalid-input error");
+            };
+            assert_eq!(
+                error,
+                LocalizedError::new("errors.user.invalid_system_config").with_param("key", constants::system_config::EXPORT_BATCH_CONFIG_KEY)
+            );
+        }
+    }
 }

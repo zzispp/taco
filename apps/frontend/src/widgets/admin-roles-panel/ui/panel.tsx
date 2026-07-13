@@ -23,6 +23,7 @@ export function RoleManagementView() {
             canAdd={resources.canAdd}
             canDelete={resources.canDelete}
             canExport={resources.canExport}
+            exportDisabled={resources.filterError !== null}
             selectedCount={dialogs.selected.length}
             onCreate={actions.openCreate}
             onBatchDelete={() => dialogs.setBatchDeleteOpen(true)}
@@ -34,6 +35,7 @@ export function RoleManagementView() {
         t={t}
         table={resources.table}
         filters={resources.filters}
+        filterError={resources.filterError}
         roles={resources.roles}
         head={resources.head}
         loadingHead={resources.loadingHead}

@@ -1,10 +1,12 @@
 use sqlx::{PgPool, query_scalar};
 
+use super::scheduler_assertions::assert_scheduler_seed;
+
 const EXPECTED_ROLE_COUNT: i64 = 2;
-const EXPECTED_MENU_COUNT: i64 = 47;
+const EXPECTED_MENU_COUNT: i64 = 60;
 const EXPECTED_DEPT_COUNT: i64 = 10;
 const EXPECTED_POST_COUNT: i64 = 4;
-const EXPECTED_DICT_TYPE_COUNT: i64 = 5;
+const EXPECTED_DICT_TYPE_COUNT: i64 = 7;
 const EXPECTED_CONFIG_COUNT: i64 = 11;
 const EXPECTED_PUBLIC_CONFIG_COUNT: i64 = 5;
 const EXPECTED_CAPTCHA_DIFFICULTY: i64 = 4;
@@ -22,6 +24,8 @@ const EXPECTED_DASHBOARD_MENU_ICONS: &[(&str, &str)] = &[
     ("105", "icon.dict"),
     ("106", "icon.config"),
     ("107", "icon.online"),
+    ("108", "icon.job"),
+    ("109", "icon.job-log"),
 ];
 
 pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
@@ -39,6 +43,7 @@ pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_online_query_permission_exists(pool).await;
     assert_online_force_logout_permission_exists(pool).await;
     assert_dashboard_menu_icons(pool).await;
+    assert_scheduler_seed(pool).await;
 }
 
 async fn assert_seed_config_values(pool: &PgPool) {

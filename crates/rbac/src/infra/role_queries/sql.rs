@@ -89,7 +89,7 @@ pub(super) fn scoped_user_ids_sql() -> &'static str {
 }
 
 fn role_where() -> &'static str {
-    "r.del_flag='0' AND ($1::text IS NULL OR r.role_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR r.role_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR r.status=$3) AND ($4::bool IS NULL OR r.system=$4) AND ($5::text IS NULL OR r.create_time::date >= $5::date) AND ($6::text IS NULL OR r.create_time::date <= $6::date)"
+    "r.del_flag='0' AND ($1::text IS NULL OR r.role_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR r.role_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR r.status=$3) AND ($4::bool IS NULL OR r.system=$4) AND ($5::timestamptz IS NULL OR r.create_time >= $5) AND ($6::timestamptz IS NULL OR r.create_time <= $6)"
 }
 
 fn role_scope_where() -> &'static str {
@@ -120,8 +120,15 @@ mod tests {
         assert!(page_sql.contains("r.role_name ILIKE"));
         assert!(page_sql.contains("r.role_key ILIKE"));
         assert!(page_sql.contains("($4::bool IS NULL OR r.system=$4)"));
+        assert!(page_sql.contains("r.create_time >= $5"));
+        assert!(page_sql.contains("r.create_time <= $6"));
+        assert!(!page_sql.contains("create_time::date"));
+        assert!(!page_sql.contains("$5::date"));
+        assert!(!page_sql.contains("$6::date"));
         assert!(page_sql.contains("LIMIT $7 OFFSET $8"));
         assert!(scoped_sql.contains("($7='1'"));
+        assert!(scoped_sql.contains("r.create_time >= $5"));
+        assert!(scoped_sql.contains("r.create_time <= $6"));
         assert!(scoped_sql.contains("u.dept_id = ANY($10)"));
         assert!(scoped_sql.contains("LIMIT $11 OFFSET $12"));
     }

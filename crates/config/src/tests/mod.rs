@@ -3,6 +3,9 @@ use super::*;
 mod cors;
 mod values;
 
+const TEST_SCHEDULER_REQUEST_TIMEOUT_MS: u64 = 30_000;
+const TEST_SCHEDULER_RECONCILE_INTERVAL_MS: u64 = 1_000;
+
 pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
     Settings {
         server: ServerSettings {
@@ -16,6 +19,7 @@ pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
         http: http_settings(),
         metrics: metrics_settings(),
         redis: redis_settings(),
+        scheduler: scheduler_settings(),
         uploads: UploadSettings::default(),
         tracing: tracing_settings(),
     }
@@ -109,6 +113,17 @@ pub(super) fn http_settings() -> HttpSettings {
 
 pub(super) fn metrics_settings() -> MetricsSettings {
     MetricsSettings { enabled: true }
+}
+
+pub(super) fn scheduler_settings() -> SchedulerSettings {
+    SchedulerSettings {
+        http_client: SchedulerHttpClientSettings {
+            request_timeout_ms: TEST_SCHEDULER_REQUEST_TIMEOUT_MS,
+        },
+        runtime: SchedulerRuntimeSettings {
+            reconcile_interval_ms: TEST_SCHEDULER_RECONCILE_INTERVAL_MS,
+        },
+    }
 }
 
 pub(super) fn tracing_settings() -> TracingSettings {

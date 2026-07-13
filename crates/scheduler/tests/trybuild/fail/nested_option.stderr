@@ -1,0 +1,5 @@
+error: Option is supported only as the outer field type
+ --> tests/trybuild/fail/nested_option.rs:6:19
+  |
+6 |     value: Option<Option<String>>,
+  |                   ^^^^^^^^^^^^^^

@@ -2,6 +2,7 @@ mod current_user;
 mod error;
 mod export;
 mod handlers;
+mod input;
 pub mod routes;
 pub mod state;
 

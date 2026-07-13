@@ -13,7 +13,9 @@
     "posts": "岗位管理",
     "dicts": "字典管理",
     "configs": "参数设置",
-    "online": "在线用户"
+    "online": "在线用户",
+    "jobs": "定时任务",
+    "jobLogs": "调度日志"
   },
   "common": {
     "active": "启用",
@@ -83,7 +85,9 @@
     "postManagement": "岗位管理",
     "dictManagement": "字典管理",
     "configManagement": "参数设置",
-    "onlineManagement": "在线用户"
+    "onlineManagement": "在线用户",
+    "jobManagement": "定时任务",
+    "jobLogManagement": "调度日志"
   },
   "actions": {
     "addMenuItem": "新增菜单",
@@ -257,17 +261,7 @@
     "viewAll": "查看全部",
     "markComplete": "标记完成",
     "share": "分享",
-    "months": [
-      "1月",
-      "2月",
-      "3月",
-      "4月",
-      "5月",
-      "6月",
-      "7月",
-      "8月",
-      "9月"
-    ],
+    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
     "regions": {
       "america": "美洲",
       "asia": "亚洲",
@@ -443,6 +437,10 @@
     "identifierRequired": "请输入用户名或邮箱",
     "identifierInvalid": "请输入有效的用户名或邮箱地址"
   },
+  "dateTimeFilters": {
+    "invalidDateTime": "请输入有效的创建时间",
+    "invalidTimeRange": "开始时间不能晚于结束时间"
+  },
   "onlineSessions": {
     "tokenId": "会话编号",
     "userName": "登录名称",
@@ -452,6 +450,8 @@
     "browser": "浏览器",
     "os": "操作系统",
     "loginTime": "登录时间",
+    "invalidDateTime": "请输入有效的登录时间",
+    "invalidTimeRange": "登录开始时间不能晚于结束时间",
     "forceLogout": "强退",
     "forceLogoutConfirm": "是否确认强退名称为\"{{name}}\"的用户？",
     "forceLogoutSuccess": "强退成功"

@@ -18,4 +18,9 @@ export const DEFAULT_FORM: MenuInput = {
   remark: '',
 };
 
-export const DEFAULT_FILTERS = { menu_name: '', status: '' };
+export const DEFAULT_FILTERS = {
+  menu_name: '',
+  status: '',
+  begin_time: '',
+  end_time: '',
+};

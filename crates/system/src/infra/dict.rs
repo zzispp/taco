@@ -32,16 +32,16 @@ impl DictQueries {
             .bind(&filter.dict_name)
             .bind(&filter.dict_type)
             .bind(&filter.status)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
         let rows = query_as::<_, DictTypeRecord>(AssertSqlSafe(type_page_sql()))
             .bind(&filter.dict_name)
             .bind(&filter.dict_type)
             .bind(&filter.status)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .bind(page::limit(filter.page)?)
             .bind(page::offset(filter.page)?)
             .fetch_all(self.database.pool())
@@ -54,8 +54,8 @@ impl DictQueries {
             .bind(&filter.dict_name)
             .bind(&filter.dict_type)
             .bind(&filter.status)
-            .bind(&filter.begin_time)
-            .bind(&filter.end_time)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .fetch_all(self.database.pool())
             .await
             .map(|rows| rows.into_iter().map(dict_type).collect())
@@ -146,12 +146,16 @@ impl DictQueries {
             .bind(&filter.dict_type)
             .bind(&filter.dict_label)
             .bind(&filter.status)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .fetch_one(self.database.pool())
             .await?;
         let rows = query_as::<_, DictDataRecord>(AssertSqlSafe(data_page_sql()))
             .bind(&filter.dict_type)
             .bind(&filter.dict_label)
             .bind(&filter.status)
+            .bind(filter.begin_time)
+            .bind(filter.end_time)
             .bind(page::limit(filter.page)?)
             .bind(page::offset(filter.page)?)
             .fetch_all(self.database.pool())
@@ -233,7 +237,7 @@ impl DictQueries {
 }
 
 fn type_predicate() -> &'static str {
-    "($1::text IS NULL OR dict_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR dict_type ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::text IS NULL OR create_time::date >= $4::date) AND ($5::text IS NULL OR create_time::date <= $5::date)"
+    "($1::text IS NULL OR dict_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR dict_type ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::timestamptz IS NULL OR create_time >= $4) AND ($5::timestamptz IS NULL OR create_time <= $5)"
 }
 fn type_list_sql() -> String {
     format!("SELECT {TYPE_COLUMNS} FROM sys_dict_type WHERE {} ORDER BY dict_id ASC", type_predicate())
@@ -248,11 +252,11 @@ fn type_total_sql() -> String {
     format!("SELECT COUNT(*) FROM sys_dict_type WHERE {}", type_predicate())
 }
 fn data_predicate() -> &'static str {
-    "($1::text IS NULL OR dict_type=$1) AND ($2::text IS NULL OR dict_label ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3)"
+    "($1::text IS NULL OR dict_type=$1) AND ($2::text IS NULL OR dict_label ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::timestamptz IS NULL OR create_time >= $4) AND ($5::timestamptz IS NULL OR create_time <= $5)"
 }
 fn data_page_sql() -> String {
     format!(
-        "SELECT {DATA_COLUMNS} FROM sys_dict_data WHERE {} ORDER BY dict_sort ASC LIMIT $4 OFFSET $5",
+        "SELECT {DATA_COLUMNS} FROM sys_dict_data WHERE {} ORDER BY dict_sort ASC LIMIT $6 OFFSET $7",
         data_predicate()
     )
 }
@@ -280,16 +284,5 @@ fn ensure_batch_rows(rows: u64, expected: usize) -> StorageResult<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{data_page_sql, type_page_sql};
-
-    #[test]
-    fn dict_text_filters_use_case_insensitive_search() {
-        let type_sql = type_page_sql();
-        let data_sql = data_page_sql();
-
-        assert!(type_sql.contains("dict_name ILIKE"));
-        assert!(type_sql.contains("dict_type ILIKE"));
-        assert!(data_sql.contains("dict_label ILIKE"));
-    }
-}
+#[path = "dict_tests.rs"]
+mod tests;

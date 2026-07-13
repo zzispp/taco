@@ -1,13 +1,10 @@
 use kernel::excel::write_xlsx;
-use kernel::pagination::PageRequest;
 use types::{
     http::{Locale, translate_message},
     rbac::Role,
 };
 
-use crate::application::{RbacError, RbacResult, RoleListFilter};
-
-use super::handlers::RoleExportQuery;
+use crate::application::{RbacError, RbacResult};
 
 const ROLE_SHEET_KEY: &str = "excel.rbac.role.sheet";
 const ROLE_HEADER_KEYS: &[&str] = &[
@@ -24,18 +21,6 @@ const ROLE_HEADER_KEYS: &[&str] = &[
 pub fn export_roles_xlsx(roles: &[Role], locale: Locale) -> RbacResult<Vec<u8>> {
     let rows = roles.iter().map(role_row).collect::<Vec<_>>();
     write_xlsx(&text(locale, ROLE_SHEET_KEY), &localized_headers(locale), &rows).map_err(RbacError::Infrastructure)
-}
-
-pub fn role_export_page(query: &RoleExportQuery, page: u64, page_size: u64) -> RoleListFilter {
-    RoleListFilter {
-        page: PageRequest { page, page_size },
-        role_name: query.role_name.clone(),
-        role_key: query.role_key.clone(),
-        status: query.status.clone(),
-        system: query.system,
-        begin_time: query.begin_time.clone(),
-        end_time: query.end_time.clone(),
-    }
 }
 
 fn localized_headers(locale: Locale) -> Vec<String> {
@@ -61,8 +46,9 @@ fn role_row(role: &Role) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::export_roles_xlsx;
     use types::http::Locale;
+
+    use super::export_roles_xlsx;
 
     #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]

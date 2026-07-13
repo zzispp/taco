@@ -95,6 +95,15 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
   return normalizedError;
 }
 
+export function isNormalizedApiError(error: unknown): error is NormalizedApiError {
+  return (
+    error instanceof Error &&
+    Object.hasOwn(error, 'status') &&
+    Object.hasOwn(error, 'code') &&
+    Object.hasOwn(error, 'details')
+  );
+}
+
 export function subscribeAuthSessionRejected(listener: AuthSessionRejectedListener) {
   authSessionRejectedListeners.add(listener);
   return () => {
@@ -160,7 +169,9 @@ function requestHasAuthorizationHeader(error: unknown): boolean {
   }
 
   const authorization = AxiosHeaders.from(error.config?.headers).get('Authorization');
-  return typeof authorization === 'string' ? authorization.trim().length > 0 : Boolean(authorization);
+  return typeof authorization === 'string'
+    ? authorization.trim().length > 0
+    : Boolean(authorization);
 }
 
 function notifyAuthSessionRejected(error: NormalizedApiError) {

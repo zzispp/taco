@@ -1,14 +1,17 @@
 use configuration::{
-    AuthSettings, CorsSettings, DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings, RedisSettings, ServerSettings, Settings, TracingFileSettings,
-    TracingSettings, UploadSettings,
+    AuthSettings, CorsSettings, DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings, RedisSettings, SchedulerHttpClientSettings,
+    SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, TracingFileSettings, TracingSettings, UploadSettings,
 };
+use rbac::application::PermissionRequirement;
 
-use super::routes::{auth_whitelist, ensure_auth_whitelist_rule};
+use super::routes::{auth_whitelist, ensure_auth_whitelist_rule, route_permissions};
 
 const TEST_SERVER_PORT: u16 = 3000;
 const TEST_DATABASE_PORT: u16 = 5432;
 const TEST_REDIS_PORT: u16 = 6379;
 const TEST_HTTP_TIMEOUT_MS: u64 = 30_000;
+const TEST_SCHEDULER_REQUEST_TIMEOUT_MS: u64 = 30_000;
+const TEST_SCHEDULER_RECONCILE_INTERVAL_MS: u64 = 1_000;
 const TEST_REDIS_DATABASE: u16 = 0;
 
 #[test]
@@ -32,6 +35,37 @@ fn auth_whitelist_includes_public_avatar_files() {
     assert_eq!(avatar_rule.map(|rule| rule.methods.clone()), Some(vec!["GET".to_owned()]));
 }
 
+#[test]
+fn route_permissions_use_the_handler_permission_contract() {
+    let rules = route_permissions();
+    let list_jobs = rules.iter().find(|rule| rule.handler == "list_jobs").unwrap();
+    let cron_next_times = rules.iter().find(|rule| rule.handler == "cron_next_times").unwrap();
+    let job_log_detail = rules.iter().find(|rule| rule.handler == "get_job_log_detail").unwrap();
+
+    assert_eq!(list_jobs.requirement, PermissionRequirement::all_of(&["system:job:list"]));
+    assert_eq!(
+        cron_next_times.requirement,
+        PermissionRequirement::any_of(&["system:job:import", "system:job:edit"])
+    );
+    assert_eq!(
+        job_log_detail.requirement,
+        PermissionRequirement::all_of(&["system:job:log:query", "system:job:log:detail"])
+    );
+    assert_eq!(job_log_detail.path_pattern, "/api/system/job-logs/{id}/detail");
+    assert!(!job_log_detail.requirement.is_satisfied_by(&["system:job:log:query".into()]));
+    assert!(!job_log_detail.requirement.is_satisfied_by(&["system:job:log:detail".into()]));
+    assert!(
+        job_log_detail
+            .requirement
+            .is_satisfied_by(&["system:job:log:query".into(), "system:job:log:detail".into()])
+    );
+    let registered = rbac::inventory::iter::<rbac::application::ProtectedHandler>
+        .into_iter()
+        .find(|handler| handler.function == "get_job_log_detail")
+        .unwrap();
+    assert_eq!(registered.requirement, job_log_detail.requirement);
+}
+
 fn test_settings() -> Settings {
     Settings {
         server: test_server_settings(),
@@ -42,8 +76,20 @@ fn test_settings() -> Settings {
         http: test_http_settings(),
         metrics: MetricsSettings { enabled: true },
         redis: test_redis_settings(),
+        scheduler: test_scheduler_settings(),
         uploads: UploadSettings::default(),
         tracing: test_tracing_settings(),
+    }
+}
+
+fn test_scheduler_settings() -> SchedulerSettings {
+    SchedulerSettings {
+        http_client: SchedulerHttpClientSettings {
+            request_timeout_ms: TEST_SCHEDULER_REQUEST_TIMEOUT_MS,
+        },
+        runtime: SchedulerRuntimeSettings {
+            reconcile_interval_ms: TEST_SCHEDULER_RECONCILE_INTERVAL_MS,
+        },
     }
 }
 

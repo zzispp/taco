@@ -22,6 +22,7 @@ export function DictManagementPanel() {
             t={t}
             canAdd={resources.canAdd}
             canExport={resources.canExport}
+            exportDisabled={resources.typeFilterError !== null}
             canRefresh={resources.canRemove}
             canRemove={resources.canRemove}
             selectedCount={state.selectedTypeIds.length}

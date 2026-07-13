@@ -1,9 +1,14 @@
 mod support;
 
 use system::application::{DeptListFilter, PostListFilter, SystemError, SystemService, SystemUseCase};
+use types::http::{DateTimeRange, parse_date_time_range};
 use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_SELF, DataScopeFilter};
 
 use support::{ConfigInputSeed, MemoryRepository, config_input, dept, dict_type, page, post_input, public_config_item};
+
+fn created_time_range() -> DateTimeRange {
+    parse_date_time_range(Some("2026-07-01"), Some("2026-07-08")).unwrap()
+}
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
@@ -139,14 +144,15 @@ async fn delete_dept_rejects_children_or_users() {
 #[tokio::test]
 async fn page_post_filter_is_trimmed_and_empty_values_are_removed() {
     let repository = MemoryRepository::default();
+    let range = created_time_range();
     let filter = PostListFilter {
         page: page(),
         post_code: Some(" ceo ".into()),
         post_name: Some("   ".into()),
         status: Some(" 0 ".into()),
         remark: Some(" ops ".into()),
-        begin_time: Some("2026-07-01".into()),
-        end_time: Some("2026-07-08".into()),
+        begin_time: range.begin_time,
+        end_time: range.end_time,
     };
 
     SystemService::new(repository.clone()).page_posts(filter).await.unwrap();
@@ -159,8 +165,8 @@ async fn page_post_filter_is_trimmed_and_empty_values_are_removed() {
             post_name: None,
             status: Some("0".into()),
             remark: Some("ops".into()),
-            begin_time: Some("2026-07-01".into()),
-            end_time: Some("2026-07-08".into()),
+            begin_time: range.begin_time,
+            end_time: range.end_time,
         })
     );
 }
@@ -169,6 +175,7 @@ async fn page_post_filter_is_trimmed_and_empty_values_are_removed() {
 #[tokio::test]
 async fn page_dept_filter_is_trimmed_and_empty_values_are_removed() {
     let repository = MemoryRepository::default();
+    let range = created_time_range();
     let filter = DeptListFilter {
         page: page(),
         dept_name: Some(" 研发 ".into()),
@@ -176,8 +183,8 @@ async fn page_dept_filter_is_trimmed_and_empty_values_are_removed() {
         phone: Some(" 13900000000 ".into()),
         email: Some("   ".into()),
         status: Some(" 0 ".into()),
-        begin_time: Some("2026-07-01".into()),
-        end_time: Some("2026-07-08".into()),
+        begin_time: range.begin_time,
+        end_time: range.end_time,
     };
 
     SystemService::new(repository.clone()).page_depts(filter).await.unwrap();
@@ -191,8 +198,8 @@ async fn page_dept_filter_is_trimmed_and_empty_values_are_removed() {
             phone: Some("13900000000".into()),
             email: None,
             status: Some("0".into()),
-            begin_time: Some("2026-07-01".into()),
-            end_time: Some("2026-07-08".into()),
+            begin_time: range.begin_time,
+            end_time: range.end_time,
         })
     );
 }
@@ -201,13 +208,14 @@ async fn page_dept_filter_is_trimmed_and_empty_values_are_removed() {
 #[tokio::test]
 async fn page_config_filter_is_trimmed_and_public_read_is_preserved() {
     let repository = MemoryRepository::default();
+    let range = created_time_range();
     let filter = system::application::ConfigListFilter {
         page: page(),
         config_name: Some(" site ".into()),
         config_key: Some("   ".into()),
         config_type: Some(" Y ".into()),
         public_read: Some(true),
-        begin_time: Some("2026-07-01".into()),
+        begin_time: range.begin_time,
         end_time: None,
     };
 
@@ -221,7 +229,7 @@ async fn page_config_filter_is_trimmed_and_public_read_is_preserved() {
             config_key: None,
             config_type: Some("Y".into()),
             public_read: Some(true),
-            begin_time: Some("2026-07-01".into()),
+            begin_time: range.begin_time,
             end_time: None,
         })
     );

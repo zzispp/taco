@@ -2,188 +2,147 @@ import type React from 'react';
 import type { TableHeadCellProps } from 'src/shared/ui/table';
 import type { DictData, DictType } from 'src/entities/system';
 import type { DictDataFiltersValue, DictTypeFiltersValue } from './dict-constants';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
 import Card from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
-import Button from '@mui/material/Button';
 import TableBody from '@mui/material/TableBody';
-import Typography from '@mui/material/Typography';
 
-import { Iconify } from 'src/shared/ui/iconify';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
 import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
 
+import { DictDataToolbar } from './dict-data-toolbar';
 import { DictDataRow, DictTypeRow } from './dict-rows';
 import { DictDataFilters, DictTypeFilters } from './dict-filters';
 
-export function DictTypeSection({
-  table,
-  filters,
-  resource,
-  activeType,
-  head,
-  loadingHead,
-  selectedIds,
-  canRemove,
-  onFilterChange,
-  onToggleAll,
-  onToggleRow,
-  onSelect,
-  onEdit,
-  onDelete,
-}: DictTypeSectionProps) {
-  const { t } = useTranslate('admin');
+export function DictTypeSection(props: DictTypeSectionProps) {
   return (
     <Card>
-      <DictTypeFilters filters={filters} onChange={onFilterChange} />
-      <Scrollbar>
-        <Table sx={{ minWidth: 920 }}>
-          <ManagementTableHead
-            head={head}
-            rowCount={resource.items.length}
-            numSelected={selectedIds.length}
-            onSelectAllRows={canRemove ? onToggleAll : undefined}
-          />
-          <TableBody>
-            {resource.isLoading ? (
-              <TableLoadingRows head={loadingHead} rows={table.rowsPerPage} />
-            ) : (
-              resource.items.map((row) => (
-                <DictTypeRow
-                  key={row.dict_id}
-                  row={row}
-                  selected={row.dict_type === activeType}
-                  checked={selectedIds.includes(row.dict_id)}
-                  canRemove={canRemove}
-                  onCheck={onToggleRow}
-                  onSelect={onSelect}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                />
-              ))
-            )}
-            <TableNoData
-              title={t('common.noData')}
-              notFound={!resource.isLoading && resource.items.length === 0}
-            />
-          </TableBody>
-        </Table>
-      </Scrollbar>
+      <DictTypeFilters
+        filters={props.filters}
+        error={props.filterError}
+        onChange={props.onFilterChange}
+      />
+      <DictTypeTable props={props} />
       <TablePaginationCustom
-        page={table.page}
-        count={resource.total}
-        rowsPerPage={table.rowsPerPage}
-        onPageChange={table.onChangePage}
-        onRowsPerPageChange={table.onChangeRowsPerPage}
+        page={props.table.page}
+        count={props.resource.total}
+        rowsPerPage={props.table.rowsPerPage}
+        onPageChange={props.table.onChangePage}
+        onRowsPerPageChange={props.table.onChangeRowsPerPage}
       />
     </Card>
   );
 }
 
-export function DictDataSection({
-  table,
-  filters,
-  resource,
-  activeType,
-  head,
-  loadingHead,
-  selectedIds,
-  canAdd,
-  canRemove,
-  canExport,
-  onFilterChange,
-  onToggleAll,
-  onToggleRow,
-  onEdit,
-  onDelete,
-  onAdd,
-  onBatchDelete,
-  onExport,
-}: DictDataSectionProps) {
+function DictTypeTable({ props }: { props: DictTypeSectionProps }) {
   const { t } = useTranslate('admin');
   return (
-    <Card>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 2 }}>
-        <Typography variant="h6">
-          {t('fields.dictData')}：{activeType || '-'}
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          {canExport && (
-            <Button
-              variant="outlined"
-              startIcon={<Iconify icon="solar:export-bold" />}
-              disabled={!activeType}
-              onClick={onExport}
-            >
-              {t('actions.export')}
-            </Button>
-          )}
-          {canRemove && (
-            <Button
-              variant="outlined"
-              color="error"
-              disabled={selectedIds.length === 0}
-              onClick={onBatchDelete}
-            >
-              {t('common.delete')}
-            </Button>
-          )}
-          {canAdd && (
-            <Button
-              variant="contained"
-              startIcon={<Iconify icon="mingcute:add-line" />}
-              disabled={!activeType}
-              onClick={onAdd}
-            >
-              {t('actions.addDictData')}
-            </Button>
-          )}
-        </Stack>
-      </Stack>
-      <DictDataFilters filters={filters} onChange={onFilterChange} />
-      <Scrollbar>
-        <Table sx={{ minWidth: 1080 }}>
-          <ManagementTableHead
-            head={head}
-            rowCount={resource.items.length}
-            numSelected={selectedIds.length}
-            onSelectAllRows={canRemove ? onToggleAll : undefined}
+    <Scrollbar>
+      <Table sx={{ minWidth: 920 }}>
+        <ManagementTableHead
+          head={props.head}
+          rowCount={props.resource.items.length}
+          numSelected={props.selectedIds.length}
+          onSelectAllRows={props.canRemove ? props.onToggleAll : undefined}
+        />
+        <TableBody>
+          <DictTypeRows props={props} />
+          <TableNoData
+            title={t('common.noData')}
+            notFound={!props.resource.isLoading && props.resource.items.length === 0}
           />
-          <TableBody>
-            {resource.isLoading ? (
-              <TableLoadingRows head={loadingHead} rows={table.rowsPerPage} />
-            ) : (
-              resource.items.map((row) => (
-                <DictDataRow
-                  key={row.dict_code}
-                  row={row}
-                  selected={selectedIds.includes(row.dict_code)}
-                  canRemove={canRemove}
-                  onCheck={onToggleRow}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                />
-              ))
-            )}
-            <TableNoData
-              title={t('common.noData')}
-              notFound={!resource.isLoading && resource.items.length === 0}
-            />
-          </TableBody>
-        </Table>
-      </Scrollbar>
+        </TableBody>
+      </Table>
+    </Scrollbar>
+  );
+}
+
+function DictTypeRows({ props }: { props: DictTypeSectionProps }) {
+  if (props.resource.isLoading) {
+    return <TableLoadingRows head={props.loadingHead} rows={props.table.rowsPerPage} />;
+  }
+  return props.resource.items.map((row) => (
+    <DictTypeRow
+      key={row.dict_id}
+      row={row}
+      selected={row.dict_type === props.activeType}
+      checked={props.selectedIds.includes(row.dict_id)}
+      canRemove={props.canRemove}
+      onCheck={props.onToggleRow}
+      onSelect={props.onSelect}
+      onEdit={props.onEdit}
+      onDelete={props.onDelete}
+    />
+  ));
+}
+
+export function DictDataSection(props: DictDataSectionProps) {
+  return (
+    <Card>
+      <DictDataToolbar
+        activeType={props.activeType}
+        selectedCount={props.selectedIds.length}
+        canAdd={props.canAdd}
+        canRemove={props.canRemove}
+        canExport={props.canExport}
+        onAdd={props.onAdd}
+        onBatchDelete={props.onBatchDelete}
+        onExport={props.onExport}
+      />
+      <DictDataFilters filters={props.filters} onChange={props.onFilterChange} />
+      <DictDataTable props={props} />
       <TablePaginationCustom
-        page={table.page}
-        count={resource.total}
-        rowsPerPage={table.rowsPerPage}
-        onPageChange={table.onChangePage}
-        onRowsPerPageChange={table.onChangeRowsPerPage}
+        page={props.table.page}
+        count={props.resource.total}
+        rowsPerPage={props.table.rowsPerPage}
+        onPageChange={props.table.onChangePage}
+        onRowsPerPageChange={props.table.onChangeRowsPerPage}
       />
     </Card>
   );
+}
+
+function DictDataTable({ props }: { props: DictDataSectionProps }) {
+  const { t } = useTranslate('admin');
+  return (
+    <Scrollbar>
+      <Table sx={{ minWidth: 1080 }}>
+        <ManagementTableHead
+          head={props.head}
+          rowCount={props.resource.items.length}
+          numSelected={props.selectedIds.length}
+          onSelectAllRows={props.canRemove ? props.onToggleAll : undefined}
+        />
+        <TableBody>
+          <DictDataRows props={props} />
+          <TableNoData
+            title={t('common.noData')}
+            notFound={!props.resource.isLoading && props.resource.items.length === 0}
+          />
+        </TableBody>
+      </Table>
+    </Scrollbar>
+  );
+}
+
+function DictDataRows({ props }: { props: DictDataSectionProps }) {
+  if (props.resource.isLoading) {
+    return <TableLoadingRows head={props.loadingHead} rows={props.table.rowsPerPage} />;
+  }
+  return props.resource.items.map((row) => (
+    <DictDataRow
+      key={row.dict_code}
+      row={row}
+      selected={props.selectedIds.includes(row.dict_code)}
+      canRemove={props.canRemove}
+      onCheck={props.onToggleRow}
+      onEdit={props.onEdit}
+      onDelete={props.onDelete}
+    />
+  ));
 }
 
 type TableState = {
@@ -202,6 +161,7 @@ type Resource<T> = {
 type DictTypeSectionProps = {
   table: TableState;
   filters: DictTypeFiltersValue;
+  filterError: LocalDateTimeFilterError | null;
   resource: Resource<DictType>;
   activeType: string;
   head: TableHeadCellProps[];

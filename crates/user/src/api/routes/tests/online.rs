@@ -109,12 +109,30 @@ async fn online_list_filters_detail_fields_and_login_time_range() {
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
+async fn online_list_applies_rfc3339_login_time_boundaries_at_millisecond_precision() {
+    let app = test_app();
+    let tokens = sign_in(app.router.clone()).await;
+    app.sessions.save_session(detailed_online_session()).await;
+    let token = &tokens.access_token;
+    let included = total(
+        app.router.clone(),
+        "/api/system/online/list?userName=bob&begin_time=2026-07-08T12:00:00.000Z&end_time=2026-07-08T12:00:00.000Z",
+        token,
+    )
+    .await;
+    let excluded = total(app.router, "/api/system/online/list?userName=bob&begin_time=2026-07-08T12:00:00.001Z", token).await;
+    assert_eq!(included, 1);
+    assert_eq!(excluded, 0);
+}
+
+#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
 async fn online_list_rejects_invalid_login_time_filter() {
     let app = test_app();
     let tokens = sign_in(app.router.clone()).await;
-
     let response = app
         .router
+        .clone()
         .oneshot(authenticated_request(
             Method::GET,
             "/api/system/online/list?begin_time=2026-99-99",
@@ -122,8 +140,24 @@ async fn online_list_rejects_invalid_login_time_filter() {
         ))
         .await
         .unwrap();
-
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = json_body(response).await;
+    assert_eq!(body["code"], "invalid_input");
+    assert_eq!(body["details"], "登录时间筛选格式无效，请使用YYYY-MM-DD / RFC3339");
+
+    let response = app
+        .router
+        .oneshot(authenticated_request(
+            Method::GET,
+            "/api/system/online/list?begin_time=2026-07-08T12:00:00.001Z&end_time=2026-07-08T12:00:00.000Z",
+            &tokens.access_token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = json_body(response).await;
+    assert_eq!(body["code"], "invalid_input");
+    assert_eq!(body["details"], "登录时间范围无效，开始时间不能晚于结束时间");
 }
 
 #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
@@ -256,4 +290,9 @@ fn online_session_for_user(user: u64, username: &str, dept: &str) -> crate::appl
         os: "macOS".into(),
         login_time: 1,
     }
+}
+
+async fn total(router: axum::Router, uri: &str, access_token: &str) -> u64 {
+    let request = authenticated_request(Method::GET, uri, access_token);
+    response_json(router.oneshot(request).await.unwrap()).await["total"].as_u64().unwrap()
 }

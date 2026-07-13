@@ -1,0 +1,5 @@
+error: unsupported param_field argument
+ --> tests/trybuild/fail/unknown_param_argument.rs:6:19
+  |
+6 |     #[param_field(unknown = "value")]
+  |                   ^^^^^^^

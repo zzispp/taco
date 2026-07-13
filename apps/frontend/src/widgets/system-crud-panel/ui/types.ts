@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { IconifyName } from 'src/shared/ui/iconify';
 import type { TableHeadCellProps } from 'src/shared/ui/table';
+import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
 export type CrudField<T> = {
   key: keyof T;
@@ -21,7 +22,7 @@ export type CrudField<T> = {
 export type CrudFilter = {
   key: string;
   label: string;
-  type?: 'text' | 'select' | 'date';
+  type?: 'text' | 'select' | 'dateTime';
   options?: { value: string; label: string }[];
 };
 
@@ -37,6 +38,7 @@ export type CrudPanelProps<T extends Record<string, unknown>, I extends Record<s
   rowsPerPage: number;
   filters?: CrudFilter[];
   filterValues?: Record<string, string>;
+  filterError?: LocalDateTimeFilterError | null;
   permissionPrefix: string;
   extraActions?: (row: T) => React.ReactNode;
   toolbarAction?: React.ReactNode;

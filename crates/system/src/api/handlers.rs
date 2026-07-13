@@ -7,19 +7,21 @@ use kernel::pagination::{Page, PageRequest};
 use rbac::api::CurrentUser;
 use rbac_macros::{data_scope, require_perms};
 use serde::Deserialize;
-use types::http::{RequestJson, current_locale, xlsx_attachment};
+use types::http::{RequestJson, RequestQuery, current_locale, xlsx_attachment};
 use types::rbac::{DataScopeFilter, RoleDeptTreeSelect};
 use types::system::BatchIdsInput;
 
 use crate::{
     api::{
         SystemApiError, SystemApiState,
-        export::{
-            config_export_page, dict_data_export_page, dict_type_export_page, export_configs_xlsx, export_dict_data_xlsx, export_dict_types_xlsx,
-            export_posts_xlsx, post_export_page,
+        export::{export_configs_xlsx, export_dict_data_xlsx, export_dict_types_xlsx, export_posts_xlsx},
+        input::{
+            ConfigExportFilter, DeptTreeQuery, DictDataExportFilter, DictTypeExportFilter, PostExportFilter, SystemExportQuery, SystemListQuery,
+            config_export_filter, config_list_filter, dept_list_filter, dept_tree_filter, dict_data_export_filter, dict_data_list_filter,
+            dict_type_export_filter, dict_type_list_filter, post_export_filter, post_list_filter,
         },
     },
-    application::{ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter},
+    application::DeptListFilter,
     domain::{ConfigInput, ConfigItem, Dept, DeptInput, DictData, DictDataInput, DictType, DictTypeInput, Post, PostInput, SortBatchInput, TreeSelectNode},
 };
 
@@ -43,9 +45,14 @@ type ListDeptsRequest = (
     State<SystemApiState>,
     Extension<CurrentUser>,
     Extension<DataScopeFilter>,
-    Query<SystemListQuery>,
+    RequestQuery<SystemListQuery>,
 );
-type DeptTreeRequest = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<DeptTreeQuery>);
+type DeptTreeRequest = (
+    State<SystemApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    RequestQuery<DeptTreeQuery>,
+);
 type DeptPathRequest = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
 type DeptJsonRequest<T> = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>, T);
 type DeptSortsRequest = (
@@ -55,57 +62,6 @@ type DeptSortsRequest = (
     RequestJson<SortBatchInput>,
 );
 type ApiResult<T> = Result<T, SystemApiError>;
-
-#[derive(Debug, Deserialize)]
-pub struct SystemListQuery {
-    pub page: u64,
-    pub page_size: u64,
-    pub dept_name: Option<String>,
-    pub leader: Option<String>,
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    pub post_code: Option<String>,
-    pub post_name: Option<String>,
-    pub remark: Option<String>,
-    pub dict_name: Option<String>,
-    pub dict_type: Option<String>,
-    pub dict_label: Option<String>,
-    pub config_name: Option<String>,
-    pub config_key: Option<String>,
-    pub config_type: Option<String>,
-    pub public_read: Option<bool>,
-    pub status: Option<String>,
-    pub begin_time: Option<String>,
-    pub end_time: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize)]
-pub struct SystemExportQuery {
-    pub post_code: Option<String>,
-    pub post_name: Option<String>,
-    pub remark: Option<String>,
-    pub dict_name: Option<String>,
-    pub dict_type: Option<String>,
-    pub dict_label: Option<String>,
-    pub config_name: Option<String>,
-    pub config_key: Option<String>,
-    pub config_type: Option<String>,
-    pub public_read: Option<bool>,
-    pub status: Option<String>,
-    pub begin_time: Option<String>,
-    pub end_time: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct DeptTreeQuery {
-    pub dept_name: Option<String>,
-    pub leader: Option<String>,
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    pub status: Option<String>,
-    pub begin_time: Option<String>,
-    pub end_time: Option<String>,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct SortPayload {
@@ -127,11 +83,12 @@ pub async fn public_configs(
 #[require_perms("system:dept:list")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn list_depts(request: ListDeptsRequest) -> ApiResult<ApiJson<Page<Dept>>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let filter = dept_list_filter(query)?;
     let page = if current_user.admin {
-        state.system.page_depts(query.into()).await?
+        state.system.page_depts(filter).await?
     } else {
-        state.system.page_depts_scoped(query.into(), data_scope).await?
+        state.system.page_depts_scoped(filter, data_scope).await?
     };
     Ok(ok(page))
 }
@@ -151,9 +108,9 @@ pub async fn get_dept(request: DeptPathRequest) -> ApiResult<ApiJson<Dept>> {
 #[require_perms("system:dept:list")]
 #[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn dept_tree_select(request: DeptTreeRequest) -> ApiResult<ApiJson<Vec<TreeSelectNode>>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
+    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let scope = (!current_user.admin).then_some(data_scope);
-    Ok(ok(state.system.dept_tree(query.into(), scope).await?))
+    Ok(ok(state.system.dept_tree(dept_tree_filter(query)?, scope).await?))
 }
 
 #[require_perms("system:dept:list")]

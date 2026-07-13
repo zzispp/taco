@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::BackendResult;
 use sqlx::{
-    AssertSqlSafe, PgPool,
+    AssertSqlSafe, PgConnection, PgPool,
     migrate::{Migrate, MigrateError, Migrator},
     query,
 };
@@ -16,6 +16,8 @@ const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../migrati
 const MIGRATION_TABLE_NAME: &str = "_sqlx_migrations";
 
 const MANAGED_TABLES: &[&str] = &[
+    "sys_job_execution",
+    "sys_job",
     "sys_user_post",
     "sys_role_dept",
     "sys_role_menu",
@@ -43,14 +45,14 @@ pub async fn up(pool: &PgPool, steps: Option<u32>) -> BackendResult<()> {
         apply_pending_steps(pool, steps, &migrator).await?;
         return Ok(());
     }
-    migrator.run(pool).await?;
+    run_migrator(pool, &migrator).await?;
     Ok(())
 }
 
 pub async fn down(pool: &PgPool, steps: Option<u32>) -> BackendResult<()> {
     let migrator = migrator().await?;
     let target = undo_target(pool, steps.unwrap_or(1), &migrator).await?;
-    migrator.undo(pool, target).await?;
+    undo_migrator(pool, &migrator, target).await?;
     Ok(())
 }
 
@@ -98,14 +100,14 @@ pub async fn status(pool: &PgPool) -> BackendResult<Vec<MigrationStatusRow>> {
 pub async fn fresh(pool: &PgPool) -> BackendResult<()> {
     let migrator = migrator().await?;
     reset_database(pool).await?;
-    migrator.run(pool).await?;
+    run_migrator(pool, &migrator).await?;
     Ok(())
 }
 
 pub async fn refresh(pool: &PgPool) -> BackendResult<()> {
     let migrator = migrator().await?;
     reset_with_migrator(pool, &migrator).await?;
-    migrator.run(pool).await?;
+    run_migrator(pool, &migrator).await?;
     Ok(())
 }
 
@@ -118,12 +120,31 @@ async fn migrator() -> Result<Migrator, MigrateError> {
     Migrator::new(PathBuf::from(MIGRATIONS_DIR)).await
 }
 
+async fn run_migrator(pool: &PgPool, migrator: &Migrator) -> Result<(), MigrateError> {
+    let mut connection = pool.acquire().await?;
+    let result = migrator.run(&mut *connection).await;
+    unlock_failed_migration(&mut connection, result).await
+}
+
+async fn undo_migrator(pool: &PgPool, migrator: &Migrator, target: i64) -> Result<(), MigrateError> {
+    let mut connection = pool.acquire().await?;
+    let result = migrator.undo(&mut *connection, target).await;
+    unlock_failed_migration(&mut connection, result).await
+}
+
+async fn unlock_failed_migration(connection: &mut PgConnection, result: Result<(), MigrateError>) -> Result<(), MigrateError> {
+    if result.is_err() {
+        connection.unlock().await?;
+    }
+    result
+}
+
 async fn reset_with_migrator(pool: &PgPool, migrator: &Migrator) -> BackendResult<()> {
     let count = applied_up_migration_count(pool).await?;
     if count == 0 {
         return Ok(());
     }
-    migrator.undo(pool, 0).await?;
+    undo_migrator(pool, migrator, 0).await?;
     Ok(())
 }
 
@@ -143,7 +164,8 @@ async fn apply_pending_steps(pool: &PgPool, steps: u32, migrator: &Migrator) -> 
     let mut conn = pool.acquire().await?;
     conn.ensure_migrations_table(MIGRATION_TABLE_NAME).await?;
     if conn.dirty_version(MIGRATION_TABLE_NAME).await?.is_some() {
-        return migrator.run(pool).await;
+        drop(conn);
+        return run_migrator(pool, migrator).await;
     }
 
     let applied = conn.list_applied_migrations(MIGRATION_TABLE_NAME).await?;

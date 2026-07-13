@@ -47,12 +47,23 @@ impl Settings {
         Ok(self.http.clone())
     }
 
+    pub fn scheduler_config(&self) -> Result<crate::SchedulerSettings, SettingsError> {
+        if self.scheduler.http_client.request_timeout_ms == 0 {
+            return Err(SettingsError::NonPositiveNumber("scheduler.http_client.request_timeout_ms"));
+        }
+        if self.scheduler.runtime.reconcile_interval_ms == 0 {
+            return Err(SettingsError::NonPositiveNumber("scheduler.runtime.reconcile_interval_ms"));
+        }
+        Ok(self.scheduler.clone())
+    }
+
     pub fn validated_cors(&self) -> Result<ValidatedCorsSettings, SettingsError> {
         self.cors.validate()
     }
 
     pub(crate) fn validate(&self) -> Result<(), SettingsError> {
         self.http_config()?;
+        self.scheduler_config()?;
         self.validated_cors()?;
         self.tracing_config()?;
         Ok(())

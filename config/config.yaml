@@ -57,6 +57,12 @@ http:
 metrics:
   enabled: true
 
+scheduler:
+  http_client:
+    request_timeout_ms: 30000
+  runtime:
+    reconcile_interval_ms: 1000
+
 redis:
   url: "redis://default:@localhost:6380?protocol=resp3"
   scheme: "redis"

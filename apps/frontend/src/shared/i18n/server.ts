@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { I18nNamespace } from './types';
 import type { LangCode } from './locales-config';
 
 import { cache } from 'react';
@@ -86,7 +87,7 @@ export async function detectLanguage() {
 
 // ----------------------------------------------------------------------
 
-export async function initServerI18next(lang: LangCode, namespace: string) {
+export async function initServerI18next(lang: LangCode, namespace: I18nNamespace) {
   const i18nInstance = createInstance();
   const initOptions = i18nOptions(lang, namespace);
 
@@ -101,19 +102,17 @@ type Options = Record<string, unknown> & {
   keyPrefix?: string;
 };
 
-export const getServerTranslations = cache(async (namespace = defaultNS, options: Options = {}) => {
-  const lang = await detectLanguage();
-  const i18nextInstance = await initServerI18next(lang, namespace);
+export const getServerTranslations = cache(
+  async (namespace: I18nNamespace = defaultNS, options: Options = {}) => {
+    const lang = await detectLanguage();
+    const i18nextInstance = await initServerI18next(lang, namespace);
 
-  return {
-    t: i18nextInstance.getFixedT(
-      lang,
-      Array.isArray(namespace) ? namespace[0] : namespace,
-      options?.keyPrefix
-    ),
-    i18n: i18nextInstance,
-  };
-});
+    return {
+      t: i18nextInstance.getFixedT(lang, namespace, options?.keyPrefix),
+      i18n: i18nextInstance,
+    };
+  }
+);
 
 export async function getDashboardPageMetadata(titleKey: string): Promise<Metadata> {
   const { t } = await getServerTranslations('admin');

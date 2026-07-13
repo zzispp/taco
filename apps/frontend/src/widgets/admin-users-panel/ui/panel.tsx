@@ -18,10 +18,14 @@ export function UserManagementView() {
 
   return (
     <DashboardContent>
-      <AdminBreadcrumbs heading={t('pages.userManagement')} action={<Toolbar controller={controller} />} />
+      <AdminBreadcrumbs
+        heading={t('pages.userManagement')}
+        action={<Toolbar controller={controller} />}
+      />
       <UserTableSection
         table={resources.table}
         filters={resources.filters}
+        filterError={resources.filterError}
         users={resources.users}
         roles={resources.roles}
         depts={resources.depts}
@@ -40,7 +44,9 @@ export function UserManagementView() {
         onDelete={state.setDeleteTarget}
         onRoles={actions.openRoles}
         onResetPassword={actions.openPassword}
-        onStatusChange={(user, status) => updateUserStatus(user.user_id, status).catch(showError(t))}
+        onStatusChange={(user, status) =>
+          updateUserStatus(user.user_id, status).catch(showError(t))
+        }
       />
       <UserDialogSection {...controller} />
     </DashboardContent>
@@ -59,6 +65,7 @@ function Toolbar({ controller }: ToolbarProps) {
       canDelete={resources.canDelete}
       canImport={resources.canImport}
       canExport={resources.canExport}
+      exportDisabled={resources.filterError !== null}
       selectedCount={state.selected.length}
       onCreate={actions.openCreate}
       onImport={() => state.setImportOpen(true)}

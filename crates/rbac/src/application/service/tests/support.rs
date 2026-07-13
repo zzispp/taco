@@ -39,10 +39,10 @@ impl MemoryRepository {
 pub(super) fn config() -> AuthorizationConfig {
     AuthorizationConfig {
         whitelist: vec![],
-        route_permissions: vec![types::rbac::RoutePermissionRule {
+        route_permissions: vec![crate::application::RoutePermissionRule {
             methods: vec!["GET".into()],
             path_pattern: "/api/system/users".into(),
-            permission: "system:user:list".into(),
+            requirement: crate::application::PermissionRequirement::all_of(&["system:user:list"]),
             handler: "list_users",
         }],
     }

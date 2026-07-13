@@ -1,0 +1,5 @@
+error: JSON number literal must be finite
+ --> tests/trybuild/fail/disabled_value_non_finite.rs:7:77
+  |
+7 |     #[param_field(disabled_when_path = "threshold", disabled_when_values = [1e999])]
+  |                                                                             ^^^^^
