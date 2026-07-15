@@ -32,8 +32,7 @@ type NumberInputSlotProps = {
 };
 
 type EventHandler =
-  | React.MouseEvent<HTMLButtonElement, MouseEvent>
-  | React.ChangeEvent<HTMLInputElement>;
+  React.MouseEvent<HTMLButtonElement, MouseEvent> | React.ChangeEvent<HTMLInputElement>;
 
 export type NumberInputProps = Omit<React.ComponentProps<typeof NumberInputRoot>, 'onChange'> & {
   min?: number;
@@ -48,6 +47,36 @@ export type NumberInputProps = Omit<React.ComponentProps<typeof NumberInputRoot>
   captionText?: React.ReactNode;
   slotProps?: NumberInputSlotProps;
   onChange?: (event: EventHandler, value: number) => void;
+};
+
+type NumberInputStateOptions = {
+  value?: number | null;
+  min: number;
+  max: number;
+  disabled?: boolean;
+  onChange?: NumberInputProps['onChange'];
+};
+
+type NumberInputControlProps = {
+  sx: NumberInputProps['sx'];
+  error?: boolean;
+  disabled?: boolean;
+  hideDivider?: boolean;
+  hideButtons?: boolean;
+  disableInput?: boolean;
+  captionText?: React.ReactNode;
+  slotProps?: NumberInputSlotProps;
+  uniqueId: string;
+  rootProps: React.ComponentProps<typeof NumberInputRoot>;
+  state: ReturnType<typeof useNumberInputState>;
+};
+
+type NumberInputCounterProps = {
+  hidden?: boolean;
+  disabled?: boolean;
+  onClick: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
+  buttonProps?: ButtonBaseProps;
+  icon: 'mingcute:minimize-line' | 'mingcute:add-line';
 };
 
 export function NumberInput({
@@ -67,26 +96,51 @@ export function NumberInput({
   ...other
 }: NumberInputProps) {
   const uniqueId = useId();
+  const state = useNumberInputState({ value, min, max, disabled, onChange });
 
+  return (
+    <Box {...slotProps?.wrapper}>
+      <NumberInputControl
+        sx={sx}
+        error={error}
+        state={state}
+        disabled={disabled}
+        slotProps={slotProps}
+        uniqueId={uniqueId}
+        hideDivider={hideDivider}
+        hideButtons={hideButtons}
+        disableInput={disableInput}
+        captionText={captionText}
+        rootProps={other}
+      />
+
+      {helperText && (
+        <HelperText error={error} {...slotProps?.helperText}>
+          {helperText}
+        </HelperText>
+      )}
+    </Box>
+  );
+}
+
+function useNumberInputState(options: NumberInputStateOptions) {
+  const { value, min, max, disabled, onChange } = options;
   const currentValue = value ?? 0;
-
   const isDecrementDisabled = currentValue <= min || disabled;
   const isIncrementDisabled = currentValue >= max || disabled;
 
   const handleDecrement = useCallback(
     (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-      if (!isDecrementDisabled) {
-        onChange?.(event, currentValue - 1);
-      }
+      if (isDecrementDisabled) return;
+      onChange?.(event, currentValue - 1);
     },
     [isDecrementDisabled, onChange, currentValue]
   );
 
   const handleIncrement = useCallback(
     (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-      if (!isIncrementDisabled) {
-        onChange?.(event, currentValue + 1);
-      }
+      if (isIncrementDisabled) return;
+      onChange?.(event, currentValue + 1);
     },
     [isIncrementDisabled, onChange, currentValue]
   );
@@ -99,63 +153,77 @@ export function NumberInput({
     [max, min, onChange]
   );
 
+  return {
+    currentValue,
+    isDecrementDisabled,
+    isIncrementDisabled,
+    handleDecrement,
+    handleIncrement,
+    handleChange,
+  };
+}
+
+function NumberInputControl(props: NumberInputControlProps) {
+  const slots = props.slotProps ?? {};
+
   return (
-    <Box {...slotProps?.wrapper}>
-      <NumberInputRoot
-        sx={[
-          (theme) => ({
-            '--border-color': varAlpha(theme.vars.palette.grey['500Channel'], 0.2),
-            '--vertical-divider-color': hideDivider
-              ? 'transparent'
-              : varAlpha(theme.vars.palette.grey['500Channel'], 0.2),
-            '--input-background':
-              !disabled && error
-                ? varAlpha(theme.vars.palette.error.mainChannel, 0.08)
-                : varAlpha(theme.vars.palette.grey['500Channel'], 0.08),
-          }),
-          ...(Array.isArray(sx) ? sx : [sx]),
-        ]}
-        {...other}
-      >
-        {!hideButtons && (
-          <CounterButton
-            disabled={isDecrementDisabled}
-            onClick={handleDecrement}
-            {...slotProps?.button}
-          >
-            <Iconify width={16} icon="mingcute:minimize-line" />
-          </CounterButton>
-        )}
+    <NumberInputRoot
+      sx={[
+        (theme) => ({
+          '--border-color': varAlpha(theme.vars.palette.grey['500Channel'], 0.2),
+          '--vertical-divider-color': props.hideDivider
+            ? 'transparent'
+            : varAlpha(theme.vars.palette.grey['500Channel'], 0.2),
+          '--input-background':
+            !props.disabled && props.error
+              ? varAlpha(theme.vars.palette.error.mainChannel, 0.08)
+              : varAlpha(theme.vars.palette.grey['500Channel'], 0.08),
+        }),
+        ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
+      ]}
+      {...props.rootProps}
+    >
+      <NumberInputCounter
+        hidden={props.hideButtons}
+        disabled={props.state.isDecrementDisabled}
+        onClick={props.state.handleDecrement}
+        buttonProps={slots.button}
+        icon="mingcute:minimize-line"
+      />
+      <InputContainer {...slots.inputWrapper}>
+        <CenteredInput
+          name={props.uniqueId}
+          disabled={props.disabled || props.disableInput}
+          value={props.state.currentValue}
+          onChange={props.state.handleChange}
+          {...slots.input}
+        />
+        {props.captionText && <CaptionText {...slots.captionText}>{props.captionText}</CaptionText>}
+      </InputContainer>
+      <NumberInputCounter
+        hidden={props.hideButtons}
+        disabled={props.state.isIncrementDisabled}
+        onClick={props.state.handleIncrement}
+        buttonProps={slots.button}
+        icon="mingcute:add-line"
+      />
+    </NumberInputRoot>
+  );
+}
 
-        <InputContainer {...slotProps?.inputWrapper}>
-          <CenteredInput
-            name={uniqueId}
-            disabled={disabled || disableInput}
-            value={currentValue}
-            onChange={handleChange}
-            {...slotProps?.input}
-          />
+function NumberInputCounter({
+  hidden,
+  disabled,
+  onClick,
+  buttonProps,
+  icon,
+}: NumberInputCounterProps) {
+  if (hidden) return null;
 
-          {captionText && <CaptionText {...slotProps?.captionText}>{captionText}</CaptionText>}
-        </InputContainer>
-
-        {!hideButtons && (
-          <CounterButton
-            disabled={isIncrementDisabled}
-            onClick={handleIncrement}
-            {...slotProps?.button}
-          >
-            <Iconify width={16} icon="mingcute:add-line" />
-          </CounterButton>
-        )}
-      </NumberInputRoot>
-
-      {helperText && (
-        <HelperText error={error} {...slotProps?.helperText}>
-          {helperText}
-        </HelperText>
-      )}
-    </Box>
+  return (
+    <CounterButton disabled={disabled} onClick={onClick} {...buttonProps}>
+      <Iconify width={16} icon={icon} />
+    </CounterButton>
   );
 }
 

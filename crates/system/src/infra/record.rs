@@ -1,4 +1,5 @@
 use sqlx::FromRow;
+use time::OffsetDateTime;
 
 #[derive(Clone, Debug, FromRow)]
 pub struct DeptRecord {
@@ -11,7 +12,7 @@ pub struct DeptRecord {
     pub phone: Option<String>,
     pub email: Option<String>,
     pub status: String,
-    pub create_time: String,
+    pub create_time: OffsetDateTime,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -22,7 +23,7 @@ pub struct PostRecord {
     pub post_sort: i64,
     pub status: String,
     pub remark: Option<String>,
-    pub create_time: String,
+    pub create_time: OffsetDateTime,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -32,7 +33,7 @@ pub struct DictTypeRecord {
     pub dict_type: String,
     pub status: String,
     pub remark: Option<String>,
-    pub create_time: String,
+    pub create_time: OffsetDateTime,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -47,7 +48,7 @@ pub struct DictDataRecord {
     pub is_default: String,
     pub status: String,
     pub remark: Option<String>,
-    pub create_time: String,
+    pub create_time: OffsetDateTime,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -59,5 +60,5 @@ pub struct ConfigRecord {
     pub config_type: String,
     pub public_read: bool,
     pub remark: Option<String>,
-    pub create_time: String,
+    pub create_time: OffsetDateTime,
 }

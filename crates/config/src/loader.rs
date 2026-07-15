@@ -1,13 +1,14 @@
 use crate::{DatabaseSettings, RedisSettings, Settings, SettingsError};
 use config_rs::{Config, File};
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use sha2::{Digest, Sha256};
+use std::{env, path::PathBuf};
 
 const CONFIG_ARG: &str = "--config";
-pub(crate) const MODULE_CONFIG_PATH: &str = "config/config.yaml";
-pub(crate) const ROOT_CONFIG_PATH: &str = "config.yaml";
+const KNOWN_INSECURE_JWT_SECRET_SHA256: [u8; 32] = [
+    0xb8, 0x9f, 0x85, 0xb2, 0x25, 0x06, 0xeb, 0x72, 0xf6, 0x0b, 0x3a, 0x7b, 0x3c, 0xa1, 0xd0, 0x9b, 0x74, 0x90, 0xd0, 0xe0, 0x52, 0xe2, 0x08, 0xec, 0xfd, 0xa4,
+    0x88, 0xe0, 0x7a, 0x09, 0x66, 0x8f,
+];
+const MIN_JWT_SECRET_BYTES: usize = 32;
 
 impl Settings {
     pub fn load() -> Result<Self, SettingsError> {
@@ -19,7 +20,8 @@ impl Settings {
         I: IntoIterator<Item = S>,
         S: Into<std::ffi::OsString>,
     {
-        let path = resolve_config_path(args)?;
+        let args = args.into_iter().map(Into::into).collect::<Vec<std::ffi::OsString>>();
+        let path = explicit_config_path(&args)?;
         let settings: Settings = Config::builder()
             .add_source(File::from(path))
             .build()?
@@ -46,7 +48,22 @@ impl Settings {
     }
 
     pub fn jwt_secret(&self) -> Result<String, SettingsError> {
-        required_config_value("jwt.secret", &self.jwt.secret)
+        let secret = required_config_value("jwt.secret", &self.jwt.secret)?;
+        if is_known_insecure_jwt_secret(&secret) {
+            return Err(SettingsError::InsecureJwtSecret);
+        }
+        let actual_bytes = secret.len();
+        if actual_bytes < MIN_JWT_SECRET_BYTES {
+            return Err(SettingsError::JwtSecretTooShort {
+                minimum_bytes: MIN_JWT_SECRET_BYTES,
+                actual_bytes,
+            });
+        }
+        Ok(secret)
+    }
+
+    pub fn cloudflare_turnstile_secret_key(&self) -> String {
+        self.captcha.cloudflare_turnstile.secret_key.trim().to_owned()
     }
 
     pub fn redis_url(&self) -> Result<String, SettingsError> {
@@ -69,29 +86,14 @@ impl Settings {
     }
 }
 
-pub(crate) fn explicit_config_path(args: &[std::ffi::OsString]) -> Result<Option<PathBuf>, SettingsError> {
-    let Some(index) = args.iter().position(|arg| arg == CONFIG_ARG) else {
-        return Ok(None);
-    };
-
-    args.get(index + 1).map(PathBuf::from).map(Some).ok_or(SettingsError::MissingConfigArgument)
+fn is_known_insecure_jwt_secret(secret: &str) -> bool {
+    let digest: [u8; 32] = Sha256::digest(secret.as_bytes()).into();
+    digest == KNOWN_INSECURE_JWT_SECRET_SHA256
 }
 
-fn resolve_config_path<I, S>(args: I) -> Result<PathBuf, SettingsError>
-where
-    I: IntoIterator<Item = S>,
-    S: Into<std::ffi::OsString>,
-{
-    let args = args.into_iter().map(Into::into).collect::<Vec<std::ffi::OsString>>();
-    if let Some(path) = explicit_config_path(&args)? {
-        return Ok(path);
-    }
-
-    [MODULE_CONFIG_PATH, ROOT_CONFIG_PATH]
-        .into_iter()
-        .map(PathBuf::from)
-        .find(|path| Path::new(path).is_file())
-        .ok_or(SettingsError::MissingConfigFile)
+pub(crate) fn explicit_config_path(args: &[std::ffi::OsString]) -> Result<PathBuf, SettingsError> {
+    let index = args.iter().position(|arg| arg == CONFIG_ARG).ok_or(SettingsError::MissingConfigArgument)?;
+    args.get(index + 1).map(PathBuf::from).ok_or(SettingsError::MissingConfigArgument)
 }
 
 fn non_empty_url(url: Option<&str>) -> Option<&str> {

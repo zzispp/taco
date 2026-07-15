@@ -12,6 +12,8 @@ pub enum SchedulerError {
     Conflict { code: &'static str, details: LocalizedError },
     #[error("invalid scheduler input: {0}")]
     InvalidInput(LocalizedError),
+    #[error("invalid scheduler cursor")]
+    InvalidCursor,
     #[error("scheduler infrastructure failure: {0}")]
     Infrastructure(String),
 }

@@ -26,6 +26,7 @@ impl IntoResponse for RbacApiError {
 
 fn status_code(error: &RbacError) -> StatusCode {
     match error {
+        RbacError::InvalidCursor => StatusCode::BAD_REQUEST,
         RbacError::Unauthorized => StatusCode::UNAUTHORIZED,
         RbacError::Forbidden => StatusCode::FORBIDDEN,
         RbacError::NotFound => StatusCode::NOT_FOUND,
@@ -41,6 +42,7 @@ fn error_response(error: &RbacError) -> ApiErrorResponse {
 
 fn error_response_for_locale(error: &RbacError, locale: Locale) -> ApiErrorResponse {
     match error {
+        RbacError::InvalidCursor => localized_error_response(locale, ApiErrorKind::InvalidCursor, None),
         RbacError::Unauthorized => localized_error_response(locale, ApiErrorKind::Unauthorized, None),
         RbacError::Forbidden => localized_error_response(locale, ApiErrorKind::Forbidden, None),
         RbacError::NotFound => localized_error_response(locale, ApiErrorKind::NotFound, None),

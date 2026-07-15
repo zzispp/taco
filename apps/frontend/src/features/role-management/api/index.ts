@@ -1,3 +1,4 @@
+import type { CursorPageResponse } from 'src/shared/api/types';
 import type {
   Role,
   RoleUser,
@@ -19,6 +20,7 @@ import { requestData, isEndpointKey, compactParams } from 'src/shared/api/pagina
 import { roleEndpoints } from 'src/entities/role';
 
 const NAVBAR_ENDPOINT = '/api/navbar';
+const ROLE_USER_READ_LIMIT = 100;
 
 export async function createRole(payload: RoleInput) {
   const role = await requestData<Role>(axios.post(roleEndpoints.roles, payload));
@@ -104,11 +106,25 @@ export async function deleteRoleUsers(id: string, userIds: string[]) {
 }
 
 export async function assignRoleUsers(id: string, userIds: string[]) {
-  const existing = await requestData<{ items: RoleUser[] }>(
-    axios.get(roleEndpoints.users(id), { params: { page: 1, page_size: 1000, allocated: true } })
-  );
-  const merged = Array.from(new Set([...existing.items.map((user) => user.user_id), ...userIds]));
+  const existingIds = await allocatedRoleUserIds(id);
+  const merged = Array.from(new Set([...existingIds, ...userIds]));
   await updateRoleUsers(id, merged);
+}
+
+async function allocatedRoleUserIds(roleId: string) {
+  const ids: string[] = [];
+  let cursor: string | undefined;
+  while (true) {
+    const result = await requestData<CursorPageResponse<RoleUser>>(
+      axios.get(roleEndpoints.users(roleId), {
+        params: compactParams({ limit: ROLE_USER_READ_LIMIT, cursor, allocated: true }),
+      })
+    );
+    ids.push(...result.items.map((user) => user.user_id));
+    if (!result.has_next) return ids;
+    if (!result.next_cursor) throw new Error('Role-user cursor response is inconsistent');
+    cursor = result.next_cursor;
+  }
 }
 
 async function refreshRoles() {

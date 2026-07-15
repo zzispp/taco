@@ -1,18 +1,19 @@
-use chrono::{DateTime, SecondsFormat, Utc};
-use types::http::{Locale, translate_message, translate_message_with_params};
+use chrono::{DateTime, Utc};
+use types::http::{Locale, format_utc_rfc3339_millis, translate_message, translate_message_with_params};
 
 use crate::{
-    application::{ExecutionLogSummary, ImportableTask, JobView},
+    application::{ExecutionLogSummary, ImportableTask, JobView, SchedulerError, SchedulerResult, tasks::sanitize_http_invoke_target},
     domain::{LocalizedMessage, RuntimeErrorState, TaskParamFormSpec},
 };
 
 use super::dto::{ExecutionLogResponse, ImportableTaskResponse, JobResponse, ParamFieldResponse, ParamUiResponse, RuntimeErrorResponse, TaskParamFormResponse};
 use super::presentation::{concurrent_policy, execution_outcome, job_status, registry_status, runtime_error, trigger_type};
 
-pub fn job_response(view: JobView, locale: Locale) -> JobResponse {
+pub fn job_response(view: JobView, locale: Locale) -> SchedulerResult<JobResponse> {
     let job = view.job;
-    let runtime_error = job.runtime_error.map(|error| runtime_error_response(error, locale));
-    JobResponse {
+    let runtime_error = job.runtime_error.map(|error| runtime_error_response(error, locale)).transpose()?;
+    let invoke_target = sanitize_http_invoke_target(&job.task_key, &job.invoke_target);
+    Ok(JobResponse {
         job_id: job.id,
         job_name: job.name,
         job_group: job.group,
@@ -20,7 +21,7 @@ pub fn job_response(view: JobView, locale: Locale) -> JobResponse {
         task_params: job.task_params,
         params_schema_version: job.params_schema_version,
         repeatable: job.repeatable,
-        invoke_target: job.invoke_target,
+        invoke_target,
         cron_expression: job.cron_expression,
         misfire_policy: job.misfire_policy.code().into(),
         concurrent: concurrent_policy(job.concurrent).wire_value.into(),
@@ -28,14 +29,14 @@ pub fn job_response(view: JobView, locale: Locale) -> JobResponse {
         registry_status: registry_status(view.registry_status).wire_value.into(),
         param_form: view.param_form.map(|form| param_form_response(form, locale)),
         schedule_revision: job.schedule_revision,
-        next_run_at: job.next_run_at.map(rfc3339),
+        next_run_at: job.next_run_at.map(rfc3339).transpose()?,
         runtime_error,
         create_by: job.create_by,
-        create_time: rfc3339(job.create_time),
+        create_time: rfc3339(job.create_time)?,
         update_by: job.update_by,
-        update_time: job.update_time.map(rfc3339),
+        update_time: job.update_time.map(rfc3339).transpose()?,
         remark: job.remark,
-    }
+    })
 }
 
 pub fn importable_response(task: ImportableTask, locale: Locale) -> ImportableTaskResponse {
@@ -51,24 +52,25 @@ pub fn importable_response(task: ImportableTask, locale: Locale) -> ImportableTa
     }
 }
 
-pub fn execution_response(summary: ExecutionLogSummary, locale: Locale) -> ExecutionLogResponse {
-    ExecutionLogResponse {
+pub fn execution_response(summary: ExecutionLogSummary, locale: Locale) -> SchedulerResult<ExecutionLogResponse> {
+    let invoke_target = sanitize_http_invoke_target(&summary.task_key, &summary.invoke_target);
+    Ok(ExecutionLogResponse {
         execution_id: summary.id,
         job_id: summary.job_id,
         job_name: summary.job_name,
         job_group: summary.job_group,
         task_key: summary.task_key,
-        invoke_target: summary.invoke_target,
+        invoke_target,
         has_detail: summary.has_detail,
         job_message: localized_message(locale, &summary.message),
         trigger_type: trigger_type(summary.trigger).wire_value.into(),
-        scheduled_at: rfc3339(summary.scheduled_at),
+        scheduled_at: rfc3339(summary.scheduled_at)?,
         status: execution_outcome(summary.outcome).wire_value.into(),
         exception_info: summary.error.as_ref().map(|error| localized_message(locale, error)),
-        start_time: summary.start_time.map(rfc3339),
-        end_time: rfc3339(summary.end_time),
-        create_time: rfc3339(summary.create_time),
-    }
+        start_time: summary.start_time.map(rfc3339).transpose()?,
+        end_time: rfc3339(summary.end_time)?,
+        create_time: rfc3339(summary.create_time)?,
+    })
 }
 
 pub fn param_form_response(form: TaskParamFormSpec, locale: Locale) -> TaskParamFormResponse {
@@ -98,17 +100,20 @@ pub fn localized_message(locale: Locale, message: &LocalizedMessage) -> String {
     translate_message_with_params(locale, &message.key, &params)
 }
 
-fn runtime_error_response(error: RuntimeErrorState, locale: Locale) -> RuntimeErrorResponse {
+fn runtime_error_response(error: RuntimeErrorState, locale: Locale) -> SchedulerResult<RuntimeErrorResponse> {
     let presentation = runtime_error(error.code);
-    RuntimeErrorResponse {
+    Ok(RuntimeErrorResponse {
         code: presentation.wire_value.into(),
         message: presentation.localized(locale),
-        occurred_at: rfc3339(error.occurred_at),
-    }
+        occurred_at: rfc3339(error.occurred_at)?,
+    })
 }
 
-pub(super) fn rfc3339(value: DateTime<Utc>) -> String {
-    value.to_rfc3339_opts(SecondsFormat::AutoSi, true)
+pub(super) fn rfc3339(value: DateTime<Utc>) -> SchedulerResult<String> {
+    let nanos = i128::from(value.timestamp()) * 1_000_000_000 + i128::from(value.timestamp_subsec_nanos());
+    let value = time::OffsetDateTime::from_unix_timestamp_nanos(nanos)
+        .map_err(|error| SchedulerError::Infrastructure(format!("scheduler wire timestamp is out of range: {error}")))?;
+    format_utc_rfc3339_millis(value).map_err(|error| SchedulerError::Infrastructure(format!("scheduler wire timestamp formatting failed: {error}")))
 }
 
 #[cfg(test)]
@@ -129,7 +134,7 @@ mod tests {
 
     #[test]
     fn terminal_log_response_keeps_nullable_start_time_and_localizes_message() {
-        let response = execution_response(execution_summary(), Locale::En);
+        let response = execution_response(execution_summary(), Locale::En).unwrap();
 
         assert_eq!(response.execution_id, "execution-1");
         assert_eq!(response.trigger_type, "misfire");
@@ -137,7 +142,7 @@ mod tests {
         assert_eq!(response.job_message, "Skipped because the occurrence was missed and the policy is do nothing");
         assert!(response.has_detail);
         assert_eq!(response.start_time, None);
-        assert_eq!(response.end_time, "2026-07-10T08:31:00Z");
+        assert_eq!(response.end_time, "2026-07-10T08:31:00.000Z");
         let value = serde_json::to_value(response).unwrap();
         assert_eq!(value.get("task_params"), None);
         assert_eq!(value.get("detail"), None);
@@ -152,10 +157,10 @@ mod tests {
             occurred_at: fixed_time("2026-07-10T08:30:00Z"),
         });
 
-        let response = job_response(view, Locale::En).runtime_error.unwrap();
+        let response = job_response(view, Locale::En).unwrap().runtime_error.unwrap();
 
         assert_eq!(response.code, "invalid_cron");
-        assert_eq!(response.occurred_at, "2026-07-10T08:30:00Z");
+        assert_eq!(response.occurred_at, "2026-07-10T08:30:00.000Z");
     }
 
     fn execution_summary() -> ExecutionLogSummary {

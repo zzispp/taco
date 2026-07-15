@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 
 use crate::api::CurrentUser;
 use crate::application::{
-    ApiCheckRequest, AuthorizationConfig, MenuListFilter, RbacAdminUseCase, RbacCache, RbacRepository, RbacResult, RbacService, RbacUseCase, RoleListFilter,
-    RoleUserListFilter,
+    ApiCheckRequest, AuthorizationConfig, MenuListFilter, RbacAdminUseCase, RbacCache, RbacRepository, RbacResult, RbacService, RbacUseCase, RoleExportRequest,
+    RoleExportSink, RoleListFilter, RoleUserListFilter,
 };
 use crate::domain::{
     DataScopeFilter, Menu, MenuInput, NavResponse, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleOption, RoleUser,
@@ -32,10 +32,6 @@ where
 
     fn validate_protected_handlers(&self, config: &AuthorizationConfig) -> RbacResult<()> {
         self.validate_protected_handlers(config)
-    }
-
-    fn validate_data_scope_handlers(&self, handlers: &[&str]) -> RbacResult<()> {
-        self.validate_data_scope_handlers(handlers)
     }
 
     fn is_whitelisted(&self, config: &AuthorizationConfig, method: &str, path: &str) -> RbacResult<bool> {
@@ -77,19 +73,23 @@ where
         self.get_role(role_id).await
     }
 
-    async fn page_roles(&self, filter: RoleListFilter) -> RbacResult<Page<Role>> {
+    async fn page_roles(&self, filter: RoleListFilter) -> RbacResult<CursorPage<Role>> {
         self.page_roles(filter).await
     }
 
-    async fn page_roles_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<Page<Role>> {
+    async fn page_roles_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<CursorPage<Role>> {
         self.page_roles_scoped(filter, scope).await
+    }
+
+    async fn export_roles(&self, request: RoleExportRequest, sink: &mut dyn RoleExportSink) -> RbacResult<()> {
+        self.export_roles(request, sink).await
     }
 
     async fn role_options(&self) -> RbacResult<Vec<RoleOption>> {
         self.role_options().await
     }
 
-    async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<Page<RoleUser>> {
+    async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<CursorPage<RoleUser>> {
         self.page_role_users(filter, scope).await
     }
 
@@ -133,7 +133,7 @@ where
         self.get_menu(menu_id).await
     }
 
-    async fn page_menus(&self, filter: MenuListFilter) -> RbacResult<Page<Menu>> {
+    async fn page_menus(&self, filter: MenuListFilter) -> RbacResult<CursorPage<Menu>> {
         self.page_menus(filter).await
     }
 

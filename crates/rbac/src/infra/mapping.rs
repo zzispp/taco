@@ -16,9 +16,15 @@ use super::records::{MenuRecord, RoleDeptRecord, RoleMenuRecord, RoleOptionRecor
 const MENU_ROOT_PARENT_ID: &str = "0";
 const EXTERNAL_HTTP_SCHEME: &str = "http://";
 const EXTERNAL_HTTPS_SCHEME: &str = "https://";
+const ROLE_NAME_UNIQUE_CONSTRAINT: &str = "idx_sys_role_name";
+const ROLE_KEY_UNIQUE_CONSTRAINT: &str = "idx_sys_role_key";
+const MENU_NAME_UNIQUE_CONSTRAINT: &str = "idx_sys_menu_parent_name";
+const MENU_PATH_UNIQUE_CONSTRAINT: &str = "idx_sys_menu_parent_path";
+const MENU_ROUTE_NAME_UNIQUE_CONSTRAINT: &str = "idx_sys_menu_route_name";
 
-pub fn role(record: RoleRecord) -> Role {
-    Role {
+pub fn role(record: RoleRecord) -> Result<Role, StorageError> {
+    let create_time = types::http::format_utc_rfc3339_millis(record.create_time).map_err(|error| StorageError::Database(error.to_string()))?;
+    Ok(Role {
         role_id: record.role_id,
         role_name: record.role_name,
         role_key: record.role_key,
@@ -29,8 +35,8 @@ pub fn role(record: RoleRecord) -> Role {
         status: record.status,
         system: record.system,
         remark: record.remark,
-        create_time: record.create_time,
-    }
+        create_time,
+    })
 }
 
 pub fn role_option(record: RoleOptionRecord) -> RoleOption {
@@ -86,8 +92,21 @@ pub fn storage_error(error: StorageError) -> RbacError {
     match error {
         StorageError::NotFound => RbacError::NotFound,
         StorageError::Conflict(_) => RbacError::Conflict(LocalizedError::new("errors.common.conflict")),
+        StorageError::UniqueViolation { constraint, message } => rbac_unique_violation(constraint.as_deref(), message),
         StorageError::Database(message) => RbacError::Infrastructure(message),
     }
+}
+
+fn rbac_unique_violation(constraint: Option<&str>, message: String) -> RbacError {
+    let key = match constraint {
+        Some(ROLE_NAME_UNIQUE_CONSTRAINT) => "errors.rbac.role_name_exists",
+        Some(ROLE_KEY_UNIQUE_CONSTRAINT) => "errors.rbac.role_key_exists",
+        Some(MENU_NAME_UNIQUE_CONSTRAINT) => "errors.rbac.menu_name_exists",
+        Some(MENU_PATH_UNIQUE_CONSTRAINT) => "errors.rbac.menu_path_exists",
+        Some(MENU_ROUTE_NAME_UNIQUE_CONSTRAINT) => "errors.rbac.route_name_exists",
+        _ => return RbacError::Infrastructure(message),
+    };
+    RbacError::Conflict(LocalizedError::new(key))
 }
 
 fn role_permissions(rows: Vec<RolePermissionRecord>, depts: Vec<RoleDeptRecord>) -> Vec<RolePermissionSnapshot> {
@@ -134,21 +153,21 @@ fn nav_sections(rows: Vec<RoleMenuRecord>) -> Vec<NavSectionResponse> {
 fn root_section(root: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> Option<NavSectionResponse> {
     match root.menu_type.as_str() {
         MENU_TYPE_DIRECTORY => directory_section(root, rows),
-        MENU_TYPE_MENU => Some(single_menu_section(root)),
+        MENU_TYPE_MENU => Some(single_menu_section(root, rows)),
         _ => None,
     }
 }
 
-fn single_menu_section(menu: &RoleMenuRecord) -> NavSectionResponse {
+fn single_menu_section(menu: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> NavSectionResponse {
     NavSectionResponse {
         code: menu.menu_id.clone(),
         subheader: menu.menu_name.clone(),
-        items: vec![nav_item(menu)],
+        items: vec![nav_item(menu, child_nav_items(rows, &menu.menu_id))],
     }
 }
 
 fn directory_section(directory: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> Option<NavSectionResponse> {
-    let items = child_menu_items(rows, &directory.menu_id);
+    let items = child_nav_items(rows, &directory.menu_id);
     if items.is_empty() {
         return None;
     }
@@ -159,22 +178,32 @@ fn directory_section(directory: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> Opt
     })
 }
 
-fn child_menu_items(rows: &[RoleMenuRecord], parent_id: &str) -> Vec<NavItemResponse> {
+fn child_nav_items(rows: &[RoleMenuRecord], parent_id: &str) -> Vec<NavItemResponse> {
     rows.iter()
-        .filter(|row| row.parent_id == parent_id && row.menu_type == MENU_TYPE_MENU)
-        .map(nav_item)
+        .filter(|row| row.parent_id == parent_id)
+        .filter_map(|row| nav_tree_item(row, rows))
         .collect()
 }
 
-fn nav_item(row: &RoleMenuRecord) -> NavItemResponse {
+fn nav_tree_item(row: &RoleMenuRecord, rows: &[RoleMenuRecord]) -> Option<NavItemResponse> {
+    let children = child_nav_items(rows, &row.menu_id);
+    match row.menu_type.as_str() {
+        MENU_TYPE_DIRECTORY if children.is_empty() => None,
+        MENU_TYPE_DIRECTORY | MENU_TYPE_MENU => Some(nav_item(row, children)),
+        _ => None,
+    }
+}
+
+fn nav_item(row: &RoleMenuRecord, children: Vec<NavItemResponse>) -> NavItemResponse {
+    let deep_match = !children.is_empty();
     NavItemResponse {
         code: row.menu_id.clone(),
         title: row.menu_name.clone(),
         path: nav_path(&row.path),
         icon: Some(row.icon.clone()),
         caption: None,
-        deep_match: false,
-        children: vec![],
+        deep_match,
+        children,
     }
 }
 

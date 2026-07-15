@@ -6,5 +6,4 @@ pub struct CurrentUser {
     pub permissions: Vec<String>,
     pub dept_id: Option<String>,
     pub admin: bool,
-    pub system: bool,
 }

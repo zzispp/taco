@@ -18,9 +18,10 @@ import { systemMutations } from 'src/features/system-management';
 type ConfigToolbarProps = Readonly<{
   filters: LocalDateTimeFilterQuery;
   filterError: LocalDateTimeFilterError | null;
+  onMutated: () => void;
 }>;
 
-export function ConfigToolbar({ filters, filterError }: ConfigToolbarProps) {
+export function ConfigToolbar({ filters, filterError, onMutated }: ConfigToolbarProps) {
   const { t } = useTranslate('admin');
   const canExport = useHasPermission('system:config:export');
 
@@ -30,7 +31,7 @@ export function ConfigToolbar({ filters, filterError }: ConfigToolbarProps) {
       <Button
         variant="outlined"
         startIcon={<Iconify icon="solar:restart-bold" />}
-        onClick={refreshCache(t)}
+        onClick={refreshCache(t, onMutated)}
       >
         {t('actions.refreshCache')}
       </Button>
@@ -38,7 +39,10 @@ export function ConfigToolbar({ filters, filterError }: ConfigToolbarProps) {
   );
 }
 
-function ConfigExportButton({ filters, filterError }: ConfigToolbarProps) {
+function ConfigExportButton({
+  filters,
+  filterError,
+}: Pick<ConfigToolbarProps, 'filters' | 'filterError'>) {
   const { t } = useTranslate('admin');
 
   return (
@@ -53,10 +57,11 @@ function ConfigExportButton({ filters, filterError }: ConfigToolbarProps) {
   );
 }
 
-function refreshCache(t: ReturnType<typeof useTranslate>['t']) {
+function refreshCache(t: ReturnType<typeof useTranslate>['t'], onMutated: () => void) {
   return async () => {
     try {
       await systemMutations.refreshConfigCache();
+      onMutated();
       toast.success(t('messages.cacheRefreshed'));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
@@ -76,4 +81,6 @@ async function exportItems({ filters, filterError, t }: ExportOptions) {
   }
 }
 
-type ExportOptions = ConfigToolbarProps & { t: ReturnType<typeof useTranslate>['t'] };
+type ExportOptions = Pick<ConfigToolbarProps, 'filters' | 'filterError'> & {
+  t: ReturnType<typeof useTranslate>['t'];
+};

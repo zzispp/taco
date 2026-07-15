@@ -1,24 +1,4 @@
 {
-  "nav": {
-    "overview": "概览",
-    "dashboard": "仪表盘",
-    "resources": "资源",
-    "account": "账户",
-    "systemManagement": "系统管理",
-    "systemMonitor": "系统监控",
-    "users": "用户管理",
-    "roles": "角色管理",
-    "menus": "菜单管理",
-    "customKeyboardShortcuts": "自定义键盘快捷键。",
-    "depts": "部门管理",
-    "posts": "岗位管理",
-    "dicts": "字典管理",
-    "configs": "参数设置",
-    "online": "在线用户",
-    "jobs": "定时任务",
-    "jobLogs": "调度日志",
-    "notices": "通知公告"
-  },
   "common": {
     "active": "启用",
     "add": "新增",
@@ -58,6 +38,8 @@
     "select": "选择",
     "sort": "排序",
     "sortOrder": "排序",
+    "sortAscending": "按当前列升序排列",
+    "sortDescending": "按当前列降序排列",
     "source": "来源",
     "status": "状态",
     "system": "系统",
@@ -91,7 +73,9 @@
     "onlineManagement": "在线用户",
     "jobManagement": "定时任务",
     "jobLogManagement": "调度日志",
-    "noticeManagement": "通知公告"
+    "noticeManagement": "通知公告",
+    "operationLogManagement": "操作日志",
+    "loginLogManagement": "登录日志"
   },
   "actions": {
     "addMenuItem": "新增菜单",
@@ -204,8 +188,7 @@
     "deepMatch": "深度匹配用于控制子路径高亮。",
     "pathPatternExample": "示例：/api/users/{id}",
     "updatePasswordRequired": "后端当前要求更新用户时填写密码。",
-    "emptyPasswordUsesDefault": "不填写则使用系统默认初始密码。",
-    "userImportTemplate": "导入模板包含部门编号、登录名称、用户名称、邮箱、手机、性别、状态，不包含角色/岗位列。"
+    "userImportTemplate": "导入模板包含部门编号、登录名称、密码、用户名称、邮箱、手机、性别、状态，不包含角色/岗位列。"
   },
   "messages": {
     "deleteFailed": "删除失败",
@@ -246,265 +229,5 @@
   "authSources": {
     "local": "本地",
     "system": "系统"
-  },
-  "dashboard": {
-    "welcome": "你好，欢迎回来 👋",
-    "weeklySales": "本周销售额",
-    "newUsers": "新增用户",
-    "purchaseOrders": "采购订单",
-    "messages": "消息",
-    "currentVisits": "当前访问",
-    "websiteVisits": "网站访问",
-    "conversionRates": "转化率",
-    "currentSubject": "当前科目",
-    "news": "新闻",
-    "orderTimeline": "订单时间线",
-    "trafficBySite": "站点流量",
-    "tasks": "任务",
-    "thanLastYear": "较去年增长 (+43%)",
-    "visits": "次访问",
-    "viewAll": "查看全部",
-    "markComplete": "标记完成",
-    "share": "分享",
-    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
-    "regions": {
-      "america": "美洲",
-      "asia": "亚洲",
-      "europe": "欧洲",
-      "africa": "非洲"
-    },
-    "countries": {
-      "italy": "意大利",
-      "japan": "日本",
-      "china": "中国",
-      "canada": "加拿大",
-      "france": "法国"
-    },
-    "subjects": {
-      "english": "英语",
-      "history": "历史",
-      "physics": "物理",
-      "geography": "地理",
-      "chinese": "语文",
-      "math": "数学"
-    },
-    "series": {
-      "teamA": "团队 A",
-      "teamB": "团队 B",
-      "series1": "系列 1",
-      "series2": "系列 2",
-      "series3": "系列 3"
-    },
-    "newsItems": {
-      "titles": [
-        "可再生能源的未来：创新与挑战",
-        "人工智能对现代医疗的影响",
-        "气候变化与全球粮食安全",
-        "远程办公兴起：收益、挑战与趋势",
-        "理解区块链技术：不止加密货币"
-      ],
-      "descriptions": [
-        "太阳缓缓落入地平线，将天空染成橙色与粉色。",
-        "她迫不及待地打开礼物，眼中闪烁着兴奋的光。",
-        "古老橡树高大挺拔，枝叶在微风中轻轻摇曳。",
-        "新鲜咖啡的香气弥漫开来，唤醒了所有感官。",
-        "炎热夏日里，孩子们穿过喷泉时开心地笑着。"
-      ]
-    },
-    "timeline": {
-      "items": [
-        "1983，订单，$4220",
-        "12 张发票已支付",
-        "来自 9 月的订单 #37745",
-        "新订单已创建 #XF-2356",
-        "新订单已创建 #XF-2346"
-      ]
-    },
-    "taskItems": [
-      "准备月度财务报告",
-      "设计新的营销活动",
-      "分析客户反馈",
-      "更新网站内容",
-      "开展市场调研"
-    ]
-  },
-  "systemDashboard": {
-    "title": "系统仪表盘",
-    "summary": {
-      "cpuUsage": "CPU 使用率",
-      "memoryUsage": "内存使用率",
-      "diskUsage": "磁盘使用率",
-      "networkInbound": "网络入站"
-    },
-    "cards": {
-      "serverInfo": "服务器基本信息",
-      "healthStatus": "健康状态"
-    },
-    "labels": {
-      "hostname": "主机名",
-      "system": "系统",
-      "kernel": "内核",
-      "cpu": "CPU",
-      "cpuCores": "CPU 核心",
-      "memoryDisk": "内存 / 磁盘",
-      "publicIp": "公网 IP",
-      "uptime": "Uptime",
-      "bootTime": "启动时间",
-      "sampledAt": "采样时间",
-      "load": "Load"
-    },
-    "health": {
-      "green": "绿色",
-      "yellow": "黄色",
-      "red": "红色",
-      "allHealthy": "所有核心资源低于告警阈值",
-      "issue": "{{kind}}：{{target}} {{usage}}%",
-      "issueSeparator": "；",
-      "kinds": {
-        "cpu": "CPU",
-        "memory": "内存",
-        "disk": "磁盘"
-      }
-    },
-    "units": {
-      "physical": "物理核心",
-      "logical": "逻辑核心",
-      "day": "天",
-      "hour": "小时",
-      "minute": "分钟"
-    },
-    "charts": {
-      "resourceTrend": "CPU / 内存历史趋势",
-      "realtimeSessionSampling": "当前页面会话实时采样",
-      "networkTrend": "网络流量实时曲线",
-      "inboundOutboundBandwidth": "入站 / 出站带宽",
-      "diskUsage": "磁盘分区使用量",
-      "usedCapacity": "按已用容量统计",
-      "series": {
-        "cpu": "CPU",
-        "memory": "内存",
-        "inbound": "入站",
-        "outbound": "出站"
-      }
-    },
-    "tables": {
-      "topProcesses": "Top 消耗进程",
-      "sortedByCpu": "按 CPU 使用率排序",
-      "cpuCoreLoad": "CPU 核心负载",
-      "cpuCoreLoadSubheader": "各核心使用率与频率",
-      "diskPartitions": "磁盘分区明细",
-      "diskPartitionsSubheader": "挂载点、文件系统与容量"
-    }
-  },
-  "dataScope": {
-    "all": "全部数据权限",
-    "custom": "自定数据权限",
-    "dept": "本部门数据权限",
-    "deptAndChild": "本部门及以下数据权限",
-    "self": "仅本人数据权限"
-  },
-  "menuType": {
-    "directory": "目录",
-    "menu": "菜单",
-    "button": "按钮"
-  },
-  "profile": {
-    "personalCenter": "个人中心",
-    "personalInfo": "个人信息",
-    "basicInfo": "基本资料",
-    "changePassword": "修改密码",
-    "changeAvatar": "修改头像",
-    "selectAvatarFirst": "请选择一张图片后裁剪头像",
-    "zoom": "缩放",
-    "avatarImageOnly": "请上传图片类型文件",
-    "deptAndPost": "所属部门 / 岗位",
-    "roleGroup": "所属角色",
-    "oldPassword": "旧密码",
-    "confirmPassword": "确认密码",
-    "passwordRule": "密码长度必须在 8 到 128 个字符之间",
-    "passwordRuleDynamic": "密码长度必须在 {{min}} 到 {{max}} 个字符之间",
-    "passwordRequired": "旧密码、新密码和确认密码不能为空",
-    "passwordMismatch": "两次输入的密码不一致",
-    "passwordSame": "新密码不能与旧密码相同",
-    "requiredProfileFields": "昵称和邮箱不能为空",
-    "invalidEmail": "邮箱格式不正确",
-    "invalidPhone": "手机号格式不正确",
-    "logout": "退出登录",
-    "logoutFailed": "退出登录失败",
-    "authorizedNavigation": "授权菜单",
-    "usernameRuleDynamic": "用户名长度必须在 {{min}} 到 {{max}} 个字符之间",
-    "usernamePattern": "用户名只能包含字母、数字、下划线和连字符，并且必须以字母或数字开头和结尾",
-    "passwordLetterRequired": "密码必须包含字母",
-    "passwordNumberRequired": "密码必须包含数字",
-    "passwordSymbolRequired": "密码必须包含特殊字符",
-    "passwordContainsUsername": "密码不能包含用户名",
-    "emailRequired": "邮箱不能为空",
-    "identifierRequired": "请输入用户名或邮箱",
-    "identifierInvalid": "请输入有效的用户名或邮箱地址"
-  },
-  "dateTimeFilters": {
-    "invalidDateTime": "请输入有效的创建时间",
-    "invalidTimeRange": "开始时间不能晚于结束时间"
-  },
-  "onlineSessions": {
-    "tokenId": "会话编号",
-    "userName": "登录名称",
-    "ipaddr": "登录地址",
-    "host": "主机",
-    "loginLocation": "登录地点",
-    "browser": "浏览器",
-    "os": "操作系统",
-    "loginTime": "登录时间",
-    "invalidDateTime": "请输入有效的登录时间",
-    "invalidTimeRange": "登录开始时间不能晚于结束时间",
-    "forceLogout": "强退",
-    "forceLogoutConfirm": "是否确认强退名称为\"{{name}}\"的用户？",
-    "forceLogoutSuccess": "强退成功"
-  },
-  "notice": {
-    "notifications": "通知",
-    "unread": "未读",
-    "markAllRead": "全部标记为已读",
-    "noNotifications": "暂无通知",
-    "viewAll": "查看全部",
-    "detailTitle": "通知公告详情",
-    "viewDetail": "查看详情",
-    "emptyContent": "暂无正文",
-    "createTitle": "新增通知公告",
-    "editTitle": "编辑通知公告",
-    "readers": "已读用户",
-    "readersTitle": "已读用户：{{name}}",
-    "readerSearch": "登录名称或昵称",
-    "readTime": "阅读时间",
-    "batchDeleteContent": "确认删除已选中的 {{count}} 条通知公告？",
-    "fields": {
-      "title": "公告标题",
-      "type": "公告类型",
-      "content": "公告内容",
-      "createBy": "创建者"
-    },
-    "types": {
-      "notice": "通知",
-      "announcement": "公告"
-    },
-    "status": {
-      "normal": "正常",
-      "closed": "关闭"
-    },
-    "editor": {
-      "edit": "Markdown 编辑",
-      "preview": "预览",
-      "emptyPreview": "暂无可预览内容"
-    },
-    "validation": {
-      "required": "请输入公告标题",
-      "tooLong": "公告标题不能超过 {{max}} 个字符"
-    }
-  },
-  "authExpired": {
-    "title": "系统提示",
-    "content": "登录状态已过期，您可以继续留在该页面，或者重新登录",
-    "stay": "继续留在该页面",
-    "relogin": "重新登录"
   }
 }

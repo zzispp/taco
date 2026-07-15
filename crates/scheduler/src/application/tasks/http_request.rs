@@ -81,42 +81,45 @@ mod tests {
 
     use super::{HttpFailureCode, HttpRequestTask};
 
-    const ORIGINAL_URL: &str = "http://original.test/start";
-    const FINAL_URL: &str = "http://final.test/result";
+    const ORIGINAL_URL: &str = "https://url-user:url-password@original.test/start?access_token=query-token#fragment";
+    const SAFE_ORIGINAL_URL: &str = "https://original.test/start";
+    const FINAL_URL: &str = "https://url-user:url-password@final.test/result?token=response-query-token#fragment";
+    const SAFE_FINAL_URL: &str = "https://final.test/result";
+    const REQUEST_HEADER_SECRET: &str = "request-header-token";
+    const REQUEST_BODY_SECRET: &str = "request-password request-captcha request-file-content";
+    const RESPONSE_HEADER_SECRET: &str = "response-header-token";
+    const RESPONSE_BODY_SECRET: &str = "response-file-content";
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
-    async fn success_report_preserves_headers_empty_body_and_final_url() {
+    async fn success_report_persists_only_the_safe_http_exchange_summary() {
         let output = execute_with(Ok(success_response())).await.unwrap();
         let detail = output.detail.expect("HTTP success must include execution detail");
 
         assert_eq!(detail.kind(), "http_exchange");
         assert_eq!(detail.schema_version(), 1);
         assert_eq!(detail.payload(), &expected_success_payload());
+        assert_no_secrets(detail.payload());
     }
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
-    async fn non_success_status_keeps_the_complete_response_report() {
+    async fn non_success_status_keeps_status_without_response_content() {
         let mut response = success_response();
         response.head.status = 503;
-        response.body = b"unavailable".to_vec();
+        response.body = RESPONSE_BODY_SECRET.as_bytes().to_vec();
 
         let error = execute_with(Ok(response)).await.unwrap_err();
         assert_eq!(error.public.key(), "errors.scheduler.task_http_status");
         let detail = error.detail.expect("HTTP status failure must include execution detail");
         let payload = detail.payload();
         assert_eq!(payload["response"]["status"], json!(503));
-        assert_eq!(
-            payload["response"]["body"],
-            json!({"encoding": "utf8", "content": "unavailable", "byte_length": 11})
-        );
+        assert_eq!(payload["response"]["headers"], json!([]));
+        assert_eq!(payload["response"]["body"], Value::Null);
         assert_eq!(payload["failure"], json!({"code": "http_status"}));
+        assert_no_secrets(payload);
     }
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
-    async fn transport_failure_keeps_request_and_null_response() {
+    async fn transport_failure_keeps_safe_request_and_null_response() {
         let failure = OutboundHttpFailure {
             code: HttpFailureCode::Connect,
             duration: Duration::from_millis(9),
@@ -128,14 +131,16 @@ mod tests {
         let detail = error.detail.expect("HTTP transport failure must include execution detail");
         let payload = detail.payload();
         assert_eq!(payload["duration_ms"], json!(9));
-        assert_eq!(payload["request"]["body"]["content"], json!("payload"));
+        assert_eq!(payload["request"]["url"], json!(SAFE_ORIGINAL_URL));
+        assert_eq!(payload["request"]["headers"], json!([]));
+        assert_eq!(payload["request"]["body"], Value::Null);
         assert_eq!(payload["response"], Value::Null);
         assert_eq!(payload["failure"], json!({"code": "connect"}));
+        assert_no_secrets(payload);
     }
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
-    async fn response_body_failure_keeps_head_and_null_body() {
+    async fn response_body_failure_keeps_safe_head_and_null_body() {
         let response = success_response().head;
         let failure = OutboundHttpFailure {
             code: HttpFailureCode::ResponseBody,
@@ -147,9 +152,11 @@ mod tests {
         let detail = error.detail.expect("HTTP body failure must include execution detail");
         let payload = detail.payload();
         assert_eq!(payload["response"]["status"], json!(204));
-        assert_eq!(payload["response"]["final_url"], json!(FINAL_URL));
+        assert_eq!(payload["response"]["final_url"], json!(SAFE_FINAL_URL));
+        assert_eq!(payload["response"]["headers"], json!([]));
         assert_eq!(payload["response"]["body"], Value::Null);
         assert_eq!(payload["failure"], json!({"code": "response_body"}));
+        assert_no_secrets(payload);
     }
 
     async fn execute_with(
@@ -174,8 +181,8 @@ mod tests {
             task_params: json!({
                 "method": "POST",
                 "url": ORIGINAL_URL,
-                "headers": {"x-second": "two", "x-first": "one"},
-                "body": "payload"
+                "headers": {"Authorization": REQUEST_HEADER_SECRET, "x-second": "two"},
+                "body": REQUEST_BODY_SECRET
             }),
             invoke_target: "httpClient.request(POST, ...)".into(),
         }
@@ -187,8 +194,8 @@ mod tests {
                 status: 204,
                 headers: vec![
                     OutboundHttpHeader {
-                        name: "x-repeat".into(),
-                        value: b"first".to_vec(),
+                        name: "Set-Cookie".into(),
+                        value: RESPONSE_HEADER_SECRET.as_bytes().to_vec(),
                     },
                     OutboundHttpHeader {
                         name: "x-repeat".into(),
@@ -197,7 +204,7 @@ mod tests {
                 ],
                 final_url: FINAL_URL.into(),
             },
-            body: Vec::new(),
+            body: RESPONSE_BODY_SECRET.as_bytes().to_vec(),
             duration: Duration::from_millis(27),
         }
     }
@@ -207,24 +214,34 @@ mod tests {
             "duration_ms": 27,
             "request": {
                 "method": "POST",
-                "url": ORIGINAL_URL,
-                "headers": [
-                    {"name": "x-first", "value": {"encoding": "utf8", "content": "one", "byte_length": 3}},
-                    {"name": "x-second", "value": {"encoding": "utf8", "content": "two", "byte_length": 3}}
-                ],
-                "body": {"encoding": "utf8", "content": "payload", "byte_length": 7}
+                "url": SAFE_ORIGINAL_URL,
+                "headers": [],
+                "body": null
             },
             "response": {
                 "status": 204,
-                "final_url": FINAL_URL,
-                "headers": [
-                    {"name": "x-repeat", "value": {"encoding": "utf8", "content": "first", "byte_length": 5}},
-                    {"name": "x-repeat", "value": {"encoding": "base64", "content": "/wA=", "byte_length": 2}}
-                ],
-                "body": {"encoding": "utf8", "content": "", "byte_length": 0}
+                "final_url": SAFE_FINAL_URL,
+                "headers": [],
+                "body": null
             },
             "failure": null
         })
+    }
+
+    fn assert_no_secrets(payload: &Value) {
+        let rendered = payload.to_string();
+        for marker in [
+            "url-user",
+            "url-password",
+            "query-token",
+            "response-query-token",
+            REQUEST_HEADER_SECRET,
+            REQUEST_BODY_SECRET,
+            RESPONSE_HEADER_SECRET,
+            RESPONSE_BODY_SECRET,
+        ] {
+            assert!(!rendered.contains(marker), "execution detail leaked {marker}");
+        }
     }
 
     #[derive(Clone)]

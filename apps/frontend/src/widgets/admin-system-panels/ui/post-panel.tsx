@@ -4,8 +4,8 @@ import type { Post, PostInput } from 'src/entities/system';
 
 import { useMemo } from 'react';
 
-import { useTable } from 'src/shared/ui/table';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 
 import { usePosts } from 'src/entities/system';
@@ -20,11 +20,11 @@ import { DEFAULT_POST_INPUT, DEFAULT_POST_FILTERS } from './post-constants';
 
 export function PostManagementPanel() {
   const { t } = useTranslate('admin');
-  const table = useTable({ defaultRowsPerPage: 10 });
+  const table = useTable({ defaultLimit: DEFAULT_TABLE_LIMIT });
   const filters = useLocalDateTimeFilterState(DEFAULT_POST_FILTERS, {
-    onValidQuery: table.onResetPage,
+    onValidQuery: table.onResetCursor,
   });
-  const resource = usePosts(table.page, table.rowsPerPage, filters.query);
+  const resource = usePosts(table.cursorRequest, filters.query);
   const fields = useMemo(() => postFields(t), [t]);
   const filterFields = useMemo(() => postFilterFields(t), [t]);
 
@@ -37,15 +37,12 @@ export function PostManagementPanel() {
       fields={fields}
       defaultInput={DEFAULT_POST_INPUT}
       resource={resource}
-      page={table.page}
-      rowsPerPage={table.rowsPerPage}
+      table={table}
       filters={filterFields}
       filterValues={filters.draft}
       filterError={filters.error}
       permissionPrefix="system:post"
       onFilterChange={(next) => filters.change(toPostFilters(next))}
-      onPageChange={table.onChangePage}
-      onRowsPerPageChange={table.onChangeRowsPerPage}
       createItem={systemMutations.createPost}
       updateItem={systemMutations.updatePost}
       deleteItem={systemMutations.deletePost}

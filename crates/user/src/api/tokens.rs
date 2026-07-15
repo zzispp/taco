@@ -4,18 +4,19 @@ use std::{
 };
 
 use async_trait::async_trait;
+use constants::system_config::TOKEN_CONFIG_KEY;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use kernel::error::LocalizedError;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    api::online_session_filter::OnlineSessionMatcher,
-    application::{AppError, AppResult, OnlineSession, OnlineSessionFilter, OnlineSessionStore},
+    application::{AppError, AppResult, OnlineSession, OnlineSessionPageRequest, OnlineSessionStore},
     domain::UserId,
 };
 
 const JWT_EXPIRATION_OVERFLOW_ERROR: &str = "infra.jwt.expiration_overflow";
+const MILLIS_PER_SECOND: u64 = 1_000;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct TokenTtlConfig {
@@ -39,6 +40,7 @@ pub struct TokenService {
 pub struct TokenPair {
     pub access_token: String,
     pub refresh_token: String,
+    pub refresh_token_ttl_seconds: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -96,17 +98,39 @@ impl TokenService {
 
     pub async fn issue_pair(&self, input: TokenIssueInput) -> AppResult<TokenPair> {
         let ttl = self.ttl_reader.token_ttl_config().await?;
-        let session = input.into_session(Uuid::now_v7().to_string(), system_time_millis()?);
-        self.sessions.save(&session, ttl.refresh_token_ttl_seconds).await?;
-        self.issue_pair_for_session(&session.user_id, &session.token_id, &ttl)
+        let login_time = system_time_millis()?;
+        let expires_at = expiration_millis(login_time, ttl.refresh_token_ttl_seconds)?;
+        let session = input.into_session(Uuid::now_v7().to_string(), login_time, expires_at);
+        let tokens = self.issue_pair_for_session(&session.user_id, &session.token_id, &ttl)?;
+        if let Err(error) = self.sessions.create(&session).await {
+            self.compensate_failed_session_save(&session.token_id).await;
+            return Err(error);
+        }
+        Ok(tokens)
+    }
+
+    async fn compensate_failed_session_save(&self, token_id: &str) {
+        if let Err(error) = self.sessions.delete(token_id).await {
+            hook_tracing::error_with_fields!(
+                "failed to compensate ambiguous online session save",
+                &error,
+                token_id = token_id,
+                operation = "issue_pair"
+            );
+        }
     }
 
     pub async fn refresh(&self, refresh_token: &str) -> AppResult<(UserId, TokenPair)> {
         let token = self.validate_token(refresh_token, TokenKind::Refresh)?;
-        let session = self.require_session(&token).await?;
         let ttl = self.ttl_reader.token_ttl_config().await?;
-        self.sessions.save(&session, ttl.refresh_token_ttl_seconds).await?;
-        Ok((session.user_id.clone(), self.issue_pair_for_session(&session.user_id, &session.token_id, &ttl)?))
+        let expires_at = expiration_millis(system_time_millis()?, ttl.refresh_token_ttl_seconds)?;
+        let session = self
+            .sessions
+            .renew_active(&token.token_id, &token.user_id, expires_at)
+            .await?
+            .ok_or(AppError::Unauthorized)?;
+        let tokens = self.issue_pair_for_session(&session.user_id, &session.token_id, &ttl)?;
+        Ok((session.user_id.clone(), tokens))
     }
 
     pub async fn validate_access(&self, access_token: &str) -> AppResult<UserId> {
@@ -114,9 +138,18 @@ impl TokenService {
         Ok(self.require_session(&token).await?.user_id)
     }
 
-    pub async fn logout_access(&self, access_token: &str) -> AppResult<()> {
+    pub async fn logout_access(&self, access_token: &str) -> AppResult<OnlineSession> {
         let token = self.validate_token(access_token, TokenKind::Access)?;
-        self.sessions.delete(&token.token_id).await
+        let session = self.require_session(&token).await?;
+        self.sessions.delete(&token.token_id).await?;
+        Ok(session)
+    }
+
+    pub async fn logout_refresh(&self, refresh_token: &str) -> AppResult<OnlineSession> {
+        let token = self.validate_token(refresh_token, TokenKind::Refresh)?;
+        let session = self.require_session(&token).await?;
+        self.sessions.delete(&token.token_id).await?;
+        Ok(session)
     }
 
     pub async fn force_logout(&self, token_id: &str) -> AppResult<()> {
@@ -124,23 +157,15 @@ impl TokenService {
     }
 
     pub async fn online_session(&self, token_id: &str) -> AppResult<Option<OnlineSession>> {
-        self.sessions.find(token_id).await
+        self.sessions.find_active_by_token(token_id).await
     }
 
-    pub async fn online_sessions(&self, filter: OnlineSessionFilter) -> AppResult<Vec<OnlineSession>> {
-        let matcher = OnlineSessionMatcher::new(filter)?;
-        let mut sessions = self.sessions.list().await?;
-        sessions.retain(|session| matcher.matches(session));
-        sessions.reverse();
-        Ok(sessions)
+    pub async fn online_sessions(&self, request: OnlineSessionPageRequest) -> AppResult<kernel::pagination::CursorPage<OnlineSession>> {
+        self.sessions.page_active(request).await
     }
 
     async fn require_session(&self, token: &ValidatedToken) -> AppResult<OnlineSession> {
-        let session = self.sessions.find(&token.token_id).await?.ok_or(AppError::Unauthorized)?;
-        if session.user_id != token.user_id {
-            return Err(AppError::Unauthorized);
-        }
-        Ok(session)
+        self.sessions.find_active(&token.token_id, &token.user_id).await?.ok_or(AppError::Unauthorized)
     }
 
     fn issue_pair_for_session(&self, user_id: &UserId, token_id: &str, ttl: &TokenTtlConfig) -> AppResult<TokenPair> {
@@ -157,6 +182,7 @@ impl TokenService {
                 token_type: TokenKind::Refresh,
                 ttl_seconds: ttl.refresh_token_ttl_seconds,
             })?,
+            refresh_token_ttl_seconds: ttl.refresh_token_ttl_seconds,
         })
     }
 
@@ -199,10 +225,11 @@ impl TokenService {
 }
 
 impl TokenIssueInput {
-    fn into_session(self, token_id: String, login_time: i64) -> OnlineSession {
+    fn into_session(self, token_id: String, login_time: i64, expires_at: i64) -> OnlineSession {
         OnlineSession {
             token_id,
             user_id: self.user_id,
+            dept_id: None,
             dept_name: self.dept_name,
             user_name: self.user_name,
             ipaddr: self.ipaddr,
@@ -210,6 +237,7 @@ impl TokenIssueInput {
             browser: self.browser,
             os: self.os,
             login_time,
+            expires_at,
         }
     }
 }
@@ -218,7 +246,7 @@ impl TokenTtlConfig {
     pub fn validate(&self) -> AppResult<()> {
         if self.access_token_ttl_seconds == 0 || self.refresh_token_ttl_seconds == 0 {
             return Err(AppError::InvalidInput(
-                LocalizedError::new("errors.user.invalid_system_config").with_param("key", "sys.auth.tokenConfig"),
+                LocalizedError::new("errors.user.invalid_system_config").with_param("key", TOKEN_CONFIG_KEY),
             ));
         }
         Ok(())
@@ -227,7 +255,7 @@ impl TokenTtlConfig {
 
 pub fn parse_token_ttl_config(value: &str) -> AppResult<TokenTtlConfig> {
     let parsed = serde_json::from_str::<TokenTtlConfig>(value)
-        .map_err(|_| AppError::InvalidInput(LocalizedError::new("errors.user.invalid_system_config").with_param("key", "sys.auth.tokenConfig")))?;
+        .map_err(|_| AppError::InvalidInput(LocalizedError::new("errors.user.invalid_system_config").with_param("key", TOKEN_CONFIG_KEY)))?;
     parsed.validate()?;
     Ok(parsed)
 }
@@ -247,6 +275,16 @@ fn system_time() -> AppResult<Duration> {
 
 fn system_time_millis() -> AppResult<i64> {
     i64::try_from(system_time()?.as_millis()).map_err(|error| AppError::Infrastructure(format!("system time overflow: {error}")))
+}
+
+fn expiration_millis(start: i64, ttl_seconds: u64) -> AppResult<i64> {
+    let ttl_millis = ttl_seconds
+        .checked_mul(MILLIS_PER_SECOND)
+        .and_then(|value| i64::try_from(value).ok())
+        .ok_or_else(|| AppError::Infrastructure(JWT_EXPIRATION_OVERFLOW_ERROR.into()))?;
+    start
+        .checked_add(ttl_millis)
+        .ok_or_else(|| AppError::Infrastructure(JWT_EXPIRATION_OVERFLOW_ERROR.into()))
 }
 
 fn jwt_encode_error(error: jsonwebtoken::errors::Error) -> AppError {

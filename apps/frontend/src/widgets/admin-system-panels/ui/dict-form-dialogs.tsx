@@ -4,7 +4,8 @@ import type { DictDataInput, DictTypeInput } from 'src/entities/system';
 import MenuItem from '@mui/material/MenuItem';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { TextFieldRow, ManagementDialog } from 'src/shared/ui/admin';
+
+import { TextFieldRow, ManagementDialog } from 'src/widgets/admin-common';
 
 import { listClassOptions } from './dict-helpers';
 
@@ -68,6 +69,18 @@ export function DictDataDialog({
       onClose={onClose}
       onSubmit={onSubmit}
     >
+      <DictDataCoreFields form={form} setForm={setForm} />
+      <DictDataOptionFields form={form} setForm={setForm} />
+    </ManagementDialog>
+  );
+}
+
+type DictDataFieldsProps = Pick<DialogProps<DictDataInput>, 'form' | 'setForm'>;
+
+function DictDataCoreFields({ form, setForm }: DictDataFieldsProps) {
+  const { t } = useTranslate('admin');
+  return (
+    <>
       <TextFieldRow
         type="number"
         label={t('fields.dictSort')}
@@ -89,6 +102,14 @@ export function DictDataDialog({
         value={form.css_class ?? ''}
         onChange={(value) => setForm((current) => ({ ...current, css_class: value }))}
       />
+    </>
+  );
+}
+
+function DictDataOptionFields({ form, setForm }: DictDataFieldsProps) {
+  const { t } = useTranslate('admin');
+  return (
+    <>
       <TextFieldRow
         select
         label={t('fields.listClass')}
@@ -120,7 +141,7 @@ export function DictDataDialog({
         value={form.remark ?? ''}
         onChange={(value) => setForm((current) => ({ ...current, remark: value }))}
       />
-    </ManagementDialog>
+    </>
   );
 }
 

@@ -25,5 +25,12 @@
     "font": "Font",
     "family": "Family",
     "size": "Size"
+  },
+  "pagination": {
+    "dense": "Dense",
+    "limit": "Per batch",
+    "batchItems": "Batch {{batch}} · {{count}} items",
+    "previous": "Previous batch",
+    "next": "Next batch"
   }
 }

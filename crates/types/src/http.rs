@@ -12,11 +12,16 @@ use utoipa::ToSchema;
 
 mod locale;
 mod time_range;
+mod wire_time;
+mod xlsx;
 
 pub use locale::{
-    ApiErrorKind, Locale, current_locale, locale_middleware, localized_error_response, translate_error, translate_message, translate_message_with_params,
+    ApiErrorKind, Locale, current_locale, locale_middleware, localized_error_response, translate_error, translate_localized_error, translate_message,
+    translate_message_with_params,
 };
 pub use time_range::{DATE_OR_RFC3339_FORMAT, DateTimeRange, DateTimeRangeError, DateTimeRangeField, parse_date_time_range};
+pub use wire_time::{format_utc_rfc3339_millis, serialize_utc_rfc3339_millis};
+pub use xlsx::{xlsx_attachment, xlsx_file_attachment};
 
 #[derive(Debug, PartialEq, Eq, Serialize, ToSchema)]
 pub struct ApiErrorResponse {
@@ -117,7 +122,10 @@ impl From<JsonRejection> for RequestJsonRejection {
 
 impl RequestJsonRejection {
     fn from_parts(value: JsonRejection, locale: Locale) -> Self {
-        let status = value.status();
+        let status = match &value {
+            JsonRejection::JsonSyntaxError(_) | JsonRejection::JsonDataError(_) => StatusCode::BAD_REQUEST,
+            _ => value.status(),
+        };
         let details = value.body_text();
         let body = match value {
             JsonRejection::MissingJsonContentType(_) => localized_error_response(
@@ -168,14 +176,6 @@ impl IntoResponse for RequestJsonRejection {
     }
 }
 
-pub fn xlsx_attachment(file_name: &str, bytes: Vec<u8>) -> Response {
-    let headers = [
-        ("content-type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_owned()),
-        ("content-disposition", format!("attachment; filename=\"{file_name}\"")),
-    ];
-    (headers, bytes).into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use axum::extract::Json;
@@ -183,7 +183,7 @@ mod tests {
     use axum::response::IntoResponse;
     use serde_json::json;
 
-    use super::{ApiErrorResponse, Locale, RequestJsonRejection, RequestQueryRejection};
+    use super::{ApiErrorKind, ApiErrorResponse, Locale, RequestJsonRejection, RequestQueryRejection, localized_error_response};
 
     #[test]
     fn api_error_response_serializes_without_envelope() {
@@ -210,8 +210,17 @@ mod tests {
     }
 
     #[test]
+    fn request_json_missing_required_field_is_bad_request() {
+        let rejection = RequestJsonRejection::from(Json::<RequiredField>::from_bytes(br#"{}"#).unwrap_err());
+
+        let response = rejection.into_response();
+
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
     fn request_query_rejection_uses_localized_stable_shape() {
-        let error = axum::extract::Query::<QueryFixture>::try_from_uri(&"/?page=invalid".parse().unwrap()).unwrap_err();
+        let error = axum::extract::Query::<QueryFixture>::try_from_uri(&"/?limit=invalid".parse().unwrap()).unwrap_err();
         let rejection = RequestQueryRejection::new(error, Locale::En);
 
         assert_eq!(
@@ -221,10 +230,31 @@ mod tests {
         assert_eq!(rejection.into_response().status(), axum::http::StatusCode::BAD_REQUEST);
     }
 
+    #[test]
+    fn invalid_cursor_has_stable_code_and_localized_message() {
+        let expected = [
+            (Locale::ZhCn, "游标无效或已不匹配当前查询"),
+            (Locale::En, "The cursor is invalid or no longer matches this query"),
+            (Locale::ZhTw, "遊標無效或已不符合目前查詢"),
+        ];
+        for (locale, message) in expected {
+            let response = localized_error_response(locale, ApiErrorKind::InvalidCursor, None);
+            assert_eq!(response.code, "invalid_cursor");
+            assert_eq!(response.message, message);
+            assert_eq!(response.details, None);
+        }
+    }
+
     #[derive(Debug, serde::Deserialize)]
     struct QueryFixture {
         #[allow(dead_code)]
-        page: u64,
+        limit: u64,
+    }
+
+    #[derive(Debug, serde::Deserialize)]
+    struct RequiredField {
+        #[allow(dead_code)]
+        value: String,
     }
 
     #[test]

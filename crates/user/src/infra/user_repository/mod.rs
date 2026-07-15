@@ -1,3 +1,5 @@
+mod audited;
+mod bootstrap_port;
 mod filter_sql;
 mod mapping;
 mod queries;
@@ -6,14 +8,14 @@ mod sql;
 mod write;
 
 use async_trait::async_trait;
-use kernel::pagination::{Page, PageSliceRequest};
+use kernel::pagination::CursorPage;
 use storage::Database;
 
 use crate::{
-    application::{AppResult, ReplaceUserRecord, UserAuthRecord, UserListFilter, UserRepository},
+    application::{AppResult, AuthorizationUser, ReplaceUserRecord, UserAuthRecord, UserExportRequest, UserExportSink, UserListFilter, UserRepository},
     domain::{ProfileUpdate, User, UserId, UserProfileGroups},
 };
-use types::rbac::DataScopeFilter;
+use rbac::domain::DataScopeFilter;
 
 use self::{
     mapping::{storage_error, user_auth_record},
@@ -87,16 +89,20 @@ impl UserRepository for StorageUserRepository {
             .map_err(storage_error)
     }
 
-    async fn record_login(&self, id: UserId) -> AppResult<()> {
-        self.queries.record_login(id).await.map_err(storage_error)
+    async fn find_authorization_by_id(&self, id: UserId) -> AppResult<Option<AuthorizationUser>> {
+        self.queries.find_authorization_by_id(id).await.map_err(storage_error)
     }
 
-    async fn list(&self, filter: UserListFilter) -> AppResult<Page<User>> {
-        self.queries.list(filter).await.map_err(storage_error)
+    async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()> {
+        self.queries.record_login(id, ipaddr).await.map_err(storage_error)
     }
 
-    async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<Page<User>> {
-        self.queries.list_scoped(filter, scope).await.map_err(storage_error)
+    async fn list(&self, filter: UserListFilter) -> AppResult<CursorPage<User>> {
+        self.queries.list(filter).await
+    }
+
+    async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<CursorPage<User>> {
+        self.queries.list_scoped(filter, scope).await
     }
 
     async fn list_scoped_ids(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<Vec<UserId>> {
@@ -107,8 +113,8 @@ impl UserRepository for StorageUserRepository {
             .map_err(storage_error)
     }
 
-    async fn list_slice(&self, filter: UserListFilter, request: PageSliceRequest) -> AppResult<Page<User>> {
-        self.queries.list_slice(filter, request).await.map_err(storage_error)
+    async fn export_users(&self, request: UserExportRequest, sink: &mut dyn UserExportSink) -> AppResult<()> {
+        self.queries.export_users(request, sink).await
     }
 
     async fn update_password(&self, id: UserId, password_hash: String) -> AppResult<()> {

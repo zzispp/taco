@@ -1,0 +1,17 @@
+{
+  "onlineSessions": {
+    "tokenId": "Session ID",
+    "userName": "Login Name",
+    "ipaddr": "Login Address",
+    "host": "Host",
+    "loginLocation": "Login Location",
+    "browser": "Browser",
+    "os": "Operating System",
+    "loginTime": "Login Time",
+    "invalidDateTime": "Enter a valid login time",
+    "invalidTimeRange": "The login start time cannot be later than the end time",
+    "forceLogout": "Force Logout",
+    "forceLogoutConfirm": "Force logout user \"{{name}}\"?",
+    "forceLogoutSuccess": "Force logout succeeded"
+  }
+}

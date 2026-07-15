@@ -10,11 +10,12 @@ import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
 
 import { Iconify } from 'src/shared/ui/iconify';
-import { StatusLabel } from 'src/shared/ui/admin';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 
 import { useHasPermission } from 'src/entities/session';
+
+import { StatusLabel } from 'src/widgets/admin-common';
 
 import { DATE_TIME_CELL_SX } from './dept-helpers';
 
@@ -27,42 +28,17 @@ export function DeptRow({
   onCreateChild,
   onEdit,
   onDelete,
-}: {
-  row: DeptRowView;
-  expanded: boolean;
-  orderValue: number;
-  onToggle: () => void;
-  onSort: (value: number) => void;
-  onCreateChild: (dept: Dept) => void;
-  onEdit: (dept: Dept) => void;
-  onDelete: (dept: Dept) => void;
-}) {
-  const { t } = useTranslate('admin');
-  const canAdd = useHasPermission('system:dept:add');
-  const canEdit = useHasPermission('system:dept:edit');
-  const canDelete = useHasPermission('system:dept:remove');
+}: DeptRowProps) {
+  const permissions = useDeptPermissions();
   return (
     <TableRow hover>
-      <TableCell>
-        <Box sx={{ display: 'flex', alignItems: 'center', pl: row.level * 2 }}>
-          {row.childCount > 0 ? (
-            <IconButton size="small" onClick={onToggle}>
-              <Iconify
-                icon={expanded ? 'eva:arrow-ios-downward-fill' : 'eva:arrow-ios-forward-fill'}
-              />
-            </IconButton>
-          ) : (
-            <Box sx={{ width: 34 }} />
-          )}
-          {row.dept.dept_name}
-        </Box>
-      </TableCell>
+      <DeptNameCell {...{ row, expanded, onToggle }} />
       <TableCell>
         <TextField
           size="small"
           type="number"
           value={orderValue}
-          disabled={!canEdit}
+          disabled={!permissions.canEdit}
           sx={{ width: 88 }}
           onChange={(event) => onSort(Number(event.target.value))}
         />
@@ -74,30 +50,79 @@ export function DeptRow({
         <StatusLabel status={row.dept.status} />
       </TableCell>
       <TableCell sx={DATE_TIME_CELL_SX}>{fAdminDateTime(row.dept.create_time) || '-'}</TableCell>
-      <TableCell align="right">
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <DeptAction
-            title={t('common.add')}
-            disabled={!canAdd}
-            icon="mingcute:add-line"
-            onClick={() => onCreateChild(row.dept)}
-          />
-          <DeptAction
-            title={t('common.edit')}
-            disabled={!canEdit}
-            icon="solar:pen-bold"
-            onClick={() => onEdit(row.dept)}
-          />
-          <DeptAction
-            title={t('common.delete')}
-            disabled={!canDelete}
-            color="error"
-            icon="solar:trash-bin-trash-bold"
-            onClick={() => onDelete(row.dept)}
-          />
-        </Box>
-      </TableCell>
+      <DeptActions {...{ row, permissions, onCreateChild, onEdit, onDelete }} />
     </TableRow>
+  );
+}
+
+type DeptRowProps = Readonly<{
+  row: DeptRowView;
+  expanded: boolean;
+  orderValue: number;
+  onToggle: () => void;
+  onSort: (value: number) => void;
+  onCreateChild: (dept: Dept) => void;
+  onEdit: (dept: Dept) => void;
+  onDelete: (dept: Dept) => void;
+}>;
+
+function useDeptPermissions() {
+  const canAdd = useHasPermission('system:dept:add');
+  const canEdit = useHasPermission('system:dept:edit');
+  const canDelete = useHasPermission('system:dept:remove');
+  return { canAdd, canEdit, canDelete };
+}
+
+type DeptNameCellProps = Pick<DeptRowProps, 'row' | 'expanded' | 'onToggle'>;
+
+function DeptNameCell({ row, expanded, onToggle }: DeptNameCellProps) {
+  return (
+    <TableCell>
+      <Box sx={{ display: 'flex', alignItems: 'center', pl: row.level * 2 }}>
+        {row.childCount > 0 ? (
+          <IconButton size="small" onClick={onToggle}>
+            <Iconify
+              icon={expanded ? 'eva:arrow-ios-downward-fill' : 'eva:arrow-ios-forward-fill'}
+            />
+          </IconButton>
+        ) : (
+          <Box sx={{ width: 34 }} />
+        )}
+        {row.dept.dept_name}
+      </Box>
+    </TableCell>
+  );
+}
+
+type DeptActionsProps = Pick<DeptRowProps, 'row' | 'onCreateChild' | 'onEdit' | 'onDelete'> &
+  Readonly<{ permissions: ReturnType<typeof useDeptPermissions> }>;
+
+function DeptActions({ row, permissions, onCreateChild, onEdit, onDelete }: DeptActionsProps) {
+  const { t } = useTranslate('admin');
+  return (
+    <TableCell align="right">
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <DeptAction
+          title={t('common.add')}
+          disabled={!permissions.canAdd}
+          icon="mingcute:add-line"
+          onClick={() => onCreateChild(row.dept)}
+        />
+        <DeptAction
+          title={t('common.edit')}
+          disabled={!permissions.canEdit}
+          icon="solar:pen-bold"
+          onClick={() => onEdit(row.dept)}
+        />
+        <DeptAction
+          title={t('common.delete')}
+          disabled={!permissions.canDelete}
+          color="error"
+          icon="solar:trash-bin-trash-bold"
+          onClick={() => onDelete(row.dept)}
+        />
+      </Box>
+    </TableCell>
   );
 }
 

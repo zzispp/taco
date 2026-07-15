@@ -27,7 +27,7 @@ export function SchedulerDialogs({ controller }: { controller: SchedulerControll
         task={state.selectedTask}
         job={state.editing}
         onClose={actions.closeEditor}
-        onSaved={actions.closeEditor}
+        onSaved={actions.finishEditor}
       />
       <JobDetailDialog controller={controller} />
       <SchedulerDeleteDialogs controller={controller} />

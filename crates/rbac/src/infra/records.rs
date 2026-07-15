@@ -1,4 +1,5 @@
 use sqlx::FromRow;
+use time::OffsetDateTime;
 
 #[derive(Clone, Debug, FromRow, PartialEq, Eq)]
 pub struct RoleRecord {
@@ -12,7 +13,7 @@ pub struct RoleRecord {
     pub status: String,
     pub system: bool,
     pub remark: Option<String>,
-    pub create_time: String,
+    pub create_time: OffsetDateTime,
 }
 
 #[derive(Clone, Debug, FromRow, PartialEq, Eq)]
@@ -33,6 +34,7 @@ pub struct MenuRecord {
     pub perms: Option<String>,
     pub icon: String,
     pub remark: Option<String>,
+    pub create_time: OffsetDateTime,
 }
 
 #[derive(Clone, Debug, FromRow, PartialEq, Eq)]
@@ -78,4 +80,5 @@ pub struct RoleUserRecord {
     pub phonenumber: Option<String>,
     pub email: String,
     pub status: String,
+    pub create_time: OffsetDateTime,
 }

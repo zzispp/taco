@@ -1,5 +1,6 @@
-use kernel::pagination::PageRequest;
+use kernel::pagination::CursorPageRequest;
 
+use crate::domain::DataScope;
 use crate::{
     application::{MenuListFilter, RbacError, RbacRepository, RbacResult, RoleListFilter, RoleUserListFilter},
     domain::{Menu, MenuInput, RoleDataScopeInput, RoleInput, RoleUserBindingInput},
@@ -12,7 +13,7 @@ pub(super) fn sanitize_role(input: RoleInput) -> RbacResult<RoleInput> {
         role_name: required("role_name", input.role_name)?,
         role_key: required("role_key", input.role_key)?,
         role_sort: input.role_sort,
-        data_scope: required("data_scope", input.data_scope)?,
+        data_scope: valid_data_scope(input.data_scope)?,
         menu_check_strictly: input.menu_check_strictly,
         dept_check_strictly: input.dept_check_strictly,
         status: required("status", input.status)?,
@@ -41,11 +42,23 @@ pub(super) fn sanitize_menu(input: MenuInput) -> RbacResult<MenuInput> {
 }
 
 pub(super) fn sanitize_role_data_scope(input: RoleDataScopeInput) -> RbacResult<RoleDataScopeInput> {
+    let data_scope = valid_data_scope(input.data_scope)?;
     Ok(RoleDataScopeInput {
-        data_scope: required("data_scope", input.data_scope)?,
+        dept_ids: if data_scope == DataScope::Custom.code() {
+            clean_ids(input.dept_ids)
+        } else {
+            Vec::new()
+        },
+        data_scope,
         dept_check_strictly: input.dept_check_strictly,
-        dept_ids: clean_ids(input.dept_ids),
     })
+}
+
+fn valid_data_scope(value: String) -> RbacResult<String> {
+    let value = required("data_scope", value)?;
+    DataScope::try_from(value.as_str())
+        .map(|scope| scope.code().to_owned())
+        .map_err(|_| RbacError::InvalidInput(localized("errors.rbac.invalid_data_scope")))
 }
 
 pub(super) fn sanitize_role_filter(input: RoleListFilter) -> RoleListFilter {
@@ -104,11 +117,8 @@ pub(super) fn reject_unscoped_user_ids(requested: &[String], scoped: &[String]) 
     Err(RbacError::Forbidden)
 }
 
-pub(super) fn validate_page(page: PageRequest) -> RbacResult<()> {
-    if page.page == 0 || page.page_size == 0 {
-        return Err(RbacError::InvalidInput(localized("errors.validation.page_and_size_positive")));
-    }
-    Ok(())
+pub(super) fn validate_page(page: &CursorPageRequest) -> RbacResult<()> {
+    crate::application::cursor::validate_cursor_request(page)
 }
 
 pub(super) fn required(field: &str, value: String) -> RbacResult<String> {
@@ -194,7 +204,7 @@ fn same_parent_name(menu: &Menu, input: &MenuInput, current_id: Option<&str>) ->
 }
 
 fn same_parent_path(menu: &Menu, input: &MenuInput, current_id: Option<&str>) -> bool {
-    !input.path.is_empty() && menu.parent_id == input.parent_id && menu.path == input.path && Some(menu.menu_id.as_str()) != current_id
+    !matches!(input.path.as_str(), "" | "#") && menu.parent_id == input.parent_id && menu.path == input.path && Some(menu.menu_id.as_str()) != current_id
 }
 
 fn same_route_name(menu: &Menu, input: &MenuInput, current_id: Option<&str>) -> bool {
@@ -218,7 +228,7 @@ mod tests {
     fn sanitize_role_filter_trims_text_and_preserves_system_filter() {
         let begin_time = time::OffsetDateTime::parse("2026-07-01T00:00:00Z", &Rfc3339).unwrap();
         let filter = RoleListFilter {
-            page: PageRequest { page: 1, page_size: 10 },
+            page: CursorPageRequest { limit: 10, cursor: None },
             role_name: Some(" 管理员 ".into()),
             role_key: Some("   ".into()),
             status: Some(" 0 ".into()),
@@ -230,7 +240,7 @@ mod tests {
         assert_eq!(
             sanitize_role_filter(filter),
             RoleListFilter {
-                page: PageRequest { page: 1, page_size: 10 },
+                page: CursorPageRequest { limit: 10, cursor: None },
                 role_name: Some("管理员".into()),
                 role_key: None,
                 status: Some("0".into()),
@@ -239,5 +249,17 @@ mod tests {
                 end_time: None,
             }
         );
+    }
+
+    #[test]
+    fn cursor_validation_rejects_limits_outside_supported_range() {
+        let below_minimum = validate_page(&CursorPageRequest { limit: 0, cursor: None });
+        let above_maximum = validate_page(&CursorPageRequest {
+            limit: kernel::pagination::MAX_CURSOR_LIMIT + 1,
+            cursor: None,
+        });
+
+        assert!(matches!(below_minimum, Err(RbacError::InvalidInput(message)) if message.key() == "errors.validation.cursor_limit_range"));
+        assert!(matches!(above_maximum, Err(RbacError::InvalidInput(message)) if message.key() == "errors.validation.cursor_limit_range"));
     }
 }

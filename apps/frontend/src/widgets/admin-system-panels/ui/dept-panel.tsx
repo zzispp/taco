@@ -1,9 +1,7 @@
 'use client';
 
-import { AddButton } from 'src/shared/ui/admin';
-
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
+import { AddButton, AdminBreadcrumbs } from 'src/widgets/admin-common';
 
 import { DeptTableSection } from './dept-table-section';
 import { DeptDialogSection } from './dept-dialog-section';
@@ -18,7 +16,11 @@ export function DeptManagementPanel() {
     <DashboardContent>
       <AdminBreadcrumbs
         heading={t('pages.deptManagement')}
-        action={resources.canAdd ? <AddButton onClick={actions.openCreate}>{t('actions.addDept')}</AddButton> : null}
+        action={
+          resources.canAdd ? (
+            <AddButton onClick={actions.openCreate}>{t('actions.addDept')}</AddButton>
+          ) : null
+        }
       />
       <DeptTableSection {...controller} />
       <DeptDialogSection {...controller} />

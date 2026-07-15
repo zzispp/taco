@@ -9,6 +9,8 @@ use crate::{
 };
 use scheduler_macros::ScheduledTaskParams;
 
+use super::http_sanitization::{sanitize_http_method, sanitize_http_url};
+
 const HTTP_PARAMS_SCHEMA_VERSION: i16 = 1;
 const NO_PARAMS_SCHEMA_VERSION: i16 = 1;
 
@@ -90,6 +92,38 @@ fn invalid_params() -> SchedulerError {
 
 impl HttpRequestParams {
     fn render_http(task_key: &str, params: &Self) -> SchedulerResult<String> {
-        Ok(format!("{task_key}({}, {})", params.method, params.url))
+        Ok(format!(
+            "{task_key}({}, {})",
+            sanitize_http_method(&params.method),
+            sanitize_http_url(&params.url)
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use crate::application::task::TaskParams;
+
+    use super::HttpRequestParams;
+
+    #[test]
+    fn http_invoke_target_drops_url_userinfo_and_query_parameters() {
+        let target = <HttpRequestParams as TaskParams>::render_invoke_target(
+            "httpClient.request",
+            &json!({
+                "method": "POST",
+                "url": "https://url-user:url-password@example.test/run?token=query-token#fragment",
+                "headers": {},
+                "body": null,
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(target, "httpClient.request(POST, https://example.test/run)");
+        for marker in ["url-user", "url-password", "query-token", "fragment"] {
+            assert!(!target.contains(marker), "invoke target leaked {marker}");
+        }
     }
 }

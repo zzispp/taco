@@ -1,13 +1,6 @@
-use kernel::pagination::Page;
-use storage::{StorageResult, database::to_u64};
-
-use crate::{application::RoleListFilter, domain::Role};
-
-use super::{RoleRecord, role};
-
 pub(super) const ROLE_COLUMNS: &str = r#"
     r.role_id, r.role_name, r.role_key, r.role_sort, r.data_scope, r.menu_check_strictly,
-    r.dept_check_strictly, r.status, r.system, r.remark, r.create_time::text AS create_time
+    r.dept_check_strictly, r.status, r.system, r.remark, r.create_time
 "#;
 
 pub(super) fn insert_role_sql() -> &'static str {
@@ -37,99 +30,6 @@ pub(super) fn dept_query() -> &'static str {
     "SELECT r.role_key, rd.dept_id FROM sys_role r INNER JOIN sys_role_dept rd ON rd.role_id = r.role_id WHERE r.del_flag = '0'"
 }
 
-pub(super) fn role_page(items: Vec<RoleRecord>, total: i64, filter: RoleListFilter) -> StorageResult<Page<Role>> {
-    Ok(Page {
-        items: items.into_iter().map(role).collect(),
-        total: to_u64(total)?,
-        page: filter.page.page,
-        page_size: filter.page.page_size,
-    })
-}
-
-pub(super) fn role_page_sql() -> String {
-    format!(
-        "SELECT {ROLE_COLUMNS} FROM sys_role r WHERE {} ORDER BY r.role_sort ASC LIMIT $7 OFFSET $8",
-        role_where()
-    )
-}
-
-pub(super) fn role_total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_role r WHERE {}", role_where())
-}
-
-pub(super) fn role_scoped_page_sql() -> String {
-    format!(
-        "SELECT DISTINCT {ROLE_COLUMNS} FROM sys_role r LEFT JOIN sys_user_role ur ON ur.role_id=r.role_id LEFT JOIN sys_user u ON u.user_id=ur.user_id LEFT JOIN sys_dept d ON d.dept_id=u.dept_id WHERE {} AND {} ORDER BY r.role_sort ASC LIMIT $11 OFFSET $12",
-        role_where(),
-        role_scope_where()
-    )
-}
-
-pub(super) fn role_scoped_total_sql() -> String {
-    format!(
-        "SELECT COUNT(DISTINCT r.role_id) FROM sys_role r LEFT JOIN sys_user_role ur ON ur.role_id=r.role_id LEFT JOIN sys_user u ON u.user_id=ur.user_id LEFT JOIN sys_dept d ON d.dept_id=u.dept_id WHERE {} AND {}",
-        role_where(),
-        role_scope_where()
-    )
-}
-
-pub(super) fn role_users_page_sql(scoped: bool) -> String {
-    format!(
-        "SELECT u.user_id,u.user_name AS username,u.nick_name,u.dept_id,u.phonenumber,u.email,u.status {} ORDER BY u.create_time ASC LIMIT $9 OFFSET $10",
-        role_users_base(scoped)
-    )
-}
-
-pub(super) fn role_users_total_sql(scoped: bool) -> String {
-    format!("SELECT COUNT(*) {}", role_users_base(scoped))
-}
-
 pub(super) fn scoped_user_ids_sql() -> &'static str {
     "SELECT u.user_id FROM sys_user u LEFT JOIN sys_dept d ON d.dept_id=u.dept_id WHERE u.del_flag='0' AND u.user_id = ANY($1) AND ($2='1' OR ($2='2' AND u.dept_id = ANY($5)) OR ($2='3' AND $4::text IS NOT NULL AND u.dept_id=$4) OR ($2='4' AND $4::text IS NOT NULL AND (u.dept_id=$4 OR (',' || d.ancestors || ',') LIKE '%,' || $4 || ',%')) OR ($2='5' AND u.user_id=$3))"
-}
-
-fn role_where() -> &'static str {
-    "r.del_flag='0' AND ($1::text IS NULL OR r.role_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR r.role_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR r.status=$3) AND ($4::bool IS NULL OR r.system=$4) AND ($5::timestamptz IS NULL OR r.create_time >= $5) AND ($6::timestamptz IS NULL OR r.create_time <= $6)"
-}
-
-fn role_scope_where() -> &'static str {
-    "($7='1' OR ($7='2' AND u.dept_id = ANY($10)) OR ($7='3' AND $9::text IS NOT NULL AND u.dept_id=$9) OR ($7='4' AND $9::text IS NOT NULL AND (u.dept_id=$9 OR (',' || d.ancestors || ',') LIKE '%,' || $9 || ',%')) OR ($7='5' AND u.user_id=$8))"
-}
-
-fn role_users_base(scoped: bool) -> String {
-    let scope = if scoped { format!(" AND {}", user_scope_where()) } else { String::new() };
-    format!(
-        "FROM sys_user u LEFT JOIN sys_dept d ON d.dept_id=u.dept_id WHERE u.del_flag='0' AND ($2::text IS NULL OR u.user_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR u.phonenumber ILIKE '%' || $3 || '%') AND (($4 AND EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id=$1)) OR (NOT $4 AND NOT EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id=$1))){}",
-        scope
-    )
-}
-
-fn user_scope_where() -> &'static str {
-    "($5='1' OR ($5='2' AND u.dept_id = ANY($8)) OR ($5='3' AND $7::text IS NOT NULL AND u.dept_id=$7) OR ($5='4' AND $7::text IS NOT NULL AND (u.dept_id=$7 OR (',' || d.ancestors || ',') LIKE '%,' || $7 || ',%')) OR ($5='5' AND u.user_id=$6))"
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{role_page_sql, role_scoped_page_sql};
-
-    #[test]
-    fn role_list_sql_binds_system_before_time_and_scope_placeholders() {
-        let page_sql = role_page_sql();
-        let scoped_sql = role_scoped_page_sql();
-
-        assert!(page_sql.contains("r.role_name ILIKE"));
-        assert!(page_sql.contains("r.role_key ILIKE"));
-        assert!(page_sql.contains("($4::bool IS NULL OR r.system=$4)"));
-        assert!(page_sql.contains("r.create_time >= $5"));
-        assert!(page_sql.contains("r.create_time <= $6"));
-        assert!(!page_sql.contains("create_time::date"));
-        assert!(!page_sql.contains("$5::date"));
-        assert!(!page_sql.contains("$6::date"));
-        assert!(page_sql.contains("LIMIT $7 OFFSET $8"));
-        assert!(scoped_sql.contains("($7='1'"));
-        assert!(scoped_sql.contains("r.create_time >= $5"));
-        assert!(scoped_sql.contains("r.create_time <= $6"));
-        assert!(scoped_sql.contains("u.dept_id = ANY($10)"));
-        assert!(scoped_sql.contains("LIMIT $11 OFFSET $12"));
-    }
 }

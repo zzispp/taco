@@ -27,6 +27,20 @@ import {
   USER_ELLIPSIS_CELL_SX,
 } from './helpers';
 
+type UserRowProps = Readonly<{
+  row: SystemUser;
+  selected: boolean;
+  roles: RoleOption[];
+  depts: FlatNode[];
+  posts: Post[];
+  onToggleSelected: (id: string) => void;
+  onEdit: (user: SystemUser) => void;
+  onDelete: (user: SystemUser) => void;
+  onRoles: (user: SystemUser) => void;
+  onResetPassword: (user: SystemUser) => void;
+  onStatusChange: (status: string) => void;
+}>;
+
 export function UserRow({
   row,
   selected,
@@ -39,19 +53,7 @@ export function UserRow({
   onRoles,
   onResetPassword,
   onStatusChange,
-}: {
-  row: SystemUser;
-  selected: boolean;
-  roles: RoleOption[];
-  depts: FlatNode[];
-  posts: Post[];
-  onToggleSelected: (id: string) => void;
-  onEdit: (user: SystemUser) => void;
-  onDelete: (user: SystemUser) => void;
-  onRoles: (user: SystemUser) => void;
-  onResetPassword: (user: SystemUser) => void;
-  onStatusChange: (status: string) => void;
-}) {
+}: UserRowProps) {
   const { t } = useTranslate('admin');
   const canEdit = useHasPermission('system:user:edit');
   const canDelete = useHasPermission('system:user:remove');
@@ -63,11 +65,7 @@ export function UserRow({
     <TableRow hover>
       {canDelete && (
         <TableCell padding="checkbox">
-          <Checkbox
-            disabled={row.system}
-            checked={selected}
-            onChange={() => onToggleSelected(row.user_id)}
-          />
+          <Checkbox checked={selected} onChange={() => onToggleSelected(row.user_id)} />
         </TableCell>
       )}
       <TableCell sx={USER_CELL_SX}>{row.username}</TableCell>
@@ -80,43 +78,67 @@ export function UserRow({
         <Switch
           size="small"
           checked={row.status === '0'}
-          disabled={row.system || !canEdit}
+          disabled={!canEdit}
           onChange={(event) => onStatusChange(event.target.checked ? '0' : '1')}
         />
       </TableCell>
       <TableCell sx={USER_ELLIPSIS_CELL_SX}>{postNames}</TableCell>
       <TableCell sx={USER_ELLIPSIS_CELL_SX}>{roleNames}</TableCell>
       <TableCell sx={USER_CELL_SX}>{fAdminDateTime(row.create_time) || '-'}</TableCell>
-      <TableCell align="right" sx={USER_CELL_SX}>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <ActionIcon
-            title={t('common.edit')}
-            disabled={row.system || !canEdit}
-            icon="solar:pen-bold"
-            onClick={() => onEdit(row)}
-          />
-          <ActionIcon
-            title={t('actions.resetPassword')}
-            disabled={row.system || !canReset}
-            icon="solar:restart-bold"
-            onClick={() => onResetPassword(row)}
-          />
-          <ActionIcon
-            title={t('actions.assignRoles')}
-            disabled={row.system || !canEdit}
-            icon="solar:user-id-bold"
-            onClick={() => onRoles(row)}
-          />
-          <ActionIcon
-            title={t('common.delete')}
-            disabled={row.system || !canDelete}
-            color="error"
-            icon="solar:trash-bin-trash-bold"
-            onClick={() => onDelete(row)}
-          />
-        </Box>
-      </TableCell>
+      <UserActions
+        {...{ row, canEdit, canDelete, canReset, onEdit, onDelete, onRoles, onResetPassword }}
+      />
     </TableRow>
+  );
+}
+
+type UserActionsProps = Pick<
+  UserRowProps,
+  'row' | 'onEdit' | 'onDelete' | 'onRoles' | 'onResetPassword'
+> &
+  Readonly<{ canEdit: boolean; canDelete: boolean; canReset: boolean }>;
+
+function UserActions({
+  row,
+  canEdit,
+  canDelete,
+  canReset,
+  onEdit,
+  onDelete,
+  onRoles,
+  onResetPassword,
+}: UserActionsProps) {
+  const { t } = useTranslate('admin');
+  return (
+    <TableCell align="right" sx={USER_CELL_SX}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <ActionIcon
+          title={t('common.edit')}
+          disabled={!canEdit}
+          icon="solar:pen-bold"
+          onClick={() => onEdit(row)}
+        />
+        <ActionIcon
+          title={t('actions.resetPassword')}
+          disabled={!canReset}
+          icon="solar:restart-bold"
+          onClick={() => onResetPassword(row)}
+        />
+        <ActionIcon
+          title={t('actions.assignRoles')}
+          disabled={!canEdit}
+          icon="solar:user-id-bold"
+          onClick={() => onRoles(row)}
+        />
+        <ActionIcon
+          title={t('common.delete')}
+          disabled={!canDelete}
+          color="error"
+          icon="solar:trash-bin-trash-bold"
+          onClick={() => onDelete(row)}
+        />
+      </Box>
+    </TableCell>
   );
 }
 

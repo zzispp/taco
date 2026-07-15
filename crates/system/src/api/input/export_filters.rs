@@ -1,4 +1,4 @@
-use kernel::pagination::PageRequest;
+use kernel::pagination::CursorPageRequest;
 use time::OffsetDateTime;
 
 use crate::application::{ConfigListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemResult};
@@ -15,7 +15,7 @@ pub(in crate::api) struct PostExportFilter {
 }
 
 impl PostExportFilter {
-    pub(in crate::api) fn page_filter(&self, page: PageRequest) -> PostListFilter {
+    pub(in crate::api) fn page_filter(&self, page: CursorPageRequest) -> PostListFilter {
         PostListFilter {
             page,
             post_code: self.post_code.clone(),
@@ -49,7 +49,7 @@ pub(in crate::api) struct DictTypeExportFilter {
 }
 
 impl DictTypeExportFilter {
-    pub(in crate::api) fn page_filter(&self, page: PageRequest) -> DictTypeListFilter {
+    pub(in crate::api) fn page_filter(&self, page: CursorPageRequest) -> DictTypeListFilter {
         DictTypeListFilter {
             page,
             dict_name: self.dict_name.clone(),
@@ -81,7 +81,7 @@ pub(in crate::api) struct DictDataExportFilter {
 }
 
 impl DictDataExportFilter {
-    pub(in crate::api) fn page_filter(&self, page: PageRequest) -> DictDataListFilter {
+    pub(in crate::api) fn page_filter(&self, page: CursorPageRequest) -> DictDataListFilter {
         DictDataListFilter {
             page,
             dict_type: self.dict_type.clone(),
@@ -114,7 +114,7 @@ pub(in crate::api) struct ConfigExportFilter {
 }
 
 impl ConfigExportFilter {
-    pub(in crate::api) fn page_filter(&self, page: PageRequest) -> ConfigListFilter {
+    pub(in crate::api) fn page_filter(&self, page: CursorPageRequest) -> ConfigListFilter {
         ConfigListFilter {
             page,
             config_name: self.config_name.clone(),

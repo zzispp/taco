@@ -1,0 +1,112 @@
+{
+  "operationLogs": "操作日志",
+  "loginLogs": "登录日志",
+  "filters": {
+    "invalidDateTime": "请输入有效的日期时间",
+    "invalidRange": "开始时间不能晚于结束时间"
+  },
+  "fields": {
+    "operationId": "日志编号",
+    "loginId": "访问编号",
+    "title": "系统模块",
+    "businessType": "操作类型",
+    "method": "处理方法",
+    "requestMethod": "请求方式",
+    "operatorType": "操作类别",
+    "operator": "操作人员",
+    "department": "部门名称",
+    "url": "请求地址",
+    "operationIp": "操作地址",
+    "operationLocation": "操作地点",
+    "operationStatus": "操作状态",
+    "loginIp": "登录地址",
+    "loginLocation": "登录地点",
+    "loginStatus": "登录状态",
+    "operationTime": "操作日期",
+    "duration": "消耗时间",
+    "username": "用户名称",
+    "browser": "浏览器",
+    "os": "操作系统",
+    "message": "提示消息",
+    "eventType": "事件类型",
+    "loginTime": "访问时间",
+    "beginTime": "开始时间",
+    "endTime": "结束时间"
+  },
+  "actions": {
+    "detail": "详情",
+    "delete": "删除",
+    "clean": "清空",
+    "export": "导出",
+    "unlock": "解锁",
+    "reset": "重置",
+    "copy": "复制"
+  },
+  "statuses": {
+    "success": "成功",
+    "failure": "失败"
+  },
+  "businessTypes": {
+    "other": "其它",
+    "insert": "新增",
+    "update": "修改",
+    "delete": "删除",
+    "grant": "授权",
+    "export": "导出",
+    "import": "导入",
+    "force": "强退",
+    "generate": "生成代码",
+    "clean": "清空数据"
+  },
+  "operatorTypes": {
+    "other": "其它",
+    "backendUser": "后台用户",
+    "mobileUser": "手机端用户"
+  },
+  "eventTypes": {
+    "loginSuccess": "登录成功",
+    "loginFailure": "登录失败",
+    "registerSuccess": "注册成功",
+    "registerFailure": "注册失败",
+    "logoutSuccess": "退出成功",
+    "logoutFailure": "退出失败",
+    "refreshSuccess": "刷新令牌成功",
+    "refreshFailure": "刷新令牌失败"
+  },
+  "detail": {
+    "title": "操作日志详情",
+    "request": "请求参数",
+    "response": "返回参数",
+    "error": "错误消息",
+    "empty": "无记录内容",
+    "copySuccess": "已复制",
+    "copyFailure": "复制失败"
+  },
+  "dialogs": {
+    "deleteOne": "确认删除此条日志？",
+    "deleteSelected": "确认删除选中的 {{count}} 条日志？",
+    "cleanOperation": "确认清空全部操作日志？清空后会产生一条新的清空记录。",
+    "cleanLogin": "确认清空全部登录日志？",
+    "unlock": "确认解除用户 {{username}} 的登录锁定？"
+  },
+  "messages": {
+    "deleteSuccess": "删除成功",
+    "deleteFailure": "删除失败",
+    "cleanSuccess": "清空成功",
+    "cleanFailure": "清空失败",
+    "exportFailure": "导出失败",
+    "unlockSuccess": "解锁成功",
+    "unlockFailure": "解锁失败"
+  },
+  "table": {
+    "actions": "操作",
+    "selectAll": "选择全部日志",
+    "selectRow": "选择日志 {{id}}",
+    "noData": "暂无数据",
+    "loading": "加载中...",
+    "milliseconds": "{{value}} 毫秒"
+  },
+  "all": "全部",
+  "cancel": "取消",
+  "confirm": "确定"
+}

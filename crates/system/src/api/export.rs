@@ -1,10 +1,10 @@
-use kernel::excel::write_xlsx;
+use kernel::excel::{StreamingXlsxWriter, TemporaryXlsxFile};
 use types::{
     http::{Locale, translate_message},
     system::{ConfigItem, DictData, DictType, Post},
 };
 
-use crate::application::{SystemError, SystemResult};
+use crate::application::{SystemError, SystemExportBatch, SystemExportSink, SystemResult};
 
 const POST_SHEET_KEY: &str = "excel.system.post.sheet";
 const DICT_TYPE_SHEET_KEY: &str = "excel.system.dict_type.sheet";
@@ -51,38 +51,91 @@ const CONFIG_HEADER_KEYS: &[&str] = &[
     "excel.common.headers.create_time",
 ];
 
-struct ExportSheet<'a> {
-    sheet_key: &'a str,
-    header_keys: &'a [&'a str],
-    rows: &'a [Vec<String>],
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExportKind {
+    Posts,
+    DictTypes,
+    DictData,
+    Configs,
 }
 
-pub fn export_posts_xlsx(items: &[Post], locale: Locale) -> SystemResult<Vec<u8>> {
-    let rows = items.iter().map(post_row).collect::<Vec<_>>();
-    write_export(export_sheet(POST_SHEET_KEY, POST_HEADER_KEYS, &rows), locale)
+pub struct SystemXlsxExport {
+    kind: ExportKind,
+    writer: StreamingXlsxWriter,
 }
 
-pub fn export_dict_types_xlsx(items: &[DictType], locale: Locale) -> SystemResult<Vec<u8>> {
-    let rows = items.iter().map(dict_type_row).collect::<Vec<_>>();
-    write_export(export_sheet(DICT_TYPE_SHEET_KEY, DICT_TYPE_HEADER_KEYS, &rows), locale)
+struct ExportLayout {
+    kind: ExportKind,
+    sheet_key: &'static str,
+    header_keys: &'static [&'static str],
 }
 
-pub fn export_dict_data_xlsx(items: &[DictData], locale: Locale) -> SystemResult<Vec<u8>> {
-    let rows = items.iter().map(dict_data_row).collect::<Vec<_>>();
-    write_export(export_sheet(DICT_DATA_SHEET_KEY, DICT_DATA_HEADER_KEYS, &rows), locale)
+impl SystemXlsxExport {
+    pub fn posts(locale: Locale) -> SystemResult<Self> {
+        Self::new(
+            ExportLayout {
+                kind: ExportKind::Posts,
+                sheet_key: POST_SHEET_KEY,
+                header_keys: POST_HEADER_KEYS,
+            },
+            locale,
+        )
+    }
+
+    pub fn dict_types(locale: Locale) -> SystemResult<Self> {
+        Self::new(
+            ExportLayout {
+                kind: ExportKind::DictTypes,
+                sheet_key: DICT_TYPE_SHEET_KEY,
+                header_keys: DICT_TYPE_HEADER_KEYS,
+            },
+            locale,
+        )
+    }
+
+    pub fn dict_data(locale: Locale) -> SystemResult<Self> {
+        Self::new(
+            ExportLayout {
+                kind: ExportKind::DictData,
+                sheet_key: DICT_DATA_SHEET_KEY,
+                header_keys: DICT_DATA_HEADER_KEYS,
+            },
+            locale,
+        )
+    }
+
+    pub fn configs(locale: Locale) -> SystemResult<Self> {
+        Self::new(
+            ExportLayout {
+                kind: ExportKind::Configs,
+                sheet_key: CONFIG_SHEET_KEY,
+                header_keys: CONFIG_HEADER_KEYS,
+            },
+            locale,
+        )
+    }
+
+    fn new(layout: ExportLayout, locale: Locale) -> SystemResult<Self> {
+        let writer = StreamingXlsxWriter::new(&text(locale, layout.sheet_key), &localized_headers(locale, layout.header_keys)).map_err(excel_error)?;
+        Ok(Self { kind: layout.kind, writer })
+    }
+
+    pub fn finish(self) -> SystemResult<TemporaryXlsxFile> {
+        self.writer.finish().map_err(excel_error)
+    }
 }
 
-pub fn export_configs_xlsx(items: &[ConfigItem], locale: Locale) -> SystemResult<Vec<u8>> {
-    let rows = items.iter().map(config_row).collect::<Vec<_>>();
-    write_export(export_sheet(CONFIG_SHEET_KEY, CONFIG_HEADER_KEYS, &rows), locale)
-}
-
-fn export_sheet<'a>(sheet_key: &'a str, header_keys: &'a [&'a str], rows: &'a [Vec<String>]) -> ExportSheet<'a> {
-    ExportSheet { sheet_key, header_keys, rows }
-}
-
-fn write_export(sheet: ExportSheet<'_>, locale: Locale) -> SystemResult<Vec<u8>> {
-    write_xlsx(&text(locale, sheet.sheet_key), &localized_headers(locale, sheet.header_keys), sheet.rows).map_err(excel_error)
+impl SystemExportSink for SystemXlsxExport {
+    fn append(&mut self, batch: SystemExportBatch) -> SystemResult<()> {
+        let rows: Vec<Vec<String>> = match (self.kind, batch) {
+            (ExportKind::Posts, SystemExportBatch::Posts(items)) => items.iter().map(post_row).collect(),
+            (ExportKind::DictTypes, SystemExportBatch::DictTypes(items)) => items.iter().map(dict_type_row).collect(),
+            (ExportKind::DictData, SystemExportBatch::DictData(items)) => items.iter().map(dict_data_row).collect(),
+            (ExportKind::Configs, SystemExportBatch::Configs(items)) => items.iter().map(config_row).collect(),
+            _ => return Err(SystemError::Infrastructure("system export batch type mismatch".into())),
+        };
+        self.writer.append_rows(&rows).map_err(excel_error)
+    }
 }
 
 fn localized_headers(locale: Locale, keys: &[&str]) -> Vec<String> {
@@ -151,22 +204,24 @@ fn excel_error(error: String) -> SystemError {
 
 #[cfg(test)]
 mod tests {
-    use super::{export_configs_xlsx, export_posts_xlsx};
+    use super::SystemXlsxExport;
     use types::http::Locale;
 
-    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn export_posts_headers_use_requested_locale() {
-        let rows = kernel::excel::read_xlsx(&export_posts_xlsx(&[], Locale::En).unwrap()).unwrap();
+        let artifact = SystemXlsxExport::posts(Locale::En).unwrap().finish().unwrap();
+        let bytes = std::fs::read(artifact.path()).unwrap();
+        let rows = kernel::excel::read_xlsx(&bytes).unwrap();
 
         assert_eq!(rows[0][0], "Post ID");
         assert_eq!(rows[0][1], "Post code");
     }
 
-    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn export_configs_headers_use_requested_locale() {
-        let rows = kernel::excel::read_xlsx(&export_configs_xlsx(&[], Locale::ZhTw).unwrap()).unwrap();
+        let artifact = SystemXlsxExport::configs(Locale::ZhTw).unwrap().finish().unwrap();
+        let bytes = std::fs::read(artifact.path()).unwrap();
+        let rows = kernel::excel::read_xlsx(&bytes).unwrap();
 
         assert_eq!(rows[0][0], "參數主鍵");
         assert_eq!(rows[0][5], "公開讀取");

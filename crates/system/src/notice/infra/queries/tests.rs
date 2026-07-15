@@ -2,14 +2,6 @@ use sqlx::postgres::PgPoolOptions;
 use storage::Database;
 
 #[test]
-fn reader_query_has_user_filter_and_stable_order() {
-    let sql = super::READER_PREDICATE;
-    assert!(sql.contains("u.user_name ILIKE"));
-    assert!(sql.contains("u.nick_name ILIKE"));
-    assert!(sql.contains("u.del_flag='0'"));
-}
-
-#[test]
 fn read_writes_are_idempotent_locked_and_batched() {
     assert!(super::MARK_READ_SQL.contains("ON CONFLICT ON CONSTRAINT uk_sys_notice_read_user_notice DO NOTHING"));
     assert!(super::MARK_ALL_READ_SQL.contains("UNNEST($1::text[],$2::text[])"));
@@ -18,7 +10,6 @@ fn read_writes_are_idempotent_locked_and_batched() {
     assert!(super::UNREAD_NOTICE_IDS_SQL.contains("FOR UPDATE OF n"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn batch_read_ids_are_unique_uuid_v7_values() {
     let pool = PgPoolOptions::new()

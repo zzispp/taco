@@ -22,9 +22,18 @@ export function useDeptManagementController() {
     state,
     loadParentNodes: parent.loadParentNodes,
     t: resources.t,
+    resetList: resources.resource.reset,
   });
-  const sort = useDeptSortAction({ state, t: resources.t });
-  const deletion = useDeptDeleteAction({ state, t: resources.t });
+  const sort = useDeptSortAction({
+    state,
+    t: resources.t,
+    resetList: resources.resource.reset,
+  });
+  const deletion = useDeptDeleteAction({
+    state,
+    t: resources.t,
+    resetList: resources.resource.reset,
+  });
 
   return { resources, state, actions: { ...parent, ...crud, ...sort, ...deletion } };
 }
@@ -68,7 +77,7 @@ function useDeptState() {
 
 function useDeptResources(filters: Readonly<Record<string, string>>, expanded: string[]) {
   const { t } = useTranslate('admin');
-  const resource = useDepts(0, 1000, filters);
+  const resource = useDepts(filters);
   const head = useMemo(() => deptHead(t), [t]);
   const rows = useMemo(() => flattenDeptRows(resource.items, expanded), [expanded, resource.items]);
   const allIds = useMemo(() => resource.items.map((dept) => dept.dept_id), [resource.items]);
@@ -80,9 +89,10 @@ function useDeptResources(filters: Readonly<Record<string, string>>, expanded: s
 type DeptActionOptions = {
   state: ReturnType<typeof useDeptState>;
   t: ReturnType<typeof useTranslate>['t'];
+  resetList: () => Promise<void>;
 };
 
-type DeptParentOptions = DeptActionOptions;
+type DeptParentOptions = Pick<DeptActionOptions, 'state' | 't'>;
 
 function useDeptParentLoader({ state, t }: DeptParentOptions) {
   const loadParentNodes = useCallback(
@@ -103,7 +113,7 @@ type DeptCrudOptions = DeptActionOptions & {
   loadParentNodes: (loader: () => Promise<TreeSelectNode[]>) => Promise<void>;
 };
 
-function useDeptCrudActions({ state, loadParentNodes, t }: DeptCrudOptions) {
+function useDeptCrudActions({ state, loadParentNodes, t, resetList }: DeptCrudOptions) {
   const closeDialog = useCallback(() => {
     state.setEditing(null);
     state.setCreating(false);
@@ -132,19 +142,20 @@ function useDeptCrudActions({ state, loadParentNodes, t }: DeptCrudOptions) {
     },
     [loadParentNodes, state]
   );
-  const submitDept = useSubmitDept({ state, closeDialog, t });
+  const submitDept = useSubmitDept({ state, closeDialog, t, resetList });
 
   return { closeDialog, openCreate, openCreateChild, openEdit, submitDept };
 }
 
 type SubmitDeptOptions = DeptActionOptions & { closeDialog: () => void };
 
-function useSubmitDept({ state, closeDialog, t }: SubmitDeptOptions) {
+function useSubmitDept({ state, closeDialog, t, resetList }: SubmitDeptOptions) {
   return useCallback(async () => {
     state.setSubmitting(true);
     try {
       if (state.editing) await systemMutations.updateDept(state.editing.dept_id, state.form);
       else await systemMutations.createDept(state.form);
+      await resetList();
       toast.success(t('messages.saved'));
       state.setSortEdits({});
       closeDialog();
@@ -153,16 +164,17 @@ function useSubmitDept({ state, closeDialog, t }: SubmitDeptOptions) {
     } finally {
       state.setSubmitting(false);
     }
-  }, [closeDialog, state, t]);
+  }, [closeDialog, resetList, state, t]);
 }
 
-function useDeptSortAction({ state, t }: DeptActionOptions) {
+function useDeptSortAction({ state, t, resetList }: DeptActionOptions) {
   const saveSorts = useCallback(async () => {
     const items = Object.entries(state.sortEdits).map(([id, order_num]) => ({ id, order_num }));
     if (items.length === 0) return;
     state.setSubmitting(true);
     try {
       await systemMutations.updateDeptSorts(items);
+      await resetList();
       toast.success(t('messages.sortSaved'));
       state.setSortEdits({});
     } catch (error) {
@@ -170,22 +182,23 @@ function useDeptSortAction({ state, t }: DeptActionOptions) {
     } finally {
       state.setSubmitting(false);
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
 
   return { saveSorts };
 }
 
-function useDeptDeleteAction({ state, t }: DeptActionOptions) {
+function useDeptDeleteAction({ state, t, resetList }: DeptActionOptions) {
   const confirmDelete = useCallback(async () => {
     if (!state.deleteTarget) return;
     try {
       await systemMutations.deleteDept(state.deleteTarget.dept_id);
+      await resetList();
       toast.success(t('messages.deleted'));
       state.setDeleteTarget(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
 
   return { confirmDelete };
 }

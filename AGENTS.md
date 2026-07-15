@@ -11,10 +11,19 @@ This is a Rust and pnpm monorepo.
 - SQLx migrations live in `migrations/`.
 - Static assets belong under each app's `public/` directory.
 
-Current backend crates:
+Current backend business crates:
 
+- `crates/audit`: operation and login audit bounded context
 - `crates/user`: user bounded context
 - `crates/rbac`: RBAC bounded context
+- `crates/system`: system administration bounded context
+- `crates/scheduler`: scheduled job bounded context
+- `crates/captcha`: captcha capability
+
+Current backend shared crates:
+
+- `crates/audit_contract`: cross-context audit event and endpoint contracts
+- `crates/client_info`: client address, user-agent, and IP location infrastructure
 - `crates/config`: typed config loading and validation
 - `crates/storage`: database and storage foundation
 - `crates/types`: shared transport DTOs
@@ -47,9 +56,9 @@ If a requested change does not fit the current boundaries, refactor the boundary
 The backend must remain DDD + Clean Architecture.
 
 - `apps/backend` is composition root only: bootstrap, wiring, router assembly, startup, migration commands.
-- Business logic belongs in the owning bounded context crate, currently `crates/user` or `crates/rbac`.
+- Business logic belongs in the owning bounded context crate: `crates/audit`, `crates/user`, `crates/rbac`, `crates/system`, `crates/scheduler`, or `crates/captcha`.
 - Inside a bounded context, keep responsibilities separated across `domain`, `application`, `infra`, and `api`.
-- Generic crates such as `config`, `storage`, `types`, `constants`, `kernel`, and `tracing` must not absorb user or RBAC business rules.
+- Generic crates such as `audit_contract`, `client_info`, `config`, `storage`, `types`, `constants`, `kernel`, and `tracing` must not absorb bounded-context business rules.
 - Do not move domain decisions into transport DTOs, config loaders, persistence helpers, or HTTP entrypoints.
 
 Backend placement rule:
@@ -208,9 +217,7 @@ Treat these gates as the highest-priority Rust quality rules. Do not skip checks
 
 Before every commit, run `just quality-precommit`. This gate must install missing `rustfmt` and `clippy` components first, then execute `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo check --workspace --all-targets`, and `just test`. The installed Git hook must call the same gate and block the commit on failure.
 
-Before marking any Rust task complete, run `just quality-complete`. This gate must run the pre-commit gate first, then install any missing required tools (`cargo-audit`, `cargo-deny`, `cargo-geiger`, `cargo-outdated`, `cargo-udeps`, `cargo-expand`, and Miri), then execute `cargo audit`, `cargo deny check`, `cargo geiger --all-features --workspace`, `cargo miri test --workspace`, `cargo outdated --workspace`, and `cargo +nightly udeps --workspace --all-targets`.
-
-`cargo expand` is a macro-debugging and inspection tool, not a normal blocking gate. Use `just quality-report` when investigating proc-macro, derive, or complex macro expansion behavior; this command must install missing `cargo-expand` before running.
+Before marking any Rust task complete, run `just quality-complete`. This gate must run the pre-commit gate first, then install any missing required tools (`cargo-audit` and `cargo-deny`) and execute `cargo audit` and `cargo deny check`.
 
 ## Coding Style & Naming Conventions
 

@@ -5,8 +5,8 @@ import type { SchedulerJob, ImportableTask } from 'src/entities/scheduler';
 import { useState, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
-import { useTable } from 'src/shared/ui/table';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 
 import { useHasPermission } from 'src/entities/session';
 import {
@@ -18,6 +18,7 @@ import {
 } from 'src/entities/scheduler';
 
 import { useMutationRunner } from './use-mutation-runner';
+import { requireSchedulerJobDeleteTarget } from './mutation-preconditions';
 import { runJob, deleteJob, deleteJobs, exportJobs, updateJobStatus } from '../api';
 
 export function useSchedulerController() {
@@ -40,7 +41,7 @@ export function useSchedulerController() {
 export type SchedulerController = ReturnType<typeof useSchedulerController>;
 
 function useSchedulerState() {
-  const table = useTable({ defaultRowsPerPage: 10 });
+  const table = useTable({ defaultLimit: DEFAULT_TABLE_LIMIT });
   const [importOpen, setImportOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ImportableTask | null>(null);
   const [editing, setEditing] = useState<SchedulerJob | null>(null);
@@ -73,7 +74,7 @@ function useSchedulerResources(state: ReturnType<typeof useSchedulerState>) {
   const canRun = useHasPermission(SCHEDULER_PERMISSION.JOB_RUN);
   const canStatus = useHasPermission(SCHEDULER_PERMISSION.JOB_CHANGE_STATUS);
   const canQuery = useHasPermission(SCHEDULER_PERMISSION.JOB_QUERY);
-  const jobs = useSchedulerJobs(state.table.page, state.table.rowsPerPage);
+  const jobs = useSchedulerJobs(state.table.cursorRequest);
   const detail = useSchedulerJob({
     jobId: state.detailTarget?.job_id ?? null,
     canQuery,
@@ -101,11 +102,30 @@ type ActionOptions = {
 };
 
 function useJobActions(options: ActionOptions) {
+  return {
+    ...useJobViewActions(options),
+    ...useJobMutationActions(options),
+  };
+}
+
+function useJobViewActions(options: ActionOptions) {
   const openDetail = useCallback(
     (job: SchedulerJob) => options.state.setDetailTarget(job),
     [options]
   );
   const closeDetail = useCallback(() => options.state.setDetailTarget(null), [options]);
+  const closeEditor = useCallback(() => {
+    options.state.setSelectedTask(null);
+    options.state.setEditing(null);
+  }, [options]);
+  const finishEditor = useCallback(() => {
+    options.state.table.onResetCursor();
+    closeEditor();
+  }, [closeEditor, options]);
+  return { openDetail, closeDetail, closeEditor, finishEditor };
+}
+
+function useJobMutationActions(options: ActionOptions) {
   const run = useCallback(
     (job: SchedulerJob) =>
       options.mutation.run({
@@ -113,6 +133,7 @@ function useJobActions(options: ActionOptions) {
         failureMessage: options.resources.t('mutation.runFailed'),
         action: () => runJob(job.job_id),
         onSuccess: () => {
+          options.state.table.onResetCursor();
           toast.success(options.resources.t('runAccepted'));
         },
       }),
@@ -129,6 +150,7 @@ function useJobActions(options: ActionOptions) {
             job.status === JOB_STATUS.NORMAL ? JOB_STATUS.PAUSED : JOB_STATUS.NORMAL,
             { canRefreshImportableTasks: options.resources.canImport }
           ),
+        onSuccess: () => options.state.table.onResetCursor(),
       }),
     [options]
   );
@@ -141,17 +163,12 @@ function useJobActions(options: ActionOptions) {
       }),
     [options]
   );
-  const closeEditor = useCallback(() => {
-    options.state.setSelectedTask(null);
-    options.state.setEditing(null);
-  }, [options]);
-  return { openDetail, closeDetail, run, updateStatus, submitExport, closeEditor };
+  return { run, updateStatus, submitExport };
 }
 
 function useJobDeleteActions(options: ActionOptions) {
   const confirmDelete = useCallback(() => {
-    const job = options.state.deleteTarget;
-    if (!job) return Promise.resolve();
+    const job = requireSchedulerJobDeleteTarget(options.state.deleteTarget);
     return options.mutation.run({
       key: `delete:${job.job_id}`,
       failureMessage: options.resources.t('mutation.deleteFailed'),
@@ -161,7 +178,7 @@ function useJobDeleteActions(options: ActionOptions) {
         }),
       onSuccess: () => {
         options.state.setDeleteTarget(null);
-        options.state.table.setSelected((current) => current.filter((id) => id !== job.job_id));
+        options.state.table.onResetCursor();
       },
     });
   }, [options]);
@@ -175,7 +192,7 @@ function useJobDeleteActions(options: ActionOptions) {
             canRefreshImportableTasks: options.resources.canImport,
           }),
         onSuccess: () => {
-          options.state.table.setSelected([]);
+          options.state.table.onResetCursor();
           options.state.setBatchDeleteOpen(false);
         },
       }),

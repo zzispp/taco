@@ -28,6 +28,7 @@ impl From<RbacError> for SystemApiError {
             RbacError::NotFound => SystemError::NotFound,
             RbacError::Conflict(message) => SystemError::Conflict(message),
             RbacError::InvalidInput(message) => SystemError::InvalidInput(message),
+            RbacError::InvalidCursor => SystemError::InvalidCursor,
             RbacError::Infrastructure(message) => SystemError::Infrastructure(message),
         })
     }
@@ -45,6 +46,7 @@ fn status_code(error: &SystemError) -> StatusCode {
         SystemError::Forbidden(_) => StatusCode::FORBIDDEN,
         SystemError::Conflict(_) => StatusCode::CONFLICT,
         SystemError::InvalidInput(_) => StatusCode::BAD_REQUEST,
+        SystemError::InvalidCursor => StatusCode::BAD_REQUEST,
         SystemError::Infrastructure(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -56,6 +58,7 @@ fn error_response(error: &SystemError) -> ApiErrorResponse {
         SystemError::Forbidden(message) => localized_error_response(locale, ApiErrorKind::Forbidden, Some(message)),
         SystemError::Conflict(message) => localized_error_response(locale, ApiErrorKind::Conflict, Some(message)),
         SystemError::InvalidInput(message) => localized_error_response(locale, ApiErrorKind::InvalidInput, Some(message)),
+        SystemError::InvalidCursor => localized_error_response(locale, ApiErrorKind::InvalidCursor, None),
         SystemError::Infrastructure(_) => localized_error_response(
             locale,
             ApiErrorKind::Infrastructure,

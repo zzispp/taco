@@ -43,7 +43,7 @@ CREATE TABLE sys_user (
     phonenumber VARCHAR(20) NULL,
     sex CHAR(1) NOT NULL DEFAULT '2',
     avatar VARCHAR(255) NULL,
-    password VARCHAR(255) NOT NULL DEFAULT '',
+    password VARCHAR(255) NOT NULL,
     status CHAR(1) NOT NULL DEFAULT '0',
     del_flag CHAR(1) NOT NULL DEFAULT '0',
     login_ip VARCHAR(128) NOT NULL DEFAULT '',

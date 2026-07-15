@@ -1,13 +1,13 @@
 use crate::{application::UserListFilter, domain::User};
-use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_CUSTOM, DATA_SCOPE_DEPT, DATA_SCOPE_SELF, DataScopeFilter};
+use rbac::domain::{DataScope, DataScopeFilter};
 
 pub(super) fn memory_scope_matches(user: &User, scope: &DataScopeFilter) -> bool {
-    match scope.data_scope.as_str() {
-        DATA_SCOPE_ALL => true,
-        DATA_SCOPE_CUSTOM => user.dept_id.as_ref().is_some_and(|id| scope.dept_ids.contains(id)),
-        DATA_SCOPE_DEPT => user.dept_id == scope.dept_id,
-        DATA_SCOPE_SELF => user.id.0 == scope.user_id,
-        _ => user.dept_id == scope.dept_id || user.dept_id.as_ref().is_some_and(|id| scope.dept_ids.contains(id)),
+    match scope.data_scope {
+        DataScope::All => true,
+        DataScope::Custom => user.dept_id.as_ref().is_some_and(|id| scope.dept_ids.contains(id)),
+        DataScope::Department => user.dept_id == scope.dept_id,
+        DataScope::SelfOnly => user.id.0 == scope.user_id,
+        DataScope::DepartmentAndChildren => user.dept_id == scope.dept_id || user.dept_id.as_ref().is_some_and(|id| scope.dept_ids.contains(id)),
     }
 }
 

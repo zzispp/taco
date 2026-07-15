@@ -41,7 +41,12 @@ declare global {
   }
 }
 
-export function CloudflareTurnstile({ config, resetKey, onTokenChange, siteKeyRequiredMessage }: CloudflareTurnstileProps) {
+export function CloudflareTurnstile({
+  config,
+  resetKey,
+  onTokenChange,
+  siteKeyRequiredMessage,
+}: CloudflareTurnstileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<TurnstileWidgetId | null>(null);
   const containerId = useRef(`${TURNSTILE_CONTAINER_ID_PREFIX}-${crypto.randomUUID()}`);

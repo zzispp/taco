@@ -8,8 +8,8 @@ use crate::{
 
 use super::record::{ConfigRecord, DeptRecord, DictDataRecord, DictTypeRecord, PostRecord};
 
-pub fn dept(record: DeptRecord) -> Dept {
-    Dept {
+pub fn dept(record: DeptRecord) -> Result<Dept, StorageError> {
+    Ok(Dept {
         dept_id: record.dept_id,
         parent_id: record.parent_id,
         ancestors: record.ancestors,
@@ -19,35 +19,35 @@ pub fn dept(record: DeptRecord) -> Dept {
         phone: record.phone,
         email: record.email,
         status: record.status,
-        create_time: record.create_time,
-    }
+        create_time: wire_time(record.create_time)?,
+    })
 }
 
-pub fn post(record: PostRecord) -> Post {
-    Post {
+pub fn post(record: PostRecord) -> Result<Post, StorageError> {
+    Ok(Post {
         post_id: record.post_id,
         post_code: record.post_code,
         post_name: record.post_name,
         post_sort: record.post_sort,
         status: record.status,
         remark: record.remark,
-        create_time: record.create_time,
-    }
+        create_time: wire_time(record.create_time)?,
+    })
 }
 
-pub fn dict_type(record: DictTypeRecord) -> DictType {
-    DictType {
+pub fn dict_type(record: DictTypeRecord) -> Result<DictType, StorageError> {
+    Ok(DictType {
         dict_id: record.dict_id,
         dict_name: record.dict_name,
         dict_type: record.dict_type,
         status: record.status,
         remark: record.remark,
-        create_time: record.create_time,
-    }
+        create_time: wire_time(record.create_time)?,
+    })
 }
 
-pub fn dict_data(record: DictDataRecord) -> DictData {
-    DictData {
+pub fn dict_data(record: DictDataRecord) -> Result<DictData, StorageError> {
+    Ok(DictData {
         dict_code: record.dict_code,
         dict_sort: record.dict_sort,
         dict_label: record.dict_label,
@@ -58,12 +58,12 @@ pub fn dict_data(record: DictDataRecord) -> DictData {
         is_default: record.is_default,
         status: record.status,
         remark: record.remark,
-        create_time: record.create_time,
-    }
+        create_time: wire_time(record.create_time)?,
+    })
 }
 
-pub fn config(record: ConfigRecord) -> ConfigItem {
-    ConfigItem {
+pub fn config(record: ConfigRecord) -> Result<ConfigItem, StorageError> {
+    Ok(ConfigItem {
         config_id: record.config_id,
         config_name: record.config_name,
         config_key: record.config_key,
@@ -71,14 +71,19 @@ pub fn config(record: ConfigRecord) -> ConfigItem {
         config_type: record.config_type,
         public_read: record.public_read,
         remark: record.remark,
-        create_time: record.create_time,
-    }
+        create_time: wire_time(record.create_time)?,
+    })
+}
+
+fn wire_time(value: time::OffsetDateTime) -> Result<String, StorageError> {
+    types::http::format_utc_rfc3339_millis(value).map_err(|error| StorageError::Database(error.to_string()))
 }
 
 pub fn storage_error(error: StorageError) -> SystemError {
     match error {
         StorageError::NotFound => SystemError::NotFound,
         StorageError::Conflict(_) => SystemError::Conflict(LocalizedError::new("errors.common.conflict")),
+        StorageError::UniqueViolation { message, .. } => SystemError::Infrastructure(message),
         StorageError::Database(message) => SystemError::Infrastructure(message),
     }
 }

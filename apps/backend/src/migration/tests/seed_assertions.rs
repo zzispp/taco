@@ -2,17 +2,19 @@ use sqlx::{PgPool, query_scalar};
 
 use super::scheduler_assertions::assert_scheduler_seed;
 
+mod audit_logs;
 mod navigation;
 mod notice;
 
+use audit_logs::assert_audit_log_seed;
 use navigation::assert_navigation_seed;
 use notice::assert_notice_seed;
 
 const EXPECTED_ROLE_COUNT: i64 = 2;
-const EXPECTED_MENU_COUNT: i64 = 67;
+const EXPECTED_MENU_COUNT: i64 = 76;
 const EXPECTED_DEPT_COUNT: i64 = 10;
 const EXPECTED_POST_COUNT: i64 = 4;
-const EXPECTED_DICT_TYPE_COUNT: i64 = 9;
+const EXPECTED_DICT_TYPE_COUNT: i64 = 10;
 const EXPECTED_CONFIG_COUNT: i64 = 11;
 const EXPECTED_PUBLIC_CONFIG_COUNT: i64 = 5;
 const EXPECTED_CAPTCHA_DIFFICULTY: i64 = 4;
@@ -28,12 +30,16 @@ pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_eq!(table_count(pool, "sys_post").await, EXPECTED_POST_COUNT);
     assert_eq!(table_count(pool, "sys_dict_type").await, EXPECTED_DICT_TYPE_COUNT);
     assert_eq!(table_count(pool, "sys_config").await, EXPECTED_CONFIG_COUNT);
+    assert_eq!(table_count(pool, "sys_user").await, 0);
+    assert_eq!(table_count(pool, "sys_user_role").await, 0);
+    assert_eq!(table_count(pool, "sys_user_post").await, 0);
     assert_eq!(public_config_count(pool).await, EXPECTED_PUBLIC_CONFIG_COUNT);
     assert_seed_config_values(pool).await;
     assert_seed_config_remarks(pool).await;
     assert_navigation_seed(pool).await;
     assert_notice_seed(pool).await;
     assert_scheduler_seed(pool).await;
+    assert_audit_log_seed(pool).await;
 }
 
 async fn assert_seed_config_values(pool: &PgPool) {
@@ -41,14 +47,17 @@ async fn assert_seed_config_values(pool: &PgPool) {
     assert_eq!(captcha["provider"], "cap");
     assert_eq!(captcha["providers"]["cap"]["challenge_difficulty"], EXPECTED_CAPTCHA_DIFFICULTY);
     assert_eq!(captcha["providers"]["cloudflare_turnstile"]["site_key"], "");
-    assert_eq!(captcha["providers"]["cloudflare_turnstile"]["secret_key"], "");
+    assert_eq!(captcha["providers"]["cloudflare_turnstile"].get("secret_key"), None);
     assert_eq!(token_config(pool).await["refresh_token_ttl_seconds"], EXPECTED_REFRESH_TTL_SECONDS);
     assert_eq!(ip_location_config(pool).await["enabled"], true);
+    assert_eq!(login_lock_config(pool).await["max_retry_count"], 5);
+    assert_eq!(login_lock_config(pool).await["lock_minutes"], 10);
     assert_eq!(password_policy(pool).await["min_length"], EXPECTED_PASSWORD_MIN_LENGTH);
+    assert_eq!(password_policy(pool).await["max_length"], 128);
+    assert_eq!(password_policy(pool).await["forbid_username_contains"], true);
     assert_eq!(avatar_config(pool).await["max_bytes"], EXPECTED_AVATAR_MAX_BYTES);
     assert_eq!(export_batch_config(pool).await["page_size"], EXPECTED_EXPORT_PAGE_SIZE);
     assert_eq!(site_display_config(pool).await["site_name"], "taco");
-    assert_eq!(initial_password(pool).await, "12345678");
     assert_eq!(mode_theme(pool).await, "theme-light");
     assert_legacy_captcha_configs_removed(pool).await;
 }
@@ -68,6 +77,7 @@ async fn assert_seed_config_remarks(pool: &PgPool) {
         ],
     )
     .await;
+    assert_config_value_and_remark_exclude(pool, "sys.account.captchaConfig", "secret_key").await;
     assert_config_remark_contains(
         pool,
         "sys.account.captchaConfig",
@@ -75,17 +85,26 @@ async fn assert_seed_config_remarks(pool: &PgPool) {
     )
     .await;
     assert_config_remark_contains(pool, "sys.auth.tokenConfig", &["access_token_ttl_seconds", "refresh_token_ttl_seconds"]).await;
-    assert_config_remark_contains(pool, "sys.auth.ipLocationConfig", &["enabled", "pconline", "XX XX", "内网IP"]).await;
+    assert_config_remark_contains(
+        pool,
+        "sys.client.ipLocationConfig",
+        &["enabled", "pconline", "本地化未知文案", "本地化内网文案", "在线会话", "审计日志"],
+    )
+    .await;
+    assert_config_remark_contains(pool, "sys.auth.loginLockConfig", &["max_retry_count", "lock_minutes"]).await;
     assert_config_remark_contains(pool, "sys.upload.avatarConfig", &["max_bytes"]).await;
     assert_config_remark_contains(pool, "sys.export.batchConfig", &["page_size"]).await;
     assert_config_remark_contains(pool, "sys.site.displayConfig", &["site_name", "logo_url", "footer_text"]).await;
 }
 
-async fn initial_password(pool: &PgPool) -> String {
-    query_scalar::<_, String>("SELECT config_value FROM sys_config WHERE config_key = 'sys.user.initPassword'")
+async fn assert_config_value_and_remark_exclude(pool: &PgPool, key: &str, excluded: &str) {
+    let (value, remark): (String, String) = sqlx::query_as("SELECT config_value, remark FROM sys_config WHERE config_key = $1")
+        .bind(key)
         .fetch_one(pool)
         .await
-        .unwrap()
+        .unwrap();
+    assert!(!value.contains(excluded), "{key} value must not contain {excluded}");
+    assert!(!remark.contains(excluded), "{key} remark must not contain {excluded}");
 }
 
 async fn mode_theme(pool: &PgPool) -> String {
@@ -125,7 +144,11 @@ async fn token_config(pool: &PgPool) -> serde_json::Value {
 }
 
 async fn ip_location_config(pool: &PgPool) -> serde_json::Value {
-    config_json(pool, "sys.auth.ipLocationConfig").await
+    config_json(pool, "sys.client.ipLocationConfig").await
+}
+
+async fn login_lock_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.auth.loginLockConfig").await
 }
 
 async fn password_policy(pool: &PgPool) -> serde_json::Value {
@@ -183,6 +206,9 @@ async fn table_count(pool: &PgPool, table: &str) -> i64 {
         "sys_post" => "SELECT COUNT(*) FROM sys_post",
         "sys_dict_type" => "SELECT COUNT(*) FROM sys_dict_type",
         "sys_config" => "SELECT COUNT(*) FROM sys_config",
+        "sys_user" => "SELECT COUNT(*) FROM sys_user",
+        "sys_user_role" => "SELECT COUNT(*) FROM sys_user_role",
+        "sys_user_post" => "SELECT COUNT(*) FROM sys_user_post",
         _ => panic!("unexpected table: {table}"),
     };
     query_scalar::<_, i64>(sql).fetch_one(pool).await.unwrap()

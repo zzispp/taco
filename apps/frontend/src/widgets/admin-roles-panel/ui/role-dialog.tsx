@@ -5,7 +5,18 @@ import type { RoleInput } from 'src/entities/role';
 import MenuItem from '@mui/material/MenuItem';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { TextFieldRow, ManagementDialog } from 'src/shared/ui/admin';
+
+import { TextFieldRow, ManagementDialog } from 'src/widgets/admin-common';
+
+type RoleDialogProps = {
+  open: boolean;
+  editing: boolean;
+  submitting: boolean;
+  form: RoleInput;
+  setForm: React.Dispatch<React.SetStateAction<RoleInput>>;
+  onClose: () => void;
+  onSubmit: () => void;
+};
 
 export function RoleDialog({
   open,
@@ -15,15 +26,7 @@ export function RoleDialog({
   setForm,
   onClose,
   onSubmit,
-}: {
-  open: boolean;
-  editing: boolean;
-  submitting: boolean;
-  form: RoleInput;
-  setForm: React.Dispatch<React.SetStateAction<RoleInput>>;
-  onClose: () => void;
-  onSubmit: () => void;
-}) {
+}: RoleDialogProps) {
   const { t } = useTranslate('admin');
   return (
     <ManagementDialog
@@ -33,6 +36,18 @@ export function RoleDialog({
       onClose={onClose}
       onSubmit={onSubmit}
     >
+      <RoleFormFields {...{ form, setForm, t }} />
+    </ManagementDialog>
+  );
+}
+
+type RoleFormFieldsProps = Pick<RoleDialogProps, 'form' | 'setForm'> & {
+  t: ReturnType<typeof useTranslate>['t'];
+};
+
+function RoleFormFields({ form, setForm, t }: RoleFormFieldsProps) {
+  return (
+    <>
       <TextFieldRow
         required
         label={t('fields.roleName')}
@@ -66,7 +81,7 @@ export function RoleDialog({
         value={form.remark ?? ''}
         onChange={(value) => setForm((current) => ({ ...current, remark: value }))}
       />
-    </ManagementDialog>
+    </>
   );
 }
 

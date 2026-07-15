@@ -9,11 +9,12 @@ import IconButton from '@mui/material/IconButton';
 
 import { Label } from 'src/shared/ui/label';
 import { Iconify } from 'src/shared/ui/iconify';
-import { StatusLabel } from 'src/shared/ui/admin';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
 import { useHasPermission } from 'src/entities/session';
+
+import { StatusLabel } from 'src/widgets/admin-common';
 
 import { labelColor, DATE_TIME_CELL_SX } from './dict-helpers';
 

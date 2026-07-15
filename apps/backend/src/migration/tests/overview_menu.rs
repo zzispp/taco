@@ -2,12 +2,11 @@ use sqlx::{PgPool, query, query_as, query_scalar};
 
 use super::{TestDatabase, down, up};
 
-const MIGRATIONS_BEFORE_OVERVIEW: u32 = 16;
+const MIGRATIONS_BEFORE_OVERVIEW: u32 = 15;
 const OVERVIEW_MENU_ID: &str = "4";
 const DASHBOARD_MENU_ID: &str = "2";
 const TEST_ROLE_ID: &str = "overview-dashboard";
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn overview_migration_groups_dashboard_and_preserves_role_access() {
     let database = TestDatabase::create().await;
@@ -24,7 +23,6 @@ async fn overview_migration_groups_dashboard_and_preserves_role_access() {
     database.drop().await;
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn overview_down_restores_root_dashboard_and_role_bindings() {
     let database = TestDatabase::create().await;

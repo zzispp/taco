@@ -1,24 +1,4 @@
 {
-  "nav": {
-    "overview": "概覽",
-    "dashboard": "儀表盤",
-    "resources": "資源",
-    "account": "賬戶",
-    "systemManagement": "系統管理",
-    "systemMonitor": "系統監控",
-    "users": "用戶管理",
-    "roles": "角色管理",
-    "menus": "菜單管理",
-    "customKeyboardShortcuts": "自定義鍵盤快捷鍵。",
-    "depts": "部門管理",
-    "posts": "崗位管理",
-    "dicts": "字典管理",
-    "configs": "參數設置",
-    "online": "在線用戶",
-    "jobs": "定時任務",
-    "jobLogs": "調度日誌",
-    "notices": "通知公告"
-  },
   "common": {
     "active": "啟用",
     "add": "新增",
@@ -58,6 +38,8 @@
     "select": "選擇",
     "sort": "排序",
     "sortOrder": "排序",
+    "sortAscending": "依目前欄位升冪排序",
+    "sortDescending": "依目前欄位降冪排序",
     "source": "來源",
     "status": "狀態",
     "system": "系統",
@@ -91,7 +73,9 @@
     "onlineManagement": "在線用戶",
     "jobManagement": "定時任務",
     "jobLogManagement": "調度日誌",
-    "noticeManagement": "通知公告"
+    "noticeManagement": "通知公告",
+    "operationLogManagement": "操作日誌",
+    "loginLogManagement": "登入日誌"
   },
   "actions": {
     "addMenuItem": "新增菜單",
@@ -204,8 +188,7 @@
     "deepMatch": "深度匹配用於控制子路徑高亮。",
     "pathPatternExample": "示例：/api/users/{id}",
     "updatePasswordRequired": "後端當前要求更新用戶時填寫密碼。",
-    "emptyPasswordUsesDefault": "不填寫則使用系統默認初始密碼。",
-    "userImportTemplate": "導入模板包含部門編號、登錄名稱、用戶名稱、郵箱、手機、性別、狀態，不包含角色/崗位列。"
+    "userImportTemplate": "導入模板包含部門編號、登錄名稱、密碼、用戶名稱、郵箱、手機、性別、狀態，不包含角色/崗位列。"
   },
   "messages": {
     "deleteFailed": "刪除失敗",
@@ -246,265 +229,5 @@
   "authSources": {
     "local": "本地",
     "system": "系統"
-  },
-  "dashboard": {
-    "welcome": "你好，歡迎回來 👋",
-    "weeklySales": "本週銷售額",
-    "newUsers": "新增用戶",
-    "purchaseOrders": "採購訂單",
-    "messages": "消息",
-    "currentVisits": "當前訪問",
-    "websiteVisits": "網站訪問",
-    "conversionRates": "轉化率",
-    "currentSubject": "當前科目",
-    "news": "新聞",
-    "orderTimeline": "訂單時間線",
-    "trafficBySite": "站點流量",
-    "tasks": "任務",
-    "thanLastYear": "較去年增長 (+43%)",
-    "visits": "次訪問",
-    "viewAll": "查看全部",
-    "markComplete": "標記完成",
-    "share": "分享",
-    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
-    "regions": {
-      "america": "美洲",
-      "asia": "亞洲",
-      "europe": "歐洲",
-      "africa": "非洲"
-    },
-    "countries": {
-      "italy": "意大利",
-      "japan": "日本",
-      "china": "中國",
-      "canada": "加拿大",
-      "france": "法國"
-    },
-    "subjects": {
-      "english": "英語",
-      "history": "歷史",
-      "physics": "物理",
-      "geography": "地理",
-      "chinese": "語文",
-      "math": "數學"
-    },
-    "series": {
-      "teamA": "團隊 A",
-      "teamB": "團隊 B",
-      "series1": "系列 1",
-      "series2": "系列 2",
-      "series3": "系列 3"
-    },
-    "newsItems": {
-      "titles": [
-        "可再生能源的未來：創新與挑戰",
-        "人工智能對現代醫療的影響",
-        "氣候變化與全球糧食安全",
-        "遠程辦公興起：收益、挑戰與趨勢",
-        "理解區塊鏈技術：不止加密貨幣"
-      ],
-      "descriptions": [
-        "太陽緩緩落入地平線，將天空染成橙色與粉色。",
-        "她迫不及待地打開禮物，眼中閃爍著興奮的光。",
-        "古老橡樹高大挺拔，枝葉在微風中輕輕搖曳。",
-        "新鮮咖啡的香氣瀰漫開來，喚醒了所有感官。",
-        "炎熱夏日裡，孩子們穿過噴泉時開心地笑著。"
-      ]
-    },
-    "timeline": {
-      "items": [
-        "1983，訂單，$4220",
-        "12 張發票已支付",
-        "來自 9 月的訂單 #37745",
-        "新訂單已創建 #XF-2356",
-        "新訂單已創建 #XF-2346"
-      ]
-    },
-    "taskItems": [
-      "準備月度財務報告",
-      "設計新的營銷活動",
-      "分析客戶反饋",
-      "更新網站內容",
-      "開展市場調研"
-    ]
-  },
-  "systemDashboard": {
-    "title": "系統儀表盤",
-    "summary": {
-      "cpuUsage": "CPU 使用率",
-      "memoryUsage": "內存使用率",
-      "diskUsage": "磁盤使用率",
-      "networkInbound": "網絡入站"
-    },
-    "cards": {
-      "serverInfo": "服務器基本信息",
-      "healthStatus": "健康狀態"
-    },
-    "labels": {
-      "hostname": "主機名",
-      "system": "系統",
-      "kernel": "內核",
-      "cpu": "CPU",
-      "cpuCores": "CPU 核心",
-      "memoryDisk": "內存 / 磁盤",
-      "publicIp": "公網 IP",
-      "uptime": "Uptime",
-      "bootTime": "啟動時間",
-      "sampledAt": "採樣時間",
-      "load": "Load"
-    },
-    "health": {
-      "green": "綠色",
-      "yellow": "黃色",
-      "red": "紅色",
-      "allHealthy": "所有核心資源低於告警閾值",
-      "issue": "{{kind}}：{{target}} {{usage}}%",
-      "issueSeparator": "；",
-      "kinds": {
-        "cpu": "CPU",
-        "memory": "內存",
-        "disk": "磁盤"
-      }
-    },
-    "units": {
-      "physical": "物理核心",
-      "logical": "邏輯核心",
-      "day": "天",
-      "hour": "小時",
-      "minute": "分鐘"
-    },
-    "charts": {
-      "resourceTrend": "CPU / 內存歷史趨勢",
-      "realtimeSessionSampling": "當前頁面會話實時採樣",
-      "networkTrend": "網絡流量實時曲線",
-      "inboundOutboundBandwidth": "入站 / 出站帶寬",
-      "diskUsage": "磁盤分區使用量",
-      "usedCapacity": "按已用容量統計",
-      "series": {
-        "cpu": "CPU",
-        "memory": "內存",
-        "inbound": "入站",
-        "outbound": "出站"
-      }
-    },
-    "tables": {
-      "topProcesses": "Top 消耗進程",
-      "sortedByCpu": "按 CPU 使用率排序",
-      "cpuCoreLoad": "CPU 核心負載",
-      "cpuCoreLoadSubheader": "各核心使用率與頻率",
-      "diskPartitions": "磁盤分區明細",
-      "diskPartitionsSubheader": "掛載點、文件系統與容量"
-    }
-  },
-  "dataScope": {
-    "all": "全部數據權限",
-    "custom": "自定數據權限",
-    "dept": "本部門數據權限",
-    "deptAndChild": "本部門及以下數據權限",
-    "self": "僅本人數據權限"
-  },
-  "menuType": {
-    "directory": "目錄",
-    "menu": "菜單",
-    "button": "按鈕"
-  },
-  "profile": {
-    "personalCenter": "個人中心",
-    "personalInfo": "個人信息",
-    "basicInfo": "基本資料",
-    "changePassword": "修改密碼",
-    "changeAvatar": "修改頭像",
-    "selectAvatarFirst": "請選擇一張圖片後裁剪頭像",
-    "zoom": "縮放",
-    "avatarImageOnly": "請上傳圖片類型文件",
-    "deptAndPost": "所屬部門 / 崗位",
-    "roleGroup": "所屬角色",
-    "oldPassword": "舊密碼",
-    "confirmPassword": "確認密碼",
-    "passwordRule": "密碼長度必須在 8 到 128 個字符之間",
-    "passwordRuleDynamic": "密碼長度必須在 {{min}} 到 {{max}} 個字符之間",
-    "passwordRequired": "舊密碼、新密碼和確認密碼不能為空",
-    "passwordMismatch": "兩次輸入的密碼不一致",
-    "passwordSame": "新密碼不能與舊密碼相同",
-    "requiredProfileFields": "暱稱和郵箱不能為空",
-    "invalidEmail": "郵箱格式不正確",
-    "invalidPhone": "手機號格式不正確",
-    "logout": "退出登錄",
-    "logoutFailed": "退出登錄失敗",
-    "authorizedNavigation": "授權菜單",
-    "usernameRuleDynamic": "使用者名稱長度必須在 {{min}} 到 {{max}} 個字符之間",
-    "usernamePattern": "使用者名稱只能包含字母、數字、底線和連字號，並且必須以字母或數字開頭和結尾",
-    "passwordLetterRequired": "密碼必須包含字母",
-    "passwordNumberRequired": "密碼必須包含數字",
-    "passwordSymbolRequired": "密碼必須包含特殊字符",
-    "passwordContainsUsername": "密碼不能包含使用者名稱",
-    "emailRequired": "郵箱不能為空",
-    "identifierRequired": "請輸入使用者名稱或郵箱",
-    "identifierInvalid": "請輸入有效的使用者名稱或郵箱地址"
-  },
-  "dateTimeFilters": {
-    "invalidDateTime": "請輸入有效的建立時間",
-    "invalidTimeRange": "開始時間不能晚於結束時間"
-  },
-  "onlineSessions": {
-    "tokenId": "會話編號",
-    "userName": "登錄名稱",
-    "ipaddr": "登錄地址",
-    "host": "主機",
-    "loginLocation": "登錄地點",
-    "browser": "瀏覽器",
-    "os": "操作系統",
-    "loginTime": "登錄時間",
-    "invalidDateTime": "請輸入有效的登錄時間",
-    "invalidTimeRange": "登錄開始時間不能晚於結束時間",
-    "forceLogout": "強退",
-    "forceLogoutConfirm": "是否確認強退名稱為「{{name}}」的用戶？",
-    "forceLogoutSuccess": "強退成功"
-  },
-  "notice": {
-    "notifications": "通知",
-    "unread": "未讀",
-    "markAllRead": "全部標記為已讀",
-    "noNotifications": "暫無通知",
-    "viewAll": "查看全部",
-    "detailTitle": "通知公告詳情",
-    "viewDetail": "查看詳情",
-    "emptyContent": "暫無正文",
-    "createTitle": "新增通知公告",
-    "editTitle": "編輯通知公告",
-    "readers": "已讀用戶",
-    "readersTitle": "已讀用戶：{{name}}",
-    "readerSearch": "登入名稱或暱稱",
-    "readTime": "閱讀時間",
-    "batchDeleteContent": "確認刪除已選中的 {{count}} 條通知公告？",
-    "fields": {
-      "title": "公告標題",
-      "type": "公告類型",
-      "content": "公告內容",
-      "createBy": "創建者"
-    },
-    "types": {
-      "notice": "通知",
-      "announcement": "公告"
-    },
-    "status": {
-      "normal": "正常",
-      "closed": "關閉"
-    },
-    "editor": {
-      "edit": "Markdown 編輯",
-      "preview": "預覽",
-      "emptyPreview": "暫無可預覽內容"
-    },
-    "validation": {
-      "required": "請輸入公告標題",
-      "tooLong": "公告標題不能超過 {{max}} 個字符"
-    }
-  },
-  "authExpired": {
-    "title": "系統提示",
-    "content": "登入狀態已過期，您可以繼續留在此頁面，或重新登入",
-    "stay": "繼續留在此頁面",
-    "relogin": "重新登入"
   }
 }

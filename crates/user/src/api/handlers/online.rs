@@ -1,10 +1,26 @@
+use audit_contract::OperationAuditContext;
+
 use super::*;
-use axum::extract::Query;
+use axum::extract::Path;
+use rbac_macros::require_perms;
+
+use crate::api::online_session_filter::online_session_page_request;
 
 const ONLINE_SESSION_FORBIDDEN: &str = "errors.user.online_session_forbidden";
 
-type ListOnlineSessionsRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Query<OnlineSessionsQuery>);
-type ForceLogoutOnlineSessionRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
+type ListOnlineSessionsRequest = (
+    State<ApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    RequestQuery<OnlineSessionsQuery>,
+);
+type ForceLogoutOnlineSessionRequest = (
+    State<ApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    Option<Extension<OperationAuditContext>>,
+    Path<String>,
+);
 
 struct OnlineScopeGuard<'a> {
     state: &'a ApiState,
@@ -13,23 +29,28 @@ struct OnlineScopeGuard<'a> {
 }
 
 #[require_perms("system:online:list")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn list_online_sessions(request: ListOnlineSessionsRequest) -> ApiResult<ApiJson<OnlineSessionsResponse>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Query(query)) = request;
-    let sessions = state.tokens.online_sessions(query.into()).await?;
-    let sessions = OnlineScopeGuard::new(&state, &current_user, data_scope).filter(sessions).await?;
-    Ok(ok(sessions.into()))
+    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let scope = (!current_user.admin).then_some(data_scope);
+    let sessions = state.tokens.online_sessions(online_session_page_request(query, scope)?).await?;
+    Ok(ok(crate::api::dto::online_sessions_response(sessions)?))
 }
 
 #[require_perms("system:online:forceLogout")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn force_logout_online_session(request: ForceLogoutOnlineSessionRequest) -> ApiResult<ApiJson<()>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(token_id)) = request;
+    let (State(state), Extension(current_user), Extension(data_scope), audit_context, Path(token_id)) = request;
     let guard = OnlineScopeGuard::new(&state, &current_user, data_scope);
     if let Some(session) = state.tokens.online_session(&token_id).await? {
         guard.ensure_visible(session).await?;
     }
+    let audit = super::support::successful_operation_audit(audit_context)?;
     state.tokens.force_logout(&token_id).await?;
+    state
+        .operation_audit
+        .record(audit.record())
+        .await
+        .map_err(|error| ApiError(AppError::Infrastructure(format!("operation audit outbox recording failed: {error}"))))?;
+    audit.mark_persisted();
     Ok(ok(()))
 }
 

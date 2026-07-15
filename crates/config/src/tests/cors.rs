@@ -1,10 +1,10 @@
 use super::*;
 
 #[test]
-fn validated_cors_accepts_default_wildcards() {
+fn validated_cors_accepts_a_concrete_http_origin() {
     let cors = settings_with_cors(cors_settings()).validated_cors().unwrap();
 
-    assert_eq!(cors.allowed_origins, ValidatedCorsList::Any);
+    assert_eq!(cors.allowed_origins, ValidatedCorsList::Values(vec!["https://admin.example.test".into()]));
     assert_eq!(cors.allowed_methods, ValidatedCorsList::Any);
     assert_eq!(cors.allowed_headers, ValidatedCorsList::Any);
     assert_eq!(cors.exposed_headers, ValidatedCorsList::Any);
@@ -58,13 +58,38 @@ fn validated_cors_rejects_invalid_inputs() {
 #[test]
 fn validated_cors_rejects_credentials_with_wildcard_allowlists() {
     let settings = settings_with_cors(CorsSettings {
+        allowed_origins: vec!["*".into()],
         allow_credentials: true,
         ..cors_settings()
     });
 
     assert!(matches!(
         settings.validated_cors(),
-        Err(SettingsError::WildcardCorsWithCredentials("cors.allowed_origins"))
+        Err(SettingsError::WildcardCorsOrigin("cors.allowed_origins"))
+    ));
+}
+
+#[test]
+fn validated_cors_rejects_wildcard_and_non_http_origins() {
+    let wildcard = settings_with_cors(CorsSettings {
+        allowed_origins: vec!["*".into()],
+        ..cors_settings()
+    });
+    let non_http = settings_with_cors(CorsSettings {
+        allowed_origins: vec!["file:///tmp/admin.html".into()],
+        ..cors_settings()
+    });
+
+    assert!(matches!(
+        wildcard.validated_cors(),
+        Err(SettingsError::WildcardCorsOrigin("cors.allowed_origins"))
+    ));
+    assert!(matches!(
+        non_http.validated_cors(),
+        Err(SettingsError::InvalidHttpOrigin {
+            key: "cors.allowed_origins",
+            ..
+        })
     ));
 }
 

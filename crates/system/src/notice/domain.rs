@@ -1,4 +1,4 @@
-use kernel::pagination::PageRequest;
+use kernel::pagination::CursorPageRequest;
 use serde::{Deserialize, Serialize};
 
 pub const NOTICE_TYPE_NOTICE: &str = "1";
@@ -29,6 +29,13 @@ pub struct NoticeInput {
     pub remark: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplaceNoticeCommand {
+    pub id: String,
+    pub input: NoticeInput,
+    pub operator: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct NoticeSummary {
     pub notice_id: String,
@@ -41,7 +48,7 @@ pub struct NoticeSummary {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct NoticeListFilter {
-    pub page: PageRequest,
+    pub page: CursorPageRequest,
     pub notice_title: Option<String>,
     pub create_by: Option<String>,
     pub notice_type: Option<String>,
@@ -49,7 +56,7 @@ pub struct NoticeListFilter {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct NoticeReaderFilter {
-    pub page: PageRequest,
+    pub page: CursorPageRequest,
     pub search_value: Option<String>,
 }
 

@@ -8,8 +8,8 @@ import type {
 import { useMemo, useState, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
-import { useTable } from 'src/shared/ui/table';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 
 import { useHasPermission } from 'src/entities/session';
 import {
@@ -22,7 +22,7 @@ import {
 
 import { forceLogoutOnlineSession } from 'src/features/online-session-management';
 
-import { pageRows, onlineSessionHead } from './helpers';
+import { onlineSessionHead } from './helpers';
 
 const FILTER_ERROR_TRANSLATION_KEY = {
   [ONLINE_SESSION_FILTER_ERROR.INVALID_DATE_TIME]: 'onlineSessions.invalidDateTime',
@@ -31,26 +31,27 @@ const FILTER_ERROR_TRANSLATION_KEY = {
 
 export function useOnlineSessionsController() {
   const { t } = useTranslate('admin');
-  const table = useTable({ defaultRowsPerPage: 10 });
+  const table = useTable({ defaultLimit: DEFAULT_TABLE_LIMIT });
   const [filters, setFiltersState] = useState(DEFAULT_ONLINE_SESSION_FILTERS);
   const [query, setQuery] = useState(DEFAULT_ONLINE_SESSION_QUERY);
   const [filterError, setFilterError] = useState<OnlineSessionFilterError | null>(null);
   const [forceTarget, setForceTarget] = useState<OnlineSession | null>(null);
-  const sessions = useOnlineSessions(query);
+  const sessions = useOnlineSessions(table.cursorRequest, query);
   const canForceLogout = useHasPermission('system:online:forceLogout');
   const head = useMemo(() => onlineSessionHead(t), [t]);
-  const rows = useMemo(
-    () => pageRows(sessions.rows, table.page, table.rowsPerPage),
-    [sessions.rows, table.page, table.rowsPerPage]
-  );
   const setFilters = useFilterWriter({
     query,
     setQuery,
     setFilterError,
     setFiltersState,
-    resetPage: table.onResetPage,
+    resetCursor: table.onResetCursor,
   });
-  const confirmForceLogout = useForceLogoutAction(forceTarget, setForceTarget, t);
+  const confirmForceLogout = useForceLogoutAction({
+    target: forceTarget,
+    setTarget: setForceTarget,
+    resetCursor: table.onResetCursor,
+    t,
+  });
   const filterErrorMessage = filterError ? t(FILTER_ERROR_TRANSLATION_KEY[filterError]) : null;
 
   return {
@@ -59,7 +60,7 @@ export function useOnlineSessionsController() {
       table,
       filters,
       sessions,
-      rows,
+      rows: sessions.rows,
       head,
       canForceLogout,
       filterErrorMessage,
@@ -70,35 +71,32 @@ export function useOnlineSessionsController() {
 }
 
 function useFilterWriter(options: FilterWriterOptions) {
-  const { query, setQuery, setFilterError, setFiltersState, resetPage } = options;
+  const { query, setQuery, setFilterError, setFiltersState, resetCursor } = options;
   return useCallback(
     (next: OnlineSessionFilters) => {
       const transition = updateOnlineSessionFilterState(query, next);
       setFiltersState(transition.draft);
       setFilterError(transition.error);
       if (!transition.resetTable) return;
-      resetPage();
+      resetCursor();
       setQuery(transition.query);
     },
-    [query, resetPage, setFilterError, setFiltersState, setQuery]
+    [query, resetCursor, setFilterError, setFiltersState, setQuery]
   );
 }
 
-function useForceLogoutAction(
-  target: OnlineSession | null,
-  setTarget: (target: OnlineSession | null) => void,
-  t: ReturnType<typeof useTranslate>['t']
-) {
+function useForceLogoutAction({ target, setTarget, resetCursor, t }: ForceLogoutOptions) {
   return useCallback(async () => {
     if (!target) return;
     try {
       await forceLogoutOnlineSession(target.tokenId);
       toast.success(t('onlineSessions.forceLogoutSuccess'));
       setTarget(null);
+      resetCursor();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [setTarget, t, target]);
+  }, [resetCursor, setTarget, t, target]);
 }
 
 type FilterWriterOptions = Readonly<{
@@ -106,5 +104,12 @@ type FilterWriterOptions = Readonly<{
   setQuery: (query: OnlineSessionQuery) => void;
   setFilterError: (error: OnlineSessionFilterError | null) => void;
   setFiltersState: (filters: OnlineSessionFilters) => void;
-  resetPage: () => void;
+  resetCursor: () => void;
+}>;
+
+type ForceLogoutOptions = Readonly<{
+  target: OnlineSession | null;
+  setTarget: (target: OnlineSession | null) => void;
+  resetCursor: () => void;
+  t: ReturnType<typeof useTranslate>['t'];
 }>;

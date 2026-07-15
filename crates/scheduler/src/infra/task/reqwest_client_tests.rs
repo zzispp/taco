@@ -18,7 +18,6 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(2);
 const SHORT_TIMEOUT: Duration = Duration::from_millis(20);
 const TIMEOUT_SERVER_DELAY: Duration = Duration::from_millis(100);
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn captures_redirect_duplicate_headers_binary_and_large_body() {
     let expected_body = large_binary_body();
@@ -42,7 +41,6 @@ async fn captures_redirect_duplicate_headers_binary_and_large_body() {
     assert_eq!(repeated, vec![b"first".to_vec(), vec![128, 129]]);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn classifies_invalid_method_and_connection_failure() {
     let client = http_client(CLIENT_TIMEOUT);
@@ -58,7 +56,6 @@ async fn classifies_invalid_method_and_connection_failure() {
     assert_eq!(refused.response, None);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn classifies_timeout_without_a_response() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -77,7 +74,6 @@ async fn classifies_timeout_without_a_response() {
     assert!(failure.duration >= SHORT_TIMEOUT);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn body_read_failure_preserves_response_head() {
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nX-Kept: value\r\nConnection: close\r\n\r\nshort".to_vec();
@@ -93,7 +89,6 @@ async fn body_read_failure_preserves_response_head() {
     assert_eq!(head.headers.iter().find(|header| header.name == "x-kept").unwrap().value, b"value");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn body_timeout_uses_timeout_code_without_a_response() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

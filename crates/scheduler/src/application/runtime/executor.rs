@@ -43,17 +43,23 @@ impl ExecutionActor {
 
     pub async fn run(mut self) {
         while !self.stopping() {
-            match self.parts.execution_lease.open_session().await {
-                Ok(mut session) => {
-                    if let Err(error) = self.run_session(session.as_mut()).await {
-                        log_runtime_error("execution_session", &error, self.parts.telemetry.as_ref());
-                    }
-                }
-                Err(error) => log_runtime_error("open_execution_session", &error, self.parts.telemetry.as_ref()),
-            }
+            self.run_session_attempt().await;
             if !self.stopping() {
                 self.wait_retry().await;
             }
+        }
+    }
+
+    async fn run_session_attempt(&mut self) {
+        let mut session = match self.parts.execution_lease.open_session().await {
+            Ok(session) => session,
+            Err(error) => {
+                log_runtime_error("open_execution_session", &error, self.parts.telemetry.as_ref());
+                return;
+            }
+        };
+        if let Err(error) = self.run_session(session.as_mut()).await {
+            log_runtime_error("execution_session", &error, self.parts.telemetry.as_ref());
         }
     }
 

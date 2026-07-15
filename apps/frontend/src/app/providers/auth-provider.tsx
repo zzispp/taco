@@ -3,18 +3,24 @@
 import { useSetState } from 'minimal-shared/hooks';
 import { useMemo, useEffect, useCallback } from 'react';
 
+import { paths } from 'src/shared/routes/paths';
+import { useRouter } from 'src/shared/routes/hooks';
 import { resolveServerAssetUrl } from 'src/shared/lib/asset-url';
-import axios, { isAuthSessionRejected } from 'src/shared/api/http-client';
+import axios, {
+  isAuthSessionRejected,
+  registerAuthSessionRecovery,
+} from 'src/shared/api/http-client';
 
 import {
   setSession,
   AuthContext,
-  isValidToken,
   type AuthState,
-  JWT_STORAGE_KEY,
+  restoreSession,
+  refreshSession,
   type SessionUser,
-  JWT_REFRESH_STORAGE_KEY,
 } from 'src/entities/session';
+
+import { endSessionAfterTerminalRejection } from './auth-session-lifecycle';
 
 // ----------------------------------------------------------------------
 
@@ -23,12 +29,6 @@ type Props = {
 };
 
 const AUTH_ME_ENDPOINT = '/api/auth/me';
-const AUTH_REFRESH_ENDPOINT = '/api/auth/refresh';
-
-type TokenPairResponse = {
-  access_token: string;
-  refresh_token: string;
-};
 
 type MeResponse = {
   user: Omit<SessionUser, 'access_token' | 'displayName' | 'photoURL'>;
@@ -43,15 +43,7 @@ export function AuthProvider({ children }: Props) {
     loading: true,
   });
 
-  const checkUserSession = useCheckUserSession(setState);
-
-  useEffect(() => {
-    checkUserSession().catch((error: Error) => {
-      console.error(error);
-      setState({ error, loading: false });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const checkUserSession = useAuthSessionLifecycle(setState);
 
   // ----------------------------------------------------------------------
 
@@ -78,6 +70,43 @@ export function AuthProvider({ children }: Props) {
   return <AuthContext value={memoizedValue}>{children}</AuthContext>;
 }
 
+function useAuthSessionLifecycle(setState: AuthStateSetter) {
+  const router = useRouter();
+  const checkUserSession = useCheckUserSession(setState);
+  const refreshAccessToken = useCallback(
+    async () => (await refreshSession())?.access_token ?? null,
+    []
+  );
+  const endSession = useCallback(
+    () =>
+      endSessionAfterTerminalRejection({
+        clearSession: () => setSession(null),
+        refreshAuthState: checkUserSession,
+        redirectToSignIn: () => router.replace(paths.auth.jwt.signIn),
+      }),
+    [checkUserSession, router]
+  );
+
+  useEffect(
+    () =>
+      registerAuthSessionRecovery({
+        refreshAccessToken,
+        onTerminalSessionRejected: endSession,
+      }),
+    [endSession, refreshAccessToken]
+  );
+
+  useEffect(() => {
+    checkUserSession().catch((error: Error) => {
+      console.error(error);
+      setState({ error, loading: false });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return checkUserSession;
+}
+
 function useCheckUserSession(setState: AuthStateSetter) {
   return useCallback(async () => {
     await syncUserSession(setState);
@@ -85,7 +114,7 @@ function useCheckUserSession(setState: AuthStateSetter) {
 }
 
 async function syncUserSession(setState: AuthStateSetter) {
-  const session = await resolveSession();
+  const session = await restoreSession();
   if (!session) {
     await setSession(null);
     setUnauthenticated(setState);
@@ -120,34 +149,4 @@ async function fetchSessionUser(accessToken: string): Promise<SessionUser> {
 
 function setUnauthenticated(setState: AuthStateSetter) {
   setState({ user: null, error: null, loading: false });
-}
-
-async function resolveSession() {
-  const access_token = localStorage.getItem(JWT_STORAGE_KEY);
-  const refresh_token = localStorage.getItem(JWT_REFRESH_STORAGE_KEY);
-
-  if (access_token && refresh_token && isValidToken(access_token)) {
-    const session = { access_token, refresh_token };
-    await setSession(session);
-    return session;
-  }
-
-  if (!refresh_token || !isValidToken(refresh_token)) {
-    return null;
-  }
-
-  try {
-    const res = await axios.post(AUTH_REFRESH_ENDPOINT, { refresh_token });
-    const session = res.data as TokenPairResponse;
-
-    await setSession(session);
-
-    return session;
-  } catch (error) {
-    if (isAuthSessionRejected(error)) {
-      await setSession(null);
-      return null;
-    }
-    throw error;
-  }
 }

@@ -1,30 +1,37 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use kernel::pagination::Page;
-use types::rbac::DataScopeFilter;
+use kernel::pagination::CursorPage;
+use rbac::domain::DataScopeFilter;
 
 use crate::domain::{
     ConfigInput, ConfigItem, Dept, DeptInput, DictData, DictDataInput, DictType, DictTypeInput, Post, PostInput, SortBatchInput, TreeSelectNode,
 };
 
 use crate::application::{
-    ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemCache, SystemError, SystemRepository, SystemResult,
-    SystemUseCase,
+    ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemCache, SystemCursorCodec, SystemError, SystemExportRequest,
+    SystemExportSink, SystemRepository, SystemResult, SystemUseCase,
 };
 
-use super::{SystemService, dept_scope, tree::dept_tree, validation::*};
+use super::{SystemService, dept_scope, export, tree::dept_tree, validation::*};
 
 #[async_trait]
 impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> {
-    async fn page_depts(&self, filter: DeptListFilter) -> SystemResult<Page<Dept>> {
-        validate_page(filter.page)?;
-        self.repository.page_depts(sanitize_dept_filter(filter)).await
+    async fn export(&self, request: SystemExportRequest, sink: &mut dyn SystemExportSink) -> SystemResult<()> {
+        export::export(&self.repository, request, sink).await
+    }
+    async fn page_depts(&self, filter: DeptListFilter) -> SystemResult<CursorPage<Dept>> {
+        let filter = sanitize_dept_filter(filter);
+        validate_page(filter.page.clone())?;
+        SystemCursorCodec::dept(&filter, None)?.decode(&filter.page)?;
+        self.repository.page_depts(filter).await
     }
 
-    async fn page_depts_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> SystemResult<Page<Dept>> {
-        validate_page(filter.page)?;
-        self.repository.page_depts_scoped(sanitize_dept_filter(filter), scope).await
+    async fn page_depts_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> SystemResult<CursorPage<Dept>> {
+        let filter = sanitize_dept_filter(filter);
+        validate_page(filter.page.clone())?;
+        SystemCursorCodec::dept(&filter, Some(&scope))?.decode(&filter.page)?;
+        self.repository.page_depts_scoped(filter, scope).await
     }
 
     async fn get_dept(&self, id: &str) -> SystemResult<Dept> {
@@ -75,9 +82,11 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
         self.repository.delete_dept(id).await
     }
 
-    async fn page_posts(&self, filter: PostListFilter) -> SystemResult<Page<Post>> {
-        validate_page(filter.page)?;
-        self.repository.page_posts(sanitize_post_filter(filter)).await
+    async fn page_posts(&self, filter: PostListFilter) -> SystemResult<CursorPage<Post>> {
+        let filter = sanitize_post_filter(filter);
+        validate_page(filter.page.clone())?;
+        SystemCursorCodec::post(&filter)?.decode(&filter.page)?;
+        self.repository.page_posts(filter).await
     }
 
     async fn get_post(&self, id: &str) -> SystemResult<Post> {
@@ -111,9 +120,11 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
         self.repository.delete_posts(&ids).await
     }
 
-    async fn page_dict_types(&self, filter: DictTypeListFilter) -> SystemResult<Page<DictType>> {
-        validate_page(filter.page)?;
-        self.repository.page_dict_types(sanitize_dict_type_filter(filter)).await
+    async fn page_dict_types(&self, filter: DictTypeListFilter) -> SystemResult<CursorPage<DictType>> {
+        let filter = sanitize_dict_type_filter(filter);
+        validate_page(filter.page.clone())?;
+        SystemCursorCodec::dict_type(&filter)?.decode(&filter.page)?;
+        self.repository.page_dict_types(filter).await
     }
 
     async fn get_dict_type(&self, id: &str) -> SystemResult<DictType> {
@@ -160,17 +171,14 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
     }
 
     async fn refresh_dict_cache(&self) -> SystemResult<()> {
-        self.cache.clear_dicts().await?;
-        for item in self.repository.list_dict_types(all_dict_types_filter()).await? {
-            let data = self.repository.dict_data_by_type(&item.dict_type).await?;
-            self.cache.write_dict_data(&item.dict_type, &data).await?;
-        }
-        Ok(())
+        self.refresh_dict_cache_after_write().await
     }
 
-    async fn page_dict_data(&self, filter: DictDataListFilter) -> SystemResult<Page<DictData>> {
-        validate_page(filter.page)?;
-        self.repository.page_dict_data(sanitize_dict_data_filter(filter)).await
+    async fn page_dict_data(&self, filter: DictDataListFilter) -> SystemResult<CursorPage<DictData>> {
+        let filter = sanitize_dict_data_filter(filter);
+        validate_page(filter.page.clone())?;
+        SystemCursorCodec::dict_data(&filter)?.decode(&filter.page)?;
+        self.repository.page_dict_data(filter).await
     }
 
     async fn get_dict_data(&self, id: &str) -> SystemResult<DictData> {
@@ -209,9 +217,11 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
         self.refresh_dict_cache().await
     }
 
-    async fn page_configs(&self, filter: ConfigListFilter) -> SystemResult<Page<ConfigItem>> {
-        validate_page(filter.page)?;
-        self.repository.page_configs(sanitize_config_filter(filter)).await
+    async fn page_configs(&self, filter: ConfigListFilter) -> SystemResult<CursorPage<ConfigItem>> {
+        let filter = sanitize_config_filter(filter);
+        validate_page(filter.page.clone())?;
+        SystemCursorCodec::config(&filter)?.decode(&filter.page)?;
+        self.repository.page_configs(filter).await
     }
 
     async fn get_config(&self, id: &str) -> SystemResult<ConfigItem> {
@@ -285,10 +295,6 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
     }
 
     async fn refresh_config_cache(&self) -> SystemResult<()> {
-        self.cache.clear_configs().await?;
-        for item in self.repository.list_configs(all_configs_filter()).await? {
-            self.cache.write_config(&item).await?;
-        }
-        Ok(())
+        self.refresh_config_cache_after_write().await
     }
 }

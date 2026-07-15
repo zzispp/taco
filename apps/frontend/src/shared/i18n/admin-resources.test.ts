@@ -1,17 +1,22 @@
 import { it, expect, describe } from 'vitest';
 
-import enAdmin from './langs/en/admin.json';
-import cnAdmin from './langs/cn/admin.json';
-import twAdmin from './langs/tw/admin.json';
+import { mergeAdminResources } from './admin-resources';
+import { staticAdminResources } from './admin-static-resources';
 
 const resources = [
-  ['en', enAdmin],
-  ['tw', twAdmin],
+  ['en', staticAdminResources.en],
+  ['tw', staticAdminResources.tw],
 ] as const;
 
 describe('admin translations', () => {
   it.each(resources)('%s has the same scalar keys as cn', (_, resource) => {
-    expect(scalarPaths(resource)).toEqual(scalarPaths(cnAdmin));
+    expect(scalarPaths(resource)).toEqual(scalarPaths(staticAdminResources.cn));
+  });
+
+  it('rejects duplicate top-level keys instead of silently overwriting them', () => {
+    expect(() => mergeAdminResources({ common: { save: 'Save' } }, { common: {} })).toThrowError(
+      'Duplicate admin resource key: common'
+    );
   });
 });
 

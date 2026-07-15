@@ -1,6 +1,7 @@
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 use serde::Serialize;
-use types::http::{current_locale, translate_message_with_params};
+use time::OffsetDateTime;
+use types::http::{current_locale, format_utc_rfc3339_millis, translate_message_with_params};
 
 use crate::{
     application::{OnlineSession, UserImportMessage},
@@ -27,7 +28,6 @@ pub struct UserResponse {
     pub is_active: bool,
     pub auth_source: String,
     pub email_verified: bool,
-    pub system: bool,
     pub remark: Option<String>,
     pub roles: Vec<types::rbac::RoleSummary>,
     pub role_ids: Vec<String>,
@@ -36,25 +36,17 @@ pub struct UserResponse {
     pub create_time: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct UsersPageResponse {
-    pub items: Vec<UserResponse>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-}
+pub type UsersPageResponse = CursorPage<UserResponse>;
 
 #[derive(Debug, Serialize)]
 pub struct AuthSessionResponse {
     pub user: UserResponse,
     pub access_token: String,
-    pub refresh_token: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct TokenPairResponse {
     pub access_token: String,
-    pub refresh_token: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -99,14 +91,10 @@ pub struct OnlineSessionResponse {
     pub login_location: String,
     pub browser: String,
     pub os: String,
-    pub login_time: i64,
+    pub login_time: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct OnlineSessionsResponse {
-    pub rows: Vec<OnlineSessionResponse>,
-    pub total: usize,
-}
+pub type OnlineSessionsResponse = CursorPage<OnlineSessionResponse>;
 
 impl From<User> for UserResponse {
     fn from(value: User) -> Self {
@@ -123,24 +111,12 @@ impl From<User> for UserResponse {
             status: value.status,
             auth_source: value.auth_source,
             email_verified: value.email_verified,
-            system: value.system,
             remark: value.remark,
             roles: value.roles,
             role_ids: value.role_ids,
             post_ids: value.post_ids,
             permissions: value.permissions,
             create_time: value.create_time,
-        }
-    }
-}
-
-impl From<Page<User>> for UsersPageResponse {
-    fn from(value: Page<User>) -> Self {
-        Self {
-            items: value.items.into_iter().map(UserResponse::from).collect(),
-            total: value.total,
-            page: value.page,
-            page_size: value.page_size,
         }
     }
 }
@@ -187,9 +163,11 @@ fn localized_import_summary(success_count: usize, messages: &[UserImportMessage]
     translate_message_with_params(locale, IMPORT_SUCCESS_SUMMARY_KEY, &[(COUNT_PARAM, count), (DETAILS_PARAM, details)])
 }
 
-impl From<OnlineSession> for OnlineSessionResponse {
-    fn from(value: OnlineSession) -> Self {
-        Self {
+impl TryFrom<OnlineSession> for OnlineSessionResponse {
+    type Error = crate::application::AppError;
+
+    fn try_from(value: OnlineSession) -> Result<Self, Self::Error> {
+        Ok(Self {
             token_id: value.token_id,
             dept_name: value.dept_name,
             user_name: value.user_name,
@@ -197,17 +175,25 @@ impl From<OnlineSession> for OnlineSessionResponse {
             login_location: value.login_location,
             browser: value.browser,
             os: value.os,
-            login_time: value.login_time,
-        }
+            login_time: format_session_time(value.login_time)?,
+        })
     }
 }
 
-impl From<Vec<OnlineSession>> for OnlineSessionsResponse {
-    fn from(value: Vec<OnlineSession>) -> Self {
-        let total = value.len();
-        Self {
-            rows: value.into_iter().map(OnlineSessionResponse::from).collect(),
-            total,
-        }
-    }
+pub fn online_sessions_response(value: CursorPage<OnlineSession>) -> crate::application::AppResult<OnlineSessionsResponse> {
+    let items = value.items.into_iter().map(OnlineSessionResponse::try_from).collect::<Result<Vec<_>, _>>()?;
+    Ok(CursorPage {
+        items,
+        next_cursor: value.next_cursor,
+        previous_cursor: value.previous_cursor,
+        has_next: value.has_next,
+        has_previous: value.has_previous,
+    })
+}
+
+fn format_session_time(value: i64) -> crate::application::AppResult<String> {
+    const NANOS_PER_MILLISECOND: i128 = 1_000_000;
+    let timestamp = OffsetDateTime::from_unix_timestamp_nanos(i128::from(value) * NANOS_PER_MILLISECOND)
+        .map_err(|error| crate::application::AppError::Infrastructure(error.to_string()))?;
+    format_utc_rfc3339_millis(timestamp).map_err(|error| crate::application::AppError::Infrastructure(error.to_string()))
 }

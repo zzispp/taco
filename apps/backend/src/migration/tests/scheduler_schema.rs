@@ -3,7 +3,6 @@ use time::OffsetDateTime;
 
 use super::{TestDatabase, fresh};
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn scheduler_schema_enforces_typed_time_and_journal_invariants() {
     let database = TestDatabase::create().await;

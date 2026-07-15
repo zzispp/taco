@@ -1,37 +1,50 @@
 use async_trait::async_trait;
 
+use crate::application::AuthorizationUser;
+
 use super::*;
 
 #[async_trait]
-impl<R, H, P, S> UserUseCase for UserService<R, H, P, S>
+impl<R, H, P, F, C> UserUseCase for UserService<R, H, P, F, C>
 where
-    R: UserRepository,
+    R: AuditedUserRepository,
     H: PasswordHasher,
     P: PasswordPolicyProvider,
-    S: SystemUserProvider,
+    F: LoginFailureStore,
+    C: LoginLockConfigProvider,
 {
     async fn sign_up(&self, input: NewUser) -> AppResult<User> {
         self.create_unique_user(input).await
     }
 
-    async fn sign_in(&self, input: Credentials) -> AppResult<User> {
-        let input = sanitize_credentials(input);
-        validate_credentials(&input)?;
-        let found = find_auth_by_identifier(&self.repository, &self.system_users, &input.identifier)
-            .await?
-            .ok_or(AppError::Unauthorized)?;
-        verify_password(&self.password_hasher, &input.password, &found)?;
-        if !found.user.system {
-            self.repository.record_login(found.user.id.clone()).await?;
-        }
-        Ok(found.user)
+    async fn sign_up_with_audit(&self, input: NewUser, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.sign_up_with_audit_command(input, audit).await
+    }
+
+    async fn sign_in(&self, input: Credentials) -> AppResult<VerifiedLogin> {
+        self.authenticate(input).await
+    }
+
+    async fn complete_sign_in(&self, login: VerifiedLogin, ipaddr: String) -> AppResult<User> {
+        self.complete_authentication(login, ipaddr).await
+    }
+
+    async fn complete_sign_in_with_audit(&self, login: VerifiedLogin, ipaddr: String, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.complete_sign_in_with_audit_command(login, ipaddr, audit).await
+    }
+
+    async fn unlock_login(&self, username: &str) -> AppResult<()> {
+        self.unlock_login_account(username).await
     }
 
     async fn authenticated_user(&self, id: UserId) -> AppResult<User> {
-        if let Some(system_user) = system_user_by_id(&self.system_users, &id) {
-            return Ok(system_user.user);
-        }
-        self.repository.find_by_id(id).await?.ok_or(AppError::Unauthorized)
+        let user = self.repository.find_by_id(id).await?.ok_or(AppError::Unauthorized)?;
+        active_authenticated_user(user)
+    }
+
+    async fn authorization_user(&self, id: UserId) -> AppResult<AuthorizationUser> {
+        let user = self.repository.find_authorization_by_id(id).await?.ok_or(AppError::Unauthorized)?;
+        active_authorization_user(user)
     }
 
     async fn profile(&self, id: UserId) -> AppResult<UserProfile> {
@@ -46,65 +59,64 @@ where
     }
 
     async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> AppResult<User> {
-        let profile = sanitize_profile_update(profile);
-        validate_profile_update(&profile)?;
-        ensure_user_exists(self.repository.find_by_id(id.clone()).await?)?;
-        self.ensure_unique_user_profile(&profile.email, profile.phonenumber.as_deref(), Some(id.clone()))
-            .await?;
+        let profile = self.prepare_profile_update(&id, profile).await?;
         self.repository.update_profile(id, profile).await
     }
 
+    async fn update_profile_with_audit(&self, id: UserId, profile: ProfileUpdate, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.update_profile_with_audit_command(id, profile, audit).await
+    }
+
     async fn change_password(&self, id: UserId, old_password: String, new_password: String) -> AppResult<()> {
-        let old_password = old_password.trim().to_owned();
-        let new_password = new_password.trim().to_owned();
-        if old_password == new_password {
-            return Err(AppError::Conflict(localized("errors.user.new_password_same_as_old")));
-        }
-        let found = self.repository.find_auth_by_id(id.clone()).await?.ok_or(AppError::Unauthorized)?;
-        validation::validate_password(&new_password, &self.password_policy.password_policy().await?, Some(&found.user.username))?;
-        verify_password(&self.password_hasher, &old_password, &found)?;
-        let hash = self.password_hasher.hash(&new_password)?;
+        let hash = self.prepare_password_change(&id, old_password, new_password).await?;
         self.repository.update_password(id, hash).await
     }
 
+    async fn change_password_with_audit(&self, input: AuditedPasswordChange) -> AppResult<()> {
+        self.change_password_with_audit_command(input).await
+    }
+
     async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User> {
-        reject_blank_avatar(&avatar)?;
-        self.repository.update_avatar(id, avatar.trim().into()).await
+        let avatar = self.prepare_avatar_update(avatar)?;
+        self.repository.update_avatar(id, avatar).await
+    }
+
+    async fn update_avatar_with_audit(&self, id: UserId, avatar: String, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.update_avatar_with_audit_command(id, avatar, audit).await
     }
 
     async fn create_user(&self, input: NewUser) -> AppResult<User> {
         self.create_unique_user(input).await
     }
 
+    async fn create_user_with_audit(&self, input: NewUser, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.create_user_with_audit_command(input, audit).await
+    }
+
     async fn replace_user(&self, id: UserId, input: ReplaceUser) -> AppResult<User> {
-        reject_protected_user_id(&self.system_users, &id)?;
-        let input = sanitize_replace_user(input);
-        validate_replace_user(&input, &self.password_policy.password_policy().await?)?;
-        ensure_user_exists(self.repository.find_by_id(id.clone()).await?)?;
-        self.ensure_unique_user(UniqueUserCheck {
-            username: &input.username,
-            email: &input.email,
-            phone: input.phonenumber.as_deref(),
-            current_id: Some(id.clone()),
-        })
-        .await?;
-        self.ensure_unique_system_user(&input.username, &input.email)?;
-        self.repository.replace(id, self.replace_user_record(input)?).await
+        let user = self.prepare_replacement(&id, input).await?;
+        self.repository.replace(id, user).await
+    }
+
+    async fn replace_user_with_audit(&self, id: UserId, input: ReplaceUser, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.replace_user_with_audit_command(id, input, audit).await
     }
 
     async fn delete_user(&self, id: UserId) -> AppResult<()> {
-        reject_protected_user_id(&self.system_users, &id)?;
         self.repository.delete(id).await
     }
 
+    async fn delete_user_with_audit(&self, id: UserId, audit: audit_contract::AuditOutboxRecord) -> AppResult<()> {
+        self.delete_user_with_audit_command(id, audit).await
+    }
+
     async fn delete_users(&self, ids: Vec<UserId>) -> AppResult<()> {
-        if ids.is_empty() {
-            return Err(AppError::InvalidInput(localized("errors.validation.ids_required")));
-        }
-        for id in &ids {
-            reject_protected_user_id(&self.system_users, id)?;
-        }
+        self.validate_user_deletions(&ids)?;
         self.repository.delete_many(ids).await
+    }
+
+    async fn delete_users_with_audit(&self, ids: Vec<UserId>, audit: audit_contract::AuditOutboxRecord) -> AppResult<()> {
+        self.delete_users_with_audit_command(ids, audit).await
     }
 
     async fn get_user(&self, id: UserId) -> AppResult<User> {
@@ -112,38 +124,55 @@ where
     }
 
     async fn reset_password(&self, id: UserId, password: String) -> AppResult<()> {
-        reject_protected_user_id(&self.system_users, &id)?;
-        let password = password.trim().to_string();
-        let user = self.repository.find_by_id(id.clone()).await?.ok_or(AppError::NotFound)?;
-        validation::validate_password(&password, &self.password_policy.password_policy().await?, Some(&user.username))?;
-        let hash = self.password_hasher.hash(&password)?;
+        let hash = self.prepare_password_reset(&id, password).await?;
         self.repository.update_password(id, hash).await
     }
 
+    async fn reset_password_with_audit(&self, id: UserId, password: String, audit: audit_contract::AuditOutboxRecord) -> AppResult<()> {
+        self.reset_password_with_audit_command(id, password, audit).await
+    }
+
     async fn update_status(&self, id: UserId, status: String) -> AppResult<User> {
-        reject_protected_user_id(&self.system_users, &id)?;
-        self.repository.update_status(id, status.trim().into()).await
+        let status = self.prepare_status_update(status)?;
+        self.repository.update_status(id, status).await
+    }
+
+    async fn update_status_with_audit(&self, id: UserId, status: String, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.update_status_with_audit_command(id, status, audit).await
     }
 
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User> {
-        reject_protected_user_id(&self.system_users, &id)?;
-        let role_ids = role_ids.into_iter().map(|id| id.trim().into()).filter(|id: &String| !id.is_empty()).collect();
+        let role_ids = self.prepare_role_replacement(role_ids)?;
         self.repository.replace_roles(id, role_ids).await
     }
 
-    async fn list_users(&self, filter: UserListFilter) -> AppResult<Page<User>> {
-        let filter = sanitize_filter(filter);
-        validate_page(filter.page)?;
-        match self.system_users.system_user() {
-            Some(system_user) => list_with_system_user(&self.repository, filter, system_user.user).await,
-            None => self.repository.list(filter).await,
-        }
+    async fn replace_roles_with_audit(&self, id: UserId, role_ids: Vec<String>, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+        self.replace_roles_with_audit_command(id, role_ids, audit).await
     }
 
-    async fn list_users_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<Page<User>> {
+    async fn list_users(&self, filter: UserListFilter) -> AppResult<CursorPage<User>> {
         let filter = sanitize_filter(filter);
-        validate_page(filter.page)?;
+        validate_page(&filter.page)?;
+        crate::application::cursor::UserCursorCodec::new(&filter, None)?.decode(&filter.page)?;
+        self.repository.list(filter).await
+    }
+
+    async fn list_users_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<CursorPage<User>> {
+        let filter = sanitize_filter(filter);
+        validate_page(&filter.page)?;
+        crate::application::cursor::UserCursorCodec::new(&filter, Some(&scope))?.decode(&filter.page)?;
         self.repository.list_scoped(filter, scope).await
+    }
+
+    async fn export_users(&self, request: UserExportRequest, sink: &mut dyn UserExportSink) -> AppResult<()> {
+        if request.batch_size == 0 {
+            return Err(AppError::InvalidInput(kernel::error::LocalizedError::new("errors.common.invalid_input")));
+        }
+        let request = UserExportRequest {
+            filter: sanitize_filter(request.filter),
+            ..request
+        };
+        self.repository.export_users(request, sink).await
     }
 
     async fn ensure_user_ids_scoped(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<()> {
@@ -157,34 +186,27 @@ where
         Ok(sessions.into_iter().filter(|session| allowed_ids.contains(&session.user_id.0)).collect())
     }
 
-    async fn import_users(&self, input: UserImportInput) -> AppResult<UserImportReport> {
-        if input.rows.is_empty() {
-            return Err(AppError::InvalidInput(localized("errors.user.import_empty")));
-        }
-        let mut successes = Vec::new();
-        let mut failures = Vec::new();
-        for row in input.rows {
-            match self.import_user_row(row, input.update_support, &input.default_password).await {
-                Ok(message) => successes.push(message),
-                Err(error) => failures.push(error.to_string()),
-            }
-        }
-        if !failures.is_empty() {
-            return Err(AppError::InvalidInput(localized_param(
-                "errors.user.import_failed",
-                "errors",
-                failures.join("; "),
-            )));
-        }
-        Ok(UserImportReport {
-            success_count: successes.len(),
-            messages: successes,
-        })
+    async fn import_users_with_audit(&self, input: UserImportInput, audit: audit_contract::AuditOutboxRecord) -> AppResult<UserImportReport> {
+        self.import_users_with_audit_command(input, audit).await
     }
 
     async fn form_options(&self) -> AppResult<UserFormOptions> {
         self.repository.form_options().await
     }
+}
+
+fn active_authenticated_user(user: User) -> AppResult<User> {
+    if user.status != constants::system::STATUS_NORMAL {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(user)
+}
+
+fn active_authorization_user(user: AuthorizationUser) -> AppResult<AuthorizationUser> {
+    if user.status != constants::system::STATUS_NORMAL {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(user)
 }
 
 fn online_session_user_ids(sessions: &[OnlineSession]) -> Vec<UserId> {
@@ -196,63 +218,4 @@ fn online_session_user_ids(sessions: &[OnlineSession]) -> Vec<UserId> {
             seen.insert(id).then(|| session.user_id.clone())
         })
         .collect()
-}
-
-impl<R, H, P, S> UserService<R, H, P, S>
-where
-    R: UserRepository,
-    H: PasswordHasher,
-    P: PasswordPolicyProvider,
-    S: SystemUserProvider,
-{
-    async fn import_user_row(&self, row: UserImportRow, update_support: bool, default_password: &str) -> AppResult<UserImportMessage> {
-        let username = row.username.trim().to_owned();
-        let found = self.repository.find_auth_by_username(&username).await?;
-        match found {
-            None => self.create_imported_user(row, default_password).await,
-            Some(existing) if update_support => self.update_imported_user(row, existing.user).await,
-            Some(_) => Err(AppError::Conflict(localized_param("errors.user.import_account_exists", "username", username))),
-        }
-    }
-
-    async fn create_imported_user(&self, row: UserImportRow, default_password: &str) -> AppResult<UserImportMessage> {
-        let username = row.username.trim().to_owned();
-        self.create_unique_user(NewUser {
-            username: username.clone(),
-            password: default_password.to_owned(),
-            nick_name: row.nick_name,
-            dept_id: row.dept_id,
-            email: row.email,
-            phonenumber: row.phonenumber,
-            sex: default_if_blank(row.sex, "2"),
-            status: default_if_blank(row.status, "0"),
-            remark: None,
-            role_ids: vec![IMPORTED_USER_ROLE_ID.into()],
-            post_ids: vec![],
-        })
-        .await?;
-        Ok(UserImportMessage::new(IMPORT_ACCOUNT_CREATED_KEY, username))
-    }
-
-    async fn update_imported_user(&self, row: UserImportRow, existing: User) -> AppResult<UserImportMessage> {
-        let username = row.username.trim().to_owned();
-        self.replace_user(
-            existing.id.clone(),
-            ReplaceUser {
-                username: username.clone(),
-                password: None,
-                nick_name: row.nick_name,
-                dept_id: existing.dept_id,
-                email: row.email,
-                phonenumber: row.phonenumber,
-                sex: default_if_blank(row.sex, "2"),
-                status: default_if_blank(row.status, "0"),
-                remark: existing.remark,
-                role_ids: existing.role_ids,
-                post_ids: existing.post_ids,
-            },
-        )
-        .await?;
-        Ok(UserImportMessage::new(IMPORT_ACCOUNT_UPDATED_KEY, username))
-    }
 }

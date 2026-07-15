@@ -1,13 +1,10 @@
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
-use storage::{
-    Database, StorageError, StorageResult,
-    database::{to_i64, to_u64},
-};
+use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
 use crate::{
-    application::MenuListFilter,
+    application::{MenuListFilter, RbacResult},
     domain::{MENU_TYPE_BUTTON, Menu, MenuInput},
 };
 use types::system::SortBatchInput;
@@ -17,9 +14,12 @@ use super::{
     records::{MenuRecord, RoleMenuRecord},
 };
 
+mod audited;
+mod pages;
+
 const MENU_COLUMNS: &str = r#"
     menu_id, menu_name, parent_id, order_num, path, component, query, route_name,
-    is_frame, is_cache, menu_type, visible, status, perms, icon, remark
+    is_frame, is_cache, menu_type, visible, status, perms, icon, remark, create_time
 "#;
 
 #[derive(Clone)]
@@ -128,7 +128,7 @@ impl MenuQueries {
     }
 
     pub async fn has_role_bindings(&self, id: &str) -> StorageResult<bool> {
-        query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sys_role_menu WHERE menu_id = $1)")
+        query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sys_role_menu rm JOIN sys_role r ON r.role_id=rm.role_id WHERE rm.menu_id=$1 AND r.del_flag='0')")
             .bind(id)
             .fetch_one(self.database.pool())
             .await
@@ -137,7 +137,7 @@ impl MenuQueries {
 
     pub async fn list(&self) -> StorageResult<Vec<Menu>> {
         query_as::<_, MenuRecord>(AssertSqlSafe(format!(
-            "SELECT {MENU_COLUMNS} FROM sys_menu ORDER BY parent_id ASC, order_num ASC"
+            "SELECT {MENU_COLUMNS} FROM sys_menu ORDER BY parent_id ASC, order_num ASC, menu_id ASC"
         )))
         .fetch_all(self.database.pool())
         .await
@@ -145,29 +145,8 @@ impl MenuQueries {
         .map_err(StorageError::from)
     }
 
-    pub async fn page(&self, filter: MenuListFilter) -> StorageResult<Page<Menu>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(menu_total_sql()))
-            .bind(&filter.menu_name)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .fetch_one(self.database.pool())
-            .await?;
-        let items = query_as::<_, MenuRecord>(AssertSqlSafe(menu_page_sql()))
-            .bind(&filter.menu_name)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .bind(to_i64(filter.page.page_size)?)
-            .bind(to_i64((filter.page.page - 1) * filter.page.page_size)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        Ok(Page {
-            items: items.into_iter().map(menu).collect(),
-            total: to_u64(total)?,
-            page: filter.page.page,
-            page_size: filter.page.page_size,
-        })
+    pub async fn page(&self, filter: MenuListFilter) -> RbacResult<CursorPage<Menu>> {
+        pages::page(&self.database, filter).await
     }
 
     pub async fn role_menu_rows(&self) -> StorageResult<Vec<RoleMenuRecord>> {
@@ -207,7 +186,7 @@ fn role_menu_query() -> &'static str {
     INNER JOIN sys_role_menu rm ON rm.role_id = r.role_id
     INNER JOIN sys_menu m ON m.menu_id = rm.menu_id
     WHERE r.role_key <> 'admin' AND r.del_flag = '0' AND r.status = '0' AND m.status = '0' AND m.visible = '0' AND m.menu_type <> $1
-    ORDER BY role_key ASC, parent_id ASC, order_num ASC
+    ORDER BY role_key ASC, parent_id ASC, order_num ASC, menu_id ASC
     "#
 }
 
@@ -216,35 +195,4 @@ fn ensure_rows_affected(rows_affected: u64) -> StorageResult<()> {
         return Err(StorageError::NotFound);
     }
     Ok(())
-}
-
-fn menu_where() -> &'static str {
-    "($1::text IS NULL OR menu_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR status=$2) AND ($3::timestamptz IS NULL OR create_time >= $3) AND ($4::timestamptz IS NULL OR create_time <= $4)"
-}
-
-fn menu_page_sql() -> String {
-    format!(
-        "SELECT {MENU_COLUMNS} FROM sys_menu WHERE {} ORDER BY parent_id ASC, order_num ASC LIMIT $5 OFFSET $6",
-        menu_where()
-    )
-}
-
-fn menu_total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_menu WHERE {}", menu_where())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::menu_page_sql;
-
-    #[test]
-    fn menu_filters_include_name_status_and_precise_create_time() {
-        let sql = menu_page_sql();
-
-        assert!(sql.contains("menu_name ILIKE"));
-        assert!(sql.contains("create_time >= $3"));
-        assert!(sql.contains("create_time <= $4"));
-        assert!(!sql.contains("create_time::date"));
-        assert!(sql.contains("LIMIT $5 OFFSET $6"));
-    }
 }

@@ -24,6 +24,7 @@ pub enum ApiErrorKind {
     NotFound,
     Conflict,
     InvalidInput,
+    InvalidCursor,
     Infrastructure,
     UnsupportedMediaType,
     InvalidJson,
@@ -52,22 +53,29 @@ impl Locale {
         if normalized.is_empty() || normalized == "*" {
             return None;
         }
-        if normalized == "cn" || normalized == "zh" || normalized.starts_with("zh-cn") || normalized.starts_with("zh-hans") {
+        if is_simplified_chinese(&normalized) {
             return Some(Self::ZhCn);
         }
-        if normalized == "tw"
-            || normalized.starts_with("zh-tw")
-            || normalized.starts_with("zh-hk")
-            || normalized.starts_with("zh-mo")
-            || normalized.starts_with("zh-hant")
-        {
+        if is_traditional_chinese(&normalized) {
             return Some(Self::ZhTw);
         }
-        if normalized == "en" || normalized.starts_with("en-") {
+        if is_english(&normalized) {
             return Some(Self::En);
         }
         None
     }
+}
+
+fn is_simplified_chinese(tag: &str) -> bool {
+    tag == "cn" || tag == "zh" || tag.starts_with("zh-cn") || tag.starts_with("zh-hans")
+}
+
+fn is_traditional_chinese(tag: &str) -> bool {
+    ["zh-tw", "zh-hk", "zh-mo", "zh-hant"].iter().any(|prefix| tag.starts_with(prefix)) || tag == "tw"
+}
+
+fn is_english(tag: &str) -> bool {
+    tag == "en" || tag.starts_with("en-")
 }
 
 impl ApiErrorKind {
@@ -78,6 +86,7 @@ impl ApiErrorKind {
             Self::NotFound => "not_found",
             Self::Conflict => "conflict",
             Self::InvalidInput => "invalid_input",
+            Self::InvalidCursor => "invalid_cursor",
             Self::Infrastructure => "infrastructure_error",
             Self::UnsupportedMediaType => "unsupported_media_type",
             Self::InvalidJson => "invalid_json",
@@ -92,6 +101,7 @@ impl ApiErrorKind {
             Self::NotFound => "errors.common.not_found",
             Self::Conflict => "errors.common.conflict",
             Self::InvalidInput => "errors.common.invalid_input",
+            Self::InvalidCursor => "errors.common.invalid_cursor",
             Self::Infrastructure => "errors.common.infrastructure_error",
             Self::UnsupportedMediaType => "errors.common.unsupported_media_type",
             Self::InvalidJson => "errors.common.invalid_json",
@@ -137,7 +147,7 @@ pub fn translate_message_with_params(locale: Locale, key: &str, params: &[(&str,
     rust_i18n::replace_patterns(&template, &patterns, &values)
 }
 
-fn translate_localized_error(locale: Locale, error: &LocalizedError) -> String {
+pub fn translate_localized_error(locale: Locale, error: &LocalizedError) -> String {
     let params = error.params().iter().map(|param| (param.key(), param.value().to_owned())).collect::<Vec<_>>();
     translate_message_with_params(locale, error.key(), &params)
 }

@@ -4,36 +4,42 @@ use async_trait::async_trait;
 use kernel::error::LocalizedError;
 
 use crate::application::{
-    AppError, AppResult, OnlineSession, PasswordHasher, PasswordPolicy, PasswordPolicyProvider, ReplaceUserRecord, SystemUserProvider, SystemUserRecord,
-    UserAuthRecord, UserImportInput, UserImportMessage, UserImportReport, UserImportRow, UserListFilter, UserRepository, UserUseCase,
+    AppError, AppResult, AuditedPasswordChange, AuditedUserRepository, LoginFailureStore, LoginLockConfigProvider, OnlineSession, PasswordHasher,
+    PasswordPolicy, PasswordPolicyProvider, ReplaceUserRecord, UserAuthRecord, UserExportRequest, UserExportSink, UserImportInput, UserImportMessage,
+    UserImportReport, UserImportRow, UserImportWrite, UserListFilter, UserRepository, UserUseCase, VerifiedLogin,
 };
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 
 use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfile};
-use types::rbac::DataScopeFilter;
+use rbac::domain::DataScopeFilter;
 
 const IMPORTED_USER_ROLE_ID: &str = "2";
 const IMPORT_ACCOUNT_CREATED_KEY: &str = "messages.user.import_account_created";
 const IMPORT_ACCOUNT_UPDATED_KEY: &str = "messages.user.import_account_updated";
 const DATA_SCOPE_FORBIDDEN_KEY: &str = "errors.user.data_scope_forbidden";
 
-use self::{
-    system_user::{find_auth_by_identifier, list_with_system_user, reject_conflicting_system_user, reject_protected_user_id, system_user_by_id},
-    validation::{
-        sanitize_credentials, sanitize_filter, sanitize_new_user, sanitize_profile_update, sanitize_replace_user, validate_credentials, validate_new_user,
-        validate_page, validate_profile_update, validate_replace_user,
-    },
+use self::validation::{
+    sanitize_credentials, sanitize_filter, sanitize_new_user, sanitize_profile_update, sanitize_replace_user, validate_credentials, validate_new_user,
+    validate_page, validate_profile_update, validate_replace_user,
 };
 
-mod system_user;
+mod audited;
+mod authentication;
+mod bootstrap;
+mod commands;
+mod imports;
+mod security;
 mod use_case;
 mod validation;
 
-pub struct UserService<R, H, P = StaticPasswordPolicyProvider, S = NoSystemUserProvider> {
+pub use security::UnconfiguredLoginSecurity;
+
+pub struct UserService<R, H, P = StaticPasswordPolicyProvider, F = UnconfiguredLoginSecurity, C = UnconfiguredLoginSecurity> {
     repository: R,
     password_hasher: H,
     password_policy: P,
-    system_users: S,
+    login_failures: F,
+    login_lock_config: C,
 }
 
 struct UserRecordInput {
@@ -58,15 +64,6 @@ struct UniqueUserCheck<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub struct NoSystemUserProvider;
-
-impl SystemUserProvider for NoSystemUserProvider {
-    fn system_user(&self) -> Option<SystemUserRecord> {
-        None
-    }
-}
-
-#[derive(Clone, Copy)]
 pub struct StaticPasswordPolicyProvider;
 
 #[async_trait]
@@ -76,51 +73,16 @@ impl PasswordPolicyProvider for StaticPasswordPolicyProvider {
     }
 }
 
-impl<R, H> UserService<R, H, StaticPasswordPolicyProvider, NoSystemUserProvider>
-where
-    R: UserRepository,
-    H: PasswordHasher,
-{
-    pub const fn new(repository: R, password_hasher: H) -> Self {
-        Self::with_password_policy(repository, password_hasher, StaticPasswordPolicyProvider)
-    }
-}
-
-impl<R, H, P> UserService<R, H, P, NoSystemUserProvider>
+impl<R, H, P, F, C> UserService<R, H, P, F, C>
 where
     R: UserRepository,
     H: PasswordHasher,
     P: PasswordPolicyProvider,
-{
-    pub const fn with_password_policy(repository: R, password_hasher: H, password_policy: P) -> Self {
-        Self {
-            repository,
-            password_hasher,
-            password_policy,
-            system_users: NoSystemUserProvider,
-        }
-    }
-}
-
-impl<R, H, P, S> UserService<R, H, P, S>
-where
-    R: UserRepository,
-    H: PasswordHasher,
-    P: PasswordPolicyProvider,
-    S: SystemUserProvider,
+    F: LoginFailureStore,
+    C: LoginLockConfigProvider,
 {
     async fn create_unique_user(&self, input: NewUser) -> AppResult<User> {
-        let input = sanitize_new_user(input);
-        validate_new_user(&input, &self.password_policy.password_policy().await?)?;
-        self.ensure_unique_user(UniqueUserCheck {
-            username: &input.username,
-            email: &input.email,
-            phone: input.phonenumber.as_deref(),
-            current_id: None,
-        })
-        .await?;
-        self.ensure_unique_system_user(&input.username, &input.email)?;
-        self.repository.create(self.new_user_record(input)?).await
+        self.repository.create(self.prepare_new_user(input).await?).await
     }
 
     async fn ensure_unique_user(&self, check: UniqueUserCheck<'_>) -> AppResult<()> {
@@ -143,10 +105,6 @@ where
         }
 
         Ok(())
-    }
-
-    fn ensure_unique_system_user(&self, username: &str, email: &str) -> AppResult<()> {
-        reject_conflicting_system_user(&self.system_users, username, email)
     }
 
     fn new_user_record(&self, input: NewUser) -> AppResult<ReplaceUserRecord> {
@@ -264,7 +222,5 @@ fn localized_param(key: &'static str, param: &'static str, value: impl Into<Stri
     LocalizedError::new(key).with_param(param, value)
 }
 
-#[cfg(test)]
-mod system_tests;
 #[cfg(test)]
 mod tests;

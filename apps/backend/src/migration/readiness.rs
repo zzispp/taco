@@ -6,8 +6,8 @@ use crate::BackendResult;
 
 use super::{MANAGED_TABLES, migrator};
 
-const MIGRATION_UP_COMMAND: &str = "cargo run -p backend -- migration up";
-const MIGRATION_REFRESH_COMMAND: &str = "cargo run -p backend -- migration refresh";
+const MIGRATION_UP_COMMAND: &str = "cargo run -p backend -- --config <path> migration up";
+const MIGRATION_REFRESH_COMMAND: &str = "cargo run -p backend -- --config <path> migration refresh";
 const MIGRATIONS_TABLE: &str = "_sqlx_migrations";
 const PUBLIC_SCHEMA: &str = "public";
 

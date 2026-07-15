@@ -1,4 +1,4 @@
-use types::rbac::DataScopeFilter;
+use rbac::domain::DataScopeFilter;
 
 use crate::{
     application::{DeptListFilter, SystemRepository, SystemResult},

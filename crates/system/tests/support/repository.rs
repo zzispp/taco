@@ -2,15 +2,17 @@ use super::*;
 
 #[async_trait]
 impl SystemRepository for MemoryRepository {
-    async fn page_depts(&self, filter: DeptListFilter) -> system::application::SystemResult<Page<Dept>> {
-        let page = filter.page;
-        self.state.lock().unwrap().last_dept_filter = Some(filter);
-        Ok(empty_page(page))
+    async fn export(&self, _request: SystemExportRequest, _sink: &mut dyn SystemExportSink) -> SystemResult<()> {
+        Ok(())
     }
-    async fn page_depts_scoped(&self, filter: DeptListFilter, _scope: DataScopeFilter) -> system::application::SystemResult<Page<Dept>> {
-        let page = filter.page;
+
+    async fn page_depts(&self, filter: DeptListFilter) -> system::application::SystemResult<CursorPage<Dept>> {
         self.state.lock().unwrap().last_dept_filter = Some(filter);
-        Ok(empty_page(page))
+        Ok(empty_page())
+    }
+    async fn page_depts_scoped(&self, filter: DeptListFilter, _scope: DataScopeFilter) -> system::application::SystemResult<CursorPage<Dept>> {
+        self.state.lock().unwrap().last_dept_filter = Some(filter);
+        Ok(empty_page())
     }
     async fn list_depts(&self, _filter: DeptListFilter) -> system::application::SystemResult<Vec<Dept>> {
         Ok(vec![])
@@ -53,10 +55,9 @@ impl SystemRepository for MemoryRepository {
     async fn dept_has_normal_children(&self, _id: &str) -> system::application::SystemResult<bool> {
         Ok(false)
     }
-    async fn page_posts(&self, filter: PostListFilter) -> system::application::SystemResult<Page<Post>> {
-        let page = filter.page;
+    async fn page_posts(&self, filter: PostListFilter) -> system::application::SystemResult<CursorPage<Post>> {
         self.state.lock().unwrap().last_post_filter = Some(filter);
-        Ok(empty_page(page))
+        Ok(empty_page())
     }
     async fn find_post(&self, _id: &str) -> system::application::SystemResult<Option<Post>> {
         Ok(None)
@@ -90,8 +91,8 @@ impl SystemRepository for MemoryRepository {
     async fn post_has_users(&self, _id: &str) -> system::application::SystemResult<bool> {
         Ok(false)
     }
-    async fn page_dict_types(&self, filter: DictTypeListFilter) -> system::application::SystemResult<Page<DictType>> {
-        Ok(empty_page(filter.page))
+    async fn page_dict_types(&self, _filter: DictTypeListFilter) -> system::application::SystemResult<CursorPage<DictType>> {
+        Ok(empty_page())
     }
     async fn list_dict_types(&self, _filter: DictTypeListFilter) -> system::application::SystemResult<Vec<DictType>> {
         Ok(self.state.lock().unwrap().dict_type.clone().into_iter().collect())
@@ -119,8 +120,8 @@ impl SystemRepository for MemoryRepository {
         self.state.lock().unwrap().deleted_dict_types.extend(ids.iter().cloned());
         Ok(())
     }
-    async fn page_dict_data(&self, filter: DictDataListFilter) -> system::application::SystemResult<Page<DictData>> {
-        Ok(empty_page(filter.page))
+    async fn page_dict_data(&self, _filter: DictDataListFilter) -> system::application::SystemResult<CursorPage<DictData>> {
+        Ok(empty_page())
     }
     async fn find_dict_data(&self, _id: &str) -> system::application::SystemResult<Option<DictData>> {
         Ok(None)
@@ -140,10 +141,9 @@ impl SystemRepository for MemoryRepository {
     async fn delete_dict_data_batch(&self, _ids: &[String]) -> system::application::SystemResult<()> {
         Ok(())
     }
-    async fn page_configs(&self, filter: ConfigListFilter) -> system::application::SystemResult<Page<ConfigItem>> {
-        let page = filter.page;
+    async fn page_configs(&self, filter: ConfigListFilter) -> system::application::SystemResult<CursorPage<ConfigItem>> {
         self.state.lock().unwrap().last_config_filter = Some(filter);
-        Ok(empty_page(page))
+        Ok(empty_page())
     }
     async fn list_configs(&self, _filter: ConfigListFilter) -> system::application::SystemResult<Vec<ConfigItem>> {
         Ok(self.state.lock().unwrap().configs.values().cloned().collect())

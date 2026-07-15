@@ -1,12 +1,13 @@
 import type { ServerDashboard } from '../model/dashboard';
-import type { QueryParams } from 'src/shared/api/pagination';
 import type { PublicConfigMap } from '../model/public-config';
+import type { QueryParams, CursorPageRequest } from 'src/shared/api/pagination';
 import type { Dept, Post, DictData, DictType, ConfigItem } from '../model/types';
 
 import useSWR from 'swr';
 
 import { fetcher } from 'src/shared/api/http-client';
-import { usePagedResource } from 'src/shared/api/use-paged-resource';
+import { useCursorResource } from 'src/shared/api/use-cursor-resource';
+import { useCursorCollection } from 'src/shared/api/use-cursor-collection';
 
 import { systemEndpoints } from './endpoints';
 import { publicConfigKeys } from '../model/public-config';
@@ -18,32 +19,30 @@ export function useServerDashboard() {
   });
 }
 
-export function useDepts(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Dept>({ endpoint: systemEndpoints.depts, page, pageSize, params });
+export function useDepts(params: QueryParams = {}) {
+  return useCursorCollection<Dept>({ endpoint: systemEndpoints.depts, params });
 }
 
-export function usePosts(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Post>({ endpoint: systemEndpoints.posts, page, pageSize, params });
+export function usePosts(request: CursorPageRequest, params: QueryParams = {}) {
+  return useCursorResource<Post>({ endpoint: systemEndpoints.posts, request, params });
 }
 
-export function useDictTypes(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<DictType>({
+export function useDictTypes(request: CursorPageRequest, params: QueryParams = {}) {
+  return useCursorResource<DictType>({
     endpoint: systemEndpoints.dictTypes,
-    page,
-    pageSize,
+    request,
     params,
   });
 }
 
-export function useDictData(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<DictData>({ endpoint: systemEndpoints.dictData, page, pageSize, params });
+export function useDictData(request: CursorPageRequest, params: QueryParams = {}) {
+  return useCursorResource<DictData>({ endpoint: systemEndpoints.dictData, request, params });
 }
 
-export function useConfigs(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<ConfigItem>({
+export function useConfigs(request: CursorPageRequest, params: QueryParams = {}) {
+  return useCursorResource<ConfigItem>({
     endpoint: systemEndpoints.configs,
-    page,
-    pageSize,
+    request,
     params,
   });
 }

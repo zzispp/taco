@@ -12,12 +12,9 @@ import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
 
 import { useTranslate } from 'src/shared/i18n';
 import { paths } from 'src/shared/routes/paths';
-import { Iconify } from 'src/shared/ui/iconify';
 import { useRouter } from 'src/shared/routes/hooks';
 import { Form, Field } from 'src/shared/ui/hook-form';
 import { RouterLink } from 'src/shared/routes/components';
@@ -41,7 +38,14 @@ import {
 import { signUp } from 'src/features/auth';
 import { FormHead } from 'src/features/auth/ui/form-head';
 import { SignUpTerms } from 'src/features/auth/ui/sign-up-terms';
-import { CaptchaWidget, isCaptchaReady, useCaptchaConfig } from 'src/features/auth/captcha';
+import { CaptchaWidget, useCaptchaConfig } from 'src/features/auth/captcha';
+import {
+  AuthErrorAlert,
+  validateCaptcha,
+  validationMessages,
+  useCaptchaTokenState,
+  PasswordVisibilityAdornment,
+} from 'src/features/auth/ui/auth-form-support';
 
 export type SignUpSchemaType = z.infer<ReturnType<typeof createSignUpSchema>>;
 
@@ -72,13 +76,34 @@ function useSignUpController() {
     resolver: zodResolver(schema),
     defaultValues: { username: '', email: '', password: '' },
   });
-  const onSubmit = useSignUpSubmit({ methods, captcha, captchaState, setErrorMessage, checkUserSession, router, t });
+  const onSubmit = useSignUpSubmit({
+    methods,
+    captcha,
+    captchaState,
+    setErrorMessage,
+    checkUserSession,
+    router,
+    t,
+  });
   const documentTitle = formatPageDocumentTitle(t('auth.signUp.documentTitle'), siteName);
 
-  return { methods, onSubmit, showPassword, config, captcha, captchaState, errorMessage, documentTitle, t };
+  return {
+    methods,
+    onSubmit,
+    showPassword,
+    config,
+    captcha,
+    captchaState,
+    errorMessage,
+    documentTitle,
+    t,
+  };
 }
 
-function createSignUpSchema(t: TranslateFn, policy: ReturnType<typeof passwordPolicyFromPublicConfigs>) {
+function createSignUpSchema(
+  t: TranslateFn,
+  policy: ReturnType<typeof passwordPolicyFromPublicConfigs>
+) {
   const messages = validationMessages(t);
   return z
     .object({
@@ -98,17 +123,6 @@ function createSignUpSchema(t: TranslateFn, policy: ReturnType<typeof passwordPo
 
 type CaptchaTokenState = ReturnType<typeof useCaptchaTokenState>;
 
-function useCaptchaTokenState() {
-  const [token, setToken] = useState<string | null>(null);
-  const [resetKey, setResetKey] = useState(0);
-  const reset = () => {
-    setToken(null);
-    setResetKey((value) => value + 1);
-  };
-
-  return { token, setToken, resetKey, reset };
-}
-
 type SignUpSubmitOptions = {
   methods: ReturnType<typeof useForm<SignUpSchemaType>>;
   captcha: ReturnType<typeof useCaptchaConfig>;
@@ -123,7 +137,7 @@ function useSignUpSubmit(options: SignUpSubmitOptions) {
   const { methods, captcha, captchaState, setErrorMessage, checkUserSession, router, t } = options;
 
   return methods.handleSubmit(async (data) => {
-    if (!validateCaptcha(captcha, captchaState.token, setErrorMessage, t)) return;
+    if (!validateCaptcha({ captcha, token: captchaState.token, setErrorMessage, t })) return;
     try {
       await signUp({
         username: data.username,
@@ -146,8 +160,10 @@ type SignUpController = ReturnType<typeof useSignUpController>;
 function SignUpContent({ controller }: { controller: SignUpController }) {
   const { config, captcha, t } = controller;
 
-  if (config.isLoading || captcha.isLoading) return <Alert severity="info">{t('auth.signUp.loading')}</Alert>;
-  if (config.error || captcha.error) return <Alert severity="error">{getErrorMessage(config.error ?? captcha.error)}</Alert>;
+  if (config.isLoading || captcha.isLoading)
+    return <Alert severity="info">{t('auth.signUp.loading')}</Alert>;
+  if (config.error || captcha.error)
+    return <Alert severity="error">{getErrorMessage(config.error ?? captcha.error)}</Alert>;
   if (!isRegisterEnabled(config.data)) return <RegistrationDisabled t={t} />;
   return <RegistrationForm controller={controller} />;
 }
@@ -160,7 +176,13 @@ function RegistrationDisabled({ t }: { t: TranslateFn }) {
         description={t('auth.signUp.disabledDescription')}
         sx={{ textAlign: { xs: 'center', md: 'left' } }}
       />
-      <Button component={RouterLink} href={paths.auth.jwt.signIn} fullWidth variant="contained" color="inherit">
+      <Button
+        component={RouterLink}
+        href={paths.auth.jwt.signIn}
+        fullWidth
+        variant="contained"
+        color="inherit"
+      >
         {t('auth.signUp.backToSignIn')}
       </Button>
     </>
@@ -197,89 +219,68 @@ function SignUpHead({ t }: { t: TranslateFn }) {
   );
 }
 
-function AuthErrorAlert({ message }: { message: string | null }) {
-  if (!message) return null;
-  return (
-    <Alert severity="error" sx={{ mb: 3 }}>
-      {message}
-    </Alert>
-  );
-}
-
 function SignUpFormFields({ controller }: { controller: SignUpController }) {
   const { methods, showPassword, captcha, captchaState, t } = controller;
   const { isSubmitting } = methods.formState;
 
   return (
     <Box sx={{ gap: 3, display: 'flex', flexDirection: 'column' }}>
-      <Field.Text name="username" label={t('auth.signUp.usernameLabel')} placeholder={t('auth.signUp.usernamePlaceholder')} slotProps={{ inputLabel: { shrink: true } }} />
-      <Field.Text name="email" label={t('auth.signUp.emailLabel')} placeholder={t('auth.signUp.emailPlaceholder')} slotProps={{ inputLabel: { shrink: true } }} />
+      <Field.Text
+        name="username"
+        label={t('auth.signUp.usernameLabel')}
+        placeholder={t('auth.signUp.usernamePlaceholder')}
+        slotProps={{ inputLabel: { shrink: true } }}
+      />
+      <Field.Text
+        name="email"
+        label={t('auth.signUp.emailLabel')}
+        placeholder={t('auth.signUp.emailPlaceholder')}
+        slotProps={{ inputLabel: { shrink: true } }}
+      />
       <PasswordField t={t} show={showPassword.value} onToggle={showPassword.onToggle} />
-      <CaptchaWidget config={captcha.data} resetKey={captchaState.resetKey} onTokenChange={captchaState.setToken} />
-      <Button fullWidth color="inherit" size="large" type="submit" variant="contained" loading={isSubmitting} loadingIndicator={t('auth.signUp.submitting')}>
+      <CaptchaWidget
+        config={captcha.data}
+        resetKey={captchaState.resetKey}
+        onTokenChange={captchaState.setToken}
+      />
+      <Button
+        fullWidth
+        color="inherit"
+        size="large"
+        type="submit"
+        variant="contained"
+        loading={isSubmitting}
+        loadingIndicator={t('auth.signUp.submitting')}
+      >
         {t('auth.signUp.submit')}
       </Button>
     </Box>
   );
 }
 
-function PasswordField({ t, show, onToggle }: { t: TranslateFn; show: boolean; onToggle: () => void }) {
+function PasswordField({
+  t,
+  show,
+  onToggle,
+}: {
+  t: TranslateFn;
+  show: boolean;
+  onToggle: () => void;
+}) {
   return (
     <Field.Text
       name="password"
       label={t('auth.signUp.passwordLabel')}
       placeholder={t('auth.signUp.passwordPlaceholder')}
       type={show ? 'text' : 'password'}
-      slotProps={{ inputLabel: { shrink: true }, input: { endAdornment: <PasswordAdornment show={show} onToggle={onToggle} /> } }}
+      slotProps={{
+        inputLabel: { shrink: true },
+        input: {
+          endAdornment: <PasswordVisibilityAdornment show={show} onToggle={onToggle} />,
+        },
+      }}
     />
   );
-}
-
-function PasswordAdornment({ show, onToggle }: { show: boolean; onToggle: () => void }) {
-  return (
-    <InputAdornment position="end">
-      <IconButton onClick={onToggle} edge="end">
-        <Iconify icon={show ? 'solar:eye-bold' : 'solar:eye-closed-bold'} />
-      </IconButton>
-    </InputAdornment>
-  );
-}
-
-function validateCaptcha(
-  captcha: ReturnType<typeof useCaptchaConfig>,
-  token: string | null,
-  setErrorMessage: (message: string) => void,
-  t: TranslateFn
-) {
-  if (captcha.error) {
-    setErrorMessage(getErrorMessage(captcha.error));
-    return false;
-  }
-  if (captcha.isLoading) {
-    setErrorMessage(t('auth.captcha.loading'));
-    return false;
-  }
-  if (!isCaptchaReady(captcha.data, token)) {
-    setErrorMessage(t('auth.captcha.required'));
-    return false;
-  }
-  return true;
-}
-
-function validationMessages(t: TranslateFn) {
-  return {
-    usernameLength: (min: number, max: number) => t('auth.validation.usernameLength', { min, max }),
-    usernamePattern: t('auth.validation.usernamePattern'),
-    passwordLength: (min: number, max: number) => t('auth.validation.passwordLength', { min, max }),
-    passwordLetterRequired: t('auth.validation.passwordLetterRequired'),
-    passwordNumberRequired: t('auth.validation.passwordNumberRequired'),
-    passwordSymbolRequired: t('auth.validation.passwordSymbolRequired'),
-    passwordContainsUsername: t('auth.validation.passwordContainsUsername'),
-    emailRequired: t('auth.validation.emailRequired'),
-    emailInvalid: t('auth.validation.emailInvalid'),
-    identifierRequired: t('auth.validation.identifierRequired'),
-    identifierInvalid: t('auth.validation.identifierInvalid'),
-  };
 }
 
 function passwordContainsUsername(

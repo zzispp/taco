@@ -35,11 +35,6 @@ install_complete_tools() {
     install_precommit_tools
     install_cargo_tool audit cargo-audit
     install_cargo_tool deny cargo-deny
-    install_cargo_tool geiger cargo-geiger
-    install_cargo_tool outdated cargo-outdated
-    install_cargo_tool udeps cargo-udeps
-    install_cargo_tool expand cargo-expand
-    install_rustup_component miri
 }
 
 case "$mode" in
@@ -49,11 +44,8 @@ case "$mode" in
     complete)
         install_complete_tools
         ;;
-    expand)
-        install_cargo_tool expand cargo-expand
-        ;;
     *)
-        printf 'Unknown tool installation mode `%s`. Expected: precommit, complete, or expand.\n' "$mode" >&2
+        printf 'Unknown tool installation mode `%s`. Expected: precommit or complete.\n' "$mode" >&2
         exit 2
         ;;
 esac

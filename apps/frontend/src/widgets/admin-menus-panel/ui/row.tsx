@@ -8,11 +8,12 @@ import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
 
 import { Iconify } from 'src/shared/ui/iconify';
-import { StatusLabel } from 'src/shared/ui/admin';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
 import { translatedMenuItem } from 'src/entities/menu';
 import { useHasPermission } from 'src/entities/session';
+
+import { StatusLabel } from 'src/widgets/admin-common';
 
 import { MenuActions } from './actions';
 import { menuIcon, menuTypeLabel } from './helpers';

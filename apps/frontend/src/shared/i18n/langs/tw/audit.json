@@ -1,0 +1,112 @@
+{
+  "operationLogs": "操作日誌",
+  "loginLogs": "登入日誌",
+  "filters": {
+    "invalidDateTime": "請輸入有效的日期時間",
+    "invalidRange": "開始時間不能晚於結束時間"
+  },
+  "fields": {
+    "operationId": "日誌編號",
+    "loginId": "訪問編號",
+    "title": "系統模組",
+    "businessType": "操作類型",
+    "method": "處理方法",
+    "requestMethod": "請求方式",
+    "operatorType": "操作類別",
+    "operator": "操作人員",
+    "department": "部門名稱",
+    "url": "請求位址",
+    "operationIp": "操作地址",
+    "operationLocation": "操作地點",
+    "operationStatus": "操作狀態",
+    "loginIp": "登入地址",
+    "loginLocation": "登入地點",
+    "loginStatus": "登入狀態",
+    "operationTime": "操作日期",
+    "duration": "消耗時間",
+    "username": "用戶名稱",
+    "browser": "瀏覽器",
+    "os": "作業系統",
+    "message": "提示訊息",
+    "eventType": "事件類型",
+    "loginTime": "存取時間",
+    "beginTime": "開始時間",
+    "endTime": "結束時間"
+  },
+  "actions": {
+    "detail": "詳情",
+    "delete": "刪除",
+    "clean": "清空",
+    "export": "匯出",
+    "unlock": "解鎖",
+    "reset": "重設",
+    "copy": "複製"
+  },
+  "statuses": {
+    "success": "成功",
+    "failure": "失敗"
+  },
+  "businessTypes": {
+    "other": "其它",
+    "insert": "新增",
+    "update": "修改",
+    "delete": "刪除",
+    "grant": "授權",
+    "export": "匯出",
+    "import": "匯入",
+    "force": "強退",
+    "generate": "產生程式碼",
+    "clean": "清空資料"
+  },
+  "operatorTypes": {
+    "other": "其它",
+    "backendUser": "後台用戶",
+    "mobileUser": "手機端用戶"
+  },
+  "eventTypes": {
+    "loginSuccess": "登入成功",
+    "loginFailure": "登入失敗",
+    "registerSuccess": "註冊成功",
+    "registerFailure": "註冊失敗",
+    "logoutSuccess": "登出成功",
+    "logoutFailure": "登出失敗",
+    "refreshSuccess": "重新整理權杖成功",
+    "refreshFailure": "重新整理權杖失敗"
+  },
+  "detail": {
+    "title": "操作日誌詳情",
+    "request": "請求參數",
+    "response": "返回參數",
+    "error": "錯誤訊息",
+    "empty": "無記錄內容",
+    "copySuccess": "已複製",
+    "copyFailure": "複製失敗"
+  },
+  "dialogs": {
+    "deleteOne": "確認刪除此筆日誌？",
+    "deleteSelected": "確認刪除選中的 {{count}} 筆日誌？",
+    "cleanOperation": "確認清空全部操作日誌？清空後會產生一筆新的清空記錄。",
+    "cleanLogin": "確認清空全部登入日誌？",
+    "unlock": "確認解除用戶 {{username}} 的登入鎖定？"
+  },
+  "messages": {
+    "deleteSuccess": "刪除成功",
+    "deleteFailure": "刪除失敗",
+    "cleanSuccess": "清空成功",
+    "cleanFailure": "清空失敗",
+    "exportFailure": "匯出失敗",
+    "unlockSuccess": "解鎖成功",
+    "unlockFailure": "解鎖失敗"
+  },
+  "table": {
+    "actions": "操作",
+    "selectAll": "選擇全部日誌",
+    "selectRow": "選擇日誌 {{id}}",
+    "noData": "暫無資料",
+    "loading": "載入中...",
+    "milliseconds": "{{value}} 毫秒"
+  },
+  "all": "全部",
+  "cancel": "取消",
+  "confirm": "確定"
+}

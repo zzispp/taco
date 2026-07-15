@@ -1,0 +1,18 @@
+{
+  "dataScope": {
+    "all": "All data",
+    "custom": "Custom departments",
+    "dept": "Own department",
+    "deptAndChild": "Own department and children",
+    "self": "Self only"
+  },
+  "menuType": {
+    "directory": "Directory",
+    "menu": "Menu",
+    "button": "Button"
+  },
+  "dateTimeFilters": {
+    "invalidDateTime": "Enter a valid creation time",
+    "invalidTimeRange": "The start time cannot be later than the end time"
+  }
+}

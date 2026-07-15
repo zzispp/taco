@@ -1,0 +1,42 @@
+{
+  "notice": {
+    "notifications": "通知",
+    "unread": "未读",
+    "markAllRead": "全部标记为已读",
+    "noNotifications": "暂无通知",
+    "viewAll": "查看全部",
+    "detailTitle": "通知公告详情",
+    "viewDetail": "查看详情",
+    "emptyContent": "暂无正文",
+    "createTitle": "新增通知公告",
+    "editTitle": "编辑通知公告",
+    "readers": "已读用户",
+    "readersTitle": "已读用户：{{name}}",
+    "readerSearch": "登录名称或昵称",
+    "readTime": "阅读时间",
+    "batchDeleteContent": "确认删除已选中的 {{count}} 条通知公告？",
+    "fields": {
+      "title": "公告标题",
+      "type": "公告类型",
+      "content": "公告内容",
+      "createBy": "创建者"
+    },
+    "types": {
+      "notice": "通知",
+      "announcement": "公告"
+    },
+    "status": {
+      "normal": "正常",
+      "closed": "关闭"
+    },
+    "editor": {
+      "edit": "Markdown 编辑",
+      "preview": "预览",
+      "emptyPreview": "暂无可预览内容"
+    },
+    "validation": {
+      "required": "请输入公告标题",
+      "tooLong": "公告标题不能超过 {{max}} 个字符"
+    }
+  }
+}

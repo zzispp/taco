@@ -1,15 +1,21 @@
+mod audited;
+mod bootstrap;
 mod config;
+pub(crate) mod cursor;
 mod error;
 mod ports;
 mod service;
 
+pub use audited::{AuditedPasswordChange, AuditedUserRepository, UserImportWrite};
+pub use bootstrap::{AdminBootstrapRepository, AdminBootstrapUseCase, BootstrapAdminInput};
 pub use config::{
-    AvatarConfig, IpLocationConfig, PasswordPolicy, parse_avatar_config, parse_export_batch_config, parse_ip_location_config, parse_password_policy,
+    AvatarConfig, LoginLockConfig, PasswordPolicy, parse_avatar_config, parse_export_batch_config, parse_login_lock_config, parse_password_policy,
 };
 pub use error::{AppError, AppResult};
 pub use ports::{
-    AccountVerifier, AvatarConfigProvider, AvatarFile, AvatarStorage, IpLocationResolver, IpLocationSettingsReader, OnlineSession, OnlineSessionFilter,
-    OnlineSessionStore, PasswordHasher, PasswordPolicyProvider, PublicIpResolver, ReplaceUserRecord, SystemConfigProvider, SystemUserProvider,
-    SystemUserRecord, UserAuthRecord, UserImportInput, UserImportMessage, UserImportReport, UserImportRow, UserListFilter, UserRepository, UserUseCase,
+    AccountVerifier, AuthorizationUser, AvatarConfigProvider, AvatarFile, AvatarStorage, LoginFailureStore, LoginLockConfigProvider, OnlineSession,
+    OnlineSessionCleanup, OnlineSessionFilter, OnlineSessionPageRequest, OnlineSessionSearch, OnlineSessionStore, PasswordHasher, PasswordPolicyProvider,
+    ReplaceUserRecord, SystemConfigProvider, UserAuthRecord, UserExportRequest, UserExportSink, UserImportInput, UserImportMessage, UserImportReport,
+    UserImportRow, UserListFilter, UserRepository, UserUseCase, VerifiedLogin,
 };
 pub use service::UserService;

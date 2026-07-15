@@ -13,6 +13,8 @@ pub enum SystemError {
     Conflict(LocalizedError),
     #[error("invalid input: {0}")]
     InvalidInput(LocalizedError),
+    #[error("invalid cursor")]
+    InvalidCursor,
     #[error("infrastructure error: {0}")]
     Infrastructure(String),
 }

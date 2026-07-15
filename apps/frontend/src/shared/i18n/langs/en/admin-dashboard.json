@@ -1,0 +1,151 @@
+{
+  "dashboard": {
+    "welcome": "Hi, Welcome back 👋",
+    "weeklySales": "Weekly sales",
+    "newUsers": "New users",
+    "purchaseOrders": "Purchase orders",
+    "messages": "Messages",
+    "currentVisits": "Current visits",
+    "websiteVisits": "Website visits",
+    "conversionRates": "Conversion rates",
+    "currentSubject": "Current subject",
+    "news": "News",
+    "orderTimeline": "Order timeline",
+    "trafficBySite": "Traffic by site",
+    "tasks": "Tasks",
+    "thanLastYear": "(+43%) than last year",
+    "visits": "visits",
+    "viewAll": "View all",
+    "markComplete": "Mark complete",
+    "share": "Share",
+    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"],
+    "regions": {
+      "america": "America",
+      "asia": "Asia",
+      "europe": "Europe",
+      "africa": "Africa"
+    },
+    "countries": {
+      "italy": "Italy",
+      "japan": "Japan",
+      "china": "China",
+      "canada": "Canada",
+      "france": "France"
+    },
+    "subjects": {
+      "english": "English",
+      "history": "History",
+      "physics": "Physics",
+      "geography": "Geography",
+      "chinese": "Chinese",
+      "math": "Math"
+    },
+    "series": {
+      "teamA": "Team A",
+      "teamB": "Team B",
+      "series1": "Series 1",
+      "series2": "Series 2",
+      "series3": "Series 3"
+    },
+    "newsItems": {
+      "titles": [
+        "The Future of Renewable Energy: Innovations and Challenges Ahead",
+        "Exploring the Impact of Artificial Intelligence on Modern Healthcare",
+        "Climate Change and Its Effects on Global Food Security",
+        "The Rise of Remote Work: Benefits, Challenges, and Future Trends",
+        "Understanding Blockchain Technology: Beyond Cryptocurrency"
+      ],
+      "descriptions": [
+        "The sun slowly set over the horizon, painting the sky in vibrant hues of orange and pink.",
+        "She eagerly opened the gift, her eyes sparkling with excitement.",
+        "The old oak tree stood tall and majestic, its branches swaying gently in the breeze.",
+        "The aroma of freshly brewed coffee filled the air, awakening my senses.",
+        "The children giggled with joy as they ran through the sprinklers on a hot summer day."
+      ]
+    },
+    "timeline": {
+      "items": [
+        "1983, orders, $4220",
+        "12 Invoices have been paid",
+        "Order #37745 from September",
+        "New order placed #XF-2356",
+        "New order placed #XF-2346"
+      ]
+    },
+    "taskItems": [
+      "Prepare Monthly Financial Report",
+      "Design New Marketing Campaign",
+      "Analyze Customer Feedback",
+      "Update Website Content",
+      "Conduct Market Research"
+    ]
+  },
+  "systemDashboard": {
+    "title": "System dashboard",
+    "summary": {
+      "cpuUsage": "CPU usage",
+      "memoryUsage": "Memory usage",
+      "diskUsage": "Disk usage",
+      "networkInbound": "Network inbound"
+    },
+    "cards": {
+      "serverInfo": "Server information",
+      "healthStatus": "Health status"
+    },
+    "labels": {
+      "hostname": "Hostname",
+      "system": "System",
+      "kernel": "Kernel",
+      "cpu": "CPU",
+      "cpuCores": "CPU cores",
+      "memoryDisk": "Memory / Disk",
+      "publicIp": "Public IP",
+      "uptime": "Uptime",
+      "bootTime": "Boot time",
+      "sampledAt": "Sampled at",
+      "load": "Load"
+    },
+    "health": {
+      "green": "Green",
+      "yellow": "Yellow",
+      "red": "Red",
+      "allHealthy": "All core resources are below alert thresholds",
+      "issue": "{{kind}}: {{target}} {{usage}}%",
+      "issueSeparator": "; ",
+      "kinds": {
+        "cpu": "CPU",
+        "memory": "Memory",
+        "disk": "Disk"
+      }
+    },
+    "units": {
+      "physical": "physical",
+      "logical": "logical",
+      "day": "d",
+      "hour": "h",
+      "minute": "m"
+    },
+    "charts": {
+      "resourceTrend": "CPU / memory trend",
+      "realtimeSessionSampling": "Real-time samples for this page session",
+      "networkTrend": "Real-time network traffic",
+      "inboundOutboundBandwidth": "Inbound / outbound bandwidth",
+      "diskUsage": "Disk partition usage",
+      "usedCapacity": "By used capacity",
+      "series": {
+        "cpu": "CPU",
+        "memory": "Memory",
+        "inbound": "Inbound",
+        "outbound": "Outbound"
+      }
+    },
+    "tables": {
+      "topProcesses": "Top resource processes",
+      "sortedByCpu": "Sorted by CPU usage",
+      "cpuCoreLoad": "CPU core load",
+      "cpuCoreLoadSubheader": "Usage and frequency for each core",
+      "diskPartitions": "Disk partition details",
+      "diskPartitionsSubheader": "Mount point, file system and capacity"
+    }
+  }
+}

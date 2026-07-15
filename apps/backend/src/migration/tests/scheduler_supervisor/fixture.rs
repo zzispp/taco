@@ -22,9 +22,10 @@ use scheduler::{
 };
 use sqlx::{PgPool, postgres::PgPoolOptions, query_scalar};
 use storage::Database;
+use time::OffsetDateTime;
 use tokio::time::{sleep, timeout};
 
-use super::super::{TEST_DB_URL_PREFIX, TestDatabase};
+use super::super::TestDatabase;
 
 pub const TAKEOVER_DUE_DELAY_MS: i64 = 3_000;
 pub const LOST_NOTIFY_DUE_DELAY_MS: i64 = 0;
@@ -40,7 +41,7 @@ const SECOND_REPLICA: usize = 1;
 pub(super) struct OccurrenceTarget {
     pub(super) job_id: String,
     pub(super) revision: i64,
-    pub(super) scheduled_at: String,
+    pub(super) scheduled_at: OffsetDateTime,
 }
 
 pub struct SupervisorHarness {
@@ -272,13 +273,14 @@ fn scheduler_service(pool: &PgPool, catalog: Arc<StaticTaskCatalog>) -> Arc<Sche
     Arc::new(SchedulerService::new(SchedulerServiceParts {
         query: repository.clone(),
         commands: repository.clone(),
+        audited_commands: repository.clone(),
         catalog,
         clock: repository,
     }))
 }
 
 async fn replica_pool(database: &TestDatabase) -> PgPool {
-    let url = format!("{TEST_DB_URL_PREFIX}/{}", database.name);
+    let url = database.database_url();
     PgPoolOptions::new().max_connections(REPLICA_POOL_SIZE).connect(&url).await.unwrap()
 }
 

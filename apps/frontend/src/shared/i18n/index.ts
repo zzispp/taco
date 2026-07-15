@@ -1,5 +1,7 @@
 export * from './types';
 
+export * from './language';
+
 export * from './use-locales';
 
 export * from './i18n-provider';

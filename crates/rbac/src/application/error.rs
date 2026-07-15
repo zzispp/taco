@@ -5,6 +5,8 @@ pub type RbacResult<T> = Result<T, RbacError>;
 
 #[derive(Debug, Error)]
 pub enum RbacError {
+    #[error("invalid cursor")]
+    InvalidCursor,
     #[error("unauthorized")]
     Unauthorized,
     #[error("forbidden")]

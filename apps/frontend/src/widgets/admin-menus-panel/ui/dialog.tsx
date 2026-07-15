@@ -4,9 +4,15 @@ import type { Menu, MenuInput } from 'src/entities/menu';
 import MenuItem from '@mui/material/MenuItem';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { SwitchRow, TextFieldRow, TreeSelectField, ManagementDialog } from 'src/shared/ui/admin';
 
 import { NAV_ICON_OPTIONS } from 'src/entities/menu';
+
+import {
+  SwitchRow,
+  TextFieldRow,
+  TreeSelectField,
+  ManagementDialog,
+} from 'src/widgets/admin-common';
 
 import { parentMenuTree } from './helpers';
 

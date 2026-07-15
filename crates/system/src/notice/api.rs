@@ -1,67 +1,104 @@
 use std::sync::Arc;
 
+use audit_contract::OperationAuditContext;
 use axum::routing::{delete, get, put};
 use axum::{
     Extension, Json, Router,
     extract::{Path, State},
 };
-use kernel::pagination::{Page, PageRequest};
+use kernel::pagination::{CursorPage, CursorPageRequest};
 use rbac::api::CurrentUser;
 use rbac_macros::require_perms;
 use serde::Deserialize;
 use types::http::{RequestJson, RequestQuery};
 use types::system::BatchIdsInput;
+use utoipa::IntoParams;
 
-use crate::api::SystemApiError;
+use crate::api::{SystemApiError, operation_audit::successful_operation_audit};
 
-use super::{Notice, NoticeInput, NoticeListFilter, NoticeReader, NoticeReaderFilter, NoticeSummary, NoticeTopResponse, NoticeUseCase};
+use super::{
+    Notice, NoticeAuditedUseCase, NoticeInput, NoticeListFilter, NoticeReader, NoticeReaderFilter, NoticeSummary, NoticeTopResponse, NoticeUseCase,
+    ReplaceNoticeCommand,
+};
 
 const NOTICE_QUERY_PERMISSION: &str = "system:notice:query";
 
 #[derive(Clone)]
 pub struct NoticeApiState {
     pub notices: Arc<dyn NoticeUseCase>,
+    pub notices_audited: Arc<dyn NoticeAuditedUseCase>,
 }
 
 impl NoticeApiState {
-    pub fn new(notices: Arc<dyn NoticeUseCase>) -> Self {
-        Self { notices }
+    pub fn new(notices: Arc<dyn NoticeUseCase>, notices_audited: Arc<dyn NoticeAuditedUseCase>) -> Self {
+        Self { notices, notices_audited }
     }
 }
 
 pub fn create_router(state: NoticeApiState) -> Router {
+    use super::endpoints::{NOTICE_READ, NOTICE_READERS, NOTICE_REPLACE, NOTICES_CREATE, NOTICES_DELETE_BATCH, NOTICES_READ_ALL, NOTICES_TOP};
+
     Router::new()
-        .route("/system/notices", get(list_notices).post(create_notice))
-        .route("/system/notices/top", get(top_notices))
-        .route("/system/notices/read-all", put(mark_all_notices_read))
-        .route("/system/notices/batch", delete(delete_notices))
-        .route("/system/notices/{id}/read", put(mark_notice_read))
-        .route("/system/notices/{id}/readers", get(list_notice_readers))
-        .route("/system/notices/{id}", get(get_notice).put(replace_notice).delete(delete_notice))
+        .route(NOTICES_CREATE.api_route_path(), get(list_notices).post(create_notice))
+        .route(NOTICES_TOP.api_route_path(), get(top_notices))
+        .route(NOTICES_READ_ALL.api_route_path(), put(mark_all_notices_read))
+        .route(NOTICES_DELETE_BATCH.api_route_path(), delete(delete_notices))
+        .route(NOTICE_READ.api_route_path(), put(mark_notice_read))
+        .route(NOTICE_READERS.api_route_path(), get(list_notice_readers))
+        .route(NOTICE_REPLACE.api_route_path(), get(get_notice).put(replace_notice).delete(delete_notice))
         .with_state(state)
 }
 
 type ApiResult<T> = Result<Json<T>, SystemApiError>;
+type CreateNoticeRequest = (
+    State<NoticeApiState>,
+    Extension<CurrentUser>,
+    Option<Extension<OperationAuditContext>>,
+    RequestJson<NoticeInput>,
+);
+type ReplaceNoticeRequest = (
+    State<NoticeApiState>,
+    Extension<CurrentUser>,
+    Option<Extension<OperationAuditContext>>,
+    Path<String>,
+    RequestJson<NoticeInput>,
+);
+type MarkNoticeReadRequest = (
+    State<NoticeApiState>,
+    Extension<CurrentUser>,
+    Option<Extension<OperationAuditContext>>,
+    Path<String>,
+);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(deny_unknown_fields)]
 pub struct NoticeListQuery {
-    pub page: u64,
-    pub page_size: u64,
+    #[serde(default = "default_cursor_limit")]
+    #[param(default = 20, minimum = 1, maximum = 100)]
+    pub limit: u64,
+    #[serde(default)]
+    pub cursor: Option<String>,
     pub notice_title: Option<String>,
     pub create_by: Option<String>,
     pub notice_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(deny_unknown_fields)]
 pub struct NoticeReaderQuery {
-    pub page: u64,
-    pub page_size: u64,
+    #[serde(default = "default_cursor_limit")]
+    #[param(default = 20, minimum = 1, maximum = 100)]
+    pub limit: u64,
+    #[serde(default)]
+    pub cursor: Option<String>,
     pub search_value: Option<String>,
     pub user_name: Option<String>,
 }
 
 #[require_perms("system:notice:list")]
-pub async fn list_notices(State(state): State<NoticeApiState>, RequestQuery(query): RequestQuery<NoticeListQuery>) -> ApiResult<Page<NoticeSummary>> {
+pub async fn list_notices(State(state): State<NoticeApiState>, RequestQuery(query): RequestQuery<NoticeListQuery>) -> ApiResult<CursorPage<NoticeSummary>> {
     Ok(Json(state.notices.page_notices(query.into()).await?))
 }
 
@@ -79,33 +116,57 @@ fn can_view_closed_notice(current_user: &CurrentUser) -> bool {
 }
 
 #[require_perms("system:notice:add")]
-pub async fn create_notice(
-    State(state): State<NoticeApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    RequestJson(payload): RequestJson<NoticeInput>,
-) -> ApiResult<Notice> {
-    Ok(Json(state.notices.create_notice(payload, current_user.username).await?))
+pub async fn create_notice(request: CreateNoticeRequest) -> ApiResult<Notice> {
+    let (State(state), Extension(current_user), audit_context, RequestJson(payload)) = request;
+    let audit = successful_operation_audit(audit_context)?;
+    let notice = state
+        .notices_audited
+        .create_notice_with_audit(payload, current_user.username, audit.record())
+        .await?;
+    audit.mark_persisted();
+    Ok(Json(notice))
 }
 
 #[require_perms("system:notice:edit")]
-pub async fn replace_notice(
-    State(state): State<NoticeApiState>,
-    Extension(current_user): Extension<CurrentUser>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<NoticeInput>,
-) -> ApiResult<Notice> {
-    Ok(Json(state.notices.replace_notice(&id, payload, current_user.username).await?))
+pub async fn replace_notice(request: ReplaceNoticeRequest) -> ApiResult<Notice> {
+    let (State(state), Extension(current_user), audit_context, Path(id), RequestJson(payload)) = request;
+    let audit = successful_operation_audit(audit_context)?;
+    let notice = state
+        .notices_audited
+        .replace_notice_with_audit(
+            ReplaceNoticeCommand {
+                id,
+                input: payload,
+                operator: current_user.username,
+            },
+            audit.record(),
+        )
+        .await?;
+    audit.mark_persisted();
+    Ok(Json(notice))
 }
 
 #[require_perms("system:notice:remove")]
-pub async fn delete_notice(State(state): State<NoticeApiState>, Path(id): Path<String>) -> ApiResult<()> {
-    state.notices.delete_notice(&id).await?;
+pub async fn delete_notice(
+    State(state): State<NoticeApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    Path(id): Path<String>,
+) -> ApiResult<()> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.notices_audited.delete_notice_with_audit(&id, audit.record()).await?;
+    audit.mark_persisted();
     Ok(Json(()))
 }
 
 #[require_perms("system:notice:remove")]
-pub async fn delete_notices(State(state): State<NoticeApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<()> {
-    state.notices.delete_notices(payload.ids).await?;
+pub async fn delete_notices(
+    State(state): State<NoticeApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<BatchIdsInput>,
+) -> ApiResult<()> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.notices_audited.delete_notices_with_audit(payload.ids, audit.record()).await?;
+    audit.mark_persisted();
     Ok(Json(()))
 }
 
@@ -113,13 +174,22 @@ pub async fn top_notices(State(state): State<NoticeApiState>, Extension(current_
     Ok(Json(state.notices.top_notices(&current_user.id).await?))
 }
 
-pub async fn mark_notice_read(State(state): State<NoticeApiState>, Extension(current_user): Extension<CurrentUser>, Path(id): Path<String>) -> ApiResult<()> {
-    state.notices.mark_read(&id, &current_user.id).await?;
+pub async fn mark_notice_read(request: MarkNoticeReadRequest) -> ApiResult<()> {
+    let (State(state), Extension(current_user), audit_context, Path(id)) = request;
+    let audit = successful_operation_audit(audit_context)?;
+    state.notices_audited.mark_read_with_audit(&id, &current_user.id, audit.record()).await?;
+    audit.mark_persisted();
     Ok(Json(()))
 }
 
-pub async fn mark_all_notices_read(State(state): State<NoticeApiState>, Extension(current_user): Extension<CurrentUser>) -> ApiResult<()> {
-    state.notices.mark_all_read(&current_user.id).await?;
+pub async fn mark_all_notices_read(
+    State(state): State<NoticeApiState>,
+    Extension(current_user): Extension<CurrentUser>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+) -> ApiResult<()> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.notices_audited.mark_all_read_with_audit(&current_user.id, audit.record()).await?;
+    audit.mark_persisted();
     Ok(Json(()))
 }
 
@@ -128,16 +198,16 @@ pub async fn list_notice_readers(
     State(state): State<NoticeApiState>,
     Path(id): Path<String>,
     RequestQuery(query): RequestQuery<NoticeReaderQuery>,
-) -> ApiResult<Page<NoticeReader>> {
+) -> ApiResult<CursorPage<NoticeReader>> {
     Ok(Json(state.notices.page_readers(&id, query.into()).await?))
 }
 
 impl From<NoticeListQuery> for NoticeListFilter {
     fn from(value: NoticeListQuery) -> Self {
         Self {
-            page: PageRequest {
-                page: value.page,
-                page_size: value.page_size,
+            page: CursorPageRequest {
+                limit: value.limit,
+                cursor: value.cursor,
             },
             notice_title: value.notice_title,
             create_by: value.create_by,
@@ -149,13 +219,17 @@ impl From<NoticeListQuery> for NoticeListFilter {
 impl From<NoticeReaderQuery> for NoticeReaderFilter {
     fn from(value: NoticeReaderQuery) -> Self {
         Self {
-            page: PageRequest {
-                page: value.page,
-                page_size: value.page_size,
+            page: CursorPageRequest {
+                limit: value.limit,
+                cursor: value.cursor,
             },
             search_value: value.search_value.or(value.user_name),
         }
     }
+}
+
+const fn default_cursor_limit() -> u64 {
+    kernel::pagination::DEFAULT_CURSOR_LIMIT
 }
 
 #[cfg(test)]

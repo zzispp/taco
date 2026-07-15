@@ -70,13 +70,6 @@ VALUES
     ('1063', '参数删除', '106', 4, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:config:remove', '#', 'admin', CURRENT_TIMESTAMP, ''),
     ('1064', '参数导出', '106', 5, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:config:export', '#', 'admin', CURRENT_TIMESTAMP, '');
 
-INSERT INTO sys_user (user_id, dept_id, user_name, nick_name, user_type, email, phonenumber, sex, avatar, password, status, del_flag, login_ip, login_date, pwd_update_date, auth_source, email_verified, create_by, create_time, remark)
-VALUES
-    ('1', '103', 'admin', 'taco', '00', 'admin@taco.local', '15888888888', '1', '', '$argon2id$v=19$m=19456,t=2,p=1$FpN5fcXCVNOVBGybU6xVBA$1y5zUgTGlohI/RVCXKyckyv1CCyuzVhVMagjJux9rUA', '0', '0', '127.0.0.1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'local', TRUE, 'admin', CURRENT_TIMESTAMP, '管理员'),
-    ('2', '105', 'taco', 'taco', '00', 'taco@example.com', '15666666666', '1', '', '$argon2id$v=19$m=19456,t=2,p=1$FpN5fcXCVNOVBGybU6xVBA$1y5zUgTGlohI/RVCXKyckyv1CCyuzVhVMagjJux9rUA', '0', '0', '127.0.0.1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'local', TRUE, 'admin', CURRENT_TIMESTAMP, '测试员');
-
-INSERT INTO sys_user_role (user_id, role_id) VALUES ('1', '1'), ('2', '2');
-INSERT INTO sys_user_post (user_id, post_id) VALUES ('1', '1'), ('2', '2');
 INSERT INTO sys_role_dept (role_id, dept_id) VALUES ('2', '100'), ('2', '101'), ('2', '105');
 INSERT INTO sys_role_menu (role_id, menu_id) SELECT '2', menu_id FROM sys_menu;
 
@@ -105,7 +98,6 @@ VALUES
 INSERT INTO sys_config (config_id, config_name, config_key, config_value, config_type, create_by, create_time, remark)
 VALUES
     ('1', '主框架页-默认皮肤样式名称', 'sys.index.skinName', 'skin-blue', 'Y', 'admin', CURRENT_TIMESTAMP, '默认皮肤样式。可选值：skin-blue 蓝色、skin-green 绿色、skin-purple 紫色、skin-red 红色、skin-yellow 黄色。'),
-    ('2', '用户管理-账号初始密码', 'sys.user.initPassword', '123456', 'Y', 'admin', CURRENT_TIMESTAMP, '新建用户未填写密码时使用的初始密码；由后端读取，不对前端公开。'),
     ('3', '主框架页-默认主题', 'sys.index.modeTheme', 'theme-light', 'Y', 'admin', CURRENT_TIMESTAMP, '默认主题模式。可选值：theme-dark 深色主题、theme-light 浅色主题。'),
-    ('4', '账号自助-验证码配置', 'sys.account.captchaConfig', '{"enabled":true,"provider":"cap","providers":{"cap":{"challenge_count":50,"challenge_size":32,"challenge_difficulty":4,"challenge_ttl_seconds":600,"redeemed_token_ttl_seconds":1200},"cloudflare_turnstile":{"site_key":"","secret_key":"","theme":"auto","size":"normal"}}}', 'Y', 'admin', CURRENT_TIMESTAMP, '验证码完整配置 JSON。enabled 控制开关，provider 选择 cap/cloudflare_turnstile，providers.cap 配置 PoW 难度和 TTL，providers.cloudflare_turnstile 配置 site_key、secret_key、theme、size；仅后端读取。'),
+    ('4', '账号自助-验证码配置', 'sys.account.captchaConfig', '{"enabled":true,"provider":"cap","providers":{"cap":{"challenge_count":50,"challenge_size":32,"challenge_difficulty":4,"challenge_ttl_seconds":600,"redeemed_token_ttl_seconds":1200},"cloudflare_turnstile":{"site_key":"","theme":"auto","size":"normal"}}}', 'Y', 'admin', CURRENT_TIMESTAMP, '验证码非敏感运行时配置 JSON。enabled 控制开关，provider 选择 cap/cloudflare_turnstile，providers.cap 配置 PoW 难度和 TTL，providers.cloudflare_turnstile 配置 site_key、theme、size；Turnstile 私钥由部署 YAML 单独提供。'),
     ('5', '账号自助-是否开启用户注册功能', 'sys.account.registerUser', 'false', 'Y', 'admin', CURRENT_TIMESTAMP, '是否允许账号自助注册。true 允许注册，false 禁止注册。');

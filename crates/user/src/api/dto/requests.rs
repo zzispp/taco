@@ -1,3 +1,4 @@
+use kernel::pagination::DEFAULT_CURSOR_LIMIT;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -6,18 +7,31 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize)]
-pub struct UserPayload {
-    pub username: String,
+pub struct CreateUserPayload {
+    pub password: String,
+    #[serde(flatten)]
+    fields: UserFieldsPayload,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReplaceUserPayload {
     pub password: Option<String>,
-    pub nick_name: String,
-    pub dept_id: Option<String>,
-    pub email: String,
-    pub phonenumber: Option<String>,
-    pub sex: String,
-    pub status: String,
-    pub remark: Option<String>,
-    pub role_ids: Vec<String>,
-    pub post_ids: Vec<String>,
+    #[serde(flatten)]
+    fields: UserFieldsPayload,
+}
+
+#[derive(Debug, Deserialize)]
+struct UserFieldsPayload {
+    username: String,
+    nick_name: String,
+    dept_id: Option<String>,
+    email: String,
+    phonenumber: Option<String>,
+    sex: String,
+    status: String,
+    remark: Option<String>,
+    role_ids: Vec<String>,
+    post_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,15 +51,13 @@ pub struct SignInPayload {
     pub captcha_token: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct RefreshTokenPayload {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ListUsersQuery {
-    pub page: u64,
-    pub page_size: u64,
+    #[serde(default = "default_limit")]
+    pub limit: u64,
+    #[serde(default)]
+    pub cursor: Option<String>,
     pub username: Option<String>,
     pub nick_name: Option<String>,
     pub phonenumber: Option<String>,
@@ -61,6 +73,7 @@ pub struct ListUsersQuery {
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UserExportQuery {
     pub username: Option<String>,
     pub nick_name: Option<String>,
@@ -77,7 +90,12 @@ pub struct UserExportQuery {
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OnlineSessionsQuery {
+    #[serde(default = "default_limit")]
+    pub limit: u64,
+    #[serde(default)]
+    pub cursor: Option<String>,
     pub ipaddr: Option<String>,
     #[serde(rename = "userName")]
     pub user_name: Option<String>,
@@ -87,6 +105,10 @@ pub struct OnlineSessionsQuery {
     pub os: Option<String>,
     pub begin_time: Option<String>,
     pub end_time: Option<String>,
+}
+
+const fn default_limit() -> u64 {
+    DEFAULT_CURSOR_LIMIT
 }
 
 #[derive(Debug, Deserialize)]
@@ -118,38 +140,40 @@ pub struct UserRolesPayload {
     pub role_ids: Vec<String>,
 }
 
-impl From<UserPayload> for NewUser {
-    fn from(value: UserPayload) -> Self {
+impl From<CreateUserPayload> for NewUser {
+    fn from(value: CreateUserPayload) -> Self {
+        let fields = value.fields;
         Self {
-            username: value.username,
-            password: value.password.unwrap_or_default(),
-            nick_name: value.nick_name,
-            dept_id: value.dept_id,
-            email: value.email,
-            phonenumber: value.phonenumber,
-            sex: value.sex,
-            status: value.status,
-            remark: value.remark,
-            role_ids: value.role_ids,
-            post_ids: value.post_ids,
+            username: fields.username,
+            password: value.password,
+            nick_name: fields.nick_name,
+            dept_id: fields.dept_id,
+            email: fields.email,
+            phonenumber: fields.phonenumber,
+            sex: fields.sex,
+            status: fields.status,
+            remark: fields.remark,
+            role_ids: fields.role_ids,
+            post_ids: fields.post_ids,
         }
     }
 }
 
-impl From<UserPayload> for ReplaceUser {
-    fn from(value: UserPayload) -> Self {
+impl From<ReplaceUserPayload> for ReplaceUser {
+    fn from(value: ReplaceUserPayload) -> Self {
+        let fields = value.fields;
         Self {
-            username: value.username,
+            username: fields.username,
             password: value.password.filter(|password| !password.trim().is_empty()),
-            nick_name: value.nick_name,
-            dept_id: value.dept_id,
-            email: value.email,
-            phonenumber: value.phonenumber,
-            sex: value.sex,
-            status: value.status,
-            remark: value.remark,
-            role_ids: value.role_ids,
-            post_ids: value.post_ids,
+            nick_name: fields.nick_name,
+            dept_id: fields.dept_id,
+            email: fields.email,
+            phonenumber: fields.phonenumber,
+            sex: fields.sex,
+            status: fields.status,
+            remark: fields.remark,
+            role_ids: fields.role_ids,
+            post_ids: fields.post_ids,
         }
     }
 }

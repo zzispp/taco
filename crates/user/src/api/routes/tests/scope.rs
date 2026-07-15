@@ -10,7 +10,6 @@ use crate::test_support::{MemoryUserRepository, stored_user};
 
 const BOB_ID: &str = "018f0000-0000-7000-8000-000000000002";
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn self_scope_rejects_out_of_scope_user_object_operations() {
     let app = self_scope_app().router;
@@ -22,7 +21,6 @@ async fn self_scope_rejects_out_of_scope_user_object_operations() {
     }
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn admin_can_operate_outside_self_scope_user_object() {
     let repository = user_scope_repository();

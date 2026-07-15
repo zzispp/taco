@@ -1,10 +1,10 @@
 import type { Menu } from '../model/types';
 import type { QueryParams } from 'src/shared/api/pagination';
 
-import { usePagedResource } from 'src/shared/api/use-paged-resource';
+import { useCursorCollection } from 'src/shared/api/use-cursor-collection';
 
 import { menuEndpoints } from './endpoints';
 
-export function useMenus(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Menu>({ endpoint: menuEndpoints.menus, page, pageSize, params });
+export function useMenus(params: QueryParams = {}) {
+  return useCursorCollection<Menu>({ endpoint: menuEndpoints.menus, params });
 }

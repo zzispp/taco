@@ -1,31 +1,32 @@
+use audit_contract::OperationAuditContext;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
     response::Response,
 };
-use kernel::pagination::{Page, PageRequest};
-use rbac::api::CurrentUser;
-use rbac_macros::{data_scope, require_perms};
+use kernel::pagination::{CursorPage, CursorPageRequest};
+use rbac::{api::CurrentUser, domain::DataScopeFilter};
+use rbac_macros::require_perms;
 use serde::Deserialize;
-use types::http::{RequestJson, RequestQuery, current_locale, xlsx_attachment};
-use types::rbac::{DataScopeFilter, RoleDeptTreeSelect};
+use types::http::{RequestJson, RequestQuery, current_locale, xlsx_file_attachment};
+use types::rbac::RoleDeptTreeSelect;
 use types::system::BatchIdsInput;
 
 use crate::{
     api::{
         SystemApiError, SystemApiState,
-        export::{export_configs_xlsx, export_dict_data_xlsx, export_dict_types_xlsx, export_posts_xlsx},
+        export::SystemXlsxExport,
         input::{
-            ConfigExportFilter, DeptTreeQuery, DictDataExportFilter, DictTypeExportFilter, PostExportFilter, SystemExportQuery, SystemListQuery,
-            config_export_filter, config_list_filter, dept_list_filter, dept_tree_filter, dict_data_export_filter, dict_data_list_filter,
-            dict_type_export_filter, dict_type_list_filter, post_export_filter, post_list_filter,
+            DeptTreeQuery, SystemExportQuery, SystemListQuery, config_export_filter, config_list_filter, dept_list_filter, dept_tree_filter,
+            dict_data_export_filter, dict_data_list_filter, dict_type_export_filter, dict_type_list_filter, post_export_filter, post_list_filter,
         },
     },
-    application::DeptListFilter,
+    application::{DeptListFilter, SystemExportKind, SystemExportRequest},
     domain::{ConfigInput, ConfigItem, Dept, DeptInput, DictData, DictDataInput, DictType, DictTypeInput, Post, PostInput, SortBatchInput, TreeSelectNode},
 };
 
 type ApiJson<T> = Json<T>;
+type AuditedResourceJsonRequest<T> = (State<SystemApiState>, Option<Extension<OperationAuditContext>>, Path<String>, RequestJson<T>);
 
 mod resources;
 mod support;
@@ -37,9 +38,8 @@ pub use resources::{
     refresh_config_cache, refresh_dict_cache, replace_config, replace_dict_data, replace_dict_type, replace_post,
 };
 
-use self::support::{
-    all_depts_filter, all_export_configs, all_export_dict_data, all_export_dict_types, all_export_posts, checked_keys_for_tree, config_keys, ok,
-};
+use self::support::{all_depts_filter, checked_keys_for_tree, config_keys, ok};
+use crate::api::operation_audit::successful_operation_audit;
 
 type ListDeptsRequest = (
     State<SystemApiState>,
@@ -54,11 +54,26 @@ type DeptTreeRequest = (
     RequestQuery<DeptTreeQuery>,
 );
 type DeptPathRequest = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
-type DeptJsonRequest<T> = (State<SystemApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>, T);
-type DeptSortsRequest = (
+type AuditedDeptPathRequest = (
     State<SystemApiState>,
     Extension<CurrentUser>,
     Extension<DataScopeFilter>,
+    Option<Extension<OperationAuditContext>>,
+    Path<String>,
+);
+type AuditedDeptJsonRequest<T> = (
+    State<SystemApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    Option<Extension<OperationAuditContext>>,
+    Path<String>,
+    T,
+);
+type AuditedDeptSortsRequest = (
+    State<SystemApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    Option<Extension<OperationAuditContext>>,
     RequestJson<SortBatchInput>,
 );
 type ApiResult<T> = Result<T, SystemApiError>;
@@ -81,8 +96,7 @@ pub async fn public_configs(
 }
 
 #[require_perms("system:dept:list")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn list_depts(request: ListDeptsRequest) -> ApiResult<ApiJson<Page<Dept>>> {
+pub async fn list_depts(request: ListDeptsRequest) -> ApiResult<ApiJson<CursorPage<Dept>>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = dept_list_filter(query)?;
     let page = if current_user.admin {
@@ -94,11 +108,17 @@ pub async fn list_depts(request: ListDeptsRequest) -> ApiResult<ApiJson<Page<Dep
 }
 
 #[require_perms("system:dept:add")]
-pub async fn create_dept(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<DeptInput>) -> ApiResult<ApiJson<Dept>> {
-    Ok(ok(state.system.create_dept(payload).await?))
+pub async fn create_dept(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<DeptInput>,
+) -> ApiResult<ApiJson<Dept>> {
+    let audit = successful_operation_audit(audit_context)?;
+    let dept = state.system_audited.create_dept_with_audit(payload, audit.record()).await?;
+    audit.mark_persisted();
+    Ok(ok(dept))
 }
 #[require_perms("system:dept:query")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn get_dept(request: DeptPathRequest) -> ApiResult<ApiJson<Dept>> {
     let (State(state), Extension(current_user), Extension(data_scope), Path(id)) = request;
     DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
@@ -106,7 +126,6 @@ pub async fn get_dept(request: DeptPathRequest) -> ApiResult<ApiJson<Dept>> {
 }
 
 #[require_perms("system:dept:list")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn dept_tree_select(request: DeptTreeRequest) -> ApiResult<ApiJson<Vec<TreeSelectNode>>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let scope = (!current_user.admin).then_some(data_scope);
@@ -130,35 +149,42 @@ pub async fn role_dept_tree_select(State(state): State<SystemApiState>, Path(id)
 }
 
 #[require_perms("system:dept:edit")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn replace_dept(request: DeptJsonRequest<RequestJson<DeptInput>>) -> ApiResult<ApiJson<Dept>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+pub async fn replace_dept(request: AuditedDeptJsonRequest<RequestJson<DeptInput>>) -> ApiResult<ApiJson<Dept>> {
+    let (State(state), Extension(current_user), Extension(data_scope), audit_context, Path(id), RequestJson(payload)) = request;
     DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
-    Ok(ok(state.system.replace_dept(&id, payload).await?))
+    let audit = successful_operation_audit(audit_context)?;
+    let dept = state.system_audited.replace_dept_with_audit(&id, payload, audit.record()).await?;
+    audit.mark_persisted();
+    Ok(ok(dept))
 }
 #[require_perms("system:dept:edit")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn update_dept_sort(request: DeptJsonRequest<RequestJson<SortPayload>>) -> ApiResult<ApiJson<Dept>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestJson(payload)) = request;
+pub async fn update_dept_sort(request: AuditedDeptJsonRequest<RequestJson<SortPayload>>) -> ApiResult<ApiJson<Dept>> {
+    let (State(state), Extension(current_user), Extension(data_scope), audit_context, Path(id), RequestJson(payload)) = request;
     DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
-    Ok(ok(state.system.update_dept_sort(&id, payload.order_num).await?))
+    let audit = successful_operation_audit(audit_context)?;
+    let dept = state.system_audited.update_dept_sort_with_audit(&id, payload.order_num, audit.record()).await?;
+    audit.mark_persisted();
+    Ok(ok(dept))
 }
 
 #[require_perms("system:dept:edit")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn update_dept_sorts(request: DeptSortsRequest) -> ApiResult<ApiJson<Vec<Dept>>> {
-    let (State(state), Extension(current_user), Extension(data_scope), RequestJson(payload)) = request;
+pub async fn update_dept_sorts(request: AuditedDeptSortsRequest) -> ApiResult<ApiJson<Vec<Dept>>> {
+    let (State(state), Extension(current_user), Extension(data_scope), audit_context, RequestJson(payload)) = request;
     let ids = payload.items.iter().map(|item| item.id.clone()).collect();
     DeptScopeGuard::new(&state, &current_user, data_scope).ensure_many(ids).await?;
-    Ok(ok(state.system.update_dept_sorts(payload).await?))
+    let audit = successful_operation_audit(audit_context)?;
+    let departments = state.system_audited.update_dept_sorts_with_audit(payload, audit.record()).await?;
+    audit.mark_persisted();
+    Ok(ok(departments))
 }
 
 #[require_perms("system:dept:remove")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn delete_dept(request: DeptPathRequest) -> ApiResult<ApiJson<()>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(id)) = request;
+pub async fn delete_dept(request: AuditedDeptPathRequest) -> ApiResult<ApiJson<()>> {
+    let (State(state), Extension(current_user), Extension(data_scope), audit_context, Path(id)) = request;
     DeptScopeGuard::new(&state, &current_user, data_scope).ensure_one(&id).await?;
-    state.system.delete_dept(&id).await?;
+    let audit = successful_operation_audit(audit_context)?;
+    state.system_audited.delete_dept_with_audit(&id, audit.record()).await?;
+    audit.mark_persisted();
     Ok(ok(()))
 }
 

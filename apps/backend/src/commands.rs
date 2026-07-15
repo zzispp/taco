@@ -1,7 +1,13 @@
+use std::io::BufRead;
+
 use configuration::Settings;
 use storage::connect_database;
 
 use crate::{BackendResult, composition, migration, startup};
+
+mod migration_command;
+
+use migration_command::migration_command;
 
 pub async fn run() -> BackendResult<()> {
     let settings = Settings::load()?;
@@ -10,7 +16,26 @@ pub async fn run() -> BackendResult<()> {
     match command_from_args(std::env::args().skip(1).collect())? {
         BackendCommand::Serve => startup::serve(settings).await,
         BackendCommand::Migration(command) => run_migration(settings, command).await,
+        BackendCommand::BootstrapAdmin(command) => run_bootstrap_admin(settings, command).await,
     }
+}
+
+async fn run_bootstrap_admin(settings: Settings, command: BootstrapAdminCommand) -> BackendResult<()> {
+    let password = {
+        let mut stdin = std::io::stdin().lock();
+        read_password(&mut stdin)?
+    };
+    let user = composition::bootstrap_admin(
+        &settings,
+        user::application::BootstrapAdminInput {
+            username: command.username,
+            email: command.email,
+            password,
+        },
+    )
+    .await?;
+    println!("bootstrap-admin created user {}", user.username);
+    Ok(())
 }
 
 fn init_tracing(settings: &Settings) -> BackendResult<Option<tracing_appender::non_blocking::WorkerGuard>> {
@@ -57,6 +82,13 @@ async fn rebuild_caches_after_migration(settings: &Settings, database: storage::
 enum BackendCommand {
     Serve,
     Migration(MigrationCommand),
+    BootstrapAdmin(BootstrapAdminCommand),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BootstrapAdminCommand {
+    username: String,
+    email: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -80,29 +112,47 @@ fn command_from_args(args: Vec<String>) -> BackendResult<BackendCommand> {
     match positionals.as_slice() {
         [] => Ok(BackendCommand::Serve),
         [migration, args @ ..] if migration == "migration" => Ok(BackendCommand::Migration(migration_command(args)?)),
+        [bootstrap, args @ ..] if bootstrap == "bootstrap-admin" => Ok(BackendCommand::BootstrapAdmin(bootstrap_admin_command(args)?)),
         _ => Err(format!("unsupported backend command: {}", positionals.join(" ")).into()),
     }
 }
 
-fn migration_command(args: &[String]) -> BackendResult<MigrationCommand> {
-    match args {
-        [] => Ok(MigrationCommand::Up(None)),
-        [command] if command == "up" => Ok(MigrationCommand::Up(None)),
-        [command, steps] if command == "up" => Ok(MigrationCommand::Up(Some(parse_steps(steps)?))),
-        [command] if command == "down" => Ok(MigrationCommand::Down(Some(1))),
-        [command, steps] if command == "down" => Ok(MigrationCommand::Down(Some(parse_steps(steps)?))),
-        [command] if command == "status" => Ok(MigrationCommand::Status),
-        [command] if command == "fresh" => Ok(MigrationCommand::Fresh),
-        [command] if command == "refresh" => Ok(MigrationCommand::Refresh),
-        [command] if command == "reset" => Ok(MigrationCommand::Reset),
-        _ => Err(format!("unsupported migration command: {}", args.join(" ")).into()),
+fn bootstrap_admin_command(args: &[String]) -> BackendResult<BootstrapAdminCommand> {
+    let mut username = None;
+    let mut email = None;
+    let mut args = args.iter();
+    while let Some(option) = args.next() {
+        match option.as_str() {
+            "--username" => {
+                let value = args.next().ok_or("--username requires a value")?;
+                if username.replace(value.clone()).is_some() {
+                    return Err("duplicate bootstrap-admin option: --username".into());
+                }
+            }
+            "--email" => {
+                let value = args.next().ok_or("--email requires a value")?;
+                if email.replace(value.clone()).is_some() {
+                    return Err("duplicate bootstrap-admin option: --email".into());
+                }
+            }
+            _ => return Err(format!("unsupported bootstrap-admin option: {option}").into()),
+        }
     }
+    Ok(BootstrapAdminCommand {
+        username: username.ok_or("bootstrap-admin requires --username")?,
+        email: email.ok_or("bootstrap-admin requires --email")?,
+    })
 }
 
-fn parse_steps(value: &str) -> BackendResult<u32> {
-    value
-        .parse::<u32>()
-        .map_err(|error| format!("invalid migration step count '{value}': {error}").into())
+fn read_password(reader: &mut impl BufRead) -> BackendResult<String> {
+    let mut password = String::new();
+    if reader.read_line(&mut password)? == 0 {
+        return Err("bootstrap-admin password is required on stdin".into());
+    }
+    while matches!(password.chars().last(), Some('\r' | '\n')) {
+        password.pop();
+    }
+    Ok(password)
 }
 
 fn positional_args(args: Vec<String>) -> BackendResult<Vec<String>> {
@@ -122,7 +172,9 @@ fn positional_args(args: Vec<String>) -> BackendResult<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BackendCommand, MigrationCommand, command_from_args, positional_args};
+    use std::io::Cursor;
+
+    use super::{BackendCommand, BootstrapAdminCommand, MigrationCommand, command_from_args, positional_args, read_password};
 
     #[test]
     fn defaults_to_serve_command() {
@@ -131,7 +183,7 @@ mod tests {
 
     #[test]
     fn ignores_config_path_when_detecting_command() {
-        let args = vec!["--config".into(), "config/config.yaml".into(), "migration".into(), "up".into()];
+        let args = vec!["--config".into(), "config/config.local.yaml".into(), "migration".into(), "up".into()];
 
         assert_eq!(command_from_args(args).unwrap(), BackendCommand::Migration(MigrationCommand::Up(None)));
     }
@@ -155,6 +207,60 @@ mod tests {
         let args = vec!["migration".into(), "status".into()];
 
         assert_eq!(command_from_args(args).unwrap(), BackendCommand::Migration(MigrationCommand::Status));
+    }
+
+    #[test]
+    fn detects_bootstrap_admin_without_accepting_a_password_argument() {
+        let args = vec![
+            "bootstrap-admin".into(),
+            "--username".into(),
+            "root-admin".into(),
+            "--email".into(),
+            "root-admin@example.com".into(),
+        ];
+
+        assert_eq!(
+            command_from_args(args).unwrap(),
+            BackendCommand::BootstrapAdmin(BootstrapAdminCommand {
+                username: "root-admin".into(),
+                email: "root-admin@example.com".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn bootstrap_admin_rejects_a_password_argument() {
+        let args = vec![
+            "bootstrap-admin".into(),
+            "--username".into(),
+            "root-admin".into(),
+            "--email".into(),
+            "root-admin@example.com".into(),
+            "--password".into(),
+            "visible-secret".into(),
+        ];
+
+        assert_eq!(
+            command_from_args(args).unwrap_err().to_string(),
+            "unsupported bootstrap-admin option: --password"
+        );
+    }
+
+    #[test]
+    fn reads_bootstrap_admin_password_from_one_stdin_line() {
+        let mut input = Cursor::new(b"safe-secret-123\r\nignored\n");
+
+        assert_eq!(read_password(&mut input).unwrap(), "safe-secret-123");
+    }
+
+    #[test]
+    fn rejects_missing_bootstrap_admin_password_on_stdin() {
+        let mut input = Cursor::new(Vec::<u8>::new());
+
+        assert_eq!(
+            read_password(&mut input).unwrap_err().to_string(),
+            "bootstrap-admin password is required on stdin"
+        );
     }
 
     #[test]

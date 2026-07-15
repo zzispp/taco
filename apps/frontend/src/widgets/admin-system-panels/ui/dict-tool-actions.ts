@@ -14,7 +14,7 @@ type DictToolOptions = {
 };
 
 export function useDictToolActions({ resources, state }: DictToolOptions) {
-  const refreshCache = useRefreshDictCache(resources.t);
+  const refreshCache = useRefreshDictCache(resources, state);
   const exportTypes = useExportDictTypes(resources);
   const exportData = useExportDictData(resources);
   const toggleAllTypes = useCallback(
@@ -37,15 +37,19 @@ export function useDictToolActions({ resources, state }: DictToolOptions) {
   return { refreshCache, exportTypes, exportData, toggleAllTypes, toggleAllData };
 }
 
-function useRefreshDictCache(t: DictResources['t']) {
+function useRefreshDictCache(resources: DictResources, state: DictManagementState) {
   return useCallback(async () => {
     try {
       await systemMutations.refreshDictCache();
-      toast.success(t('messages.cacheRefreshed'));
+      resources.typeTable.onResetCursor();
+      resources.dataTable.onResetCursor();
+      state.setSelectedTypeIds([]);
+      state.setSelectedDataIds([]);
+      toast.success(resources.t('messages.cacheRefreshed'));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
+      toast.error(error instanceof Error ? error.message : resources.t('messages.saveFailed'));
     }
-  }, [t]);
+  }, [resources, state]);
 }
 
 function useExportDictTypes(resources: DictResources) {

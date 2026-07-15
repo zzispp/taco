@@ -12,7 +12,7 @@ impl RoleQueries {
         }
         query_scalar(scoped_user_ids_sql())
             .bind(user_ids)
-            .bind(&scope.data_scope)
+            .bind(scope.data_scope.code())
             .bind(&scope.user_id)
             .bind(&scope.dept_id)
             .bind(&scope.dept_ids)

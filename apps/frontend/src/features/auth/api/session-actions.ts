@@ -1,6 +1,6 @@
 'use client';
 
-import axios from 'src/shared/api/http-client';
+import axios, { skipAuthSessionRecovery } from 'src/shared/api/http-client';
 
 import { setSession, trimCredential } from 'src/entities/session';
 
@@ -25,7 +25,6 @@ export type SignUpParams = {
 
 type AuthSessionResponse = {
   access_token: string;
-  refresh_token: string;
 };
 
 /** **************************************
@@ -43,7 +42,7 @@ export const signInWithPassword = async ({
       ...(captchaToken ? { captcha_token: captchaToken.trim() } : {}),
     };
 
-    const res = await axios.post(AUTH_SIGN_IN_ENDPOINT, params);
+    const res = await axios.post(AUTH_SIGN_IN_ENDPOINT, params, skipAuthSessionRecovery());
 
     await setSession(requireAuthSession(res.data));
   } catch (error) {
@@ -69,7 +68,7 @@ export const signUp = async ({
   };
 
   try {
-    const res = await axios.post(AUTH_SIGN_UP_ENDPOINT, params);
+    const res = await axios.post(AUTH_SIGN_UP_ENDPOINT, params, skipAuthSessionRecovery());
 
     await setSession(requireAuthSession(res.data));
   } catch (error) {
@@ -92,8 +91,8 @@ export const signOut = async (): Promise<void> => {
 };
 
 function requireAuthSession(payload: AuthSessionResponse): AuthSessionResponse {
-  if (!payload.access_token || !payload.refresh_token) {
-    throw new Error('Auth tokens not found in response');
+  if (!payload.access_token) {
+    throw new Error('Access token not found in response');
   }
 
   return payload;

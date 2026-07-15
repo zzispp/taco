@@ -6,7 +6,6 @@ use fixture::{LOST_NOTIFY_DUE_DELAY_MS, SupervisorHarness, TAKEOVER_DUE_DELAY_MS
 
 use super::{TestDatabase, fresh};
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn two_supervisors_take_over_after_leader_session_loss_without_duplicate_occurrence() {
     let database = TestDatabase::create().await;
@@ -32,7 +31,6 @@ async fn two_supervisors_take_over_after_leader_session_loss_without_duplicate_o
     database.drop().await;
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn periodic_reconcile_executes_a_job_when_no_notification_is_sent() {
     let database = TestDatabase::create().await;

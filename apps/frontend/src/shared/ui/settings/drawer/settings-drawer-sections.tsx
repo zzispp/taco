@@ -14,7 +14,6 @@ import Typography from '@mui/material/Typography';
 import { useColorScheme } from '@mui/material/styles';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { themeConfig } from 'src/shared/theme/theme-config';
 import { primaryColorPresets } from 'src/shared/theme/with-settings';
 
 import { Label } from '../../label';
@@ -24,7 +23,6 @@ import { BaseOption } from './base-option';
 import { SmallBlock, LargeBlock } from './styles';
 import { PresetsOptions } from './presets-options';
 import { FullScreenButton } from './fullscreen-button';
-import { FontSizeOptions, FontFamilyOptions } from './font-options';
 import { NavColorOptions, NavLayoutOptions } from './nav-layout-option';
 
 export type SettingsVisibility = ReturnType<typeof settingsVisibility>;
@@ -108,7 +106,9 @@ function SystemModeLabel() {
   const { t } = useTranslate('common');
 
   return (
-    <Label sx={{ height: 20, cursor: 'inherit', borderRadius: '20px', fontWeight: 'fontWeightSemiBold' }}>
+    <Label
+      sx={{ height: 20, cursor: 'inherit', borderRadius: '20px', fontWeight: 'fontWeightSemiBold' }}
+    >
       {t('settings.system')}
     </Label>
   );
@@ -171,10 +171,12 @@ export function SettingsPresetOptions({ settings, defaultSettings }: SettingsSec
     >
       <PresetsOptions
         icon={<SvgIcon sx={{ width: 28, height: 28 }}>{settingIcons.siderbarDuotone}</SvgIcon>}
-        options={(Object.keys(primaryColorPresets) as SettingsState['primaryColor'][]).map((key) => ({
-          name: key,
-          value: primaryColorPresets[key].main,
-        }))}
+        options={(Object.keys(primaryColorPresets) as SettingsState['primaryColor'][]).map(
+          (key) => ({
+            name: key,
+            value: primaryColorPresets[key].main,
+          })
+        )}
         value={settings.state.primaryColor}
         onChangeOption={(newOption) => settings.setState({ primaryColor: newOption })}
       />
@@ -182,7 +184,11 @@ export function SettingsPresetOptions({ settings, defaultSettings }: SettingsSec
   );
 }
 
-export function SettingsNavigationOptions({ settings, defaultSettings, visibility }: SettingsSectionProps) {
+export function SettingsNavigationOptions({
+  settings,
+  defaultSettings,
+  visibility,
+}: SettingsSectionProps) {
   const { t } = useTranslate('common');
 
   return (
@@ -200,16 +206,27 @@ export function SettingsNavigationOptions({ settings, defaultSettings, visibilit
           />
         </SmallBlock>
       )}
-      {visibility.navColor && <NavColorBlock settings={settings} defaultSettings={defaultSettings} />}
+      {visibility.navColor && (
+        <NavColorBlock settings={settings} defaultSettings={defaultSettings} />
+      )}
     </LargeBlock>
   );
 }
 
 function navLayoutOptions() {
   return [
-    { value: 'vertical' as const, icon: <SvgIcon sx={{ width: 1, height: 'auto' }}>{settingIcons.navVertical}</SvgIcon> },
-    { value: 'horizontal' as const, icon: <SvgIcon sx={{ width: 1, height: 'auto' }}>{settingIcons.navHorizontal}</SvgIcon> },
-    { value: 'mini' as const, icon: <SvgIcon sx={{ width: 1, height: 'auto' }}>{settingIcons.navMini}</SvgIcon> },
+    {
+      value: 'vertical' as const,
+      icon: <SvgIcon sx={{ width: 1, height: 'auto' }}>{settingIcons.navVertical}</SvgIcon>,
+    },
+    {
+      value: 'horizontal' as const,
+      icon: <SvgIcon sx={{ width: 1, height: 'auto' }}>{settingIcons.navHorizontal}</SvgIcon>,
+    },
+    {
+      value: 'mini' as const,
+      icon: <SvgIcon sx={{ width: 1, height: 'auto' }}>{settingIcons.navMini}</SvgIcon>,
+    },
   ];
 }
 
@@ -226,43 +243,18 @@ function NavColorBlock({ settings, defaultSettings }: Omit<SettingsSectionProps,
         value={settings.state.navColor}
         onChangeOption={(newOption) => settings.setState({ navColor: newOption })}
         options={[
-          { label: t('settings.integrate'), value: 'integrate', icon: <SvgIcon>{settingIcons.sidebarOutline}</SvgIcon> },
-          { label: t('settings.apparent'), value: 'apparent', icon: <SvgIcon>{settingIcons.sidebarFill}</SvgIcon> },
+          {
+            label: t('settings.integrate'),
+            value: 'integrate',
+            icon: <SvgIcon>{settingIcons.sidebarOutline}</SvgIcon>,
+          },
+          {
+            label: t('settings.apparent'),
+            value: 'apparent',
+            icon: <SvgIcon>{settingIcons.sidebarFill}</SvgIcon>,
+          },
         ]}
       />
     </SmallBlock>
-  );
-}
-
-export function SettingsFontOptions({ settings, defaultSettings, visibility }: SettingsSectionProps) {
-  const { t } = useTranslate('common');
-
-  return (
-    <LargeBlock title={t('settings.font')} sx={{ gap: 2.5 }}>
-      {visibility.fontFamily && (
-        <SmallBlock
-          label={t('settings.family')}
-          canReset={settings.state.fontFamily !== defaultSettings.fontFamily}
-          onReset={() => settings.setState({ fontFamily: defaultSettings.fontFamily })}
-        >
-          <FontFamilyOptions
-            value={settings.state.fontFamily}
-            onChangeOption={(newOption) => settings.setState({ fontFamily: newOption })}
-            options={[themeConfig.fontFamily.primary, 'Inter Variable', 'DM Sans Variable', 'Nunito Sans Variable']}
-            icon={<SvgIcon sx={{ width: 28, height: 28 }}>{settingIcons.font}</SvgIcon>}
-          />
-        </SmallBlock>
-      )}
-      {visibility.fontSize && (
-        <SmallBlock
-          label={t('settings.size')}
-          canReset={settings.state.fontSize !== defaultSettings.fontSize}
-          onReset={() => settings.setState({ fontSize: defaultSettings.fontSize })}
-          sx={{ gap: 5 }}
-        >
-          <FontSizeOptions options={[12, 20]} value={settings.state.fontSize} onChangeOption={(newOption) => settings.setState({ fontSize: newOption })} />
-        </SmallBlock>
-      )}
-    </LargeBlock>
   );
 }

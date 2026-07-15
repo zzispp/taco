@@ -7,7 +7,12 @@ import { useRef, useEffect, useCallback } from 'react';
 
 import { usePathname } from 'src/shared/routes/hooks';
 
-import { clickedAnchor, isValidAnchor, patchHistoryMethod, startProgressForUrl } from './navigation-progress';
+import {
+  clickedAnchor,
+  isValidAnchor,
+  patchHistoryMethod,
+  startProgressForUrl,
+} from './navigation-progress';
 
 const COMPLETE_DELAY_MS = 100;
 

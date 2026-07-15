@@ -13,12 +13,12 @@ use super::{
     StorageSchedulerRepository,
     mapping::{invalid_record, map_sqlx_error},
     query::find_job,
-    write_support::{ExecutionInsert, PendingCancellation, cancel_pending, has_active_execution, insert_execution, lock_job, notify_change},
+    write_support::{ExecutionInsert, PendingCancellation, cancel_pending, ensure_manual_execution_can_start, insert_execution, lock_job, notify_change},
 };
 
-const CANCELLED_EDITED: &str = "scheduler.execution.cancelled_edited";
-const CANCELLED_PAUSED: &str = "scheduler.execution.cancelled_paused";
-const CANCELLED_DELETED: &str = "scheduler.execution.cancelled_deleted";
+pub(super) const CANCELLED_EDITED: &str = "scheduler.execution.cancelled_edited";
+pub(super) const CANCELLED_PAUSED: &str = "scheduler.execution.cancelled_paused";
+pub(super) const CANCELLED_DELETED: &str = "scheduler.execution.cancelled_deleted";
 
 #[async_trait]
 impl SchedulerCommandStore for StorageSchedulerRepository {
@@ -108,12 +108,7 @@ impl SchedulerCommandStore for StorageSchedulerRepository {
         let id = self.database.next_id();
         let mut transaction = self.pool().begin().await.map_err(map_sqlx_error)?;
         let job = lock_job(&mut transaction, &request.snapshot.job_id).await?;
-        if job.schedule_revision != request.expected_revision {
-            return Err(SchedulerError::conflict("scheduler_job_changed", "errors.scheduler.job_changed"));
-        }
-        if has_active_execution(&mut transaction, &job.id).await? {
-            return Err(SchedulerError::conflict("scheduler_execution_active", "errors.scheduler.execution_active"));
-        }
+        ensure_manual_execution_can_start(&mut transaction, &job, &request).await?;
         insert_execution(
             &mut transaction,
             ExecutionInsert {
@@ -172,7 +167,7 @@ impl SchedulerCommandStore for StorageSchedulerRepository {
     }
 }
 
-async fn update_job(connection: &mut PgConnection, command: PersistJobReplacement) -> SchedulerResult<u64> {
+pub(super) async fn update_job(connection: &mut PgConnection, command: PersistJobReplacement) -> SchedulerResult<u64> {
     let rows = query(
         r#"UPDATE sys_job SET job_name=$1, job_group=$2, task_params=$3,
         params_schema_version=$4, invoke_target=$5, cron_expression=$6,
@@ -255,11 +250,11 @@ async fn delete_execution_logs(repository: &StorageSchedulerRepository, ids: Vec
     Ok(())
 }
 
-async fn database_now(connection: &mut PgConnection) -> SchedulerResult<DateTime<Utc>> {
+pub(super) async fn database_now(connection: &mut PgConnection) -> SchedulerResult<DateTime<Utc>> {
     query_scalar("SELECT clock_timestamp()").fetch_one(connection).await.map_err(map_sqlx_error)
 }
 
-fn ensure_one_row(rows: u64) -> SchedulerResult<()> {
+pub(super) fn ensure_one_row(rows: u64) -> SchedulerResult<()> {
     match rows {
         1 => Ok(()),
         0 => Err(SchedulerError::NotFound),
@@ -267,7 +262,7 @@ fn ensure_one_row(rows: u64) -> SchedulerResult<()> {
     }
 }
 
-fn map_job_write_error(error: sqlx::Error) -> SchedulerError {
+pub(super) fn map_job_write_error(error: sqlx::Error) -> SchedulerError {
     if error.as_database_error().and_then(|database| database.constraint()) == Some("idx_sys_job_task_key_singleton") {
         return SchedulerError::conflict("scheduler_task_already_imported", "errors.scheduler.task_already_imported");
     }

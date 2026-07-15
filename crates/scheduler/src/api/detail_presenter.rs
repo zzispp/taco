@@ -1,24 +1,36 @@
 use types::http::Locale;
 
-use crate::{application::ExecutionLogDetail, domain::ExecutionDetail};
+use crate::{
+    application::{
+        ExecutionLogDetail, SchedulerResult,
+        tasks::{HTTP_EXECUTION_DETAIL_KIND, sanitize_execution_task_params, sanitize_http_execution_payload},
+    },
+    domain::ExecutionDetail,
+};
 
 use super::{
     dto::{ExecutionDetailResponse, ExecutionLogDetailResponse},
     presenter::execution_response,
 };
 
-pub fn execution_detail_response(detail: ExecutionLogDetail, locale: Locale) -> ExecutionLogDetailResponse {
-    ExecutionLogDetailResponse {
-        summary: execution_response(detail.summary, locale),
+pub fn execution_detail_response(detail: ExecutionLogDetail, locale: Locale) -> SchedulerResult<ExecutionLogDetailResponse> {
+    let task_key = detail.summary.task_key.clone();
+    Ok(ExecutionLogDetailResponse {
+        summary: execution_response(detail.summary, locale)?,
         job_revision: detail.job_revision,
         requested_by: detail.requested_by,
-        task_params: detail.task_params,
+        task_params: sanitize_execution_task_params(&task_key, detail.task_params),
         detail: detail.detail.map(detail_response),
-    }
+    })
 }
 
 fn detail_response(detail: ExecutionDetail) -> ExecutionDetailResponse {
     let (kind, schema_version, payload) = detail.into_parts();
+    let payload = if kind == HTTP_EXECUTION_DETAIL_KIND {
+        sanitize_http_execution_payload(payload)
+    } else {
+        payload
+    };
     ExecutionDetailResponse { kind, schema_version, payload }
 }
 
@@ -29,7 +41,7 @@ mod tests {
     use types::http::Locale;
 
     use crate::{
-        application::{ExecutionLogDetail, ExecutionLogSummary},
+        application::{ExecutionLogDetail, ExecutionLogSummary, tasks::HTTP_REQUEST_TASK_KEY},
         domain::{ExecutionDetail, ExecutionOutcome, LocalizedMessage, TriggerType},
     };
 
@@ -37,7 +49,7 @@ mod tests {
 
     #[test]
     fn detail_response_flattens_summary_and_preserves_structured_payload() {
-        let response = execution_detail_response(execution_detail(), Locale::En);
+        let response = execution_detail_response(execution_detail(), Locale::En).unwrap();
         let value = serde_json::to_value(response).unwrap();
 
         assert_eq!(value["execution_id"], "execution-1");
@@ -56,13 +68,76 @@ mod tests {
         detail.requested_by = None;
         detail.detail = None;
 
-        let value = serde_json::to_value(execution_detail_response(detail, Locale::En)).unwrap();
+        let value = serde_json::to_value(execution_detail_response(detail, Locale::En).unwrap()).unwrap();
 
         assert_eq!(value["has_detail"], false);
         assert_eq!(value["job_revision"], 7);
         assert_eq!(value["requested_by"], serde_json::Value::Null);
         assert_eq!(value["task_params"], json!({"url": "https://service.test"}));
         assert_eq!(value["detail"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn http_execution_log_response_drops_task_parameters_and_historical_exchange_content() {
+        let value = serde_json::to_value(execution_detail_response(sensitive_http_execution_detail(), Locale::En).unwrap()).unwrap();
+        let rendered = value.to_string();
+
+        assert_eq!(value["invoke_target"], "httpClient.request(...)");
+        assert_eq!(value["task_params"], json!({"method": "POST", "url": "https://example.test/request"}));
+        assert_eq!(value["detail"]["payload"]["request"]["headers"], json!([]));
+        assert_eq!(value["detail"]["payload"]["request"]["body"], serde_json::Value::Null);
+        assert_eq!(value["detail"]["payload"]["response"]["headers"], json!([]));
+        assert_eq!(value["detail"]["payload"]["response"]["body"], serde_json::Value::Null);
+        for marker in [
+            "url-user",
+            "url-password",
+            "query-token",
+            "request-header-token",
+            "request-password",
+            "request-captcha",
+            "request-file-content",
+            "response-token",
+            "response-header-token",
+            "response-file-content",
+        ] {
+            assert!(!rendered.contains(marker), "execution log response leaked {marker}");
+        }
+    }
+
+    fn sensitive_http_execution_detail() -> ExecutionLogDetail {
+        let mut detail = execution_detail();
+        detail.summary.task_key = HTTP_REQUEST_TASK_KEY.into();
+        detail.summary.invoke_target = "httpClient.request(POST, https://url-user:url-password@example.test?token=query-token)".into();
+        detail.task_params = json!({
+            "method": "POST",
+            "url": "https://url-user:url-password@example.test/request?token=query-token",
+            "headers": {"Authorization": "request-header-token"},
+            "body": "request-password request-captcha request-file-content",
+        });
+        detail.detail = Some(ExecutionDetail::new(
+            "http_exchange",
+            1,
+            json!({
+                "duration_ms": 8,
+                "request": {
+                    "method": "POST",
+                    "url": "https://url-user:url-password@example.test/request?token=query-token",
+                    "headers": [{"name": "Authorization", "value": "request-header-token"}],
+                    "body": "request-file-content",
+                },
+                "response": {
+                    "status": 503,
+                    "final_url": "https://url-user:url-password@example.test/response?token=response-token",
+                    "headers": [{"name": "Set-Cookie", "value": "response-header-token"}],
+                    "body": "response-file-content",
+                },
+                "failure": {"code": "http_status"},
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        ));
+        detail
     }
 
     fn execution_detail() -> ExecutionLogDetail {

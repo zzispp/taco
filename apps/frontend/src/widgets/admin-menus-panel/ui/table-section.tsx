@@ -8,7 +8,8 @@ import TableBody from '@mui/material/TableBody';
 
 import { TableNoData } from 'src/shared/ui/table';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
-import { ManagementTableHead } from 'src/shared/ui/admin';
+
+import { ManagementTableHead } from 'src/widgets/admin-common';
 
 import { MenuRow } from './row';
 import { toggle } from './helpers';
@@ -45,6 +46,7 @@ export function MenuTableSection({ resources, dialogs, actions }: MenuManagement
               />
             ))}
             <TableNoData
+              colSpan={head.length}
               title={t('common.noData')}
               notFound={!menus.isLoading && treeRows.length === 0}
             />

@@ -3,10 +3,10 @@ use std::{sync::Arc, time::Duration};
 use configuration::{SchedulerSettings, Settings};
 use scheduler::{
     application::{
-        SchedulerRuntimeConfig, SchedulerRuntimeHandle, SchedulerRuntimeParts, SchedulerService, SchedulerServiceParts, SchedulerUseCase,
-        start_scheduler_runtime,
+        SchedulerAuditedUseCase, SchedulerRuntimeConfig, SchedulerRuntimeHandle, SchedulerRuntimeParts, SchedulerService, SchedulerServiceParts,
+        SchedulerUseCase, start_scheduler_runtime,
         task::{ScheduledTaskMetadata, StaticTaskCatalog, SystemCacheRefreshPort, TaskExecutionContext, TaskExecutionFailure},
-        tasks::{HttpRequestTask, RefreshConfigCacheTask, RefreshDictCacheTask},
+        tasks::{CacheRefreshKind, HttpRequestTask, RefreshConfigCacheTask, RefreshDictCacheTask, cache_refresh_failure},
     },
     infra::{
         MetricsSchedulerTelemetry, PostgresChangeListenerFactory, PostgresExecutionLease, PostgresLeaderLease, ReqwestHttpTaskClient,
@@ -21,6 +21,7 @@ use crate::BackendResult;
 
 pub(super) struct SchedulerServices {
     pub(super) use_case: Arc<dyn SchedulerUseCase>,
+    pub(super) audited: Arc<dyn SchedulerAuditedUseCase>,
     pub(super) export_config: Arc<RuntimeSchedulerConfig>,
     pub(super) runtime: SchedulerRuntimeHandle,
 }
@@ -42,11 +43,17 @@ struct RuntimeAssembly<'a> {
 #[async_trait::async_trait]
 impl SystemCacheRefreshPort for SchedulerSystemCacheAdapter {
     async fn refresh_config_cache(&self) -> Result<(), TaskExecutionFailure> {
-        self.system.refresh_config_cache().await.map_err(|error| cache_refresh_error("config", error))
+        self.system
+            .refresh_config_cache()
+            .await
+            .map_err(|error| cache_refresh_error(CacheRefreshKind::Config, error))
     }
 
     async fn refresh_dict_cache(&self) -> Result<(), TaskExecutionFailure> {
-        self.system.refresh_dict_cache().await.map_err(|error| cache_refresh_error("dict", error))
+        self.system
+            .refresh_dict_cache()
+            .await
+            .map_err(|error| cache_refresh_error(CacheRefreshKind::Dict, error))
     }
 }
 
@@ -76,7 +83,8 @@ pub(super) fn build_scheduler_services(settings: &Settings, database: Database, 
     );
     let service = scheduler_service(repository, catalog);
     Ok(SchedulerServices {
-        use_case: service,
+        use_case: service.clone(),
+        audited: service,
         export_config: Arc::new(RuntimeSchedulerConfig::new(system)),
         runtime,
     })
@@ -99,10 +107,11 @@ fn runtime_parts(assembly: RuntimeAssembly<'_>) -> BackendResult<SchedulerRuntim
     })
 }
 
-fn scheduler_service(repository: Arc<StorageSchedulerRepository>, catalog: Arc<StaticTaskCatalog>) -> Arc<dyn SchedulerUseCase> {
+fn scheduler_service(repository: Arc<StorageSchedulerRepository>, catalog: Arc<StaticTaskCatalog>) -> Arc<SchedulerService> {
     Arc::new(SchedulerService::new(SchedulerServiceParts {
         query: repository.clone(),
         commands: repository.clone(),
+        audited_commands: repository.clone(),
         catalog,
         clock: repository,
     }))
@@ -114,9 +123,6 @@ fn scheduler_http_client(config: &SchedulerSettings) -> BackendResult<reqwest::C
         .build()?)
 }
 
-fn cache_refresh_error(kind: &'static str, error: SystemError) -> TaskExecutionFailure {
-    TaskExecutionFailure::new(
-        kernel::error::LocalizedError::new("errors.scheduler.task_cache_refresh_failed").with_param("kind", kind),
-        format!("scheduler {kind} cache refresh failed: {error}"),
-    )
+fn cache_refresh_error(kind: CacheRefreshKind, error: SystemError) -> TaskExecutionFailure {
+    cache_refresh_failure(kind, format!("scheduler cache refresh failed: {error}"))
 }

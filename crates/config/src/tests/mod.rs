@@ -1,10 +1,13 @@
 use super::*;
 
 mod cors;
+mod runtime;
 mod values;
 
 const TEST_SCHEDULER_REQUEST_TIMEOUT_MS: u64 = 30_000;
 const TEST_SCHEDULER_RECONCILE_INTERVAL_MS: u64 = 1_000;
+pub(super) const TEST_JWT_SECRET: &str = "config-test-jwt-secret-32-bytes!";
+const TEST_DATABASE_PASSWORD: &str = "unit-test-password";
 
 pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
     Settings {
@@ -14,14 +17,28 @@ pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
         },
         database,
         jwt: jwt_settings(),
-        auth: AuthSettings { whitelist: vec![] },
+        captcha: captcha_settings(),
+        auth: AuthSettings {
+            whitelist: vec![],
+            refresh_cookie: refresh_cookie_settings(),
+        },
+        user: user_settings(),
         cors: cors_settings(),
         http: http_settings(),
         metrics: metrics_settings(),
+        audit: audit_settings(),
+        client_info: client_info_settings(),
         redis: redis_settings(),
         scheduler: scheduler_settings(),
         uploads: UploadSettings::default(),
         tracing: tracing_settings(),
+    }
+}
+
+pub(super) fn settings_with_captcha(captcha: CaptchaSettings) -> Settings {
+    Settings {
+        captcha,
+        ..settings_with_database(database_parts())
     }
 }
 
@@ -66,25 +83,50 @@ pub(super) fn database_parts() -> DatabaseSettings {
         url: None,
         scheme: "postgres".into(),
         host: "localhost".into(),
-        port: 5433,
+        port: 5435,
         username: "postgres".into(),
-        password: Some("123456".into()),
+        password: Some(TEST_DATABASE_PASSWORD.into()),
         name: "postgres".into(),
     }
 }
 
 pub(super) fn jwt_settings() -> JwtSettings {
     JwtSettings {
-        secret: "jwt-secret-from-config".into(),
+        secret: TEST_JWT_SECRET.into(),
+    }
+}
+
+pub(super) fn captcha_settings() -> CaptchaSettings {
+    CaptchaSettings {
+        cloudflare_turnstile: CloudflareTurnstileSettings {
+            secret_key: "config-test-turnstile-secret".into(),
+        },
+    }
+}
+
+pub(super) fn refresh_cookie_settings() -> RefreshCookieSettings {
+    RefreshCookieSettings {
+        secure: true,
+        domain: None,
+        path: "/api/auth".into(),
+    }
+}
+
+pub(super) fn user_settings() -> UserSettings {
+    UserSettings {
+        online_sessions: OnlineSessionSettings {
+            cleanup_interval_ms: 60_000,
+            cleanup_batch_size: 1_000,
+        },
     }
 }
 
 pub(super) fn redis_settings() -> RedisSettings {
     RedisSettings {
-        url: Some("redis://default:@localhost:6380?protocol=resp3".into()),
+        url: Some("redis://default:@localhost:6381?protocol=resp3".into()),
         scheme: "redis".into(),
         host: "localhost".into(),
-        port: 6380,
+        port: 6381,
         username: Some("default".into()),
         password: Some(String::new()),
         database: None,
@@ -95,7 +137,7 @@ pub(super) fn redis_settings() -> RedisSettings {
 
 pub(super) fn cors_settings() -> CorsSettings {
     CorsSettings {
-        allowed_origins: vec!["*".into()],
+        allowed_origins: vec!["https://admin.example.test".into()],
         allowed_methods: vec!["*".into()],
         allowed_headers: vec!["*".into()],
         exposed_headers: vec!["*".into()],
@@ -113,6 +155,27 @@ pub(super) fn http_settings() -> HttpSettings {
 
 pub(super) fn metrics_settings() -> MetricsSettings {
     MetricsSettings { enabled: true }
+}
+
+pub(super) fn audit_settings() -> AuditSettings {
+    AuditSettings {
+        outbox: AuditOutboxSettings {
+            worker_count: 4,
+            claim_batch_size: 64,
+            poll_interval_ms: 250,
+            lease_duration_ms: 30_000,
+            retry_delay_ms: 5_000,
+            cleanup_interval_ms: 3_600_000,
+            cleanup_batch_size: 1_000,
+            processed_retention_days: 7,
+        },
+    }
+}
+
+pub(super) fn client_info_settings() -> ClientInfoSettings {
+    ClientInfoSettings {
+        ip_location: ClientIpLocationSettings { request_timeout_ms: 3_000 },
+    }
 }
 
 pub(super) fn scheduler_settings() -> SchedulerSettings {

@@ -1,24 +1,25 @@
+import type { CursorPageRequest } from 'src/shared/api/pagination';
+
 export type UseTableReturn = {
   dense: boolean;
-  page: number;
-  rowsPerPage: number;
+  limit: number;
+  cursor: string | null;
+  cursorRequest: CursorPageRequest;
+  visitedBatchIndex: number;
   order: 'asc' | 'desc';
   orderBy: string;
   selected: string[];
   onSelectRow: (id: string) => void;
-  onSelectAllRows: (checked: boolean, newSelecteds: string[]) => void;
-  onResetPage: () => void;
+  onSelectAllRows: (checked: boolean, ids: string[]) => void;
+  onResetCursor: () => void;
+  onNextCursor: (cursor: string | null) => void;
+  onPreviousCursor: (cursor: string | null) => void;
+  onChangeLimit: (limit: number) => void;
   onSort: (id: string) => void;
-  onChangePage: (event: unknown, newPage: number) => void;
-  onChangeRowsPerPage: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onChangeDense: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onUpdatePageDeleteRow: (totalRowsInPage: number) => void;
-  onUpdatePageDeleteRows: (totalRowsInPage: number, totalRowsFiltered: number) => void;
-  setPage: React.Dispatch<React.SetStateAction<number>>;
   setDense: React.Dispatch<React.SetStateAction<boolean>>;
   setOrderBy: React.Dispatch<React.SetStateAction<string>>;
   setSelected: React.Dispatch<React.SetStateAction<string[]>>;
-  setRowsPerPage: React.Dispatch<React.SetStateAction<number>>;
   setOrder: React.Dispatch<React.SetStateAction<'desc' | 'asc'>>;
 };
 
@@ -26,7 +27,7 @@ export type UseTableProps = {
   defaultDense?: boolean;
   defaultOrderBy?: string;
   defaultSelected?: string[];
-  defaultRowsPerPage?: number;
-  defaultCurrentPage?: number;
+  defaultLimit?: number;
   defaultOrder?: 'asc' | 'desc';
+  scopeKey?: string;
 };

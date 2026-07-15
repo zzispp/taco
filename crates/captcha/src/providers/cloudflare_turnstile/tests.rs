@@ -10,7 +10,6 @@ use crate::{
     },
 };
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn public_config_returns_frontend_turnstile_settings() {
     let provider = provider(success_response());
@@ -22,12 +21,11 @@ async fn public_config_returns_frontend_turnstile_settings() {
     assert_eq!(config["script_url"], "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_sends_secret_and_token_to_verifier() {
     let verifier = TestVerifier::new(success_response());
     let calls = verifier.calls.clone();
-    let provider = CloudflareTurnstileProvider::new(verifier);
+    let provider = CloudflareTurnstileProvider::new(verifier, "secret-key-1".into());
 
     provider.verify(&settings(), Some(" token-1 ")).await.expect("token must pass");
 
@@ -37,7 +35,25 @@ async fn verify_sends_secret_and_token_to_verifier() {
     );
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn public_config_rejects_private_or_unknown_fields() {
+    for field in ["secret_key", "unexpected"] {
+        let provider = provider(success_response());
+        let settings = settings_with_extra_field(field);
+
+        let error = provider.public_config(&settings).await.expect_err("unknown public field must fail");
+
+        assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.invalid_public_config"));
+    }
+}
+
+#[test]
+fn default_config_template_excludes_private_secret() {
+    let config = default_config_template();
+
+    assert_eq!(config.get("secret_key"), None);
+}
+
 #[tokio::test]
 async fn verify_rejects_missing_token() {
     let provider = provider(success_response());
@@ -47,7 +63,18 @@ async fn verify_rejects_missing_token() {
     assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_required"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn verify_rejects_blank_injected_secret_without_calling_verifier() {
+    let verifier = TestVerifier::new(success_response());
+    let calls = verifier.calls.clone();
+    let provider = CloudflareTurnstileProvider::new(verifier, "   ".into());
+
+    let error = provider.verify(&settings(), Some("token-1")).await.expect_err("blank secret must fail");
+
+    assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.field_required"));
+    assert_eq!(calls.lock().unwrap().as_slice(), &[]);
+}
+
 #[tokio::test]
 async fn verify_maps_failed_token_to_invalid_input() {
     let provider = provider(CloudflareTurnstileVerifyResponse {
@@ -60,7 +87,6 @@ async fn verify_maps_failed_token_to_invalid_input() {
     assert!(matches!(error, CaptchaError::InvalidInput(message) if message.key() == "errors.captcha.verification_failed"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn verify_maps_secret_errors_to_infrastructure_error() {
     let provider = provider(CloudflareTurnstileVerifyResponse {
@@ -75,13 +101,12 @@ async fn verify_maps_secret_errors_to_infrastructure_error() {
 }
 
 fn provider(response: CloudflareTurnstileVerifyResponse) -> CloudflareTurnstileProvider<TestVerifier> {
-    CloudflareTurnstileProvider::new(TestVerifier::new(response))
+    CloudflareTurnstileProvider::new(TestVerifier::new(response), "secret-key-1".into())
 }
 
 fn settings() -> CaptchaSettings {
     let mut config = default_config_template();
     config["site_key"] = json!("site-key-1");
-    config["secret_key"] = json!("secret-key-1");
     CaptchaSettings {
         enabled: true,
         provider: "cloudflare_turnstile".into(),
@@ -89,6 +114,12 @@ fn settings() -> CaptchaSettings {
             "cloudflare_turnstile": config
         }),
     }
+}
+
+fn settings_with_extra_field(field: &str) -> CaptchaSettings {
+    let mut settings = settings();
+    settings.providers["cloudflare_turnstile"][field] = json!("must-be-rejected");
+    settings
 }
 
 fn success_response() -> CloudflareTurnstileVerifyResponse {

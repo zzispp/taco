@@ -2,42 +2,44 @@ use kernel::error::LocalizedError;
 use time::OffsetDateTime;
 use types::http::{DATE_OR_RFC3339_FORMAT, DateTimeRangeError, parse_date_time_range};
 
-use crate::application::{AppError, AppResult, OnlineSession, OnlineSessionFilter};
+use kernel::pagination::CursorPageRequest;
+use rbac::domain::DataScopeFilter;
+
+use crate::api::dto::OnlineSessionsQuery;
+use crate::application::{AppError, AppResult, OnlineSessionFilter, OnlineSessionPageRequest, OnlineSessionSearch};
 
 const NANOSECONDS_PER_MILLISECOND: i128 = 1_000_000;
 const ONLINE_LOGIN_TIME_FILTER_ERROR_KEY: &str = "errors.user.invalid_online_login_time_filter";
 const ONLINE_LOGIN_TIME_RANGE_ERROR_KEY: &str = "errors.user.invalid_online_login_time_range";
 const ONLINE_LOGIN_TIME_OVERFLOW_ERROR: &str = "online login time filter timestamp overflow";
 
-pub(super) struct OnlineSessionMatcher {
-    filter: OnlineSessionFilter,
-    begin_millis: Option<i64>,
-    end_millis: Option<i64>,
+pub(super) fn online_session_page_request(query: OnlineSessionsQuery, scope: Option<DataScopeFilter>) -> AppResult<OnlineSessionPageRequest> {
+    let filter = OnlineSessionFilter::from(query.clone());
+    let page = CursorPageRequest {
+        limit: query.limit,
+        cursor: query.cursor,
+    };
+    validate_page(&page)?;
+    let (begin_time, end_time) = login_time_millis_range(&filter)?;
+    let request = OnlineSessionPageRequest {
+        page,
+        search: OnlineSessionSearch {
+            ipaddr: filter.ipaddr,
+            user_name: filter.user_name,
+            login_location: filter.login_location,
+            browser: filter.browser,
+            os: filter.os,
+            begin_time,
+            end_time,
+        },
+        scope,
+    };
+    crate::application::cursor::OnlineCursorCodec::new(&request)?.decode(&request.page)?;
+    Ok(request)
 }
 
-impl OnlineSessionMatcher {
-    pub(super) fn new(filter: OnlineSessionFilter) -> AppResult<Self> {
-        let (begin_millis, end_millis) = login_time_millis_range(&filter)?;
-        Ok(Self {
-            begin_millis,
-            end_millis,
-            filter,
-        })
-    }
-
-    pub(super) fn matches(&self, session: &OnlineSession) -> bool {
-        case_insensitive_contains_filter(&session.ipaddr, &self.filter.ipaddr)
-            && case_insensitive_contains_filter(&session.user_name, &self.filter.user_name)
-            && case_insensitive_contains_filter(&session.login_location, &self.filter.login_location)
-            && case_insensitive_contains_filter(&session.browser, &self.filter.browser)
-            && case_insensitive_contains_filter(&session.os, &self.filter.os)
-            && self.begin_millis.is_none_or(|start| session.login_time >= start)
-            && self.end_millis.is_none_or(|end| session.login_time <= end)
-    }
-}
-
-fn case_insensitive_contains_filter(value: &str, filter: &Option<String>) -> bool {
-    filter.as_ref().is_none_or(|needle| value.to_lowercase().contains(&needle.to_lowercase()))
+fn validate_page(page: &CursorPageRequest) -> AppResult<()> {
+    crate::application::cursor::validate_cursor_request(page)
 }
 
 fn login_time_millis_range(filter: &OnlineSessionFilter) -> AppResult<(Option<i64>, Option<i64>)> {
@@ -96,11 +98,15 @@ mod tests {
 
     #[test]
     fn matcher_rejects_reversed_login_time_range() {
-        let result = OnlineSessionMatcher::new(OnlineSessionFilter {
-            begin_time: Some("2026-07-08T12:00:00.001Z".into()),
-            end_time: Some("2026-07-08T12:00:00.000Z".into()),
-            ..Default::default()
-        });
+        let result = online_session_page_request(
+            OnlineSessionsQuery {
+                limit: 10,
+                begin_time: Some("2026-07-08T12:00:00.001Z".into()),
+                end_time: Some("2026-07-08T12:00:00.000Z".into()),
+                ..Default::default()
+            },
+            None,
+        );
 
         let Err(AppError::InvalidInput(error)) = result else {
             panic!("expected invalid login time range");

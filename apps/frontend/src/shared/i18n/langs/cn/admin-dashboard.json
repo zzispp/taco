@@ -1,0 +1,151 @@
+{
+  "dashboard": {
+    "welcome": "你好，欢迎回来 👋",
+    "weeklySales": "本周销售额",
+    "newUsers": "新增用户",
+    "purchaseOrders": "采购订单",
+    "messages": "消息",
+    "currentVisits": "当前访问",
+    "websiteVisits": "网站访问",
+    "conversionRates": "转化率",
+    "currentSubject": "当前科目",
+    "news": "新闻",
+    "orderTimeline": "订单时间线",
+    "trafficBySite": "站点流量",
+    "tasks": "任务",
+    "thanLastYear": "较去年增长 (+43%)",
+    "visits": "次访问",
+    "viewAll": "查看全部",
+    "markComplete": "标记完成",
+    "share": "分享",
+    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月"],
+    "regions": {
+      "america": "美洲",
+      "asia": "亚洲",
+      "europe": "欧洲",
+      "africa": "非洲"
+    },
+    "countries": {
+      "italy": "意大利",
+      "japan": "日本",
+      "china": "中国",
+      "canada": "加拿大",
+      "france": "法国"
+    },
+    "subjects": {
+      "english": "英语",
+      "history": "历史",
+      "physics": "物理",
+      "geography": "地理",
+      "chinese": "语文",
+      "math": "数学"
+    },
+    "series": {
+      "teamA": "团队 A",
+      "teamB": "团队 B",
+      "series1": "系列 1",
+      "series2": "系列 2",
+      "series3": "系列 3"
+    },
+    "newsItems": {
+      "titles": [
+        "可再生能源的未来：创新与挑战",
+        "人工智能对现代医疗的影响",
+        "气候变化与全球粮食安全",
+        "远程办公兴起：收益、挑战与趋势",
+        "理解区块链技术：不止加密货币"
+      ],
+      "descriptions": [
+        "太阳缓缓落入地平线，将天空染成橙色与粉色。",
+        "她迫不及待地打开礼物，眼中闪烁着兴奋的光。",
+        "古老橡树高大挺拔，枝叶在微风中轻轻摇曳。",
+        "新鲜咖啡的香气弥漫开来，唤醒了所有感官。",
+        "炎热夏日里，孩子们穿过喷泉时开心地笑着。"
+      ]
+    },
+    "timeline": {
+      "items": [
+        "1983，订单，$4220",
+        "12 张发票已支付",
+        "来自 9 月的订单 #37745",
+        "新订单已创建 #XF-2356",
+        "新订单已创建 #XF-2346"
+      ]
+    },
+    "taskItems": [
+      "准备月度财务报告",
+      "设计新的营销活动",
+      "分析客户反馈",
+      "更新网站内容",
+      "开展市场调研"
+    ]
+  },
+  "systemDashboard": {
+    "title": "系统仪表盘",
+    "summary": {
+      "cpuUsage": "CPU 使用率",
+      "memoryUsage": "内存使用率",
+      "diskUsage": "磁盘使用率",
+      "networkInbound": "网络入站"
+    },
+    "cards": {
+      "serverInfo": "服务器基本信息",
+      "healthStatus": "健康状态"
+    },
+    "labels": {
+      "hostname": "主机名",
+      "system": "系统",
+      "kernel": "内核",
+      "cpu": "CPU",
+      "cpuCores": "CPU 核心",
+      "memoryDisk": "内存 / 磁盘",
+      "publicIp": "公网 IP",
+      "uptime": "Uptime",
+      "bootTime": "启动时间",
+      "sampledAt": "采样时间",
+      "load": "Load"
+    },
+    "health": {
+      "green": "绿色",
+      "yellow": "黄色",
+      "red": "红色",
+      "allHealthy": "所有核心资源低于告警阈值",
+      "issue": "{{kind}}：{{target}} {{usage}}%",
+      "issueSeparator": "；",
+      "kinds": {
+        "cpu": "CPU",
+        "memory": "内存",
+        "disk": "磁盘"
+      }
+    },
+    "units": {
+      "physical": "物理核心",
+      "logical": "逻辑核心",
+      "day": "天",
+      "hour": "小时",
+      "minute": "分钟"
+    },
+    "charts": {
+      "resourceTrend": "CPU / 内存历史趋势",
+      "realtimeSessionSampling": "当前页面会话实时采样",
+      "networkTrend": "网络流量实时曲线",
+      "inboundOutboundBandwidth": "入站 / 出站带宽",
+      "diskUsage": "磁盘分区使用量",
+      "usedCapacity": "按已用容量统计",
+      "series": {
+        "cpu": "CPU",
+        "memory": "内存",
+        "inbound": "入站",
+        "outbound": "出站"
+      }
+    },
+    "tables": {
+      "topProcesses": "Top 消耗进程",
+      "sortedByCpu": "按 CPU 使用率排序",
+      "cpuCoreLoad": "CPU 核心负载",
+      "cpuCoreLoadSubheader": "各核心使用率与频率",
+      "diskPartitions": "磁盘分区明细",
+      "diskPartitionsSubheader": "挂载点、文件系统与容量"
+    }
+  }
+}

@@ -9,8 +9,9 @@ import TableBody from '@mui/material/TableBody';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+
+import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { NoticeRow } from './row';
 
@@ -41,12 +42,16 @@ export function NoticeTableSection({ controller }: { controller: NoticeManagemen
           <NoticeTableBody controller={controller} head={loadingHead} />
         </Table>
       </Scrollbar>
-      <TablePaginationCustom
-        page={state.table.page}
-        count={resources.notices.total}
-        rowsPerPage={state.table.rowsPerPage}
-        onPageChange={state.onPageChange}
-        onRowsPerPageChange={state.onRowsPerPageChange}
+      <CursorPagination
+        limit={state.table.limit}
+        itemCount={resources.notices.itemCount}
+        visitedBatchIndex={state.table.visitedBatchIndex}
+        hasPrevious={resources.notices.hasPrevious}
+        hasNext={resources.notices.hasNext}
+        pending={resources.notices.isValidating}
+        onPrevious={() => state.table.onPreviousCursor(resources.notices.previousCursor)}
+        onNext={() => state.table.onNextCursor(resources.notices.nextCursor)}
+        onLimitChange={state.table.onChangeLimit}
       />
     </Card>
   );
@@ -90,13 +95,14 @@ function NoticeTableBody({
   return (
     <TableBody>
       {resources.notices.isLoading ? (
-        <TableLoadingRows head={head} rows={state.table.rowsPerPage} />
+        <TableLoadingRows head={head} rows={state.table.limit} />
       ) : (
         resources.notices.items.map((notice) => (
           <NoticeRow key={notice.notice_id} notice={notice} controller={controller} />
         ))
       )}
       <TableNoData
+        colSpan={head.length}
         title={t('common.noData')}
         notFound={!resources.notices.isLoading && resources.notices.items.length === 0}
       />

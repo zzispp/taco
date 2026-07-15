@@ -27,12 +27,16 @@ const SCHEDULER_DICT_DATA: &[(&str, &str, &str)] = &[
 ];
 
 const SCHEDULER_INDEXES: &[&str] = &[
+    "idx_sys_job_created_cursor",
     "idx_sys_job_due",
     "idx_sys_job_execution_active_disallow",
     "idx_sys_job_execution_dispatch",
+    "idx_sys_job_execution_group_cursor",
     "idx_sys_job_execution_job_time",
     "idx_sys_job_execution_occurrence",
     "idx_sys_job_execution_outcome_time",
+    "idx_sys_job_execution_terminal_cursor",
+    "idx_sys_job_execution_trigger_cursor",
     "idx_sys_job_group_status",
     "idx_sys_job_task_key_singleton",
 ];

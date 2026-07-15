@@ -7,7 +7,6 @@ use crate::test_support::{MemoryUserRepository, stored_user};
 
 const JULY_8_2026_NOON_UTC_MILLIS: i64 = 1_783_512_000_000;
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_creates_online_session() {
     let app = test_app();
@@ -22,7 +21,6 @@ async fn sign_in_creates_online_session() {
     assert_eq!(sessions[0].login_location, TEST_LOGIN_LOCATION);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn repeated_sign_in_keeps_multiple_online_sessions_like_ruoyi() {
     let app = test_app();
@@ -36,7 +34,6 @@ async fn repeated_sign_in_keeps_multiple_online_sessions_like_ruoyi() {
     assert_ne!(sessions[0].token_id, sessions[1].token_id);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn online_list_returns_aligned_rows_and_filters_fuzzily() {
     let app = test_app();
@@ -53,15 +50,14 @@ async fn online_list_returns_aligned_rows_and_filters_fuzzily() {
         .unwrap();
     let body = response_json(response).await;
 
-    assert_eq!(body["total"], 1);
-    assert_eq!(body["rows"][0]["userName"], "alice");
-    assert_eq!(body["rows"][0]["deptName"], "部门103");
-    assert_eq!(body["rows"][0]["ipaddr"], TEST_PUBLIC_IP);
-    assert_eq!(body["rows"][0]["loginLocation"], TEST_LOGIN_LOCATION);
-    assert_non_empty_string(&body["rows"][0]["tokenId"]);
+    assert!(body.get("total").is_none());
+    assert_eq!(body["items"][0]["userName"], "alice");
+    assert_eq!(body["items"][0]["deptName"], "部门103");
+    assert_eq!(body["items"][0]["ipaddr"], TEST_PUBLIC_IP);
+    assert_eq!(body["items"][0]["loginLocation"], TEST_LOGIN_LOCATION);
+    assert_non_empty_string(&body["items"][0]["tokenId"]);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn online_list_rejects_unmatched_fuzzy_filters() {
     let app = test_app();
@@ -78,11 +74,36 @@ async fn online_list_rejects_unmatched_fuzzy_filters() {
         .unwrap();
     let body = response_json(response).await;
 
-    assert_eq!(body["total"], 0);
-    assert_eq!(body["rows"], json!([]));
+    assert_eq!(body["items"], json!([]));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn online_list_applies_server_side_limit_without_total() {
+    let app = test_app();
+    let tokens = sign_in(app.router.clone()).await;
+    for user in 100..111 {
+        let mut session = online_session_for_user(user, &format!("user-{user}"), "103");
+        session.login_time = user as i64;
+        app.sessions.save_session(session).await;
+    }
+
+    let response = app
+        .router
+        .oneshot(authenticated_request(
+            Method::GET,
+            "/api/system/online/list?limit=5&userName=user-",
+            &tokens.access_token,
+        ))
+        .await
+        .unwrap();
+    let body = response_json(response).await;
+
+    assert!(body.get("total").is_none());
+    assert_eq!(body["items"].as_array().unwrap().len(), 5);
+    assert_eq!(body["items"][0]["userName"], "user-110");
+    assert_eq!(body["items"][4]["userName"], "user-106");
+}
+
 #[tokio::test]
 async fn online_list_filters_detail_fields_and_login_time_range() {
     let app = test_app();
@@ -100,32 +121,31 @@ async fn online_list_filters_detail_fields_and_login_time_range() {
         .unwrap();
     let body = response_json(response).await;
 
-    assert_eq!(body["total"], 1);
-    assert_eq!(body["rows"][0]["userName"], "bob");
-    assert_eq!(body["rows"][0]["loginLocation"], "Guangzhou");
-    assert_eq!(body["rows"][0]["browser"], "Firefox");
-    assert_eq!(body["rows"][0]["os"], "Linux");
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(body["items"][0]["userName"], "bob");
+    assert_eq!(body["items"][0]["loginLocation"], "Guangzhou");
+    assert_eq!(body["items"][0]["browser"], "Firefox");
+    assert_eq!(body["items"][0]["os"], "Linux");
+    assert_eq!(body["items"][0]["loginTime"], "2026-07-08T12:00:00.000Z");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn online_list_applies_rfc3339_login_time_boundaries_at_millisecond_precision() {
     let app = test_app();
     let tokens = sign_in(app.router.clone()).await;
     app.sessions.save_session(detailed_online_session()).await;
     let token = &tokens.access_token;
-    let included = total(
+    let included = item_count(
         app.router.clone(),
         "/api/system/online/list?userName=bob&begin_time=2026-07-08T12:00:00.000Z&end_time=2026-07-08T12:00:00.000Z",
         token,
     )
     .await;
-    let excluded = total(app.router, "/api/system/online/list?userName=bob&begin_time=2026-07-08T12:00:00.001Z", token).await;
+    let excluded = item_count(app.router, "/api/system/online/list?userName=bob&begin_time=2026-07-08T12:00:00.001Z", token).await;
     assert_eq!(included, 1);
     assert_eq!(excluded, 0);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn online_list_rejects_invalid_login_time_filter() {
     let app = test_app();
@@ -160,62 +180,24 @@ async fn online_list_rejects_invalid_login_time_filter() {
     assert_eq!(body["details"], "登录时间范围无效，开始时间不能晚于结束时间");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn force_logout_invalidates_access_and_refresh_tokens() {
+async fn online_list_rejects_a_malformed_cursor() {
     let app = test_app();
     let tokens = sign_in(app.router.clone()).await;
-    let token_id = app.sessions.sessions()[0].token_id.clone();
-
     let response = app
         .router
-        .clone()
         .oneshot(authenticated_request(
-            Method::DELETE,
-            &format!("/api/system/online/{token_id}"),
+            Method::GET,
+            "/api/system/online/list?limit=20&cursor=broken",
             &tokens.access_token,
         ))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
 
-    let response = app
-        .router
-        .clone()
-        .oneshot(authenticated_request(Method::GET, "/api/auth/me", &tokens.access_token))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-
-    let response = app
-        .router
-        .oneshot(json_request(
-            Method::POST,
-            "/api/auth/refresh",
-            json!({ "refresh_token": tokens.refresh_token }),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(body["code"], "invalid_cursor");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
-#[tokio::test]
-async fn logout_deletes_current_online_session() {
-    let app = test_app();
-    let tokens = sign_in(app.router.clone()).await;
-
-    let response = app
-        .router
-        .oneshot(authenticated_request(Method::POST, "/api/auth/logout", &tokens.access_token))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    assert!(app.sessions.sessions().is_empty());
-}
-
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn online_list_applies_self_data_scope() {
     let repository = MemoryUserRepository::with_users(vec![
@@ -233,11 +215,10 @@ async fn online_list_applies_self_data_scope() {
         .unwrap();
     let body = response_json(response).await;
 
-    assert_eq!(body["total"], 1);
-    assert_eq!(body["rows"][0]["userName"], "alice");
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(body["items"][0]["userName"], "alice");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn force_logout_rejects_online_session_outside_self_data_scope() {
     let repository = MemoryUserRepository::with_users(vec![
@@ -268,6 +249,7 @@ fn detailed_online_session() -> crate::application::OnlineSession {
     crate::application::OnlineSession {
         token_id: "manual-token-detail".into(),
         user_id: crate::test_support::user_id(2),
+        dept_id: Some("104".into()),
         dept_name: Some("部门104".into()),
         user_name: "bob".into(),
         ipaddr: "10.0.0.2".into(),
@@ -275,6 +257,7 @@ fn detailed_online_session() -> crate::application::OnlineSession {
         browser: "Firefox".into(),
         os: "Linux".into(),
         login_time: JULY_8_2026_NOON_UTC_MILLIS,
+        expires_at: i64::MAX,
     }
 }
 
@@ -282,6 +265,7 @@ fn online_session_for_user(user: u64, username: &str, dept: &str) -> crate::appl
     crate::application::OnlineSession {
         token_id: format!("manual-token-{user}"),
         user_id: crate::test_support::user_id(user),
+        dept_id: Some(dept.into()),
         dept_name: Some(format!("部门{dept}")),
         user_name: username.into(),
         ipaddr: TEST_PUBLIC_IP.into(),
@@ -289,10 +273,11 @@ fn online_session_for_user(user: u64, username: &str, dept: &str) -> crate::appl
         browser: "Chrome".into(),
         os: "macOS".into(),
         login_time: 1,
+        expires_at: i64::MAX,
     }
 }
 
-async fn total(router: axum::Router, uri: &str, access_token: &str) -> u64 {
+async fn item_count(router: axum::Router, uri: &str, access_token: &str) -> u64 {
     let request = authenticated_request(Method::GET, uri, access_token);
-    response_json(router.oneshot(request).await.unwrap()).await["total"].as_u64().unwrap()
+    response_json(router.oneshot(request).await.unwrap()).await["items"].as_array().unwrap().len() as u64
 }

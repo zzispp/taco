@@ -1,23 +1,15 @@
 'use client';
 
-import { useAuthContext } from './use-auth-context';
+import { useCallback } from 'react';
 
-const ALL_PERMISSION = '*:*:*';
-const SUPER_ADMIN_ROLE_KEY = 'admin';
+import { useAuthContext } from './use-auth-context';
+import { hasSessionPermission } from '../lib/permissions';
 
 export function useHasPermission(permission: string) {
+  return usePermissionChecker()(permission);
+}
+
+export function usePermissionChecker() {
   const { user } = useAuthContext();
-  if (!user) {
-    return false;
-  }
-
-  if (user.system || user.permissions.includes(ALL_PERMISSION)) {
-    return true;
-  }
-
-  if (user.roles.some((role) => role.role_key === SUPER_ADMIN_ROLE_KEY)) {
-    return true;
-  }
-
-  return user.permissions.includes(permission);
+  return useCallback((permission: string) => hasSessionPermission(user, permission), [user]);
 }

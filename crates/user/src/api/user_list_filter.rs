@@ -1,4 +1,4 @@
-use kernel::{error::LocalizedError, pagination::PageRequest};
+use kernel::{error::LocalizedError, pagination::CursorPageRequest};
 use types::http::{DATE_OR_RFC3339_FORMAT, DateTimeRangeError, parse_date_time_range};
 
 use crate::{
@@ -8,30 +8,20 @@ use crate::{
 
 const USER_CREATE_TIME_FILTER_ERROR_KEY: &str = "errors.user.invalid_created_time_filter";
 const USER_CREATE_TIME_RANGE_ERROR_KEY: &str = "errors.user.invalid_created_time_range";
-const EXPORT_FILTER_TEMPLATE_PAGE: u64 = 1;
-const EXPORT_FILTER_TEMPLATE_PAGE_SIZE: u64 = 1;
-
 pub(super) fn list_user_filter(query: ListUsersQuery) -> AppResult<UserListFilter> {
-    let page = PageRequest {
-        page: query.page,
-        page_size: query.page_size,
+    let mut fields = UserFilterFields::from(query);
+    let page = CursorPageRequest {
+        limit: fields.limit,
+        cursor: fields.cursor.take(),
     };
-    build_filter(UserFilterFields::from(query), page)
+    build_filter(fields, page)
 }
 
 pub(super) fn export_user_filter(query: &UserExportQuery) -> AppResult<UserListFilter> {
-    let page = PageRequest {
-        page: EXPORT_FILTER_TEMPLATE_PAGE,
-        page_size: EXPORT_FILTER_TEMPLATE_PAGE_SIZE,
-    };
-    build_filter(UserFilterFields::from(query), page)
+    build_filter(UserFilterFields::from(query), CursorPageRequest::default())
 }
 
-pub(super) fn export_filter_page(filter: &UserListFilter, page: PageRequest) -> UserListFilter {
-    UserListFilter { page, ..filter.clone() }
-}
-
-fn build_filter(fields: UserFilterFields, page: PageRequest) -> AppResult<UserListFilter> {
+fn build_filter(fields: UserFilterFields, page: CursorPageRequest) -> AppResult<UserListFilter> {
     let range = parse_date_time_range(fields.begin_time.as_deref(), fields.end_time.as_deref()).map_err(created_time_error)?;
     Ok(UserListFilter {
         page,
@@ -65,6 +55,8 @@ fn split_ids(value: Option<String>) -> Vec<String> {
 }
 
 struct UserFilterFields {
+    limit: u64,
+    cursor: Option<String>,
     username: Option<String>,
     nick_name: Option<String>,
     phonenumber: Option<String>,
@@ -82,6 +74,8 @@ struct UserFilterFields {
 impl From<ListUsersQuery> for UserFilterFields {
     fn from(query: ListUsersQuery) -> Self {
         Self {
+            limit: query.limit,
+            cursor: query.cursor,
             username: query.username,
             nick_name: query.nick_name,
             phonenumber: query.phonenumber,
@@ -101,6 +95,8 @@ impl From<ListUsersQuery> for UserFilterFields {
 impl From<&UserExportQuery> for UserFilterFields {
     fn from(query: &UserExportQuery) -> Self {
         Self {
+            limit: kernel::pagination::DEFAULT_CURSOR_LIMIT,
+            cursor: None,
             username: query.username.clone(),
             nick_name: query.nick_name.clone(),
             phonenumber: query.phonenumber.clone(),
@@ -139,23 +135,6 @@ mod tests {
         assert_eq!(filter.end_time, Some(timestamp("2026-07-08T12:00:00.002Z")));
         assert_eq!(filter.post_ids, vec!["1", "2"]);
         assert_eq!(filter.role_ids, vec!["3"]);
-    }
-
-    #[test]
-    fn export_page_reuses_the_parsed_time_range() {
-        let query = UserExportQuery {
-            begin_time: Some("2026-07-08".into()),
-            end_time: Some("2026-07-08".into()),
-            ..Default::default()
-        };
-        let filter = export_user_filter(&query).unwrap();
-
-        let paged = export_filter_page(&filter, PageRequest { page: 3, page_size: 25 });
-
-        assert_eq!(paged.page.page, 3);
-        assert_eq!(paged.page.page_size, 25);
-        assert_eq!(paged.begin_time, filter.begin_time);
-        assert_eq!(paged.end_time, filter.end_time);
     }
 
     #[test]

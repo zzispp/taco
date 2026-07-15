@@ -1,25 +1,28 @@
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
 use crate::{
-    application::{DictDataListFilter, DictTypeListFilter},
+    application::{DictDataListFilter, DictTypeListFilter, SystemResult},
     domain::{DictData, DictDataInput, DictType, DictTypeInput},
 };
 
 use super::{
     mapping::{dict_data, dict_type},
-    page,
     record::{DictDataRecord, DictTypeRecord},
 };
 
-const TYPE_COLUMNS: &str = "dict_id,dict_name,dict_type,status,remark,create_time::text AS create_time";
-const DATA_COLUMNS: &str = "dict_code,dict_sort,dict_label,dict_value,dict_type,css_class,list_class,is_default,status,remark,create_time::text AS create_time";
+pub(super) const TYPE_COLUMNS: &str = "dict_id,dict_name,dict_type,status,remark,create_time";
+pub(super) const DATA_COLUMNS: &str = "dict_code,dict_sort,dict_label,dict_value,dict_type,css_class,list_class,is_default,status,remark,create_time";
+
+#[path = "dict_pages.rs"]
+mod pages;
+pub(super) use pages::{data_filtered_query, type_filtered_query};
 
 #[derive(Clone)]
 pub struct DictQueries {
-    database: Database,
+    pub(super) database: Database,
 }
 
 impl DictQueries {
@@ -27,39 +30,21 @@ impl DictQueries {
         Self { database }
     }
 
-    pub async fn page_types(&self, filter: DictTypeListFilter) -> StorageResult<Page<DictType>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(type_total_sql()))
-            .bind(&filter.dict_name)
-            .bind(&filter.dict_type)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .fetch_one(self.database.pool())
-            .await?;
-        let rows = query_as::<_, DictTypeRecord>(AssertSqlSafe(type_page_sql()))
-            .bind(&filter.dict_name)
-            .bind(&filter.dict_type)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .bind(page::limit(filter.page)?)
-            .bind(page::offset(filter.page)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        page::page(rows.into_iter().map(dict_type).collect(), total, filter.page)
+    pub async fn page_types(&self, filter: DictTypeListFilter) -> SystemResult<CursorPage<DictType>> {
+        pages::page_types(&self.database, filter).await
     }
 
     pub async fn list_types(&self, filter: DictTypeListFilter) -> StorageResult<Vec<DictType>> {
-        query_as::<_, DictTypeRecord>(AssertSqlSafe(type_list_sql()))
-            .bind(&filter.dict_name)
-            .bind(&filter.dict_type)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
+        let mut query = pages::type_filtered_query(&filter);
+        query.push(" ORDER BY dict_id ASC");
+        query
+            .build_query_as::<DictTypeRecord>()
             .fetch_all(self.database.pool())
             .await
-            .map(|rows| rows.into_iter().map(dict_type).collect())
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .into_iter()
+            .map(dict_type)
+            .collect()
     }
 
     pub async fn create_type(&self, input: DictTypeInput) -> StorageResult<DictType> {
@@ -119,8 +104,9 @@ impl DictQueries {
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
-            .map(|row| row.map(dict_type))
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .map(dict_type)
+            .transpose()
     }
 
     pub async fn type_options(&self) -> StorageResult<Vec<DictType>> {
@@ -129,8 +115,10 @@ impl DictQueries {
         )))
         .fetch_all(self.database.pool())
         .await
-        .map(|rows| rows.into_iter().map(dict_type).collect())
-        .map_err(StorageError::from)
+        .map_err(StorageError::from)?
+        .into_iter()
+        .map(dict_type)
+        .collect()
     }
 
     pub async fn type_has_data(&self, dict_type: &str) -> StorageResult<bool> {
@@ -141,26 +129,8 @@ impl DictQueries {
             .map_err(StorageError::from)
     }
 
-    pub async fn page_data(&self, filter: DictDataListFilter) -> StorageResult<Page<DictData>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(data_total_sql()))
-            .bind(&filter.dict_type)
-            .bind(&filter.dict_label)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .fetch_one(self.database.pool())
-            .await?;
-        let rows = query_as::<_, DictDataRecord>(AssertSqlSafe(data_page_sql()))
-            .bind(&filter.dict_type)
-            .bind(&filter.dict_label)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .bind(page::limit(filter.page)?)
-            .bind(page::offset(filter.page)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        page::page(rows.into_iter().map(dict_data).collect(), total, filter.page)
+    pub async fn page_data(&self, filter: DictDataListFilter) -> SystemResult<CursorPage<DictData>> {
+        pages::page_data(&self.database, filter).await
     }
 
     pub async fn create_data(&self, input: DictDataInput) -> StorageResult<DictData> {
@@ -220,8 +190,9 @@ impl DictQueries {
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
-            .map(|row| row.map(dict_data))
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .map(dict_data)
+            .transpose()
     }
 
     pub async fn data_by_type(&self, dict_type: &str) -> StorageResult<Vec<DictData>> {
@@ -231,52 +202,27 @@ impl DictQueries {
         .bind(dict_type)
         .fetch_all(self.database.pool())
         .await
-        .map(|rows| rows.into_iter().map(dict_data).collect())
-        .map_err(StorageError::from)
+        .map_err(StorageError::from)?
+        .into_iter()
+        .map(dict_data)
+        .collect()
     }
 }
 
-fn type_predicate() -> &'static str {
-    "($1::text IS NULL OR dict_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR dict_type ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::timestamptz IS NULL OR create_time >= $4) AND ($5::timestamptz IS NULL OR create_time <= $5)"
-}
-fn type_list_sql() -> String {
-    format!("SELECT {TYPE_COLUMNS} FROM sys_dict_type WHERE {} ORDER BY dict_id ASC", type_predicate())
-}
-fn type_page_sql() -> String {
-    format!(
-        "SELECT {TYPE_COLUMNS} FROM sys_dict_type WHERE {} ORDER BY dict_id ASC LIMIT $6 OFFSET $7",
-        type_predicate()
-    )
-}
-fn type_total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_dict_type WHERE {}", type_predicate())
-}
-fn data_predicate() -> &'static str {
-    "($1::text IS NULL OR dict_type=$1) AND ($2::text IS NULL OR dict_label ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR status=$3) AND ($4::timestamptz IS NULL OR create_time >= $4) AND ($5::timestamptz IS NULL OR create_time <= $5)"
-}
-fn data_page_sql() -> String {
-    format!(
-        "SELECT {DATA_COLUMNS} FROM sys_dict_data WHERE {} ORDER BY dict_sort ASC LIMIT $6 OFFSET $7",
-        data_predicate()
-    )
-}
-fn data_total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_dict_data WHERE {}", data_predicate())
-}
-fn insert_data_sql() -> &'static str {
+pub(super) fn insert_data_sql() -> &'static str {
     "INSERT INTO sys_dict_data (dict_code,dict_sort,dict_label,dict_value,dict_type,css_class,list_class,is_default,status,remark,create_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"
 }
-fn update_data_sql() -> &'static str {
+pub(super) fn update_data_sql() -> &'static str {
     "UPDATE sys_dict_data SET dict_sort=$2,dict_label=$3,dict_value=$4,dict_type=$5,css_class=$6,list_class=$7,is_default=$8,status=$9,remark=$10,update_time=CURRENT_TIMESTAMP WHERE dict_code=$1"
 }
-fn ensure_rows(rows: u64) -> StorageResult<()> {
+pub(super) fn ensure_rows(rows: u64) -> StorageResult<()> {
     if rows == 0 {
         return Err(StorageError::NotFound);
     }
     Ok(())
 }
 
-fn ensure_batch_rows(rows: u64, expected: usize) -> StorageResult<()> {
+pub(super) fn ensure_batch_rows(rows: u64, expected: usize) -> StorageResult<()> {
     if rows != expected as u64 {
         return Err(StorageError::NotFound);
     }

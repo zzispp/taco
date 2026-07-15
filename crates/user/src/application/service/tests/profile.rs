@@ -1,10 +1,9 @@
 use super::*;
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn profile_returns_user_groups() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
-    let service = UserService::new(repository, TestPasswordHasher);
+    let service = user_service_with_login_security(repository);
 
     let profile = service.profile(user_id(1)).await.unwrap();
 
@@ -13,7 +12,6 @@ async fn profile_returns_user_groups() {
     assert_eq!(profile.dept_name.as_deref(), Some("部门103"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn update_profile_rejects_duplicate_email() {
     let users = vec![stored_user(1, "alice", "hashed:secret123"), stored_user(2, "bob", "hashed:secret123")];
@@ -24,7 +22,6 @@ async fn update_profile_rejects_duplicate_email() {
     assert!(matches!(result, Err(AppError::Conflict(_))));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn update_profile_rejects_invalid_email_format() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -38,7 +35,6 @@ async fn update_profile_rejects_invalid_email_format() {
     ));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn update_profile_rejects_invalid_phone_format() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -52,7 +48,6 @@ async fn update_profile_rejects_invalid_phone_format() {
     ));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn update_profile_changes_allowed_fields() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -67,7 +62,6 @@ async fn update_profile_changes_allowed_fields() {
     assert_eq!(user.phonenumber.as_deref(), Some("13900000000"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn change_password_rejects_wrong_old_password() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -78,7 +72,6 @@ async fn change_password_rejects_wrong_old_password() {
     assert!(matches!(result, Err(AppError::Unauthorized)));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn change_password_rejects_same_password() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -89,11 +82,10 @@ async fn change_password_rejects_same_password() {
     assert!(matches!(result, Err(AppError::Conflict(_))));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn change_password_updates_password_hash() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
-    let service = UserService::new(repository, TestPasswordHasher);
+    let service = user_service_with_login_security(repository);
 
     service.change_password(user_id(1), VALID_PASSWORD.into(), "newsecret123".into()).await.unwrap();
 
@@ -104,10 +96,9 @@ async fn change_password_updates_password_hash() {
         })
         .await
         .unwrap();
-    assert_eq!(result.username, "alice");
+    assert_eq!(result.user().username, "alice");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn update_avatar_persists_url() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));

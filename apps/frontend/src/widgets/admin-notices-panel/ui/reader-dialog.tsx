@@ -20,8 +20,9 @@ import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+
+import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
 
 export function NoticeReaderDialog({ controller }: { controller: NoticeManagementController }) {
   const { t } = useTranslate('admin');
@@ -84,7 +85,7 @@ function ReaderTable({ controller }: { controller: NoticeManagementController })
           <ManagementTableHead head={head} rowCount={resources.readers.items.length} />
           <TableBody>
             {resources.readers.isLoading ? (
-              <TableLoadingRows head={head} rows={state.readerRowsPerPage} />
+              <TableLoadingRows head={head} rows={state.readerTable.limit} />
             ) : (
               resources.readers.items.map((reader) => (
                 <TableRow hover key={`${reader.user_id}-${reader.read_time}`}>
@@ -97,21 +98,23 @@ function ReaderTable({ controller }: { controller: NoticeManagementController })
               ))
             )}
             <TableNoData
+              colSpan={head.length}
               title={t('common.noData')}
               notFound={!resources.readers.isLoading && resources.readers.items.length === 0}
             />
           </TableBody>
         </Table>
       </Scrollbar>
-      <TablePaginationCustom
-        page={state.readerPage}
-        count={resources.readers.total}
-        rowsPerPage={state.readerRowsPerPage}
-        onPageChange={(_, page) => state.setReaderPage(page)}
-        onRowsPerPageChange={(event) => {
-          state.setReaderRowsPerPage(Number(event.target.value));
-          state.setReaderPage(0);
-        }}
+      <CursorPagination
+        limit={state.readerTable.limit}
+        itemCount={resources.readers.itemCount}
+        visitedBatchIndex={state.readerTable.visitedBatchIndex}
+        hasPrevious={resources.readers.hasPrevious}
+        hasNext={resources.readers.hasNext}
+        pending={resources.readers.isValidating}
+        onPrevious={() => state.readerTable.onPreviousCursor(resources.readers.previousCursor)}
+        onNext={() => state.readerTable.onNextCursor(resources.readers.nextCursor)}
+        onLimitChange={state.readerTable.onChangeLimit}
       />
     </>
   );

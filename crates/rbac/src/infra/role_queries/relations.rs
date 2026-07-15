@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use sqlx::{AssertSqlSafe, Postgres, query, query_as, query_scalar};
 use storage::{StorageError, StorageResult};
 
-use crate::domain::RoleDataScopeInput;
-use types::rbac::DATA_SCOPE_CUSTOM;
+use crate::domain::{DataScope, RoleDataScopeInput};
 
 const ROLE_MENU_TABLE: &str = "sys_role_menu";
 const ROLE_DEPT_TABLE: &str = "sys_role_dept";
@@ -32,7 +31,10 @@ struct RoleUniqueCheck<'a> {
 }
 
 pub(super) async fn normalize_data_scope_dept_ids(pool: &sqlx::PgPool, input: &RoleDataScopeInput) -> StorageResult<Vec<String>> {
-    if input.data_scope != DATA_SCOPE_CUSTOM || !input.dept_check_strictly {
+    if input.data_scope != DataScope::Custom.code() {
+        return Ok(Vec::new());
+    }
+    if !input.dept_check_strictly {
         return Ok(unique_ids(&input.dept_ids));
     }
     let rows = query_as::<_, (String, String)>("SELECT dept_id, ancestors FROM sys_dept WHERE dept_id = ANY($1) AND del_flag = '0'")
@@ -88,6 +90,28 @@ pub(super) async fn replace_dept_ids(pool: &sqlx::PgPool, role_id: &str, ids: Ve
     .await
 }
 
+pub(super) async fn replace_menu_ids_in_transaction(tx: &mut RoleTx<'_>, role_id: &str, ids: Vec<String>) -> StorageResult<()> {
+    replace_ids_in_transaction(
+        tx,
+        RelationReplacement {
+            target: menu_target(role_id),
+            ids,
+        },
+    )
+    .await
+}
+
+pub(super) async fn replace_dept_ids_in_transaction(tx: &mut RoleTx<'_>, role_id: &str, ids: Vec<String>) -> StorageResult<()> {
+    replace_ids_in_transaction(
+        tx,
+        RelationReplacement {
+            target: dept_target(role_id),
+            ids,
+        },
+    )
+    .await
+}
+
 pub(super) async fn insert_dept_ids(tx: &mut RoleTx<'_>, role_id: &str, ids: Vec<String>) -> StorageResult<()> {
     insert_ids(
         tx,
@@ -133,24 +157,33 @@ pub(super) async fn role_key_exists(pool: &sqlx::PgPool, key: &str, current_id: 
 
 pub(super) async fn replace_user_ids(pool: &sqlx::PgPool, role_id: &str, user_ids: Vec<String>) -> StorageResult<()> {
     let mut tx = pool.begin().await?;
+    insert_user_ids(&mut tx, role_id, user_ids).await?;
+    tx.commit().await.map_err(StorageError::from)
+}
+
+pub(super) async fn insert_user_ids(tx: &mut RoleTx<'_>, role_id: &str, user_ids: Vec<String>) -> StorageResult<()> {
     for id in user_ids {
         query("INSERT INTO sys_user_role (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
             .bind(id)
             .bind(role_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
     }
-    tx.commit().await.map_err(StorageError::from)
+    Ok(())
 }
 
 async fn replace_ids(pool: &sqlx::PgPool, replacement: RelationReplacement<'_>) -> StorageResult<()> {
     let mut tx = pool.begin().await?;
+    replace_ids_in_transaction(&mut tx, replacement).await?;
+    tx.commit().await.map_err(StorageError::from)
+}
+
+async fn replace_ids_in_transaction(tx: &mut RoleTx<'_>, replacement: RelationReplacement<'_>) -> StorageResult<()> {
     query(AssertSqlSafe(format!("DELETE FROM {} WHERE role_id = $1", replacement.target.table)))
         .bind(replacement.target.role_id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
-    insert_ids(&mut tx, replacement).await?;
-    tx.commit().await.map_err(StorageError::from)
+    insert_ids(tx, replacement).await
 }
 
 async fn insert_ids(tx: &mut RoleTx<'_>, replacement: RelationReplacement<'_>) -> StorageResult<()> {
@@ -180,7 +213,7 @@ async fn binding_ids(pool: &sqlx::PgPool, target: RelationTarget<'_>) -> Storage
 
 async fn unique_exists(pool: &sqlx::PgPool, check: RoleUniqueCheck<'_>) -> StorageResult<bool> {
     query_scalar::<_, bool>(AssertSqlSafe(format!(
-        "SELECT EXISTS(SELECT 1 FROM sys_role WHERE del_flag='0' AND {}=$1 AND ($2::text IS NULL OR role_id<>$2))",
+        "SELECT EXISTS(SELECT 1 FROM sys_role WHERE {}=$1 AND ($2::text IS NULL OR role_id<>$2))",
         check.column
     )))
     .bind(check.value)

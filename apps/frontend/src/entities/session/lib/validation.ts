@@ -117,7 +117,9 @@ export function createIdentifierSchema(messages: SessionValidationMessages) {
       z
         .string()
         .min(1, { error: messages.identifierRequired })
-        .refine((value) => isValidIdentifier(value, messages), { error: messages.identifierInvalid })
+        .refine((value) => isValidIdentifier(value, messages), {
+          error: messages.identifierInvalid,
+        })
     );
 }
 
@@ -136,7 +138,7 @@ function defaultPasswordPolicy(): PasswordPolicy {
     require_letter: false,
     require_number: false,
     require_symbol: false,
-    forbid_username_contains: false,
+    forbid_username_contains: true,
   };
 }
 

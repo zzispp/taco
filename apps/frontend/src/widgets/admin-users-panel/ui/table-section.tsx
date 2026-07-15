@@ -4,8 +4,9 @@ import type { TranslateFn } from 'src/shared/i18n';
 import type { RoleOption } from 'src/entities/role';
 import type { SystemUser } from 'src/entities/user';
 import type { UserFiltersValue } from './constants';
-import type { TableHeadCellProps } from 'src/shared/ui/table';
 import type { Post, TreeSelectNode } from 'src/entities/system';
+import type { CursorResourceState } from 'src/shared/api/use-cursor-resource';
+import type { UseTableReturn, TableHeadCellProps } from 'src/shared/ui/table';
 import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
 import Card from '@mui/material/Card';
@@ -15,8 +16,9 @@ import TableBody from '@mui/material/TableBody';
 
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+
+import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { UserRow } from './user-row';
 import { UserFilters } from './filters';
@@ -52,12 +54,16 @@ export function UserTableSection(props: UserTableSectionProps) {
             <UserTableContent props={{ ...props, t }} />
           </Table>
         </Scrollbar>
-        <TablePaginationCustom
-          page={table.page}
-          count={users.total}
-          rowsPerPage={table.rowsPerPage}
-          onPageChange={table.onChangePage}
-          onRowsPerPageChange={table.onChangeRowsPerPage}
+        <CursorPagination
+          limit={table.limit}
+          itemCount={users.itemCount}
+          visitedBatchIndex={table.visitedBatchIndex}
+          hasPrevious={users.hasPrevious}
+          hasNext={users.hasNext}
+          pending={users.isValidating}
+          onPrevious={() => table.onPreviousCursor(users.previousCursor)}
+          onNext={() => table.onNextCursor(users.nextCursor)}
+          onLimitChange={table.onChangeLimit}
         />
       </Card>
     </Stack>
@@ -77,6 +83,7 @@ function UserTableContent({ props }: { props: UserTableContentProps }) {
       <TableBody>
         <UserRows props={props} />
         <TableNoData
+          colSpan={props.loadingHead.length}
           title={props.t('common.noData')}
           notFound={!props.users.isLoading && props.users.items.length === 0}
         />
@@ -87,7 +94,7 @@ function UserTableContent({ props }: { props: UserTableContentProps }) {
 
 function UserRows({ props }: { props: UserTableContentProps }) {
   if (props.users.isLoading) {
-    return <TableLoadingRows head={props.loadingHead} rows={props.table.rowsPerPage} />;
+    return <TableLoadingRows head={props.loadingHead} rows={props.table.limit} />;
   }
   return props.users.items.map((row) => (
     <UserRow
@@ -107,24 +114,11 @@ function UserRows({ props }: { props: UserTableContentProps }) {
   ));
 }
 
-type TableState = {
-  page: number;
-  rowsPerPage: number;
-  onChangePage: (event: unknown, page: number) => void;
-  onChangeRowsPerPage: (event: React.ChangeEvent<HTMLInputElement>) => void;
-};
-
-type UsersResource = {
-  items: SystemUser[];
-  total: number;
-  isLoading: boolean;
-};
-
 type UserTableSectionProps = {
-  table: TableState;
+  table: UseTableReturn;
   filters: UserFiltersValue;
   filterError: LocalDateTimeFilterError | null;
-  users: UsersResource;
+  users: CursorResourceState<SystemUser>;
   roles: RoleOption[];
   depts: FlatNode[];
   posts: Post[];

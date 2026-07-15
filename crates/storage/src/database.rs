@@ -1,4 +1,4 @@
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{PgPool, Postgres, Transaction, postgres::PgPoolOptions, query};
 use uuid::Uuid;
 
 use crate::{StorageError, StorageResult};
@@ -23,6 +23,15 @@ impl Database {
 
     pub fn into_inner(self) -> PgPool {
         self.pool
+    }
+
+    /// Starts one read-only repeatable-read transaction for a multi-batch export.
+    pub async fn begin_consistent_snapshot(&self) -> StorageResult<Transaction<'static, Postgres>> {
+        let mut transaction = self.pool.begin().await?;
+        query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            .execute(&mut *transaction)
+            .await?;
+        Ok(transaction)
     }
 }
 

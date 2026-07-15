@@ -4,7 +4,8 @@ import type { DeptInput, TreeSelectNode } from 'src/entities/system';
 import MenuItem from '@mui/material/MenuItem';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/shared/ui/admin';
+
+import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/widgets/admin-common';
 
 export function DeptDialog({
   open,
@@ -34,6 +35,21 @@ export function DeptDialog({
       onClose={onClose}
       onSubmit={onSubmit}
     >
+      <DeptFields form={form} parentNodes={parentNodes} setForm={setForm} />
+    </ManagementDialog>
+  );
+}
+
+type DeptFieldsProps = Readonly<{
+  form: DeptInput;
+  parentNodes: TreeSelectNode[];
+  setForm: React.Dispatch<React.SetStateAction<DeptInput>>;
+}>;
+
+function DeptFields({ form, parentNodes, setForm }: DeptFieldsProps) {
+  const { t } = useTranslate('admin');
+  return (
+    <>
       <TreeSelectField
         label={t('fields.parentDept')}
         value={form.parent_id}
@@ -76,6 +92,6 @@ export function DeptDialog({
         <MenuItem value="0">{t('common.enabled')}</MenuItem>
         <MenuItem value="1">{t('common.disabled')}</MenuItem>
       </TextFieldRow>
-    </ManagementDialog>
+    </>
   );
 }

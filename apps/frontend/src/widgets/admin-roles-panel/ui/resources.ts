@@ -3,9 +3,8 @@ import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-fi
 import { useMemo, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
-import { useTable } from 'src/shared/ui/table';
-import { withSelectionHead } from 'src/shared/ui/admin';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 import { LOCAL_DATE_TIME_FILTER_ERROR_TRANSLATION_KEY } from 'src/shared/lib/local-date-time-filter';
 
@@ -14,16 +13,18 @@ import { useHasPermission } from 'src/entities/session';
 
 import { exportRoles } from 'src/features/role-management';
 
+import { withSelectionHead } from 'src/widgets/admin-common';
+
 import { roleHead } from './helpers';
 import { DEFAULT_FILTERS } from './constants';
 
 export function useRoleResources() {
   const { t } = useTranslate('admin');
-  const table = useTable({ defaultRowsPerPage: 10 });
+  const table = useTable({ defaultLimit: DEFAULT_TABLE_LIMIT });
   const filters = useLocalDateTimeFilterState(DEFAULT_FILTERS, {
-    onValidQuery: table.onResetPage,
+    onValidQuery: table.onResetCursor,
   });
-  const roles = useRoles(table.page, table.rowsPerPage, filters.query);
+  const roles = useRoles(table.cursorRequest, filters.query);
   const head = useMemo(() => roleHead(t), [t]);
   const canAdd = useHasPermission('system:role:add');
   const canDelete = useHasPermission('system:role:remove');

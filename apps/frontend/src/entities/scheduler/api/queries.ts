@@ -1,6 +1,4 @@
-import type { AxiosRequestConfig } from 'axios';
-import type { PageResponse } from 'src/shared/api/types';
-import type { QueryParams } from 'src/shared/api/pagination';
+import type { QueryParams, CursorPageRequest } from 'src/shared/api/pagination';
 import type {
   SchedulerJob,
   ImportableTask,
@@ -10,23 +8,20 @@ import type {
 } from '../model/types';
 
 import useSWR from 'swr';
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { fetcher } from 'src/shared/api/http-client';
-import { pageQuery } from 'src/shared/api/pagination';
+import { cursorResourceKey, useCursorResource } from 'src/shared/api/use-cursor-resource';
 
 import { schedulerEndpoints } from './endpoints';
 
-type SchedulerPageRequest = {
+type SchedulerCursorRequest = {
   endpoint: string;
-  page: number;
-  pageSize: number;
+  request: CursorPageRequest;
   params: QueryParams;
   language: string;
 };
 
-type SchedulerPageKey = readonly [string, AxiosRequestConfig, string];
 type SchedulerJobKey = readonly [string, string];
 type SchedulerJobLogDetailKey = readonly [string, string];
 
@@ -45,30 +40,19 @@ type SchedulerJobLogDetailAccess = Readonly<{
 
 type SchedulerJobLogDetailKeyRequest = SchedulerJobLogDetailAccess & Readonly<{ language: string }>;
 
-const schedulerSWRConfig = {
-  keepPreviousData: true,
-  revalidateOnFocus: false,
-};
-
-export function useSchedulerJobs(page: number, pageSize: number, params: QueryParams = {}) {
-  return useSchedulerPagedResource<SchedulerJob>({
+export function useSchedulerJobs(request: CursorPageRequest, params: QueryParams = {}) {
+  return useSchedulerCursorResource<SchedulerJob>({
     endpoint: schedulerEndpoints.jobs,
-    page,
-    pageSize,
+    request,
     params,
     language: useSchedulerLanguage(),
   });
 }
 
-export function useSchedulerJobLogs(
-  page: number,
-  pageSize: number,
-  params: SchedulerJobLogQuery = {}
-) {
-  return useSchedulerPagedResource<SchedulerJobLog>({
+export function useSchedulerJobLogs(request: CursorPageRequest, params: SchedulerJobLogQuery = {}) {
+  return useSchedulerCursorResource<SchedulerJobLog>({
     endpoint: schedulerEndpoints.jobLogs,
-    page,
-    pageSize,
+    request,
     params,
     language: useSchedulerLanguage(),
   });
@@ -96,9 +80,15 @@ export function useSchedulerJobLogDetail(access: SchedulerJobLogDetailAccess) {
   });
 }
 
-export function schedulerPageKey(request: SchedulerPageRequest): SchedulerPageKey {
-  const config = { params: pageQuery(request.page, request.pageSize, request.params) };
-  return [request.endpoint, config, request.language];
+export function schedulerCursorKey(request: SchedulerCursorRequest) {
+  const key = cursorResourceKey({
+    endpoint: request.endpoint,
+    request: request.request,
+    params: request.params,
+    context: request.language,
+  });
+  if (!key) throw new Error('Scheduler cursor endpoint is required');
+  return key;
 }
 
 export function importableSchedulerTasksKey(enabled: boolean, language: string) {
@@ -115,32 +105,18 @@ export function schedulerJobLogDetailKey(request: SchedulerJobLogDetailKeyReques
   return [schedulerEndpoints.jobLogDetail(request.executionId), request.language] as const;
 }
 
-function useSchedulerPagedResource<T>(request: SchedulerPageRequest) {
-  const { data, isLoading, error, isValidating } = useSWR<PageResponse<T>>(
-    schedulerPageKey(request),
-    fetchSchedulerPage,
-    schedulerSWRConfig
-  );
-  return useMemo(
-    () => ({
-      data,
-      items: data?.items ?? [],
-      total: data?.total ?? 0,
-      isLoading,
-      error,
-      isValidating,
-    }),
-    [data, error, isLoading, isValidating]
-  );
+function useSchedulerCursorResource<T>(request: SchedulerCursorRequest) {
+  return useCursorResource<T>({
+    endpoint: request.endpoint,
+    request: request.request,
+    params: request.params,
+    context: request.language,
+  });
 }
 
 function useSchedulerLanguage() {
   const { i18n } = useTranslation();
   return i18n.resolvedLanguage ?? i18n.language;
-}
-
-function fetchSchedulerPage<T>([endpoint, config]: SchedulerPageKey) {
-  return fetcher<PageResponse<T>>([endpoint, config]);
 }
 
 function fetchImportableTasks([endpoint]: readonly [string, string]) {

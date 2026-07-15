@@ -1,4 +1,3 @@
-#[cfg(not(miri))]
 #[test]
 fn scheduled_task_macro_contracts_compile_as_declared() {
     let tests = trybuild::TestCases::new();

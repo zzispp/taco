@@ -169,9 +169,11 @@ export function softStyles(theme: Theme, colorKey: ColorKey, options?: StyleOpti
     return {};
   }
 
-  if (colorKey === 'default') return { ...filledStyles(theme, 'default', options), boxShadow: 'none' };
+  if (colorKey === 'default')
+    return { ...filledStyles(theme, 'default', options), boxShadow: 'none' };
   if (colorKey === 'inherit') return softInheritStyles(theme, options);
-  if (colorKey === 'white' || colorKey === 'black') return softCommonStyles(theme, colorKey, options);
+  if (colorKey === 'white' || colorKey === 'black')
+    return softCommonStyles(theme, colorKey, options);
   return softPaletteStyles(theme, colorKey, options);
 }
 
@@ -198,7 +200,11 @@ function filledInheritStyles(theme: Theme, options?: StyleOptions): CSSObject {
   };
 }
 
-function filledCommonStyles(theme: Theme, colorKey: 'white' | 'black', options?: StyleOptions): CSSObject {
+function filledCommonStyles(
+  theme: Theme,
+  colorKey: 'white' | 'black',
+  options?: StyleOptions
+): CSSObject {
   return {
     color: theme.vars.palette.common[colorKey === 'white' ? 'black' : 'white'],
     backgroundColor: theme.vars.palette.common[colorKey],
@@ -211,7 +217,11 @@ function filledCommonStyles(theme: Theme, colorKey: 'white' | 'black', options?:
   };
 }
 
-function filledPaletteStyles(theme: Theme, colorKey: PaletteColorKey, options?: StyleOptions): CSSObject {
+function filledPaletteStyles(
+  theme: Theme,
+  colorKey: PaletteColorKey,
+  options?: StyleOptions
+): CSSObject {
   return {
     color: theme.vars.palette[colorKey].contrastText,
     backgroundColor: theme.vars.palette[colorKey].main,
@@ -224,12 +234,19 @@ function softInheritStyles(theme: Theme, options?: StyleOptions): CSSObject {
     boxShadow: 'none',
     backgroundColor: varAlpha(theme.vars.palette.grey['500Channel'], theme.vars.opacity.soft.bg),
     ...getHoverStyles(options?.hover, {
-      backgroundColor: varAlpha(theme.vars.palette.grey['500Channel'], theme.vars.opacity.soft.hoverBg),
+      backgroundColor: varAlpha(
+        theme.vars.palette.grey['500Channel'],
+        theme.vars.opacity.soft.hoverBg
+      ),
     }),
   };
 }
 
-function softCommonStyles(theme: Theme, colorKey: 'white' | 'black', options?: StyleOptions): CSSObject {
+function softCommonStyles(
+  theme: Theme,
+  colorKey: 'white' | 'black',
+  options?: StyleOptions
+): CSSObject {
   return {
     boxShadow: 'none',
     color: theme.vars.palette.common[colorKey],
@@ -240,7 +257,11 @@ function softCommonStyles(theme: Theme, colorKey: 'white' | 'black', options?: S
   };
 }
 
-function softPaletteStyles(theme: Theme, colorKey: PaletteColorKey, options?: StyleOptions): CSSObject {
+function softPaletteStyles(
+  theme: Theme,
+  colorKey: PaletteColorKey,
+  options?: StyleOptions
+): CSSObject {
   return {
     boxShadow: 'none',
     color: theme.vars.palette[colorKey].dark,

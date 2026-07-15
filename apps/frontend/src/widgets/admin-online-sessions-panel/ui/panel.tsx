@@ -16,8 +16,7 @@ export function OnlineSessionsPanel() {
       <OnlineSessionsTableSection
         table={resources.table}
         filters={resources.filters}
-        rows={resources.rows}
-        total={resources.sessions.total}
+        sessions={resources.sessions}
         head={resources.head}
         loading={resources.sessions.isLoading}
         canForceLogout={resources.canForceLogout}

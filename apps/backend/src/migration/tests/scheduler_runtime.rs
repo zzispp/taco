@@ -4,110 +4,50 @@ use axum::{http::StatusCode, response::IntoResponse};
 use scheduler::{
     api::SchedulerApiError,
     application::{
-        ClaimExecutionRequest, ExecutionLease, FinishExecutionRequest, ImportJobCommand, LeaderLease, SchedulerError, SchedulerRuntimeStore, SchedulerService,
-        SchedulerServiceParts, SchedulerUseCase, UpdateJobStatusCommand,
+        ClaimExecutionRequest, FinishExecutionRequest, ImportJobCommand, SchedulerError, SchedulerRuntimeStore, SchedulerService, SchedulerServiceParts,
+        SchedulerUseCase, UpdateJobStatusCommand,
         task::{ScheduledTaskMetadata, StaticTaskCatalog},
         tasks::{HttpRequestTask, RefreshConfigCacheTask, RefreshDictCacheTask},
     },
     domain::{ConcurrentPolicy, ExecutionDetail, ExecutionOutcome, ExecutionState, JobStatus, LocalizedMessage, MisfirePolicy},
-    infra::{PostgresExecutionLease, PostgresLeaderLease, StorageSchedulerRepository},
+    infra::StorageSchedulerRepository,
 };
 use serde_json::json;
-use sqlx::{PgPool, query_scalar};
+use sqlx::PgPool;
 use storage::Database;
 
 use super::{TestDatabase, fresh};
 
-const EXECUTION_ID: &str = "execution-lease-test";
-const SECOND_EXECUTION_ID: &str = "execution-lease-test-two";
+mod leases;
+
 const EXECUTOR_EPOCH: &str = "executor-test-epoch";
 const SCHEDULER_EXECUTION_ACTIVE: &str = "scheduler_execution_active";
 const LARGE_DETAIL_BODY_LENGTH: usize = 32_768;
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
-#[tokio::test]
-async fn postgres_leases_enforce_single_ownership_and_allow_takeover() {
-    let database = TestDatabase::create().await;
-    fresh(database.pool()).await.unwrap();
-
-    assert_leader_release_takeover(database.pool()).await;
-    assert_leader_session_loss_takeover(database.pool()).await;
-    assert_execution_lease_ownership(database.pool()).await;
-
-    database.drop().await;
-}
-
-async fn assert_leader_release_takeover(pool: &PgPool) {
-    let first = PostgresLeaderLease::new(pool.clone());
-    let second = PostgresLeaderLease::new(pool.clone());
-    let mut leader = first.try_acquire().await.unwrap().unwrap();
-
-    assert!(leader.is_alive().await.unwrap());
-    assert!(second.try_acquire().await.unwrap().is_none());
-    leader.release().await.unwrap();
-
-    let mut successor = second.try_acquire().await.unwrap().unwrap();
-    assert!(successor.is_alive().await.unwrap());
-    successor.release().await.unwrap();
-}
-
-async fn assert_leader_session_loss_takeover(pool: &PgPool) {
-    let first = PostgresLeaderLease::new(pool.clone());
-    let second = PostgresLeaderLease::new(pool.clone());
-    let mut leader = first.try_acquire().await.unwrap().unwrap();
-
-    terminate_advisory_lock_holder(pool).await;
-    assert!(matches!(leader.is_alive().await, Err(SchedulerError::Infrastructure(_))));
-    drop(leader);
-
-    let mut successor = second.try_acquire().await.unwrap().unwrap();
-    assert!(successor.is_alive().await.unwrap());
-    successor.release().await.unwrap();
-}
-
-async fn terminate_advisory_lock_holder(pool: &PgPool) {
-    let pid = query_scalar::<_, i32>(
-        "SELECT pid FROM pg_locks WHERE locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND granted",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    let terminated = query_scalar::<_, bool>("SELECT pg_terminate_backend($1)")
-        .bind(pid)
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert!(terminated);
-}
-
-async fn assert_execution_lease_ownership(pool: &PgPool) {
-    let lease = PostgresExecutionLease::new(pool.clone());
-    let mut session = lease.open_session().await.unwrap();
-
-    assert!(session.try_acquire(EXECUTION_ID).await.unwrap());
-    assert!(lease.is_owned(EXECUTION_ID).await.unwrap());
-    session.release(EXECUTION_ID).await.unwrap();
-    assert!(!lease.is_owned(EXECUTION_ID).await.unwrap());
-
-    assert!(session.try_acquire(EXECUTION_ID).await.unwrap());
-    assert!(session.try_acquire(SECOND_EXECUTION_ID).await.unwrap());
-    session.release_all().await.unwrap();
-    assert!(!lease.is_owned(EXECUTION_ID).await.unwrap());
-    assert!(!lease.is_owned(SECOND_EXECUTION_ID).await.unwrap());
-}
-
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn scheduler_repository_serializes_manual_runs_and_preserves_running_snapshots() {
     let database = TestDatabase::create().await;
     fresh(database.pool()).await.unwrap();
     let harness = SchedulerHarness::new(database.pool());
-    let job_id = harness.import_job().await;
+    let job_id = harness.import_job(ConcurrentPolicy::Disallow).await;
 
     let pending_id = assert_one_manual_run_is_accepted(&harness.service, &job_id).await;
     harness.pause_and_assert_pending_cancelled(&job_id, &pending_id).await;
     harness.run_delete_and_finish_snapshot(&job_id).await;
 
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn scheduler_repository_allows_overlapping_manual_runs_when_policy_allows() {
+    let database = TestDatabase::create().await;
+    fresh(database.pool()).await.unwrap();
+    let harness = SchedulerHarness::new(database.pool());
+    let job_id = harness.import_job(ConcurrentPolicy::Allow).await;
+
+    let execution_ids = assert_two_manual_runs_are_accepted(&harness.service, &job_id).await;
+
+    assert_ne!(execution_ids[0], execution_ids[1]);
     database.drop().await;
 }
 
@@ -128,14 +68,15 @@ impl SchedulerHarness {
         let service = Arc::new(SchedulerService::new(SchedulerServiceParts {
             query: repository.clone(),
             commands: repository.clone(),
+            audited_commands: repository.clone(),
             catalog,
             clock: repository.clone(),
         }));
         Self { service, repository }
     }
 
-    pub(super) async fn import_job(&self) -> String {
-        self.service.import_job(test_job_command()).await.unwrap().job.id
+    pub(super) async fn import_job(&self, concurrent: ConcurrentPolicy) -> String {
+        self.service.import_job(test_job_command(concurrent)).await.unwrap().job.id
     }
 
     async fn pause_and_assert_pending_cancelled(&self, job_id: &str, execution_id: &str) {
@@ -155,7 +96,7 @@ impl SchedulerHarness {
         assert!(!execution.has_detail);
         let detail = self.service.get_job_log_detail(execution_id).await.unwrap();
         assert_eq!(detail.detail, None);
-        assert_eq!(detail.task_params, test_job_command().task_params);
+        assert_eq!(detail.task_params, json!({}));
     }
 
     async fn run_delete_and_finish_snapshot(&self, job_id: &str) {
@@ -199,7 +140,7 @@ impl SchedulerHarness {
         let stored = self.service.get_job_log_detail(execution_id).await.unwrap();
         assert_eq!(stored.detail, Some(detail));
         assert_eq!(stored.requested_by.as_deref(), Some("running-user"));
-        assert_eq!(stored.task_params, test_job_command().task_params);
+        assert_eq!(stored.task_params, json!({}));
         assert_eq!(self.repository.running_executions().await.unwrap().len(), 0);
     }
 }
@@ -223,6 +164,11 @@ async fn assert_one_manual_run_is_accepted(service: &SchedulerService, job_id: &
     accepted.pop().unwrap()
 }
 
+async fn assert_two_manual_runs_are_accepted(service: &SchedulerService, job_id: &str) -> [String; 2] {
+    let (first, second) = tokio::join!(service.run_job(job_id, "manual-one"), service.run_job(job_id, "manual-two"));
+    [first.unwrap(), second.unwrap()]
+}
+
 fn assert_active_conflict(error: SchedulerError) {
     match &error {
         SchedulerError::Conflict { code, details } => {
@@ -241,14 +187,14 @@ async fn assert_running_execution(repository: &StorageSchedulerRepository, execu
     assert_eq!(running[0].state, ExecutionState::Running);
 }
 
-fn test_job_command() -> ImportJobCommand {
+fn test_job_command(concurrent: ConcurrentPolicy) -> ImportJobCommand {
     ImportJobCommand {
         task_key: "httpClient.request".into(),
         name: "manual concurrency test".into(),
         group: "SYSTEM".into(),
         cron_expression: "0 * * * * *".into(),
         misfire_policy: MisfirePolicy::DoNothing,
-        concurrent: ConcurrentPolicy::Allow,
+        concurrent,
         task_params: json!({"method": "GET", "url": "https://example.test", "headers": {}}),
         remark: None,
         operator: "test-operator".into(),

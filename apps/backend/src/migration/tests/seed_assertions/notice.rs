@@ -20,7 +20,7 @@ const NOTICE_DICT_DATA: &[(&str, &str, &str, &str, &str, &str)] = &[
 const NOTICE_INDEXES: &[(&str, &str)] = &[
     ("sys_notice", "idx_sys_notice_order"),
     ("sys_notice", "idx_sys_notice_active"),
-    ("sys_notice_read", "idx_sys_notice_read_notice_time"),
+    ("sys_notice_read", "idx_sys_notice_read_cursor"),
 ];
 
 pub(super) async fn assert_notice_seed(pool: &PgPool) {

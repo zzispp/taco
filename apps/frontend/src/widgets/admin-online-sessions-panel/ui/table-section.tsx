@@ -1,6 +1,9 @@
-import type React from 'react';
-import type { TableHeadCellProps } from 'src/shared/ui/table';
-import type { OnlineSession, OnlineSessionFilters } from 'src/entities/online-session';
+import type { UseTableReturn, TableHeadCellProps } from 'src/shared/ui/table';
+import type {
+  OnlineSession,
+  useOnlineSessions,
+  OnlineSessionFilters,
+} from 'src/entities/online-session';
 
 import Card from '@mui/material/Card';
 import Table from '@mui/material/Table';
@@ -8,8 +11,9 @@ import TableBody from '@mui/material/TableBody';
 
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+
+import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { OnlineSessionRow } from './row';
 import { OnlineSessionFiltersBar } from './filters';
@@ -19,8 +23,7 @@ const ONLINE_SESSIONS_TABLE_MIN_WIDTH = 1510;
 export function OnlineSessionsTableSection({
   table,
   filters,
-  rows,
-  total,
+  sessions,
   head,
   loading,
   canForceLogout,
@@ -28,7 +31,6 @@ export function OnlineSessionsTableSection({
   onFilterChange,
   onForceLogout,
 }: OnlineSessionsTableSectionProps) {
-  const { t } = useTranslate('admin');
   return (
     <Card>
       <OnlineSessionFiltersBar
@@ -36,50 +38,83 @@ export function OnlineSessionsTableSection({
         errorMessage={filterErrorMessage}
         onChange={onFilterChange}
       />
-      <Scrollbar>
-        <Table sx={{ minWidth: ONLINE_SESSIONS_TABLE_MIN_WIDTH }}>
-          <ManagementTableHead head={head} />
-          <TableBody>
-            {loading ? (
-              <TableLoadingRows head={head} rows={table.rowsPerPage} />
-            ) : (
-              rows.map((row, rowIndex) => (
-                <OnlineSessionRow
-                  key={row.tokenId}
-                  row={row}
-                  index={table.page * table.rowsPerPage + rowIndex + 1}
-                  canForceLogout={canForceLogout}
-                  onForceLogout={onForceLogout}
-                />
-              ))
-            )}
-            <TableNoData title={t('common.noData')} notFound={!loading && rows.length === 0} />
-          </TableBody>
-        </Table>
-      </Scrollbar>
-      <TablePaginationCustom
-        page={table.page}
-        count={total}
-        rowsPerPage={table.rowsPerPage}
-        onPageChange={table.onChangePage}
-        onRowsPerPageChange={table.onChangeRowsPerPage}
+      <OnlineSessionsTable
+        table={table}
+        rows={sessions.rows}
+        head={head}
+        loading={loading}
+        canForceLogout={canForceLogout}
+        onForceLogout={onForceLogout}
       />
+      <OnlineSessionsPagination table={table} sessions={sessions} />
     </Card>
   );
 }
 
-type TableState = {
-  page: number;
-  rowsPerPage: number;
-  onChangePage: (event: unknown, page: number) => void;
-  onChangeRowsPerPage: (event: React.ChangeEvent<HTMLInputElement>) => void;
-};
+function OnlineSessionsTable({
+  table,
+  rows,
+  head,
+  loading,
+  canForceLogout,
+  onForceLogout,
+}: Pick<
+  OnlineSessionsTableSectionProps,
+  'table' | 'head' | 'loading' | 'canForceLogout' | 'onForceLogout'
+> & { rows: OnlineSession[] }) {
+  const { t } = useTranslate('admin');
+  return (
+    <Scrollbar>
+      <Table sx={{ minWidth: ONLINE_SESSIONS_TABLE_MIN_WIDTH }}>
+        <ManagementTableHead head={head} />
+        <TableBody>
+          {loading ? (
+            <TableLoadingRows head={head} rows={table.limit} />
+          ) : (
+            rows.map((row, rowIndex) => (
+              <OnlineSessionRow
+                key={row.tokenId}
+                row={row}
+                index={rowIndex + 1}
+                canForceLogout={canForceLogout}
+                onForceLogout={onForceLogout}
+              />
+            ))
+          )}
+          <TableNoData
+            colSpan={head.length}
+            title={t('common.noData')}
+            notFound={!loading && rows.length === 0}
+          />
+        </TableBody>
+      </Table>
+    </Scrollbar>
+  );
+}
+
+function OnlineSessionsPagination({
+  table,
+  sessions,
+}: Pick<OnlineSessionsTableSectionProps, 'table' | 'sessions'>) {
+  return (
+    <CursorPagination
+      limit={table.limit}
+      itemCount={sessions.itemCount}
+      visitedBatchIndex={table.visitedBatchIndex}
+      hasPrevious={sessions.hasPrevious}
+      hasNext={sessions.hasNext}
+      pending={sessions.isValidating}
+      onPrevious={() => table.onPreviousCursor(sessions.previousCursor)}
+      onNext={() => table.onNextCursor(sessions.nextCursor)}
+      onLimitChange={table.onChangeLimit}
+    />
+  );
+}
 
 type OnlineSessionsTableSectionProps = {
-  table: TableState;
+  table: UseTableReturn;
   filters: OnlineSessionFilters;
-  rows: OnlineSession[];
-  total: number;
+  sessions: ReturnType<typeof useOnlineSessions>;
   head: TableHeadCellProps[];
   loading: boolean;
   canForceLogout: boolean;

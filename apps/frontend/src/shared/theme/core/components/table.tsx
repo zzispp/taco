@@ -58,31 +58,6 @@ const MuiTableCell: Components<Theme>['MuiTableCell'] = {
   },
 };
 
-const MuiTablePagination: Components<Theme>['MuiTablePagination'] = {
-  // ▼▼▼▼▼▼▼▼ ⚙️ PROPS ▼▼▼▼▼▼▼▼
-  defaultProps: {
-    backIconButtonProps: { size: 'small' },
-    nextIconButtonProps: { size: 'small' },
-    slotProps: { select: { name: 'table-pagination-select' } },
-  },
-  // ▼▼▼▼▼▼▼▼ 🎨 STYLE ▼▼▼▼▼▼▼▼
-  styleOverrides: {
-    root: { width: '100%' },
-    toolbar: { height: 64 },
-    actions: { marginRight: 8 },
-    select: {
-      display: 'flex',
-      alignItems: 'center',
-    },
-    selectIcon: {
-      right: 4,
-      width: 16,
-      height: 16,
-      top: 'calc(50% - 8px)',
-    },
-  },
-};
-
 /* **********************************************************************
  * 🚀 Export
  * **********************************************************************/
@@ -90,5 +65,4 @@ export const table: Components<Theme> = {
   MuiTableRow,
   MuiTableCell,
   MuiTableContainer,
-  MuiTablePagination,
 };

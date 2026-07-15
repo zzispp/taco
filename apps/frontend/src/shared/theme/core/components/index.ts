@@ -34,7 +34,6 @@ import { timeline } from './timeline';
 import { checkbox } from './checkbox';
 import { accordion } from './accordion';
 import { textField } from './text-field';
-import { pagination } from './pagination';
 import { iconButton } from './button-icon';
 import { breadcrumbs } from './breadcrumbs';
 import { dataGrid } from './mui-x-data-grid';
@@ -71,7 +70,6 @@ export const components: Components<Theme> = {
   ...backdrop,
   ...progress,
   ...accordion,
-  ...pagination,
   ...breadcrumbs,
   // ➤➤ Forms ➤➤
   ...form,

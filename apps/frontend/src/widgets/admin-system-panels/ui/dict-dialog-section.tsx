@@ -40,7 +40,9 @@ function DictFormDialogs({ state, actions }: DictFormDialogsProps) {
         submitting={state.submitting}
         editing={!!state.editingType}
         setForm={state.setTypeForm}
-        onClose={() => closeTypeDialog(state.setEditingType, state.setCreatingType, state.setTypeForm)}
+        onClose={() =>
+          closeTypeDialog(state.setEditingType, state.setCreatingType, state.setTypeForm)
+        }
         onSubmit={actions.submitType}
       />
       <DictDataDialog
@@ -49,7 +51,9 @@ function DictFormDialogs({ state, actions }: DictFormDialogsProps) {
         submitting={state.submitting}
         editing={!!state.editingData}
         setForm={state.setDataForm}
-        onClose={() => closeDataDialog(state.setEditingData, state.setCreatingData, state.setDataForm)}
+        onClose={() =>
+          closeDataDialog(state.setEditingData, state.setCreatingData, state.setDataForm)
+        }
         onSubmit={actions.submitData}
       />
     </>

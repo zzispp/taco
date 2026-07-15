@@ -1,0 +1,25 @@
+{
+  "nav": {
+    "overview": "概览",
+    "dashboard": "仪表盘",
+    "resources": "资源",
+    "account": "账户",
+    "systemManagement": "系统管理",
+    "systemMonitor": "系统监控",
+    "users": "用户管理",
+    "roles": "角色管理",
+    "menus": "菜单管理",
+    "customKeyboardShortcuts": "自定义键盘快捷键。",
+    "depts": "部门管理",
+    "posts": "岗位管理",
+    "dicts": "字典管理",
+    "configs": "参数设置",
+    "online": "在线用户",
+    "jobs": "定时任务",
+    "jobLogs": "调度日志",
+    "notices": "通知公告",
+    "logManagement": "日志管理",
+    "operationLogs": "操作日志",
+    "loginLogs": "登录日志"
+  }
+}

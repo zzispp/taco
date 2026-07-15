@@ -1,9 +1,7 @@
 'use client';
 
-import { AddButton } from 'src/shared/ui/admin';
-
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
+import { AddButton, AdminBreadcrumbs } from 'src/widgets/admin-common';
 
 import { MenuTableSection } from './table-section';
 import { MenuDialogSection } from './dialog-section';

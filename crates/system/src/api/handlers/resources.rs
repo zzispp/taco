@@ -1,13 +1,35 @@
 use super::*;
 
+mod config;
+
+pub use config::{config_by_key, create_config, delete_config, delete_configs, export_configs, get_config, list_configs, refresh_config_cache, replace_config};
+
 #[require_perms("system:post:export")]
-pub async fn export_posts(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_posts(&state, post_export_filter(query)?).await?;
-    Ok(xlsx_attachment("posts.xlsx", export_posts_xlsx(&items, current_locale())?))
+pub async fn export_posts(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestQuery(query): RequestQuery<SystemExportQuery>,
+) -> ApiResult<Response> {
+    let batch_size = state.export_config.export_batch_config().await?.page_size;
+    let filter = post_export_filter(query)?.page_filter(CursorPageRequest::default());
+    let mut export = SystemXlsxExport::posts(current_locale())?;
+    state
+        .system
+        .export(
+            SystemExportRequest {
+                kind: SystemExportKind::Posts(filter),
+                batch_size,
+            },
+            &mut export,
+        )
+        .await?;
+    let artifact = export.finish()?;
+    crate::api::operation_audit::record_successful_operation(state.operation_audit.as_ref(), audit_context).await?;
+    Ok(xlsx_file_attachment("posts.xlsx", artifact))
 }
 
 #[require_perms("system:post:list")]
-pub async fn list_posts(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<Post>>> {
+pub async fn list_posts(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<CursorPage<Post>>> {
     Ok(ok(state.system.page_posts(post_list_filter(query)?).await?))
 }
 #[require_perms("system:post:query")]
@@ -21,39 +43,78 @@ pub async fn post_options(State(state): State<SystemApiState>) -> ApiResult<ApiJ
 }
 
 #[require_perms("system:post:add")]
-pub async fn create_post(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<PostInput>) -> ApiResult<ApiJson<Post>> {
-    Ok(ok(state.system.create_post(payload).await?))
+pub async fn create_post(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<PostInput>,
+) -> ApiResult<ApiJson<Post>> {
+    let audit = successful_operation_audit(audit_context)?;
+    let post = state.system_audited.create_post_with_audit(payload, audit.record()).await?;
+    audit.mark_persisted();
+    Ok(ok(post))
 }
 
 #[require_perms("system:post:edit")]
-pub async fn replace_post(
-    State(state): State<SystemApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<PostInput>,
-) -> ApiResult<ApiJson<Post>> {
-    Ok(ok(state.system.replace_post(&id, payload).await?))
+pub async fn replace_post((State(state), audit_context, Path(id), RequestJson(payload)): AuditedResourceJsonRequest<PostInput>) -> ApiResult<ApiJson<Post>> {
+    let audit = successful_operation_audit(audit_context)?;
+    let post = state.system_audited.replace_post_with_audit(&id, payload, audit.record()).await?;
+    audit.mark_persisted();
+    Ok(ok(post))
 }
 
 #[require_perms("system:post:remove")]
-pub async fn delete_post(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_post(&id).await?;
+pub async fn delete_post(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    Path(id): Path<String>,
+) -> ApiResult<ApiJson<()>> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.system_audited.delete_post_with_audit(&id, audit.record()).await?;
+    audit.mark_persisted();
     Ok(ok(()))
 }
 
 #[require_perms("system:post:remove")]
-pub async fn delete_posts(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_posts(payload.ids).await?;
+pub async fn delete_posts(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<BatchIdsInput>,
+) -> ApiResult<ApiJson<()>> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.system_audited.delete_posts_with_audit(payload.ids, audit.record()).await?;
+    audit.mark_persisted();
     Ok(ok(()))
 }
 
 #[require_perms("system:dict:export")]
-pub async fn export_dict_types(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_dict_types(&state, dict_type_export_filter(query)?).await?;
-    Ok(xlsx_attachment("dict_types.xlsx", export_dict_types_xlsx(&items, current_locale())?))
+pub async fn export_dict_types(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestQuery(query): RequestQuery<SystemExportQuery>,
+) -> ApiResult<Response> {
+    let batch_size = state.export_config.export_batch_config().await?.page_size;
+    let filter = dict_type_export_filter(query)?.page_filter(CursorPageRequest::default());
+    let mut export = SystemXlsxExport::dict_types(current_locale())?;
+    state
+        .system
+        .export(
+            SystemExportRequest {
+                kind: SystemExportKind::DictTypes(filter),
+                batch_size,
+            },
+            &mut export,
+        )
+        .await?;
+    let artifact = export.finish()?;
+    crate::api::operation_audit::record_successful_operation(state.operation_audit.as_ref(), audit_context).await?;
+    Ok(xlsx_file_attachment("dict_types.xlsx", artifact))
 }
 
 #[require_perms("system:dict:list")]
-pub async fn list_dict_types(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<DictType>>> {
+pub async fn list_dict_types(
+    State(state): State<SystemApiState>,
+    RequestQuery(query): RequestQuery<SystemListQuery>,
+) -> ApiResult<ApiJson<CursorPage<DictType>>> {
     Ok(ok(state.system.page_dict_types(dict_type_list_filter(query)?).await?))
 }
 #[require_perms("system:dict:query")]
@@ -67,45 +128,91 @@ pub async fn dict_type_options(State(state): State<SystemApiState>) -> ApiResult
 }
 
 #[require_perms("system:dict:remove")]
-pub async fn refresh_dict_cache(State(state): State<SystemApiState>) -> ApiResult<ApiJson<()>> {
+pub async fn refresh_dict_cache(State(state): State<SystemApiState>, audit_context: Option<Extension<OperationAuditContext>>) -> ApiResult<ApiJson<()>> {
     state.system.refresh_dict_cache().await?;
+    crate::api::operation_audit::record_successful_operation(state.operation_audit.as_ref(), audit_context).await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:dict:add")]
-pub async fn create_dict_type(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<DictTypeInput>) -> ApiResult<ApiJson<DictType>> {
-    Ok(ok(state.system.create_dict_type(payload).await?))
+pub async fn create_dict_type(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<DictTypeInput>,
+) -> ApiResult<ApiJson<DictType>> {
+    let audit = successful_operation_audit(audit_context)?;
+    let item = state.system_audited.create_dict_type_with_audit(payload, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
+    Ok(ok(item))
 }
 
 #[require_perms("system:dict:edit")]
 pub async fn replace_dict_type(
-    State(state): State<SystemApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<DictTypeInput>,
+    (State(state), audit_context, Path(id), RequestJson(payload)): AuditedResourceJsonRequest<DictTypeInput>,
 ) -> ApiResult<ApiJson<DictType>> {
-    Ok(ok(state.system.replace_dict_type(&id, payload).await?))
+    let audit = successful_operation_audit(audit_context)?;
+    let item = state.system_audited.replace_dict_type_with_audit(&id, payload, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
+    Ok(ok(item))
 }
 
 #[require_perms("system:dict:remove")]
-pub async fn delete_dict_type(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_dict_type(&id).await?;
+pub async fn delete_dict_type(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    Path(id): Path<String>,
+) -> ApiResult<ApiJson<()>> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.system_audited.delete_dict_type_with_audit(&id, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:dict:remove")]
-pub async fn delete_dict_types(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_dict_types(payload.ids).await?;
+pub async fn delete_dict_types(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<BatchIdsInput>,
+) -> ApiResult<ApiJson<()>> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.system_audited.delete_dict_types_with_audit(payload.ids, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
     Ok(ok(()))
 }
 
 #[require_perms("system:dict:export")]
-pub async fn export_dict_data(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_dict_data(&state, dict_data_export_filter(query)?).await?;
-    Ok(xlsx_attachment("dict_data.xlsx", export_dict_data_xlsx(&items, current_locale())?))
+pub async fn export_dict_data(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestQuery(query): RequestQuery<SystemExportQuery>,
+) -> ApiResult<Response> {
+    let batch_size = state.export_config.export_batch_config().await?.page_size;
+    let filter = dict_data_export_filter(query)?.page_filter(CursorPageRequest::default());
+    let mut export = SystemXlsxExport::dict_data(current_locale())?;
+    state
+        .system
+        .export(
+            SystemExportRequest {
+                kind: SystemExportKind::DictData(filter),
+                batch_size,
+            },
+            &mut export,
+        )
+        .await?;
+    let artifact = export.finish()?;
+    crate::api::operation_audit::record_successful_operation(state.operation_audit.as_ref(), audit_context).await?;
+    Ok(xlsx_file_attachment("dict_data.xlsx", artifact))
 }
 
 #[require_perms("system:dict:list")]
-pub async fn list_dict_data(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<DictData>>> {
+pub async fn list_dict_data(
+    State(state): State<SystemApiState>,
+    RequestQuery(query): RequestQuery<SystemListQuery>,
+) -> ApiResult<ApiJson<CursorPage<DictData>>> {
     Ok(ok(state.system.page_dict_data(dict_data_list_filter(query)?).await?))
 }
 #[require_perms("system:dict:query")]
@@ -119,79 +226,51 @@ pub async fn dict_data_by_type(State(state): State<SystemApiState>, Path(dict_ty
 }
 
 #[require_perms("system:dict:add")]
-pub async fn create_dict_data(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<DictDataInput>) -> ApiResult<ApiJson<DictData>> {
-    Ok(ok(state.system.create_dict_data(payload).await?))
+pub async fn create_dict_data(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<DictDataInput>,
+) -> ApiResult<ApiJson<DictData>> {
+    let audit = successful_operation_audit(audit_context)?;
+    let item = state.system_audited.create_dict_data_with_audit(payload, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
+    Ok(ok(item))
 }
 
 #[require_perms("system:dict:edit")]
 pub async fn replace_dict_data(
-    State(state): State<SystemApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<DictDataInput>,
+    (State(state), audit_context, Path(id), RequestJson(payload)): AuditedResourceJsonRequest<DictDataInput>,
 ) -> ApiResult<ApiJson<DictData>> {
-    Ok(ok(state.system.replace_dict_data(&id, payload).await?))
+    let audit = successful_operation_audit(audit_context)?;
+    let item = state.system_audited.replace_dict_data_with_audit(&id, payload, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
+    Ok(ok(item))
 }
 
 #[require_perms("system:dict:remove")]
-pub async fn delete_dict_data(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_dict_data(&id).await?;
-    Ok(ok(()))
-}
-
-#[require_perms("system:dict:remove")]
-pub async fn delete_dict_data_batch(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_dict_data_batch(payload.ids).await?;
-    Ok(ok(()))
-}
-
-#[require_perms("system:config:export")]
-pub async fn export_configs(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemExportQuery>) -> ApiResult<Response> {
-    let items = all_export_configs(&state, config_export_filter(query)?).await?;
-    Ok(xlsx_attachment("configs.xlsx", export_configs_xlsx(&items, current_locale())?))
-}
-
-#[require_perms("system:config:list")]
-pub async fn list_configs(State(state): State<SystemApiState>, RequestQuery(query): RequestQuery<SystemListQuery>) -> ApiResult<ApiJson<Page<ConfigItem>>> {
-    Ok(ok(state.system.page_configs(config_list_filter(query)?).await?))
-}
-#[require_perms("system:config:query")]
-pub async fn get_config(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<ConfigItem>> {
-    Ok(ok(state.system.get_config(&id).await?))
-}
-
-#[require_perms("system:config:query")]
-pub async fn config_by_key(State(state): State<SystemApiState>, Path(key): Path<String>) -> ApiResult<ApiJson<String>> {
-    Ok(ok(state.system.config_by_key(&key).await?))
-}
-
-#[require_perms("system:config:remove")]
-pub async fn refresh_config_cache(State(state): State<SystemApiState>) -> ApiResult<ApiJson<()>> {
-    state.system.refresh_config_cache().await?;
-    Ok(ok(()))
-}
-
-#[require_perms("system:config:add")]
-pub async fn create_config(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<ConfigInput>) -> ApiResult<ApiJson<ConfigItem>> {
-    Ok(ok(state.system.create_config(payload).await?))
-}
-
-#[require_perms("system:config:edit")]
-pub async fn replace_config(
+pub async fn delete_dict_data(
     State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
     Path(id): Path<String>,
-    RequestJson(payload): RequestJson<ConfigInput>,
-) -> ApiResult<ApiJson<ConfigItem>> {
-    Ok(ok(state.system.replace_config(&id, payload).await?))
-}
-
-#[require_perms("system:config:remove")]
-pub async fn delete_config(State(state): State<SystemApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_config(&id).await?;
+) -> ApiResult<ApiJson<()>> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.system_audited.delete_dict_data_with_audit(&id, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
     Ok(ok(()))
 }
 
-#[require_perms("system:config:remove")]
-pub async fn delete_configs(State(state): State<SystemApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
-    state.system.delete_configs(payload.ids).await?;
+#[require_perms("system:dict:remove")]
+pub async fn delete_dict_data_batch(
+    State(state): State<SystemApiState>,
+    audit_context: Option<Extension<OperationAuditContext>>,
+    RequestJson(payload): RequestJson<BatchIdsInput>,
+) -> ApiResult<ApiJson<()>> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.system_audited.delete_dict_data_batch_with_audit(payload.ids, audit.record()).await?;
+    audit.mark_persisted();
+    state.system.refresh_dict_cache().await?;
     Ok(ok(()))
 }

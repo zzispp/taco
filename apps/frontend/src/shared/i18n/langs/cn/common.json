@@ -25,5 +25,12 @@
     "font": "字体",
     "family": "字体族",
     "size": "字号"
+  },
+  "pagination": {
+    "dense": "紧凑",
+    "limit": "每批",
+    "batchItems": "第 {{batch}} 批 · {{count}} 条",
+    "previous": "上一批",
+    "next": "下一批"
   }
 }

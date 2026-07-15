@@ -17,9 +17,12 @@ import { toInput, menuHead, flattenMenuRows } from './helpers';
 export function useMenuManagementController() {
   const resources = useMenuResources();
   const dialogs = useMenuDialogState();
-  const crud = useMenuCrudActions({ dialogs, t: resources.t });
-  const sort = useMenuSortAction({ dialogs, t: resources.t });
-  const deletion = useMenuDeleteAction({ dialogs, t: resources.t });
+  const resetMenus = useCallback(async () => {
+    await Promise.all([resources.menus.reset(), resources.allMenus.reset()]);
+  }, [resources.allMenus, resources.menus]);
+  const crud = useMenuCrudActions({ dialogs, t: resources.t, resetMenus });
+  const sort = useMenuSortAction({ dialogs, t: resources.t, resetMenus });
+  const deletion = useMenuDeleteAction({ dialogs, t: resources.t, resetMenus });
 
   return { resources, dialogs, actions: { ...crud, ...sort, ...deletion } };
 }
@@ -29,8 +32,8 @@ export type MenuManagementController = ReturnType<typeof useMenuManagementContro
 function useMenuResources() {
   const { t } = useTranslate('admin');
   const filters = useLocalDateTimeFilterState(DEFAULT_FILTERS);
-  const menus = useMenus(0, 1000, filters.query);
-  const allMenus = useMenus(0, 1000);
+  const menus = useMenus(filters.query);
+  const allMenus = useMenus();
   const [expanded, setExpanded] = useState<string[]>([]);
   const head = useMemo(() => menuHead(t), [t]);
   const treeRows = useMemo(() => flattenMenuRows(menus.items, expanded), [expanded, menus.items]);
@@ -80,9 +83,10 @@ function useMenuDialogState() {
 type MenuCrudOptions = {
   dialogs: ReturnType<typeof useMenuDialogState>;
   t: ReturnType<typeof useTranslate>['t'];
+  resetMenus: () => Promise<void>;
 };
 
-function useMenuCrudActions({ dialogs, t }: MenuCrudOptions) {
+function useMenuCrudActions({ dialogs, t, resetMenus }: MenuCrudOptions) {
   const { form, editing, setForm, setEditing, setCreating, setSubmitting, setSortEdits } = dialogs;
   const closeDialog = useCallback(() => {
     setEditing(null);
@@ -115,6 +119,7 @@ function useMenuCrudActions({ dialogs, t }: MenuCrudOptions) {
       if (editing) await updateMenu(editing.menu_id, form);
       else await createMenu(form);
       toast.success(t('messages.saved'));
+      await resetMenus();
       setSortEdits({});
       closeDialog();
     } catch (error) {
@@ -122,7 +127,7 @@ function useMenuCrudActions({ dialogs, t }: MenuCrudOptions) {
     } finally {
       setSubmitting(false);
     }
-  }, [closeDialog, editing, form, setSortEdits, setSubmitting, t]);
+  }, [closeDialog, editing, form, resetMenus, setSortEdits, setSubmitting, t]);
 
   return { closeDialog, openCreate, openCreateChild, openEdit, submitMenu };
 }
@@ -130,15 +135,17 @@ function useMenuCrudActions({ dialogs, t }: MenuCrudOptions) {
 type MenuActionOptions = {
   dialogs: ReturnType<typeof useMenuDialogState>;
   t: ReturnType<typeof useTranslate>['t'];
+  resetMenus: () => Promise<void>;
 };
 
-function useMenuSortAction({ dialogs, t }: MenuActionOptions) {
+function useMenuSortAction({ dialogs, t, resetMenus }: MenuActionOptions) {
   const saveSorts = useCallback(async () => {
     const items = Object.entries(dialogs.sortEdits).map(([id, order_num]) => ({ id, order_num }));
     if (items.length === 0) return;
     dialogs.setSubmitting(true);
     try {
       await updateMenuSorts(items);
+      await resetMenus();
       toast.success(t('messages.sortSaved'));
       dialogs.setSortEdits({});
     } catch (error) {
@@ -146,22 +153,23 @@ function useMenuSortAction({ dialogs, t }: MenuActionOptions) {
     } finally {
       dialogs.setSubmitting(false);
     }
-  }, [dialogs, t]);
+  }, [dialogs, resetMenus, t]);
 
   return { saveSorts };
 }
 
-function useMenuDeleteAction({ dialogs, t }: MenuActionOptions) {
+function useMenuDeleteAction({ dialogs, t, resetMenus }: MenuActionOptions) {
   const confirmDelete = useCallback(async () => {
     if (!dialogs.deleteTarget) return;
     try {
       await deleteMenu(dialogs.deleteTarget.menu_id);
+      await resetMenus();
       toast.success(t('messages.deleted'));
       dialogs.setDeleteTarget(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [dialogs, t]);
+  }, [dialogs, resetMenus, t]);
 
   return { confirmDelete };
 }

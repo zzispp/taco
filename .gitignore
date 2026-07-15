@@ -25,6 +25,8 @@ node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+/config/*.yaml
+!/config/config.example.yaml
 
 # frontend build output
 .next

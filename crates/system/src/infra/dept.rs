@@ -1,21 +1,24 @@
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
 use crate::{
-    application::DeptListFilter,
+    application::{DeptListFilter, SystemResult},
     domain::{Dept, DeptInput},
 };
-use types::rbac::DataScopeFilter;
+use rbac::domain::DataScopeFilter;
 
-use super::{dept_sql, mapping::dept, page, record::DeptRecord};
+use super::{dept_sql, mapping::dept, record::DeptRecord};
 
-pub(super) const COLUMNS: &str = "dept_id,parent_id,ancestors,dept_name,order_num,leader,phone,email,status,create_time::text AS create_time";
+pub(super) const COLUMNS: &str = "dept_id,parent_id,ancestors,dept_name,order_num,leader,phone,email,status,create_time";
+
+#[path = "dept_pages.rs"]
+mod pages;
 
 #[derive(Clone)]
 pub struct DeptQueries {
-    database: Database,
+    pub(super) database: Database,
 }
 
 impl DeptQueries {
@@ -23,62 +26,12 @@ impl DeptQueries {
         Self { database }
     }
 
-    pub async fn page(&self, filter: DeptListFilter) -> StorageResult<Page<Dept>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(dept_sql::total_sql()))
-            .bind(&filter.dept_name)
-            .bind(&filter.leader)
-            .bind(&filter.phone)
-            .bind(&filter.email)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .fetch_one(self.database.pool())
-            .await?;
-        let items = query_as::<_, DeptRecord>(AssertSqlSafe(dept_sql::page_sql()))
-            .bind(&filter.dept_name)
-            .bind(&filter.leader)
-            .bind(&filter.phone)
-            .bind(&filter.email)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .bind(page::limit(filter.page)?)
-            .bind(page::offset(filter.page)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        page::page(items.into_iter().map(dept).collect(), total, filter.page)
+    pub async fn page(&self, filter: DeptListFilter) -> SystemResult<CursorPage<Dept>> {
+        pages::page(&self.database, filter, None).await
     }
 
-    pub async fn page_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> StorageResult<Page<Dept>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(dept_sql::scoped_total_sql()))
-            .bind(&filter.dept_name)
-            .bind(&filter.leader)
-            .bind(&filter.phone)
-            .bind(&filter.email)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .bind(&scope.data_scope)
-            .bind(&scope.dept_id)
-            .bind(&scope.dept_ids)
-            .fetch_one(self.database.pool())
-            .await?;
-        let items = query_as::<_, DeptRecord>(AssertSqlSafe(dept_sql::scoped_page_sql()))
-            .bind(&filter.dept_name)
-            .bind(&filter.leader)
-            .bind(&filter.phone)
-            .bind(&filter.email)
-            .bind(&filter.status)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .bind(&scope.data_scope)
-            .bind(&scope.dept_id)
-            .bind(&scope.dept_ids)
-            .bind(page::limit(filter.page)?)
-            .bind(page::offset(filter.page)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        page::page(items.into_iter().map(dept).collect(), total, filter.page)
+    pub async fn page_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> SystemResult<CursorPage<Dept>> {
+        pages::page(&self.database, filter, Some(scope)).await
     }
 
     pub async fn list(&self, filter: DeptListFilter) -> StorageResult<Vec<Dept>> {
@@ -92,8 +45,10 @@ impl DeptQueries {
             .bind(filter.end_time)
             .fetch_all(self.database.pool())
             .await
-            .map(|rows| rows.into_iter().map(dept).collect())
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .into_iter()
+            .map(dept)
+            .collect()
     }
 
     pub async fn list_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> StorageResult<Vec<Dept>> {
@@ -105,13 +60,15 @@ impl DeptQueries {
             .bind(&filter.status)
             .bind(filter.begin_time)
             .bind(filter.end_time)
-            .bind(&scope.data_scope)
+            .bind(scope.data_scope.code())
             .bind(&scope.dept_id)
             .bind(&scope.dept_ids)
             .fetch_all(self.database.pool())
             .await
-            .map(|rows| rows.into_iter().map(dept).collect())
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .into_iter()
+            .map(dept)
+            .collect()
     }
 
     pub async fn list_excluding(&self, id: &str) -> StorageResult<Vec<Dept>> {
@@ -119,8 +76,10 @@ impl DeptQueries {
             .bind(id)
             .fetch_all(self.database.pool())
             .await
-            .map(|rows| rows.into_iter().map(dept).collect())
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .into_iter()
+            .map(dept)
+            .collect()
     }
 
     pub async fn create(&self, input: DeptInput) -> StorageResult<Dept> {
@@ -223,12 +182,13 @@ impl DeptQueries {
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
-            .map(|record| record.map(dept))
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .map(dept)
+            .transpose()
     }
 }
 
-async fn ancestors(pool: &sqlx::PgPool, parent_id: &str) -> StorageResult<String> {
+pub(super) async fn ancestors(pool: &sqlx::PgPool, parent_id: &str) -> StorageResult<String> {
     if parent_id == "0" {
         return Ok("0".into());
     }
@@ -244,13 +204,13 @@ async fn exists(pool: &sqlx::PgPool, sql: &'static str, id: &str) -> StorageResu
     query_scalar::<_, bool>(sql).bind(id).fetch_one(pool).await.map_err(StorageError::from)
 }
 
-struct ChildAncestorsUpdate<'a> {
-    id: &'a str,
-    old_prefix: &'a str,
-    new_prefix: &'a str,
+pub(super) struct ChildAncestorsUpdate<'a> {
+    pub(super) id: &'a str,
+    pub(super) old_prefix: &'a str,
+    pub(super) new_prefix: &'a str,
 }
 
-async fn update_child_ancestors(pool: &sqlx::PgPool, update: ChildAncestorsUpdate<'_>) -> StorageResult<()> {
+pub(super) async fn update_child_ancestors(pool: &sqlx::PgPool, update: ChildAncestorsUpdate<'_>) -> StorageResult<()> {
     query(
         r#"
         UPDATE sys_dept
@@ -268,7 +228,7 @@ async fn update_child_ancestors(pool: &sqlx::PgPool, update: ChildAncestorsUpdat
     .map_err(StorageError::from)
 }
 
-fn ensure_rows(rows: u64) -> StorageResult<()> {
+pub(super) fn ensure_rows(rows: u64) -> StorageResult<()> {
     if rows == 0 {
         return Err(StorageError::NotFound);
     }

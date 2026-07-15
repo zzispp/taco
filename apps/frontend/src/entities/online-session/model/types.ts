@@ -9,11 +9,6 @@ export type OnlineSession = {
   loginTime: number;
 };
 
-export type OnlineSessionsResponse = {
-  rows: OnlineSession[];
-  total: number;
-};
-
 export type OnlineSessionFilters = {
   ipaddr: string;
   userName: string;

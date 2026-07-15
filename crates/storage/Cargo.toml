@@ -5,10 +5,12 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+audit_contract.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
+time.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

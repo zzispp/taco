@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn create_user_rejects_duplicate_username() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -11,7 +10,36 @@ async fn create_user_rejects_duplicate_username() {
     assert!(matches!(result, Err(AppError::Conflict(_))));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn create_user_normalizes_email_and_allows_no_roles() {
+    let repository = MemoryUserRepository::default();
+    let service = UserService::new(repository.clone(), TestPasswordHasher);
+    let mut input = new_user("alice");
+    input.email = " Alice@Example.COM ".into();
+    input.role_ids.clear();
+
+    let created = service.create_user(input).await.unwrap();
+
+    assert_eq!(created.email, "alice@example.com");
+    assert_eq!(created.role_ids, Vec::<String>::new());
+    assert_eq!(repository.created_records()[0].email, "alice@example.com");
+}
+
+#[tokio::test]
+async fn create_user_rejects_invalid_email_and_phone() {
+    let invalid_email = UserService::new(MemoryUserRepository::default(), TestPasswordHasher)
+        .create_user(new_user("alice").with_email("invalid"))
+        .await;
+    let mut invalid_phone_input = new_user("bob");
+    invalid_phone_input.phonenumber = Some("123".into());
+    let invalid_phone = UserService::new(MemoryUserRepository::default(), TestPasswordHasher)
+        .create_user(invalid_phone_input)
+        .await;
+
+    assert!(matches!(invalid_email, Err(AppError::InvalidInput(error)) if error.key() == "errors.validation.email_format"));
+    assert!(matches!(invalid_phone, Err(AppError::InvalidInput(error)) if error.key() == "errors.validation.phone_format"));
+}
+
 #[tokio::test]
 async fn replace_user_allows_same_user_identity() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
@@ -23,53 +51,73 @@ async fn replace_user_allows_same_user_identity() {
     assert_eq!(repository.replaced_records()[0].1.password_hash.as_deref(), Some("hashed:secret123"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn replace_user_rejects_seeded_super_admin_id() {
-    let repository = MemoryUserRepository::with_user(stored_user(1, "admin", "hashed:secret123").with_id(super_admin_user_id()));
+async fn replace_user_allows_an_explicit_empty_role_set() {
+    let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
     let service = UserService::new(repository.clone(), TestPasswordHasher);
+    let mut input = replace_user("alice", false);
+    input.role_ids.clear();
 
-    let result = service.replace_user(super_admin_user_id(), replace_user("admin", false)).await;
+    let user = service.replace_user(user_id(1), input).await.unwrap();
 
-    assert!(matches!(result, Err(AppError::Conflict(_))));
-    assert!(repository.replaced_records().is_empty());
+    assert_eq!(user.role_ids, Vec::<String>::new());
+    assert_eq!(repository.replaced_records()[0].1.role_ids, Vec::<String>::new());
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn delete_user_rejects_seeded_super_admin_id() {
-    let repository = MemoryUserRepository::with_user(stored_user(1, "admin", "hashed:secret123").with_id(super_admin_user_id()));
-    let service = UserService::new(repository.clone(), TestPasswordHasher);
+async fn independent_role_assignment_allows_an_explicit_empty_set() {
+    let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
+    let service = UserService::new(repository, TestPasswordHasher);
 
-    let result = service.delete_user(super_admin_user_id()).await;
+    let user = service.replace_roles(user_id(1), Vec::new()).await.unwrap();
 
-    assert!(matches!(result, Err(AppError::Conflict(_))));
-    assert!(repository.deleted_records().is_empty());
+    assert_eq!(user.role_ids, Vec::<String>::new());
+    assert_eq!(user.roles, Vec::<types::rbac::RoleSummary>::new());
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn list_users_rejects_zero_page() {
+async fn replace_user_allows_fixed_legacy_id() {
+    let legacy_id = crate::domain::UserId("1".into());
+    let repository = MemoryUserRepository::with_user(stored_user(1, "legacy", "hashed:secret123").with_id(legacy_id.clone()));
+    let service = UserService::new(repository.clone(), TestPasswordHasher);
+
+    let user = service.replace_user(legacy_id, replace_user("legacy", false)).await.unwrap();
+
+    assert_eq!(user.status, "1");
+    assert_eq!(repository.replaced_records().len(), 1);
+}
+
+#[tokio::test]
+async fn delete_user_allows_fixed_legacy_id() {
+    let legacy_id = crate::domain::UserId("1".into());
+    let repository = MemoryUserRepository::with_user(stored_user(1, "legacy", "hashed:secret123").with_id(legacy_id.clone()));
+    let service = UserService::new(repository.clone(), TestPasswordHasher);
+
+    service.delete_user(legacy_id.clone()).await.unwrap();
+
+    assert_eq!(repository.deleted_records(), vec![legacy_id]);
+}
+
+#[tokio::test]
+async fn list_users_rejects_zero_limit() {
     let repository = MemoryUserRepository::default();
     let service = UserService::new(repository, TestPasswordHasher);
 
-    let result = service.list_users(user_filter(0, 10)).await;
+    let result = service.list_users(user_filter(0)).await;
 
-    assert!(matches!(result, Err(AppError::InvalidInput(_))));
+    assert!(matches!(result, Err(AppError::InvalidInput(message)) if message.key() == "errors.validation.cursor_limit_range"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn list_users_rejects_page_size_above_maximum() {
+async fn list_users_rejects_limit_above_maximum() {
     let repository = MemoryUserRepository::default();
     let service = UserService::new(repository, TestPasswordHasher);
 
-    let result = service.list_users(user_filter(1, MAX_PAGE_SIZE + 1)).await;
+    let result = service.list_users(user_filter(MAX_CURSOR_LIMIT + 1)).await;
 
-    assert!(matches!(result, Err(AppError::InvalidInput(_))));
+    assert!(matches!(result, Err(AppError::InvalidInput(message)) if message.key() == "errors.validation.cursor_limit_range"));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_scoped_supports_self_scope() {
     let repository = MemoryUserRepository::with_users(vec![stored_user(1, "alice", "hashed:secret123"), stored_user(2, "bob", "hashed:secret123")]);
@@ -77,9 +125,9 @@ async fn list_users_scoped_supports_self_scope() {
 
     let page = service
         .list_users_scoped(
-            user_filter(1, 10),
+            user_filter(10),
             DataScopeFilter {
-                data_scope: DATA_SCOPE_SELF.into(),
+                data_scope: DataScope::SelfOnly,
                 user_id: user_id(2).0,
                 dept_id: Some("103".into()),
                 dept_ids: vec![],
@@ -91,7 +139,6 @@ async fn list_users_scoped_supports_self_scope() {
     assert_eq!(page.items.into_iter().map(|user| user.username).collect::<Vec<_>>(), vec!["bob"]);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_scoped_supports_custom_departments() {
     let alice = stored_user(1, "alice", "hashed:secret123").with_dept_id("101");
@@ -100,9 +147,9 @@ async fn list_users_scoped_supports_custom_departments() {
 
     let page = service
         .list_users_scoped(
-            user_filter(1, 10),
+            user_filter(10),
             DataScopeFilter {
-                data_scope: DATA_SCOPE_CUSTOM.into(),
+                data_scope: DataScope::Custom,
                 user_id: user_id(1).0,
                 dept_id: Some("101".into()),
                 dept_ids: vec!["102".into()],
@@ -114,7 +161,6 @@ async fn list_users_scoped_supports_custom_departments() {
     assert_eq!(page.items.into_iter().map(|user| user.username).collect::<Vec<_>>(), vec!["bob"]);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_filters_by_extra_toolbar_fields() {
     let alice = toolbar_user(ToolbarUserFixture::alice());
@@ -126,7 +172,6 @@ async fn list_users_filters_by_extra_toolbar_fields() {
     assert_eq!(page.items.into_iter().map(|user| user.username).collect::<Vec<_>>(), vec!["alice"]);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn list_users_scoped_applies_extra_toolbar_filters() {
     let alice = toolbar_user(ToolbarUserFixture::alice());
@@ -137,10 +182,10 @@ async fn list_users_scoped_applies_extra_toolbar_filters() {
         .list_users_scoped(
             crate::application::UserListFilter {
                 role_ids: vec![" 3 ".into()],
-                ..user_filter(1, 10)
+                ..user_filter(10)
             },
             DataScopeFilter {
-                data_scope: DATA_SCOPE_CUSTOM.into(),
+                data_scope: DataScope::Custom,
                 user_id: user_id(1).0,
                 dept_id: Some("101".into()),
                 dept_ids: vec!["101".into(), "102".into()],
@@ -161,7 +206,7 @@ fn toolbar_filter() -> crate::application::UserListFilter {
         dept_name: Some(" 门101 ".into()),
         post_ids: vec![" 2 ".into()],
         role_ids: vec![" 2 ".into()],
-        ..user_filter(1, 10)
+        ..user_filter(10)
     }
 }
 

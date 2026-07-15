@@ -1,6 +1,7 @@
 'use client';
 
-import type { SettingsDrawerProps } from '../types';
+import type { SettingsVisibility } from './settings-drawer-sections';
+import type { SettingsState, SettingsDrawerProps, SettingsContextValue } from '../types';
 
 import { varAlpha } from 'minimal-shared/utils';
 
@@ -8,11 +9,11 @@ import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 
 import { Scrollbar } from '../../scrollbar';
+import { SettingsFontOptions } from './settings-font-section';
 import { useSettingsContext } from '../context/use-settings-context';
 import {
   settingsVisibility,
   SettingsDrawerHead,
-  SettingsFontOptions,
   SettingsToggleOptions,
   SettingsPresetOptions,
   SettingsNavigationOptions,
@@ -46,36 +47,36 @@ export function SettingsDrawer({ sx, defaultSettings: propDefaults }: SettingsDr
       }}
     >
       <SettingsDrawerHead settings={settings} />
-      <Scrollbar>
-        <Box sx={{ pb: 5, gap: 6, px: 2.5, display: 'flex', flexDirection: 'column' }}>
-          <SettingsToggleOptions
-            settings={settings}
-            visibility={visibility}
-            defaultSettings={defaultSettings}
-          />
-          {(visibility.navColor || visibility.navLayout) && (
-            <SettingsNavigationOptions
-              settings={settings}
-              visibility={visibility}
-              defaultSettings={defaultSettings}
-            />
-          )}
-          {visibility.primaryColor && (
-            <SettingsPresetOptions
-              settings={settings}
-              visibility={visibility}
-              defaultSettings={defaultSettings}
-            />
-          )}
-          {(visibility.fontFamily || visibility.fontSize) && (
-            <SettingsFontOptions
-              settings={settings}
-              visibility={visibility}
-              defaultSettings={defaultSettings}
-            />
-          )}
-        </Box>
-      </Scrollbar>
+      <SettingsSections
+        settings={settings}
+        visibility={visibility}
+        defaultSettings={defaultSettings}
+      />
     </Drawer>
+  );
+}
+
+type SettingsSectionsProps = Readonly<{
+  settings: SettingsContextValue;
+  visibility: SettingsVisibility;
+  defaultSettings: SettingsState;
+}>;
+
+function SettingsSections({ settings, visibility, defaultSettings }: SettingsSectionsProps) {
+  return (
+    <Scrollbar>
+      <Box sx={{ pb: 5, gap: 6, px: 2.5, display: 'flex', flexDirection: 'column' }}>
+        <SettingsToggleOptions {...{ settings, visibility, defaultSettings }} />
+        {(visibility.navColor || visibility.navLayout) && (
+          <SettingsNavigationOptions {...{ settings, visibility, defaultSettings }} />
+        )}
+        {visibility.primaryColor && (
+          <SettingsPresetOptions {...{ settings, visibility, defaultSettings }} />
+        )}
+        {(visibility.fontFamily || visibility.fontSize) && (
+          <SettingsFontOptions {...{ settings, visibility, defaultSettings }} />
+        )}
+      </Box>
+    </Scrollbar>
   );
 }

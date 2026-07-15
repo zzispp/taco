@@ -1,18 +1,19 @@
 use std::collections::HashMap;
 
 use kernel::error::LocalizedError;
-use kernel::excel::{read_xlsx, write_xlsx};
+use kernel::excel::{StreamingXlsxWriter, TemporaryXlsxFile, read_xlsx, write_xlsx};
 use types::{
     http::{Locale, translate_message},
     user::User,
 };
 
-use crate::application::{AppError, AppResult, UserImportRow};
+use crate::application::{AppError, AppResult, UserExportSink, UserImportRow};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 enum ImportField {
     DeptId,
     Username,
+    Password,
     NickName,
     Email,
     PhoneNumber,
@@ -57,6 +58,10 @@ const IMPORT_COLUMNS: &[ImportColumnDef] = &[
         label_key: "excel.user.headers.login_name",
     },
     ImportColumnDef {
+        field: ImportField::Password,
+        label_key: "excel.user.headers.password",
+    },
+    ImportColumnDef {
         field: ImportField::NickName,
         label_key: "excel.user.headers.user_name",
     },
@@ -78,9 +83,27 @@ const IMPORT_COLUMNS: &[ImportColumnDef] = &[
     },
 ];
 
-pub fn export_users_xlsx(users: &[User], locale: Locale) -> AppResult<Vec<u8>> {
-    let rows = users.iter().map(user_row).collect::<Vec<_>>();
-    write_xlsx(&text(locale, EXPORT_SHEET_KEY), &localized_headers(locale, EXPORT_HEADER_KEYS), &rows).map_err(excel_infrastructure_error)
+pub struct UserXlsxExport {
+    writer: StreamingXlsxWriter,
+}
+
+impl UserXlsxExport {
+    pub fn new(locale: Locale) -> AppResult<Self> {
+        let writer =
+            StreamingXlsxWriter::new(&text(locale, EXPORT_SHEET_KEY), &localized_headers(locale, EXPORT_HEADER_KEYS)).map_err(excel_infrastructure_error)?;
+        Ok(Self { writer })
+    }
+
+    pub fn finish(self) -> AppResult<TemporaryXlsxFile> {
+        self.writer.finish().map_err(excel_infrastructure_error)
+    }
+}
+
+impl UserExportSink for UserXlsxExport {
+    fn append(&mut self, users: &[User]) -> AppResult<()> {
+        let rows = users.iter().map(user_row).collect::<Vec<_>>();
+        self.writer.append_rows(&rows).map_err(excel_infrastructure_error)
+    }
 }
 
 pub fn import_template_xlsx(locale: Locale) -> AppResult<Vec<u8>> {
@@ -132,6 +155,7 @@ fn import_row(row: &[String], columns: &ImportColumns, locale: Locale) -> AppRes
     Ok(UserImportRow {
         dept_id: reader.optional_cell(ImportField::DeptId),
         username: reader.required_cell(ImportField::Username)?,
+        password: reader.required_cell(ImportField::Password)?,
         nick_name: reader.required_cell(ImportField::NickName)?,
         email: reader.required_cell(ImportField::Email)?,
         phonenumber: reader.optional_cell(ImportField::PhoneNumber),
@@ -209,15 +233,14 @@ mod tests {
     use kernel::excel::write_xlsx;
     use types::http::Locale;
 
-    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn import_template_has_no_role_or_post_columns() {
         let rows = kernel::excel::read_xlsx(&import_template_xlsx(Locale::ZhCn).unwrap()).unwrap();
 
         assert_eq!(rows[0], localized_import_headers(Locale::ZhCn));
+        assert_eq!(rows[0][2], "密码");
     }
 
-    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn import_template_uses_requested_locale() {
         let rows = kernel::excel::read_xlsx(&import_template_xlsx(Locale::En).unwrap()).unwrap();
@@ -225,7 +248,6 @@ mod tests {
         assert_eq!(rows[0], localized_import_headers(Locale::En));
     }
 
-    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn parses_import_rows_without_roles_or_posts() {
         let bytes = write_xlsx(
@@ -234,6 +256,7 @@ mod tests {
             &[vec![
                 "103".into(),
                 "alice".into(),
+                "secret123".into(),
                 "Alice".into(),
                 "alice@example.com".into(),
                 "".into(),
@@ -246,6 +269,24 @@ mod tests {
         let rows = parse_import_rows(&bytes, Locale::ZhCn).unwrap();
 
         assert_eq!(rows[0].username, "alice");
+        assert_eq!(rows[0].password, "secret123");
         assert_eq!(rows[0].dept_id.as_deref(), Some("103"));
+    }
+
+    #[test]
+    fn rejects_blank_import_password_at_the_excel_boundary() {
+        let mut row = vec!["103", "alice", "", "Alice", "alice@example.com", "", "2", "0"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        row[2] = "   ".into();
+        let bytes = write_xlsx("Users", &localized_import_headers(Locale::En), &[row]).unwrap();
+
+        let error = parse_import_rows(&bytes, Locale::En).unwrap_err();
+        let crate::application::AppError::InvalidInput(details) = error else {
+            panic!("blank password must be an invalid import row");
+        };
+        assert_eq!(details.key(), "errors.user.import_column_blank");
+        assert_eq!(details.params()[0].value(), "Password");
     }
 }

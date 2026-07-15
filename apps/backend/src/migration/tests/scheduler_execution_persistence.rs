@@ -8,13 +8,12 @@ use super::{TestDatabase, fresh, scheduler_runtime::SchedulerHarness};
 
 const EXECUTOR_EPOCH: &str = "detail-persistence-epoch";
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn terminal_detail_is_atomic_for_failure_and_absent_for_interruption() {
     let database = TestDatabase::create().await;
     fresh(database.pool()).await.unwrap();
     let harness = SchedulerHarness::new(database.pool());
-    let job_id = harness.import_job().await;
+    let job_id = harness.import_job(scheduler::domain::ConcurrentPolicy::Allow).await;
 
     assert_failed_detail(&harness, &job_id).await;
     assert_interrupted_has_no_detail(&harness, &job_id).await;

@@ -64,7 +64,6 @@
     "@tiptap/pm": "^3.13.0",
     "@tiptap/react": "^3.13.0",
     "@tiptap/starter-kit": "^3.13.0",
-    "accept-language": "^3.0.20",
     "apexcharts": "^5.3.6",
     "autosuggest-highlight": "^3.3.4",
     "axios": "^1.13.2",

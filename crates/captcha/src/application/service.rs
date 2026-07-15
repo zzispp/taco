@@ -71,6 +71,6 @@ where
 }
 
 fn invalid_config(error: serde_json::Error) -> CaptchaError {
-    let _ = error;
-    CaptchaError::InvalidInput(LocalizedError::new("errors.captcha.invalid_config_json").with_param("key", "sys.account.captchaConfig"))
+    hook_tracing::error_with_fields!("invalid captcha config document", &error, key = constants::system_config::CAPTCHA_CONFIG_KEY);
+    super::invalid_captcha_config_json()
 }

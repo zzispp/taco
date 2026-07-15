@@ -1,19 +1,22 @@
 export type QueryParams = Record<string, unknown>;
 
-export const pageQuery = (page: number, pageSize: number, params: QueryParams = {}) =>
+export const DEFAULT_CURSOR_LIMIT = 20;
+export const CURSOR_LIMIT_OPTIONS = [20, 50, 100] as const;
+
+export type CursorPageRequest = Readonly<{
+  limit: number;
+  cursor?: string;
+}>;
+
+export const cursorQuery = (request: CursorPageRequest, params: QueryParams = {}) =>
   compactParams({
-    page: page + 1,
-    page_size: pageSize,
     ...params,
+    limit: request.limit,
+    cursor: request.cursor,
   });
 
-export function pageKey(
-  endpoint: string,
-  page: number,
-  pageSize: number,
-  params: QueryParams = {}
-) {
-  return [endpoint, { params: pageQuery(page, pageSize, params) }] as const;
+export function cursorKey(endpoint: string, request: CursorPageRequest, params: QueryParams = {}) {
+  return [endpoint, { params: cursorQuery(request, params) }] as const;
 }
 
 export async function requestData<T>(request: Promise<{ data: T }>) {

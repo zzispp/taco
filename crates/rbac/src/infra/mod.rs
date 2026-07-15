@@ -1,3 +1,6 @@
+mod audited_repository;
+mod audited_transaction;
+mod cursor_page;
 mod mapping;
 mod menu_queries;
 mod rbac_repository;

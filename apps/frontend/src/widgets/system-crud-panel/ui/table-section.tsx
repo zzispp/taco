@@ -9,8 +9,9 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 
 import { Scrollbar } from 'src/shared/ui/scrollbar';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+
+import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { CrudFilters } from './filters';
 import { TableActions } from './table-actions';
@@ -48,12 +49,16 @@ export function CrudTableSection<T extends CrudRecord, I extends CrudRecord>({
           <CrudTableBody props={props} controller={controller} />
         </Table>
       </Scrollbar>
-      <TablePaginationCustom
-        page={props.page}
-        count={props.resource.total}
-        rowsPerPage={props.rowsPerPage}
-        onPageChange={props.onPageChange}
-        onRowsPerPageChange={props.onRowsPerPageChange}
+      <CursorPagination
+        limit={props.table.limit}
+        itemCount={props.resource.itemCount}
+        visitedBatchIndex={props.table.visitedBatchIndex}
+        hasPrevious={props.resource.hasPrevious}
+        hasNext={props.resource.hasNext}
+        pending={props.resource.isValidating}
+        onPrevious={() => props.table.onPreviousCursor(props.resource.previousCursor)}
+        onNext={() => props.table.onNextCursor(props.resource.nextCursor)}
+        onLimitChange={props.table.onChangeLimit}
       />
     </Card>
   );
@@ -68,13 +73,14 @@ function CrudTableBody<T extends CrudRecord, I extends CrudRecord>({
   return (
     <TableBody>
       {props.resource.isLoading ? (
-        <TableLoadingRows head={bodyHead} rows={props.rowsPerPage} />
+        <TableLoadingRows head={bodyHead} rows={props.table.limit} />
       ) : (
         props.resource.items.map((row) => (
           <CrudRow key={String(row[props.idKey])} row={row} props={props} controller={controller} />
         ))
       )}
       <TableNoData
+        colSpan={bodyHead.length}
         title={t('common.noData')}
         notFound={!props.resource.isLoading && props.resource.items.length === 0}
       />

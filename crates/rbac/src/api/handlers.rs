@@ -3,36 +3,35 @@ use axum::{
     extract::{Path, State},
     response::Response,
 };
-use kernel::pagination::{Page, PageRequest};
-use rbac_macros::{data_scope, require_perms};
+use kernel::pagination::{CursorPage, CursorPageRequest};
+use rbac_macros::require_perms;
 use serde::Deserialize;
-use types::{
-    http::{RequestJson, RequestQuery, current_locale, xlsx_attachment},
-    rbac::DataScopeFilter,
-    system::{BatchIdsInput, SortBatchInput},
-};
+use types::http::{RequestQuery, current_locale, xlsx_file_attachment};
+use utoipa::IntoParams;
 
 use crate::api::{
     CurrentUser, RbacApiError, RbacApiState,
-    export::export_roles_xlsx,
-    input::{MenuListQuery, RoleExportFilter, RoleExportQuery, RoleListQuery, menu_list_filter, role_export_filter, role_list_filter},
+    export::RoleXlsxExport,
+    input::{MenuListQuery, RoleExportQuery, RoleListQuery, menu_list_filter, role_export_filter, role_list_filter},
 };
 use crate::{
-    application::RoleUserListFilter,
-    domain::{
-        Menu, MenuInput, NavResponse, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleMenuTreeSelect, RoleOption,
-        RoleUser, RoleUserBindingInput,
-    },
+    application::{RoleExportRequest, RoleUserListFilter},
+    domain::{DataScopeFilter, Menu, NavResponse, Role, RoleDeptBindingInput, RoleMenuBindingInput, RoleMenuTreeSelect, RoleOption},
 };
 
 type ApiJson<T> = Json<T>;
 
+mod audited_admin;
 mod role_user_handlers;
 mod support;
 
+pub use audited_admin::{
+    create_menu, create_role, delete_menu, delete_role, delete_roles, replace_menu, replace_role, replace_role_depts, replace_role_menus, update_menu_sort,
+    update_menu_sorts, update_role_data_scope, update_role_status,
+};
 pub use role_user_handlers::{delete_role_user, delete_role_users, replace_role_users, role_users};
 
-use self::support::{ExportRolesInput, all_export_roles, checked_keys_for_tree, menu_tree, ok, role_user_filter};
+use self::support::{checked_keys_for_tree, menu_tree, ok};
 
 type ExportRolesRequest = (
     State<RbacApiState>,
@@ -46,17 +45,24 @@ type ListRolesRequest = (
     Extension<DataScopeFilter>,
     RequestQuery<RoleListQuery>,
 );
-type RoleMenuRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleMenuBindingInput>);
-type RoleDeptRequest = (State<RbacApiState>, Path<String>, RequestJson<RoleDeptBindingInput>);
 type ApiResult<T> = Result<T, RbacApiError>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(deny_unknown_fields)]
 pub struct RoleUsersQuery {
-    pub page: u64,
-    pub page_size: u64,
+    #[serde(default = "default_limit")]
+    #[param(default = 20, minimum = 1, maximum = 100)]
+    pub limit: u64,
+    #[serde(default)]
+    pub cursor: Option<String>,
     pub username: Option<String>,
     pub phonenumber: Option<String>,
     pub allocated: Option<bool>,
+}
+
+const fn default_limit() -> u64 {
+    kernel::pagination::DEFAULT_CURSOR_LIMIT
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,23 +80,28 @@ pub async fn navbar(State(state): State<RbacApiState>, current_user: CurrentUser
 }
 
 #[require_perms("system:role:export")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
 pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = role_export_filter(query)?;
-    let roles = all_export_roles(ExportRolesInput {
-        state: &state,
-        current_user: &current_user,
-        data_scope,
-        filter,
-    })
-    .await?;
-    Ok(xlsx_attachment("roles.xlsx", export_roles_xlsx(&roles, current_locale())?))
+    let batch_size = state.export_config.export_batch_config().await?.page_size;
+    let scope = (!current_user.admin).then_some(data_scope);
+    let mut export = RoleXlsxExport::new(current_locale())?;
+    state
+        .rbac_admin
+        .export_roles(
+            RoleExportRequest {
+                filter: filter.page_filter(CursorPageRequest::default()),
+                scope,
+                batch_size,
+            },
+            &mut export,
+        )
+        .await?;
+    Ok(xlsx_file_attachment("roles.xlsx", export.finish()?))
 }
 
 #[require_perms("system:role:list")]
-#[data_scope(dept_alias = "d", user_alias = "u")]
-pub async fn list_roles(request: ListRolesRequest) -> ApiResult<ApiJson<Page<Role>>> {
+pub async fn list_roles(request: ListRolesRequest) -> ApiResult<ApiJson<CursorPage<Role>>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = role_list_filter(query)?;
     let page = if current_user.admin {
@@ -106,53 +117,13 @@ pub async fn get_role(State(state): State<RbacApiState>, Path(id): Path<String>)
     Ok(ok(state.rbac_admin.get_role(&id).await?))
 }
 
-#[require_perms("system:role:edit")]
-pub async fn update_role_status(
-    State(state): State<RbacApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<StatusPayload>,
-) -> ApiResult<ApiJson<Role>> {
-    Ok(ok(state.rbac_admin.update_role_status(&id, payload.status).await?))
-}
-
-#[require_perms("system:role:edit")]
-pub async fn update_role_data_scope(
-    State(state): State<RbacApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<RoleDataScopeInput>,
-) -> ApiResult<ApiJson<Role>> {
-    Ok(ok(state.rbac_admin.update_role_data_scope(&id, payload).await?))
-}
-
 #[require_perms("system:role:list")]
 pub async fn role_options(State(state): State<RbacApiState>) -> ApiResult<ApiJson<Vec<RoleOption>>> {
     Ok(ok(state.rbac_admin.role_options().await?))
 }
 
-#[require_perms("system:role:add")]
-pub async fn create_role(State(state): State<RbacApiState>, RequestJson(payload): RequestJson<RoleInput>) -> ApiResult<ApiJson<Role>> {
-    Ok(ok(state.rbac_admin.create_role(payload).await?))
-}
-
-#[require_perms("system:role:edit")]
-pub async fn replace_role(State(state): State<RbacApiState>, Path(id): Path<String>, RequestJson(payload): RequestJson<RoleInput>) -> ApiResult<ApiJson<Role>> {
-    Ok(ok(state.rbac_admin.replace_role(&id, payload).await?))
-}
-
-#[require_perms("system:role:remove")]
-pub async fn delete_role(State(state): State<RbacApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.delete_role(&id).await?;
-    Ok(ok(()))
-}
-
-#[require_perms("system:role:remove")]
-pub async fn delete_roles(State(state): State<RbacApiState>, RequestJson(payload): RequestJson<BatchIdsInput>) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.delete_roles(payload.ids).await?;
-    Ok(ok(()))
-}
-
 #[require_perms("system:menu:list")]
-pub async fn list_menus(State(state): State<RbacApiState>, RequestQuery(query): RequestQuery<MenuListQuery>) -> ApiResult<ApiJson<Page<Menu>>> {
+pub async fn list_menus(State(state): State<RbacApiState>, RequestQuery(query): RequestQuery<MenuListQuery>) -> ApiResult<ApiJson<CursorPage<Menu>>> {
     Ok(ok(state.rbac_admin.page_menus(menu_list_filter(query)?).await?))
 }
 
@@ -166,47 +137,11 @@ pub async fn list_menu_tree(State(state): State<RbacApiState>) -> ApiResult<ApiJ
     Ok(ok(state.rbac_admin.list_menus().await?))
 }
 
-#[require_perms("system:menu:add")]
-pub async fn create_menu(State(state): State<RbacApiState>, RequestJson(payload): RequestJson<MenuInput>) -> ApiResult<ApiJson<Menu>> {
-    Ok(ok(state.rbac_admin.create_menu(payload).await?))
-}
-
-#[require_perms("system:menu:edit")]
-pub async fn replace_menu(State(state): State<RbacApiState>, Path(id): Path<String>, RequestJson(payload): RequestJson<MenuInput>) -> ApiResult<ApiJson<Menu>> {
-    Ok(ok(state.rbac_admin.replace_menu(&id, payload).await?))
-}
-
-#[require_perms("system:menu:edit")]
-pub async fn update_menu_sort(
-    State(state): State<RbacApiState>,
-    Path(id): Path<String>,
-    RequestJson(payload): RequestJson<SortPayload>,
-) -> ApiResult<ApiJson<Menu>> {
-    Ok(ok(state.rbac_admin.update_menu_sort(&id, payload.order_num).await?))
-}
-
-#[require_perms("system:menu:edit")]
-pub async fn update_menu_sorts(State(state): State<RbacApiState>, RequestJson(payload): RequestJson<SortBatchInput>) -> ApiResult<ApiJson<Vec<Menu>>> {
-    Ok(ok(state.rbac_admin.update_menu_sorts(payload).await?))
-}
-
-#[require_perms("system:menu:remove")]
-pub async fn delete_menu(State(state): State<RbacApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.delete_menu(&id).await?;
-    Ok(ok(()))
-}
-
 #[require_perms("system:role:query")]
 pub async fn role_menu_bindings(State(state): State<RbacApiState>, Path(id): Path<String>) -> ApiResult<ApiJson<RoleMenuBindingInput>> {
     Ok(ok(RoleMenuBindingInput {
         menu_ids: state.rbac_admin.role_menu_ids(&id).await?,
     }))
-}
-
-#[require_perms("system:role:edit")]
-pub async fn replace_role_menus((State(state), Path(id), RequestJson(payload)): RoleMenuRequest) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.replace_role_menus(&id, payload).await?;
-    Ok(ok(()))
 }
 
 #[require_perms("system:role:query")]
@@ -216,10 +151,31 @@ pub async fn role_dept_bindings(State(state): State<RbacApiState>, Path(id): Pat
     }))
 }
 
-#[require_perms("system:role:edit")]
-pub async fn replace_role_depts((State(state), Path(id), RequestJson(payload)): RoleDeptRequest) -> ApiResult<ApiJson<()>> {
-    state.rbac_admin.replace_role_depts(&id, payload).await?;
-    Ok(ok(()))
+#[cfg(test)]
+mod tests {
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+        routing::get,
+    };
+    use serde_json::Value;
+    use tower::ServiceExt;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn legacy_role_user_page_parameters_are_rejected_by_route() {
+        let app = Router::new().route("/roles/{id}/users", get(|RequestQuery(_): RequestQuery<RoleUsersQuery>| async {}));
+
+        for uri in ["/roles/1/users?page=1", "/roles/1/users?page_size=20"] {
+            let response = app.clone().oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let body = serde_json::from_slice::<Value>(&bytes).unwrap();
+            assert_eq!(body["code"], "invalid_input");
+        }
+    }
 }
 
 #[require_perms("system:menu:list")]

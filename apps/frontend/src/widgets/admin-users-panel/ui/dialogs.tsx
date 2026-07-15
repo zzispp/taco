@@ -17,49 +17,45 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import { toast } from 'src/shared/ui/snackbar';
 import { Iconify } from 'src/shared/ui/iconify';
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/shared/ui/admin';
 
 import { translatedRoleName } from 'src/entities/role';
 
+import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/widgets/admin-common';
+
 import { SearchMultiSelect } from './search-multi-select';
 
-export function UserDialog({
-  open,
-  editing,
-  submitting,
-  form,
-  roles,
-  depts,
-  posts,
-  setForm,
-  onClose,
-  onSubmit,
-}: {
+type DialogSubmitProps = { submitting: boolean; onClose: () => void; onSubmit: () => void };
+
+type UserDialogProps = DialogSubmitProps & {
   open: boolean;
   editing: boolean;
-  submitting: boolean;
   form: UserInput;
   roles: RoleOption[];
   depts: TreeSelectNode[];
   posts: Post[];
   setForm: React.Dispatch<React.SetStateAction<UserInput>>;
-  onClose: () => void;
-  onSubmit: () => void;
-}) {
+};
+
+export function UserDialog(props: UserDialogProps) {
   const { t } = useTranslate('admin');
-  const roleOptions = roles.map((role) => ({
-    id: role.role_id,
-    label: translatedRoleName(role, t),
-  }));
-  const postOptions = posts.map((post) => ({ id: post.post_id, label: post.post_name }));
   return (
     <ManagementDialog
-      open={open}
-      title={editing ? t('dialogs.editUser') : t('dialogs.createUser')}
-      submitting={submitting}
-      onClose={onClose}
-      onSubmit={onSubmit}
+      open={props.open}
+      title={props.editing ? t('dialogs.editUser') : t('dialogs.createUser')}
+      submitting={props.submitting}
+      onClose={props.onClose}
+      onSubmit={props.onSubmit}
     >
+      <UserProfileFields {...props} />
+      <UserAccessFields {...props} />
+    </ManagementDialog>
+  );
+}
+
+function UserProfileFields({ editing, form, depts, setForm }: UserDialogProps) {
+  const { t } = useTranslate('admin');
+  return (
+    <>
       <TextFieldRow
         required
         label={t('common.username')}
@@ -93,13 +89,26 @@ export function UserDialog({
       />
       {!editing && (
         <TextFieldRow
+          required
           type="password"
           label={t('common.password')}
-          helperText={t('helper.emptyPasswordUsesDefault')}
           value={form.password ?? ''}
           onChange={(value) => setForm((current) => ({ ...current, password: value }))}
         />
       )}
+    </>
+  );
+}
+
+function UserAccessFields({ form, roles, posts, setForm }: UserDialogProps) {
+  const { t } = useTranslate('admin');
+  const roleOptions = roles.map((role) => ({
+    id: role.role_id,
+    label: translatedRoleName(role, t),
+  }));
+  const postOptions = posts.map((post) => ({ id: post.post_id, label: post.post_name }));
+  return (
+    <>
       <TextFieldRow
         select
         label={t('fields.sex')}
@@ -137,7 +146,7 @@ export function UserDialog({
         value={form.remark ?? ''}
         onChange={(value) => setForm((current) => ({ ...current, remark: value }))}
       />
-    </ManagementDialog>
+    </>
   );
 }
 
@@ -149,14 +158,11 @@ export function RoleAssignDialog({
   onSelectedChange,
   onClose,
   onSubmit,
-}: {
+}: DialogSubmitProps & {
   user: SystemUser | null;
   roles: RoleOption[];
   selected: string[];
-  submitting: boolean;
   onSelectedChange: (value: string[]) => void;
-  onClose: () => void;
-  onSubmit: () => void;
 }) {
   const { t } = useTranslate('admin');
   const roleOptions = roles.map((role) => ({
@@ -188,13 +194,10 @@ export function PasswordDialog({
   onPasswordChange,
   onClose,
   onSubmit,
-}: {
+}: DialogSubmitProps & {
   user: SystemUser | null;
   password: string;
-  submitting: boolean;
   onPasswordChange: (value: string) => void;
-  onClose: () => void;
-  onSubmit: () => void;
 }) {
   const { t } = useTranslate('admin');
   return (
@@ -216,77 +219,82 @@ export function PasswordDialog({
   );
 }
 
-export function UserImportDialog({
-  open,
-  file,
-  updateSupport,
-  submitting,
-  onFileChange,
-  onUpdateSupportChange,
-  onTemplate,
-  onClose,
-  onSubmit,
-}: {
+type UserImportDialogProps = DialogSubmitProps & {
   open: boolean;
   file: File | null;
   updateSupport: boolean;
-  submitting: boolean;
   onFileChange: (file: File | null) => void;
   onUpdateSupportChange: (value: boolean) => void;
   onTemplate: () => Promise<void>;
-  onClose: () => void;
-  onSubmit: () => void;
-}) {
+};
+
+export function UserImportDialog(props: UserImportDialogProps) {
   const { t } = useTranslate('admin');
   const downloadTemplate = async () => {
     try {
-      await onTemplate();
+      await props.onTemplate();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.exportFailed'));
     }
   };
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={props.open} onClose={props.onClose} fullWidth maxWidth="sm">
       <DialogTitle>{t('dialogs.importUser')}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          <Button
-            component="label"
-            variant="outlined"
-            startIcon={<Iconify icon="eva:cloud-upload-fill" />}
-          >
-            {file?.name ?? t('actions.selectFile')}
-            <input
-              hidden
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
-            />
-          </Button>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={updateSupport}
-                onChange={(event) => onUpdateSupportChange(event.target.checked)}
-              />
-            }
-            label={t('fields.updateSupport')}
-          />
-          <Box sx={{ typography: 'body2', color: 'text.secondary' }}>
-            {t('helper.userImportTemplate')}
-          </Box>
-        </Stack>
-      </DialogContent>
+      <UserImportContent {...props} />
       <DialogActions>
         <Button onClick={downloadTemplate} startIcon={<Iconify icon="solar:download-bold" />}>
           {t('actions.downloadTemplate')}
         </Button>
         <Box sx={{ flexGrow: 1 }} />
-        <Button onClick={onClose}>{t('common.cancel')}</Button>
-        <Button variant="contained" disabled={!file || submitting} onClick={onSubmit}>
+        <Button onClick={props.onClose}>{t('common.cancel')}</Button>
+        <Button
+          variant="contained"
+          disabled={!props.file || props.submitting}
+          onClick={props.onSubmit}
+        >
           {t('actions.import')}
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+function UserImportContent({
+  file,
+  updateSupport,
+  onFileChange,
+  onUpdateSupportChange,
+}: UserImportDialogProps) {
+  const { t } = useTranslate('admin');
+  return (
+    <DialogContent>
+      <Stack spacing={2} sx={{ pt: 1 }}>
+        <Button
+          component="label"
+          variant="outlined"
+          startIcon={<Iconify icon="eva:cloud-upload-fill" />}
+        >
+          {file?.name ?? t('actions.selectFile')}
+          <input
+            hidden
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+          />
+        </Button>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={updateSupport}
+              onChange={(event) => onUpdateSupportChange(event.target.checked)}
+            />
+          }
+          label={t('fields.updateSupport')}
+        />
+        <Box sx={{ typography: 'body2', color: 'text.secondary' }}>
+          {t('helper.userImportTemplate')}
+        </Box>
+      </Stack>
+    </DialogContent>
   );
 }

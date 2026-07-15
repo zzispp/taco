@@ -4,13 +4,17 @@ use std::{
 };
 
 use async_trait::async_trait;
+use audit_contract::AuditOutboxRecord;
 use kernel::error::LocalizedError;
-use kernel::pagination::{Page, PageRequest};
+use kernel::pagination::{CursorPage, CursorPageRequest};
+use rbac::domain::{DataScope, DataScopeFilter};
 use system::{
-    application::{ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemError, SystemRepository},
+    application::{
+        ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemError, SystemExportRequest, SystemExportSink,
+        SystemRepository, SystemResult,
+    },
     domain::{ConfigInput, ConfigItem, Dept, DeptInput, DictData, DictDataInput, DictType, DictTypeInput, Post, PostInput},
 };
-use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_CUSTOM, DATA_SCOPE_DEPT, DATA_SCOPE_DEPT_AND_CHILD, DATA_SCOPE_SELF, DataScopeFilter};
 
 #[derive(Clone, Default)]
 pub(crate) struct MemoryRepository {
@@ -29,6 +33,7 @@ struct State {
     dept_has_users: bool,
     deleted_dict_types: Vec<String>,
     updated_dept_sorts: Vec<(String, i64)>,
+    audit_records: Vec<AuditOutboxRecord>,
     last_dept_filter: Option<DeptListFilter>,
     last_post_filter: Option<PostListFilter>,
     last_config_filter: Option<ConfigListFilter>,
@@ -88,8 +93,17 @@ impl MemoryRepository {
     pub(crate) fn last_config_filter(&self) -> Option<ConfigListFilter> {
         self.state.lock().unwrap().last_config_filter.clone()
     }
+
+    pub(crate) fn audit_records(&self) -> Vec<AuditOutboxRecord> {
+        self.state.lock().unwrap().audit_records.clone()
+    }
+
+    fn record_audit(&self, audit: &AuditOutboxRecord) {
+        self.state.lock().unwrap().audit_records.push(audit.clone());
+    }
 }
 
+mod audited_repository;
 mod repository;
 
 impl MemoryRepository {
@@ -102,16 +116,11 @@ impl MemoryRepository {
     }
 }
 
-fn empty_page<T>(page: PageRequest) -> Page<T> {
-    Page {
-        items: vec![],
-        total: 0,
-        page: page.page,
-        page_size: page.page_size,
-    }
+fn empty_page<T>() -> CursorPage<T> {
+    CursorPage::new(vec![], None, None)
 }
-pub(crate) fn page() -> PageRequest {
-    PageRequest { page: 1, page_size: 10 }
+pub(crate) fn page() -> CursorPageRequest {
+    CursorPageRequest { limit: 10, cursor: None }
 }
 pub(crate) fn post_input(code: &str, name: &str) -> PostInput {
     PostInput {
@@ -223,12 +232,11 @@ fn config_from_input(id: &str, input: ConfigInput) -> ConfigItem {
 }
 
 fn memory_dept_scope_matches(dept: &Dept, scope: &DataScopeFilter) -> bool {
-    match scope.data_scope.as_str() {
-        DATA_SCOPE_ALL => true,
-        DATA_SCOPE_CUSTOM => scope.dept_ids.contains(&dept.dept_id),
-        DATA_SCOPE_DEPT | DATA_SCOPE_SELF => scope.dept_id.as_deref() == Some(dept.dept_id.as_str()),
-        DATA_SCOPE_DEPT_AND_CHILD => dept_in_scope_tree(dept, scope.dept_id.as_deref()),
-        _ => false,
+    match scope.data_scope {
+        DataScope::All => true,
+        DataScope::Custom => scope.dept_ids.contains(&dept.dept_id),
+        DataScope::Department | DataScope::SelfOnly => scope.dept_id.as_deref() == Some(dept.dept_id.as_str()),
+        DataScope::DepartmentAndChildren => dept_in_scope_tree(dept, scope.dept_id.as_deref()),
     }
 }
 

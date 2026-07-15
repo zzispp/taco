@@ -45,7 +45,9 @@ export function UserManagementView() {
         onRoles={actions.openRoles}
         onResetPassword={actions.openPassword}
         onStatusChange={(user, status) =>
-          updateUserStatus(user.user_id, status).catch(showError(t))
+          updateUserStatus(user.user_id, status)
+            .then(() => resources.table.onResetCursor())
+            .catch(showError(t))
         }
       />
       <UserDialogSection {...controller} />

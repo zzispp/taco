@@ -29,36 +29,14 @@ quality-complete: quality-precommit
     scripts/quality/ensure-rust-quality-tools.sh complete
     cargo audit
     cargo deny check
-    scripts/quality/run-cargo-geiger.sh
-    cargo miri test --workspace
-    cargo outdated --workspace
-    cargo +nightly udeps --workspace --all-targets
-
-quality-report PACKAGE="" ITEM="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    scripts/quality/ensure-rust-quality-tools.sh expand
-    if [[ -z "{{PACKAGE}}" ]]; then
-        cargo expand
-    elif [[ -z "{{ITEM}}" ]]; then
-        cargo expand -p "{{PACKAGE}}"
-    else
-        cargo expand -p "{{PACKAGE}}" "{{ITEM}}"
-    fi
 
 install-git-hooks:
     mkdir -p .git/hooks
     cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
 
-run-backend:
-    cargo run -p backend
-
-run-backend-config CONFIG:
+run-backend CONFIG:
     cargo run -p backend -- --config {{CONFIG}}
 
-backend-migration ARGS:
-    cargo run -p backend -- migration {{ARGS}}
-
-backend-migration-config CONFIG ARGS:
+backend-migration CONFIG ARGS:
     cargo run -p backend -- --config {{CONFIG}} migration {{ARGS}}

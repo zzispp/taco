@@ -1,0 +1,18 @@
+{
+  "dataScope": {
+    "all": "全部数据权限",
+    "custom": "自定数据权限",
+    "dept": "本部门数据权限",
+    "deptAndChild": "本部门及以下数据权限",
+    "self": "仅本人数据权限"
+  },
+  "menuType": {
+    "directory": "目录",
+    "menu": "菜单",
+    "button": "按钮"
+  },
+  "dateTimeFilters": {
+    "invalidDateTime": "请输入有效的创建时间",
+    "invalidTimeRange": "开始时间不能晚于结束时间"
+  }
+}

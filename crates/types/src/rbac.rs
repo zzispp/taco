@@ -2,13 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::system::TreeSelectNode;
 
-pub const DATA_SCOPE_ALL: &str = "1";
-pub const DATA_SCOPE_CUSTOM: &str = "2";
-pub const DATA_SCOPE_DEPT: &str = "3";
-pub const DATA_SCOPE_DEPT_AND_CHILD: &str = "4";
-pub const DATA_SCOPE_SELF: &str = "5";
-pub const STATUS_NORMAL: &str = "0";
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Role {
     pub role_id: String,
@@ -178,20 +171,3 @@ pub struct RoleMenuSnapshot {
     pub role_key: String,
     pub sections: Vec<NavSectionResponse>,
 }
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DataScopeFilter {
-    pub data_scope: String,
-    pub user_id: String,
-    pub dept_id: Option<String>,
-    pub dept_ids: Vec<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DataScopeHandler {
-    pub function: &'static str,
-    pub dept_alias: &'static str,
-    pub user_alias: &'static str,
-}
-
-inventory::collect!(DataScopeHandler);

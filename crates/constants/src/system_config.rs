@@ -1,8 +1,8 @@
 pub const REGISTER_USER_KEY: &str = "sys.account.registerUser";
-pub const INIT_PASSWORD_KEY: &str = "sys.user.initPassword";
 pub const CAPTCHA_CONFIG_KEY: &str = "sys.account.captchaConfig";
 pub const TOKEN_CONFIG_KEY: &str = "sys.auth.tokenConfig";
-pub const IP_LOCATION_CONFIG_KEY: &str = "sys.auth.ipLocationConfig";
+pub const IP_LOCATION_CONFIG_KEY: &str = "sys.client.ipLocationConfig";
+pub const LOGIN_LOCK_CONFIG_KEY: &str = "sys.auth.loginLockConfig";
 pub const PASSWORD_POLICY_KEY: &str = "sys.user.passwordPolicy";
 pub const AVATAR_CONFIG_KEY: &str = "sys.upload.avatarConfig";
 pub const EXPORT_BATCH_CONFIG_KEY: &str = "sys.export.batchConfig";

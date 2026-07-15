@@ -1,24 +1,4 @@
 {
-  "nav": {
-    "overview": "Overview",
-    "dashboard": "Dashboard",
-    "resources": "Resources",
-    "account": "Account",
-    "systemManagement": "System Management",
-    "systemMonitor": "System Monitoring",
-    "users": "Users",
-    "roles": "Roles",
-    "menus": "Menus",
-    "customKeyboardShortcuts": "Custom keyboard shortcuts.",
-    "depts": "Departments",
-    "posts": "Posts",
-    "dicts": "Dictionaries",
-    "configs": "Configs",
-    "online": "Online Users",
-    "jobs": "Scheduled Jobs",
-    "jobLogs": "Job Logs",
-    "notices": "Notices"
-  },
   "common": {
     "active": "Active",
     "add": "Add",
@@ -58,6 +38,8 @@
     "select": "Select",
     "sort": "Sort",
     "sortOrder": "Sort order",
+    "sortAscending": "Sorted ascending by this column",
+    "sortDescending": "Sorted descending by this column",
     "source": "Source",
     "status": "Status",
     "system": "System",
@@ -91,7 +73,9 @@
     "onlineManagement": "Online Users",
     "jobManagement": "Scheduled Jobs",
     "jobLogManagement": "Job Logs",
-    "noticeManagement": "Notices"
+    "noticeManagement": "Notices",
+    "operationLogManagement": "Operation Logs",
+    "loginLogManagement": "Login Logs"
   },
   "actions": {
     "addMenuItem": "Add menu item",
@@ -204,8 +188,7 @@
     "deepMatch": "Deep match controls subpath highlighting.",
     "pathPatternExample": "Example: /api/users/{id}",
     "updatePasswordRequired": "Backend currently requires a password on update.",
-    "emptyPasswordUsesDefault": "Leave blank to use the system default initial password.",
-    "userImportTemplate": "The import template contains department ID, login name, display name, email, phone, sex, and status. It does not contain role or post columns."
+    "userImportTemplate": "The import template contains department ID, login name, password, display name, email, phone, sex, and status. It does not contain role or post columns."
   },
   "messages": {
     "deleteFailed": "Delete failed",
@@ -246,265 +229,5 @@
   "authSources": {
     "local": "Local",
     "system": "System"
-  },
-  "dashboard": {
-    "welcome": "Hi, Welcome back 👋",
-    "weeklySales": "Weekly sales",
-    "newUsers": "New users",
-    "purchaseOrders": "Purchase orders",
-    "messages": "Messages",
-    "currentVisits": "Current visits",
-    "websiteVisits": "Website visits",
-    "conversionRates": "Conversion rates",
-    "currentSubject": "Current subject",
-    "news": "News",
-    "orderTimeline": "Order timeline",
-    "trafficBySite": "Traffic by site",
-    "tasks": "Tasks",
-    "thanLastYear": "(+43%) than last year",
-    "visits": "visits",
-    "viewAll": "View all",
-    "markComplete": "Mark complete",
-    "share": "Share",
-    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"],
-    "regions": {
-      "america": "America",
-      "asia": "Asia",
-      "europe": "Europe",
-      "africa": "Africa"
-    },
-    "countries": {
-      "italy": "Italy",
-      "japan": "Japan",
-      "china": "China",
-      "canada": "Canada",
-      "france": "France"
-    },
-    "subjects": {
-      "english": "English",
-      "history": "History",
-      "physics": "Physics",
-      "geography": "Geography",
-      "chinese": "Chinese",
-      "math": "Math"
-    },
-    "series": {
-      "teamA": "Team A",
-      "teamB": "Team B",
-      "series1": "Series 1",
-      "series2": "Series 2",
-      "series3": "Series 3"
-    },
-    "newsItems": {
-      "titles": [
-        "The Future of Renewable Energy: Innovations and Challenges Ahead",
-        "Exploring the Impact of Artificial Intelligence on Modern Healthcare",
-        "Climate Change and Its Effects on Global Food Security",
-        "The Rise of Remote Work: Benefits, Challenges, and Future Trends",
-        "Understanding Blockchain Technology: Beyond Cryptocurrency"
-      ],
-      "descriptions": [
-        "The sun slowly set over the horizon, painting the sky in vibrant hues of orange and pink.",
-        "She eagerly opened the gift, her eyes sparkling with excitement.",
-        "The old oak tree stood tall and majestic, its branches swaying gently in the breeze.",
-        "The aroma of freshly brewed coffee filled the air, awakening my senses.",
-        "The children giggled with joy as they ran through the sprinklers on a hot summer day."
-      ]
-    },
-    "timeline": {
-      "items": [
-        "1983, orders, $4220",
-        "12 Invoices have been paid",
-        "Order #37745 from September",
-        "New order placed #XF-2356",
-        "New order placed #XF-2346"
-      ]
-    },
-    "taskItems": [
-      "Prepare Monthly Financial Report",
-      "Design New Marketing Campaign",
-      "Analyze Customer Feedback",
-      "Update Website Content",
-      "Conduct Market Research"
-    ]
-  },
-  "systemDashboard": {
-    "title": "System dashboard",
-    "summary": {
-      "cpuUsage": "CPU usage",
-      "memoryUsage": "Memory usage",
-      "diskUsage": "Disk usage",
-      "networkInbound": "Network inbound"
-    },
-    "cards": {
-      "serverInfo": "Server information",
-      "healthStatus": "Health status"
-    },
-    "labels": {
-      "hostname": "Hostname",
-      "system": "System",
-      "kernel": "Kernel",
-      "cpu": "CPU",
-      "cpuCores": "CPU cores",
-      "memoryDisk": "Memory / Disk",
-      "publicIp": "Public IP",
-      "uptime": "Uptime",
-      "bootTime": "Boot time",
-      "sampledAt": "Sampled at",
-      "load": "Load"
-    },
-    "health": {
-      "green": "Green",
-      "yellow": "Yellow",
-      "red": "Red",
-      "allHealthy": "All core resources are below alert thresholds",
-      "issue": "{{kind}}: {{target}} {{usage}}%",
-      "issueSeparator": "; ",
-      "kinds": {
-        "cpu": "CPU",
-        "memory": "Memory",
-        "disk": "Disk"
-      }
-    },
-    "units": {
-      "physical": "physical",
-      "logical": "logical",
-      "day": "d",
-      "hour": "h",
-      "minute": "m"
-    },
-    "charts": {
-      "resourceTrend": "CPU / memory trend",
-      "realtimeSessionSampling": "Real-time samples for this page session",
-      "networkTrend": "Real-time network traffic",
-      "inboundOutboundBandwidth": "Inbound / outbound bandwidth",
-      "diskUsage": "Disk partition usage",
-      "usedCapacity": "By used capacity",
-      "series": {
-        "cpu": "CPU",
-        "memory": "Memory",
-        "inbound": "Inbound",
-        "outbound": "Outbound"
-      }
-    },
-    "tables": {
-      "topProcesses": "Top resource processes",
-      "sortedByCpu": "Sorted by CPU usage",
-      "cpuCoreLoad": "CPU core load",
-      "cpuCoreLoadSubheader": "Usage and frequency for each core",
-      "diskPartitions": "Disk partition details",
-      "diskPartitionsSubheader": "Mount point, file system and capacity"
-    }
-  },
-  "dataScope": {
-    "all": "All data",
-    "custom": "Custom departments",
-    "dept": "Own department",
-    "deptAndChild": "Own department and children",
-    "self": "Self only"
-  },
-  "menuType": {
-    "directory": "Directory",
-    "menu": "Menu",
-    "button": "Button"
-  },
-  "profile": {
-    "personalCenter": "Profile",
-    "personalInfo": "Personal info",
-    "basicInfo": "Basic info",
-    "changePassword": "Change password",
-    "changeAvatar": "Change avatar",
-    "selectAvatarFirst": "Select an image to crop your avatar",
-    "zoom": "Zoom",
-    "avatarImageOnly": "Please upload an image file",
-    "deptAndPost": "Department / Post",
-    "roleGroup": "Roles",
-    "oldPassword": "Old password",
-    "confirmPassword": "Confirm password",
-    "passwordRule": "Password must be between 8 and 128 characters",
-    "passwordRuleDynamic": "Password must be between {{min}} and {{max}} characters",
-    "passwordRequired": "Old password, new password, and confirmation are required",
-    "passwordMismatch": "The two passwords do not match",
-    "passwordSame": "New password cannot be the same as old password",
-    "requiredProfileFields": "Nickname and email are required",
-    "invalidEmail": "Email format is invalid",
-    "invalidPhone": "Mobile phone format is invalid",
-    "logout": "Logout",
-    "logoutFailed": "Unable to logout",
-    "authorizedNavigation": "Authorized navigation",
-    "usernameRuleDynamic": "Username must be between {{min}} and {{max}} characters",
-    "usernamePattern": "Username can only contain letters, numbers, underscores, and hyphens, and must start and end with a letter or number",
-    "passwordLetterRequired": "Password must contain a letter",
-    "passwordNumberRequired": "Password must contain a number",
-    "passwordSymbolRequired": "Password must contain a symbol",
-    "passwordContainsUsername": "Password cannot contain username",
-    "emailRequired": "Email is required",
-    "identifierRequired": "Username or email is required",
-    "identifierInvalid": "Enter a valid username or email address"
-  },
-  "dateTimeFilters": {
-    "invalidDateTime": "Enter a valid creation time",
-    "invalidTimeRange": "The start time cannot be later than the end time"
-  },
-  "onlineSessions": {
-    "tokenId": "Session ID",
-    "userName": "Login Name",
-    "ipaddr": "Login Address",
-    "host": "Host",
-    "loginLocation": "Login Location",
-    "browser": "Browser",
-    "os": "Operating System",
-    "loginTime": "Login Time",
-    "invalidDateTime": "Enter a valid login time",
-    "invalidTimeRange": "The login start time cannot be later than the end time",
-    "forceLogout": "Force Logout",
-    "forceLogoutConfirm": "Force logout user \"{{name}}\"?",
-    "forceLogoutSuccess": "Force logout succeeded"
-  },
-  "notice": {
-    "notifications": "Notifications",
-    "unread": "Unread",
-    "markAllRead": "Mark all as read",
-    "noNotifications": "No notifications",
-    "viewAll": "View all",
-    "detailTitle": "Notice details",
-    "viewDetail": "View details",
-    "emptyContent": "No content",
-    "createTitle": "Add notice",
-    "editTitle": "Edit notice",
-    "readers": "Readers",
-    "readersTitle": "Readers: {{name}}",
-    "readerSearch": "Login name or nickname",
-    "readTime": "Read time",
-    "batchDeleteContent": "Delete the selected {{count}} notices?",
-    "fields": {
-      "title": "Title",
-      "type": "Type",
-      "content": "Content",
-      "createBy": "Created by"
-    },
-    "types": {
-      "notice": "Notice",
-      "announcement": "Announcement"
-    },
-    "status": {
-      "normal": "Normal",
-      "closed": "Closed"
-    },
-    "editor": {
-      "edit": "Edit Markdown",
-      "preview": "Preview",
-      "emptyPreview": "Nothing to preview"
-    },
-    "validation": {
-      "required": "Enter a title",
-      "tooLong": "Title must not exceed {{max}} characters"
-    }
-  },
-  "authExpired": {
-    "title": "System prompt",
-    "content": "Your login status has expired. You can stay on this page or log in again.",
-    "stay": "Stay on this page",
-    "relogin": "Log in again"
   }
 }

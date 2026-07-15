@@ -1,7 +1,7 @@
 import type { DictData, DictType } from 'src/entities/system';
 import type { useTranslate } from 'src/shared/i18n/use-locales';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
 
@@ -15,9 +15,47 @@ import { openDataEdit, openTypeEdit, closeDataDialog, closeTypeDialog } from './
 export function useDictManagementController() {
   const state = useDictState();
   const resources = useDictResources(state.selected);
+  const clearTypeSelection = state.setSelectedTypeIds;
+  const clearDataSelection = state.setSelectedDataIds;
+  const resetTypeCursor = resources.typeTable.onResetCursor;
+  const resetDataCursor = resources.dataTable.onResetCursor;
+  useEffect(
+    () => clearTypeSelection([]),
+    [
+      clearTypeSelection,
+      resources.typeFilterQuery,
+      resources.typeTable.cursor,
+      resources.typeTable.limit,
+    ]
+  );
+  useEffect(
+    () => clearDataSelection([]),
+    [
+      clearDataSelection,
+      resources.activeType,
+      resources.dataFilters,
+      resources.dataTable.cursor,
+      resources.dataTable.limit,
+    ]
+  );
+  const resetTypeLists = useCallback(() => {
+    resetTypeCursor();
+    resetDataCursor();
+  }, [resetDataCursor, resetTypeCursor]);
   const open = useDictOpenActions({ state, activeType: resources.activeType });
-  const submit = useDictSubmitActions({ state, activeType: resources.activeType, t: resources.t });
-  const deletion = useDictDeleteActions({ state, t: resources.t });
+  const submit = useDictSubmitActions({
+    state,
+    activeType: resources.activeType,
+    t: resources.t,
+    resetTypeList: resetTypeLists,
+    resetDataList: resetDataCursor,
+  });
+  const deletion = useDictDeleteActions({
+    state,
+    t: resources.t,
+    resetTypeList: resetTypeLists,
+    resetDataList: resetDataCursor,
+  });
   const tools = useDictToolActions({ resources, state });
 
   return { resources, state, actions: { ...open, ...submit, ...deletion, ...tools } };
@@ -78,6 +116,8 @@ type DictActionOptions = {
   state: ReturnType<typeof useDictState>;
   activeType: string;
   t: ReturnType<typeof useTranslate>['t'];
+  resetTypeList: () => void;
+  resetDataList: () => void;
 };
 
 function useDictOpenActions({
@@ -100,7 +140,13 @@ function useDictOpenActions({
   return { openCreateData, openTypeEdit: openType, openDataEdit: openData };
 }
 
-function useDictSubmitActions({ state, activeType, t }: DictActionOptions) {
+function useDictSubmitActions({
+  state,
+  activeType,
+  t,
+  resetTypeList,
+  resetDataList,
+}: DictActionOptions) {
   const submitType = useCallback(async () => {
     state.setSubmitting(true);
     try {
@@ -109,18 +155,24 @@ function useDictSubmitActions({ state, activeType, t }: DictActionOptions) {
         : await systemMutations.createDictType(state.typeForm);
       state.setSelected(item);
       toast.success(t('messages.saved'));
+      resetTypeList();
       closeTypeDialog(state.setEditingType, state.setCreatingType, state.setTypeForm);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
     } finally {
       state.setSubmitting(false);
     }
-  }, [state, t]);
-  const submitData = useSubmitDictData({ state, activeType, t });
+  }, [resetTypeList, state, t]);
+  const submitData = useSubmitDictData({ state, activeType, t, resetDataList });
   return { submitType, submitData };
 }
 
-function useSubmitDictData({ state, activeType, t }: DictActionOptions) {
+function useSubmitDictData({
+  state,
+  activeType,
+  t,
+  resetDataList,
+}: Pick<DictActionOptions, 'state' | 'activeType' | 't' | 'resetDataList'>) {
   return useCallback(async () => {
     state.setSubmitting(true);
     try {
@@ -129,27 +181,30 @@ function useSubmitDictData({ state, activeType, t }: DictActionOptions) {
         await systemMutations.updateDictData(state.editingData.dict_code, payload);
       else await systemMutations.createDictData(payload);
       toast.success(t('messages.saved'));
+      resetDataList();
       closeDataDialog(state.setEditingData, state.setCreatingData, state.setDataForm);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
     } finally {
       state.setSubmitting(false);
     }
-  }, [activeType, state, t]);
+  }, [activeType, resetDataList, state, t]);
 }
 
-function useDictDeleteActions({ state, t }: Omit<DictActionOptions, 'activeType'>) {
-  const confirmDeleteType = useConfirmDeleteType(state, t);
-  const confirmDeleteData = useConfirmDeleteData(state, t);
-  const confirmBatchDeleteTypes = useConfirmBatchDeleteTypes(state, t);
-  const confirmBatchDeleteData = useConfirmBatchDeleteData(state, t);
+function useDictDeleteActions(options: Omit<DictActionOptions, 'activeType'>) {
+  const { state, t, resetTypeList, resetDataList } = options;
+  const confirmDeleteType = useConfirmDeleteType(state, t, resetTypeList);
+  const confirmDeleteData = useConfirmDeleteData(state, t, resetDataList);
+  const confirmBatchDeleteTypes = useConfirmBatchDeleteTypes(state, t, resetTypeList);
+  const confirmBatchDeleteData = useConfirmBatchDeleteData(state, t, resetDataList);
 
   return { confirmDeleteType, confirmDeleteData, confirmBatchDeleteTypes, confirmBatchDeleteData };
 }
 
 function useConfirmDeleteType(
   state: ReturnType<typeof useDictState>,
-  t: ReturnType<typeof useTranslate>['t']
+  t: ReturnType<typeof useTranslate>['t'],
+  resetList: () => void
 ) {
   return useCallback(async () => {
     if (!state.deleteType) return;
@@ -160,16 +215,18 @@ function useConfirmDeleteType(
         current.filter((id) => id !== state.deleteType?.dict_id)
       );
       toast.success(t('messages.deleted'));
+      resetList();
       state.setDeleteType(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
 }
 
 function useConfirmDeleteData(
   state: ReturnType<typeof useDictState>,
-  t: ReturnType<typeof useTranslate>['t']
+  t: ReturnType<typeof useTranslate>['t'],
+  resetList: () => void
 ) {
   return useCallback(async () => {
     if (!state.deleteData) return;
@@ -179,16 +236,18 @@ function useConfirmDeleteData(
         current.filter((id) => id !== state.deleteData?.dict_code)
       );
       toast.success(t('messages.deleted'));
+      resetList();
       state.setDeleteData(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
 }
 
 function useConfirmBatchDeleteTypes(
   state: ReturnType<typeof useDictState>,
-  t: ReturnType<typeof useTranslate>['t']
+  t: ReturnType<typeof useTranslate>['t'],
+  resetList: () => void
 ) {
   return useCallback(async () => {
     if (state.selectedTypeIds.length === 0) return;
@@ -197,27 +256,30 @@ function useConfirmBatchDeleteTypes(
       if (state.selected && state.selectedTypeIds.includes(state.selected.dict_id))
         state.setSelected(null);
       toast.success(t('messages.deleted'));
+      resetList();
       state.setSelectedTypeIds([]);
       state.setBatchDeleteTypeOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
 }
 
 function useConfirmBatchDeleteData(
   state: ReturnType<typeof useDictState>,
-  t: ReturnType<typeof useTranslate>['t']
+  t: ReturnType<typeof useTranslate>['t'],
+  resetList: () => void
 ) {
   return useCallback(async () => {
     if (state.selectedDataIds.length === 0) return;
     try {
       await systemMutations.deleteDictDataBatch(state.selectedDataIds);
       toast.success(t('messages.deleted'));
+      resetList();
       state.setSelectedDataIds([]);
       state.setBatchDeleteDataOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
 }

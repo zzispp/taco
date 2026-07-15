@@ -1,12 +1,20 @@
+mod audited_repository;
+mod audited_transaction;
 mod config;
+mod cursor_page;
+#[cfg(test)]
+mod cursor_page_tests;
 mod dept;
+mod dept_audited;
 mod dept_sql;
 mod dict;
+mod dict_audited;
+mod export;
 mod mapping;
 mod metrics;
 mod network_interfaces;
-mod page;
 mod post;
+mod post_audited;
 mod record;
 mod redis_cache;
 
@@ -14,19 +22,23 @@ pub use metrics::SysinfoServerMetricsCollector;
 pub use redis_cache::RedisSystemCache;
 
 use async_trait::async_trait;
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 use storage::Database;
 
 use crate::{
-    application::{ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemRepository, SystemResult},
+    application::{
+        ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemExportRequest, SystemExportSink, SystemRepository,
+        SystemResult,
+    },
     domain::{ConfigInput, ConfigItem, Dept, DeptInput, DictData, DictDataInput, DictType, DictTypeInput, Post, PostInput},
 };
-use types::rbac::DataScopeFilter;
+use rbac::domain::DataScopeFilter;
 
 use self::{config::ConfigQueries, dept::DeptQueries, dict::DictQueries, mapping::storage_error, post::PostQueries};
 
 #[derive(Clone)]
 pub struct StorageSystemRepository {
+    database: Database,
     depts: DeptQueries,
     posts: PostQueries,
     dicts: DictQueries,
@@ -36,6 +48,7 @@ pub struct StorageSystemRepository {
 impl StorageSystemRepository {
     pub fn new(database: Database) -> Self {
         Self {
+            database: database.clone(),
             depts: DeptQueries::new(database.clone()),
             posts: PostQueries::new(database.clone()),
             dicts: DictQueries::new(database.clone()),
@@ -46,12 +59,16 @@ impl StorageSystemRepository {
 
 #[async_trait]
 impl SystemRepository for StorageSystemRepository {
-    async fn page_depts(&self, filter: DeptListFilter) -> SystemResult<Page<Dept>> {
-        self.depts.page(filter).await.map_err(storage_error)
+    async fn export(&self, request: SystemExportRequest, sink: &mut dyn SystemExportSink) -> SystemResult<()> {
+        export::export(&self.database, request, sink).await
     }
 
-    async fn page_depts_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> SystemResult<Page<Dept>> {
-        self.depts.page_scoped(filter, scope).await.map_err(storage_error)
+    async fn page_depts(&self, filter: DeptListFilter) -> SystemResult<CursorPage<Dept>> {
+        self.depts.page(filter).await
+    }
+
+    async fn page_depts_scoped(&self, filter: DeptListFilter, scope: DataScopeFilter) -> SystemResult<CursorPage<Dept>> {
+        self.depts.page_scoped(filter, scope).await
     }
 
     async fn list_depts(&self, filter: DeptListFilter) -> SystemResult<Vec<Dept>> {
@@ -98,8 +115,8 @@ impl SystemRepository for StorageSystemRepository {
         self.depts.has_normal_children(id).await.map_err(storage_error)
     }
 
-    async fn page_posts(&self, filter: PostListFilter) -> SystemResult<Page<Post>> {
-        self.posts.page(filter).await.map_err(storage_error)
+    async fn page_posts(&self, filter: PostListFilter) -> SystemResult<CursorPage<Post>> {
+        self.posts.page(filter).await
     }
 
     async fn find_post(&self, id: &str) -> SystemResult<Option<Post>> {
@@ -138,8 +155,8 @@ impl SystemRepository for StorageSystemRepository {
         self.posts.has_users(id).await.map_err(storage_error)
     }
 
-    async fn page_dict_types(&self, filter: DictTypeListFilter) -> SystemResult<Page<DictType>> {
-        self.dicts.page_types(filter).await.map_err(storage_error)
+    async fn page_dict_types(&self, filter: DictTypeListFilter) -> SystemResult<CursorPage<DictType>> {
+        self.dicts.page_types(filter).await
     }
 
     async fn list_dict_types(&self, filter: DictTypeListFilter) -> SystemResult<Vec<DictType>> {
@@ -174,8 +191,8 @@ impl SystemRepository for StorageSystemRepository {
         self.dicts.delete_types_many(ids).await.map_err(storage_error)
     }
 
-    async fn page_dict_data(&self, filter: DictDataListFilter) -> SystemResult<Page<DictData>> {
-        self.dicts.page_data(filter).await.map_err(storage_error)
+    async fn page_dict_data(&self, filter: DictDataListFilter) -> SystemResult<CursorPage<DictData>> {
+        self.dicts.page_data(filter).await
     }
 
     async fn find_dict_data(&self, id: &str) -> SystemResult<Option<DictData>> {
@@ -202,8 +219,8 @@ impl SystemRepository for StorageSystemRepository {
         self.dicts.delete_data_many(ids).await.map_err(storage_error)
     }
 
-    async fn page_configs(&self, filter: ConfigListFilter) -> SystemResult<Page<ConfigItem>> {
-        self.configs.page(filter).await.map_err(storage_error)
+    async fn page_configs(&self, filter: ConfigListFilter) -> SystemResult<CursorPage<ConfigItem>> {
+        self.configs.page(filter).await
     }
 
     async fn list_configs(&self, filter: ConfigListFilter) -> SystemResult<Vec<ConfigItem>> {

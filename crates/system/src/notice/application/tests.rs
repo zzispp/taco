@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use constants::system::STATUS_NORMAL;
-use kernel::pagination::{Page, PageRequest};
+use kernel::pagination::{CursorPage, CursorPageRequest};
 
 use super::{NoticeRepository, NoticeService, NoticeUseCase, is_safe_url, validate_input, validate_markdown};
 use crate::{
@@ -22,8 +22,8 @@ struct TestRepository {
 
 #[async_trait]
 impl NoticeRepository for TestRepository {
-    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<Page<NoticeSummary>> {
-        Ok(page(self.notice.clone().into_iter().map(summary).collect(), filter.page))
+    async fn page_notices(&self, _filter: NoticeListFilter) -> SystemResult<CursorPage<NoticeSummary>> {
+        Ok(page(self.notice.clone().into_iter().map(summary).collect()))
     }
 
     async fn find_notice(&self, _id: &str) -> SystemResult<Option<Notice>> {
@@ -64,8 +64,8 @@ impl NoticeRepository for TestRepository {
         Ok(())
     }
 
-    async fn page_readers(&self, _notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<Page<NoticeReader>> {
-        Ok(page(Vec::new(), filter.page))
+    async fn page_readers(&self, _notice_id: &str, _filter: NoticeReaderFilter) -> SystemResult<CursorPage<NoticeReader>> {
+        Ok(page(Vec::new()))
     }
 }
 
@@ -92,6 +92,17 @@ fn recognizes_only_rfc_schemes_and_allows_colons_in_relative_links() {
     }
     for url in ["http://example.com", "https://example.com", "mailto:user@example.com"] {
         assert!(is_safe_url(url), "supported URL should be allowed: {url}");
+    }
+}
+
+#[test]
+fn cursor_validation_rejects_limits_outside_the_public_range() {
+    for limit in [0, kernel::pagination::MAX_CURSOR_LIMIT + 1] {
+        let request = CursorPageRequest { limit, cursor: None };
+        assert!(matches!(
+            crate::application::validate_cursor_request(&request),
+            Err(SystemError::InvalidInput(message)) if message.key() == "errors.validation.cursor_limit_range"
+        ));
     }
 }
 
@@ -134,7 +145,6 @@ fn validates_type_status_remark_and_empty_markdown() {
     );
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn normal_user_cannot_read_closed_notice() {
     let service = NoticeService::new(TestRepository {
@@ -144,7 +154,6 @@ async fn normal_user_cannot_read_closed_notice() {
     assert!(matches!(service.get_notice("notice-1", false).await, Err(SystemError::NotFound)));
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn batch_delete_cleans_and_deduplicates_ids() {
     let repository = TestRepository::default();
@@ -157,7 +166,6 @@ async fn batch_delete_cleans_and_deduplicates_ids() {
     assert_eq!(*deleted_ids.lock().expect("deleted ids lock"), vec!["notice-1", "notice-2"]);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn top_notice_limit_is_fixed_to_domain_constant() {
     let repository = TestRepository::default();
@@ -214,11 +222,6 @@ fn summary(value: Notice) -> NoticeSummary {
     }
 }
 
-fn page<T>(items: Vec<T>, request: PageRequest) -> Page<T> {
-    Page {
-        total: items.len() as u64,
-        items,
-        page: request.page,
-        page_size: request.page_size,
-    }
+fn page<T>(items: Vec<T>) -> CursorPage<T> {
+    CursorPage::new(items, None, None)
 }

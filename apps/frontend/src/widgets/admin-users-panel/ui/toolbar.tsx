@@ -4,7 +4,22 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 
 import { Iconify } from 'src/shared/ui/iconify';
-import { AddButton } from 'src/shared/ui/admin';
+
+import { AddButton } from 'src/widgets/admin-common';
+
+type UserToolbarProps = {
+  t: TranslateFn;
+  canAdd: boolean;
+  canDelete: boolean;
+  canImport: boolean;
+  canExport: boolean;
+  exportDisabled: boolean;
+  selectedCount: number;
+  onCreate: () => void;
+  onImport: () => void;
+  onExport: () => void;
+  onBatchDelete: () => void;
+};
 
 export function UserToolbar({
   t,
@@ -18,19 +33,7 @@ export function UserToolbar({
   onImport,
   onExport,
   onBatchDelete,
-}: {
-  t: TranslateFn;
-  canAdd: boolean;
-  canDelete: boolean;
-  canImport: boolean;
-  canExport: boolean;
-  exportDisabled: boolean;
-  selectedCount: number;
-  onCreate: () => void;
-  onImport: () => void;
-  onExport: () => void;
-  onBatchDelete: () => void;
-}) {
+}: UserToolbarProps) {
   if (!canDelete && !canAdd && !canImport && !canExport) return null;
   return (
     <Stack direction="row" spacing={1}>

@@ -6,9 +6,12 @@ import { noticeDetailCacheMatcher, noticeCollectionCacheMatcher } from './index'
 
 describe('notice mutation cache matchers', () => {
   it('refreshes list and top notification caches', () => {
-    expect(noticeCollectionCacheMatcher([noticeEndpoints.notices, { params: { page: 1 } }])).toBe(
-      true
-    );
+    expect(
+      noticeCollectionCacheMatcher([
+        noticeEndpoints.notices,
+        { params: { limit: 20, cursor: 'opaque' } },
+      ])
+    ).toBe(true);
     expect(noticeCollectionCacheMatcher(noticeEndpoints.top)).toBe(true);
     expect(noticeCollectionCacheMatcher(noticeEndpoints.notice('notice-1'))).toBe(false);
   });

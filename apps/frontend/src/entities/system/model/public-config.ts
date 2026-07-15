@@ -124,8 +124,7 @@ function isLogoUrl(value: unknown): value is string {
 
 function isLocalLogoPath(value: string) {
   return (
-    value.startsWith(LOCAL_LOGO_PATH_PREFIX) &&
-    !value.startsWith(PROTOCOL_RELATIVE_URL_PREFIX)
+    value.startsWith(LOCAL_LOGO_PATH_PREFIX) && !value.startsWith(PROTOCOL_RELATIVE_URL_PREFIX)
   );
 }
 

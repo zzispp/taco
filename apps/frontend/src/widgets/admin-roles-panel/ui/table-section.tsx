@@ -9,10 +9,11 @@ import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 
 import { Scrollbar } from 'src/shared/ui/scrollbar';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
 
 import { updateRoleStatus } from 'src/features/role-management';
+
+import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { RoleRow } from './role-row';
 import { RoleFilters } from './filters';
@@ -56,12 +57,16 @@ export function RoleTableSection(props: RoleTableSectionProps) {
           <RoleRows {...props} />
         </Table>
       </Scrollbar>
-      <TablePaginationCustom
-        page={table.page}
-        count={roles.total}
-        rowsPerPage={table.rowsPerPage}
-        onPageChange={table.onChangePage}
-        onRowsPerPageChange={table.onChangeRowsPerPage}
+      <CursorPagination
+        limit={table.limit}
+        itemCount={roles.itemCount}
+        visitedBatchIndex={table.visitedBatchIndex}
+        hasPrevious={roles.hasPrevious}
+        hasNext={roles.hasNext}
+        pending={roles.isValidating}
+        onPrevious={() => table.onPreviousCursor(roles.previousCursor)}
+        onNext={() => table.onNextCursor(roles.nextCursor)}
+        onLimitChange={table.onChangeLimit}
       />
     </Card>
   );
@@ -73,11 +78,12 @@ function RoleRows(props: RoleTableSectionProps) {
   return (
     <TableBody>
       {roles.isLoading ? (
-        <TableLoadingRows head={loadingHead} rows={table.rowsPerPage} />
+        <TableLoadingRows head={loadingHead} rows={table.limit} />
       ) : (
         roles.items.map((row) => <RoleDataRow key={row.role_id} row={row} {...props} />)
       )}
       <TableNoData
+        colSpan={loadingHead.length}
         title={t('common.noData')}
         notFound={!roles.isLoading && roles.items.length === 0}
       />
@@ -97,7 +103,11 @@ function RoleDataRow({ row, ...props }: RoleTableSectionProps & { row: Role }) {
       onDelete={onDelete}
       onBind={onBind}
       onUsers={onUsers}
-      onStatusChange={(status) => updateRoleStatus(row.role_id, status).catch(showError(t))}
+      onStatusChange={(status) =>
+        updateRoleStatus(row.role_id, status)
+          .then(() => props.table.onResetCursor())
+          .catch(showError(t))
+      }
     />
   );
 }

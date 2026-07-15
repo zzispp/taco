@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 use storage::Database;
 
 use crate::{
-    application::{MenuListFilter, RbacRepository, RbacResult, RoleListFilter, RoleUserListFilter},
+    application::{MenuListFilter, RbacRepository, RbacResult, RoleExportRequest, RoleExportSink, RoleListFilter, RoleUserListFilter},
     domain::{
         DataScopeFilter, Menu, MenuInput, PermissionSnapshot, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleOption,
         RoleUser, RoleUserBindingInput,
@@ -19,8 +19,8 @@ use super::{
 
 #[derive(Clone)]
 pub struct StorageRbacRepository {
-    roles: RoleQueries,
-    menus: MenuQueries,
+    pub(super) roles: RoleQueries,
+    pub(super) menus: MenuQueries,
 }
 
 impl StorageRbacRepository {
@@ -74,20 +74,24 @@ impl RbacRepository for StorageRbacRepository {
         self.roles.has_users(role_id).await.map_err(storage_error)
     }
 
-    async fn page_roles(&self, filter: RoleListFilter) -> RbacResult<Page<Role>> {
-        self.roles.page(filter).await.map_err(storage_error)
+    async fn page_roles(&self, filter: RoleListFilter) -> RbacResult<CursorPage<Role>> {
+        self.roles.page(filter).await
     }
 
-    async fn page_roles_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<Page<Role>> {
-        self.roles.page_scoped(filter, scope).await.map_err(storage_error)
+    async fn page_roles_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<CursorPage<Role>> {
+        self.roles.page_scoped(filter, scope).await
+    }
+
+    async fn export_roles(&self, request: RoleExportRequest, sink: &mut dyn RoleExportSink) -> RbacResult<()> {
+        self.roles.export_roles(request, sink).await
     }
 
     async fn role_options(&self) -> RbacResult<Vec<RoleOption>> {
         self.roles.options().await.map_err(storage_error)
     }
 
-    async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<Page<RoleUser>> {
-        self.roles.page_users(filter, scope).await.map_err(storage_error)
+    async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<CursorPage<RoleUser>> {
+        self.roles.page_users(filter, scope).await
     }
 
     async fn scoped_user_ids(&self, user_ids: &[String], scope: DataScopeFilter) -> RbacResult<Vec<String>> {
@@ -142,8 +146,8 @@ impl RbacRepository for StorageRbacRepository {
         self.menus.list().await.map_err(storage_error)
     }
 
-    async fn page_menus(&self, filter: MenuListFilter) -> RbacResult<Page<Menu>> {
-        self.menus.page(filter).await.map_err(storage_error)
+    async fn page_menus(&self, filter: MenuListFilter) -> RbacResult<CursorPage<Menu>> {
+        self.menus.page(filter).await
     }
 
     async fn replace_role_menus(&self, role_id: &str, input: RoleMenuBindingInput) -> RbacResult<()> {

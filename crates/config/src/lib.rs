@@ -5,8 +5,10 @@ mod validation;
 
 pub use error::SettingsError;
 pub use settings::{
-    AuthSettings, AuthWhitelistRule, CorsSettings, DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings, RedisSettings, SchedulerHttpClientSettings,
-    SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, TracingFileSettings, TracingSettings, UploadSettings,
+    AuditOutboxSettings, AuditSettings, AuthSettings, AuthWhitelistRule, CaptchaSettings, ClientInfoSettings, ClientIpLocationSettings,
+    CloudflareTurnstileSettings, CorsSettings, DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisSettings,
+    RefreshCookieSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, TracingFileSettings,
+    TracingSettings, UploadSettings, UserSettings,
 };
 pub use validation::{ValidatedCorsList, ValidatedCorsSettings, ValidatedTracingSettings};
 

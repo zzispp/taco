@@ -6,9 +6,9 @@ services:
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: '123456'
+      POSTGRES_PASSWORD: "${TACO_POSTGRES_PASSWORD:?TACO_POSTGRES_PASSWORD is required}"
     ports:
-      - '5433:5432'
+      - '5435:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     container_name: hook-redis
     restart: unless-stopped
     ports:
-      - '6380:6379'
+      - '6381:6379'
     volumes:
       - redis-data:/data
     healthcheck:

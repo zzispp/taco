@@ -4,27 +4,33 @@ import axios, { AxiosHeaders } from 'axios';
 
 import { CONFIG } from 'src/shared/config';
 import { storageConfig } from 'src/shared/i18n/locales-config';
+import { toBackendAcceptLanguage } from 'src/shared/i18n/language';
+
+import { isAuthSessionRejected, normalizeApiErrorAsync } from './http-client/error-normalization';
+import {
+  retryUnauthorizedRequest,
+  notifyTerminalSessionRejection,
+} from './http-client/auth-session-recovery';
+
+export { toBackendAcceptLanguage as mapLanguageToAcceptLanguage } from 'src/shared/i18n/language';
+export {
+  skipAuthSessionRecovery,
+  markAuthSessionEstablished,
+  registerAuthSessionRecovery,
+} from './http-client/auth-session-recovery';
+export {
+  normalizeApiError,
+  isNormalizedApiError,
+  isAuthSessionRejected,
+  normalizeApiErrorAsync,
+  type NormalizedApiError,
+} from './http-client/error-normalization';
 
 // ----------------------------------------------------------------------
 
-type ApiErrorPayload = {
-  code?: unknown;
-  message?: unknown;
-  details?: unknown;
-};
-
-export type NormalizedApiError = Error & {
-  status?: number;
-  code?: string;
-  details?: string;
-};
-
-type AuthSessionRejectedListener = (error: NormalizedApiError) => void;
-
-const authSessionRejectedListeners = new Set<AuthSessionRejectedListener>();
-
 const axiosInstance = axios.create({
   baseURL: CONFIG.serverUrl,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -34,11 +40,12 @@ axiosInstance.interceptors.request.use((config) => applyAcceptLanguageHeader(con
 
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const normalizedError = normalizeApiError(error);
-    if (shouldNotifyAuthSessionRejected(error, normalizedError)) {
-      notifyAuthSessionRejected(normalizedError);
-    }
+  async (error) => {
+    const recoveredResponse = await retryUnauthorizedRequest(axiosInstance, error);
+    if (recoveredResponse) return recoveredResponse;
+
+    const normalizedError = await normalizeApiErrorAsync(error);
+    await notifyTerminalSessionRejection(error, normalizedError);
     return Promise.reject(normalizedError);
   }
 );
@@ -46,79 +53,6 @@ axiosInstance.interceptors.response.use(
 export default axiosInstance;
 
 // ----------------------------------------------------------------------
-
-export function mapLanguageToAcceptLanguage(lang?: string | null): string | undefined {
-  if (!lang) {
-    return undefined;
-  }
-
-  const lower = lang.trim().toLowerCase().replace('_', '-');
-
-  if (
-    lower === 'tw' ||
-    lower.startsWith('zh-tw') ||
-    lower.startsWith('zh-hk') ||
-    lower.startsWith('zh-hant')
-  ) {
-    return 'zh-TW';
-  }
-
-  if (
-    lower === 'cn' ||
-    lower === 'zh' ||
-    lower.startsWith('zh-cn') ||
-    lower.startsWith('zh-hans')
-  ) {
-    return 'zh-CN';
-  }
-
-  if (lower === 'en' || lower.startsWith('en-')) {
-    return 'en';
-  }
-
-  return undefined;
-}
-
-export function normalizeApiError(error: unknown): NormalizedApiError {
-  const response = axios.isAxiosError(error) ? error.response : undefined;
-  const data = response?.data as ApiErrorPayload | undefined;
-  const details = stringValue(data?.details);
-  const message = details ?? stringValue(data?.message) ?? axiosErrorMessage(error);
-  const normalizedError = new Error(message) as NormalizedApiError;
-
-  Object.assign(normalizedError, {
-    status: response?.status,
-    code: stringValue(data?.code),
-    details,
-  });
-
-  return normalizedError;
-}
-
-export function isNormalizedApiError(error: unknown): error is NormalizedApiError {
-  return (
-    error instanceof Error &&
-    Object.hasOwn(error, 'status') &&
-    Object.hasOwn(error, 'code') &&
-    Object.hasOwn(error, 'details')
-  );
-}
-
-export function subscribeAuthSessionRejected(listener: AuthSessionRejectedListener) {
-  authSessionRejectedListeners.add(listener);
-  return () => {
-    authSessionRejectedListeners.delete(listener);
-  };
-}
-
-export function isAuthSessionRejected(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-
-  const { status, code } = error as { status?: number; code?: string };
-  return status === 401 || code === 'unauthorized';
-}
 
 export const fetcher = async <T = unknown>(
   args: string | [string, AxiosRequestConfig]
@@ -156,36 +90,5 @@ function storedAcceptLanguage(): string | undefined {
     return undefined;
   }
 
-  return mapLanguageToAcceptLanguage(localStorage.getItem(storageConfig.localStorage.key));
-}
-
-function shouldNotifyAuthSessionRejected(error: unknown, normalizedError: NormalizedApiError) {
-  return isAuthSessionRejected(normalizedError) && requestHasAuthorizationHeader(error);
-}
-
-function requestHasAuthorizationHeader(error: unknown): boolean {
-  if (!axios.isAxiosError(error)) {
-    return false;
-  }
-
-  const authorization = AxiosHeaders.from(error.config?.headers).get('Authorization');
-  return typeof authorization === 'string'
-    ? authorization.trim().length > 0
-    : Boolean(authorization);
-}
-
-function notifyAuthSessionRejected(error: NormalizedApiError) {
-  authSessionRejectedListeners.forEach((listener) => listener(error));
-}
-
-function axiosErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return 'Something went wrong!';
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
+  return toBackendAcceptLanguage(localStorage.getItem(storageConfig.localStorage.key));
 }

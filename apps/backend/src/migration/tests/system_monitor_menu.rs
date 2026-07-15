@@ -2,7 +2,7 @@ use sqlx::{PgPool, query, query_as, query_scalar};
 
 use super::{TestDatabase, down, up};
 
-const MIGRATIONS_BEFORE_SYSTEM_MONITOR: u32 = 15;
+const MIGRATIONS_BEFORE_SYSTEM_MONITOR: u32 = 14;
 const SYSTEM_MONITOR_MENU_ID: &str = "3";
 const MOVED_MENUS: &[(&str, &str, i64)] = &[("107", "3", 1), ("108", "3", 2), ("109", "3", 3)];
 const RESTORED_MENUS: &[(&str, &str, i64)] = &[("107", "1", 8), ("108", "1", 9), ("109", "1", 10)];
@@ -10,7 +10,6 @@ const SYSTEM_MANAGEMENT_MENUS: &[(&str, i64)] = &[("100", 1), ("101", 2), ("102"
 const TEST_ROLE_BINDINGS: &[(&str, &str)] = &[("monitor-online", "107"), ("monitor-job", "108"), ("monitor-job-log", "109")];
 const TEST_ROLE_IDS: &[&str] = &["monitor-online", "monitor-job", "monitor-job-log"];
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn system_monitor_migration_groups_menus_and_preserves_role_access() {
     let database = TestDatabase::create().await;
@@ -27,7 +26,6 @@ async fn system_monitor_migration_groups_menus_and_preserves_role_access() {
     database.drop().await;
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn system_monitor_down_restores_original_menu_relations() {
     let database = TestDatabase::create().await;

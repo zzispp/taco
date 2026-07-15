@@ -32,6 +32,7 @@ fn status_code(error: &SchedulerError) -> StatusCode {
         SchedulerError::Forbidden(_) => StatusCode::FORBIDDEN,
         SchedulerError::Conflict { .. } => StatusCode::CONFLICT,
         SchedulerError::InvalidInput(_) => StatusCode::BAD_REQUEST,
+        SchedulerError::InvalidCursor => StatusCode::BAD_REQUEST,
         SchedulerError::Infrastructure(_) => StatusCode::SERVICE_UNAVAILABLE,
     }
 }
@@ -50,6 +51,7 @@ fn localized_response(error: &SchedulerError, locale: Locale) -> ApiErrorRespons
             response
         }
         SchedulerError::InvalidInput(details) => localized_error_response(locale, ApiErrorKind::InvalidInput, Some(details)),
+        SchedulerError::InvalidCursor => localized_error_response(locale, ApiErrorKind::InvalidCursor, None),
         SchedulerError::Infrastructure(_) => localized_error_response(
             locale,
             ApiErrorKind::Infrastructure,
@@ -140,5 +142,15 @@ mod tests {
             assert_eq!(response.message, expected_message);
             assert_eq!(response.details.as_deref(), Some(expected_details));
         }
+    }
+
+    #[test]
+    fn invalid_cursor_uses_the_shared_stable_contract() {
+        let error = SchedulerError::InvalidCursor;
+        let response = localized_response(&error, Locale::En);
+
+        assert_eq!(status_code(&error), StatusCode::BAD_REQUEST);
+        assert_eq!(response.code, "invalid_cursor");
+        assert_eq!(response.details, None);
     }
 }

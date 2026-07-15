@@ -4,7 +4,6 @@ use tower::ServiceExt;
 
 use super::support::*;
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_error_response_uses_requested_english_locale() {
     let app = test_router_with_captcha(TestCaptcha::enabled());
@@ -28,7 +27,6 @@ async fn sign_in_error_response_uses_requested_english_locale() {
     assert_eq!(body["details"], "Complete captcha verification first");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn sign_in_error_response_uses_requested_traditional_chinese_locale() {
     let app = test_router_with_captcha(TestCaptcha::enabled());

@@ -179,7 +179,6 @@ mod tests {
         assert_eq!(pending.detail, expected_detail);
     }
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn panic_does_not_fabricate_execution_detail() {
         let join_error = tokio::spawn(async { panic!("scheduled task test panic") }).await.unwrap_err();

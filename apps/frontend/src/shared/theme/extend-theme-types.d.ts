@@ -16,7 +16,6 @@ import type { IconButtonExtendColor } from './core/components/button-icon';
 import type { ChipExtendColor, ChipExtendVariant } from './core/components/chip';
 import type { FabExtendColor, FabExtendVariant } from './core/components/button-fab';
 import type { AvatarExtendColor, AvatarGroupExtendVariant } from './core/components/avatar';
-import type { PaginationExtendColor, PaginationExtendVariant } from './core/components/pagination';
 import type {
   ButtonGroupExtendColor,
   ButtonGroupExtendVariant,
@@ -163,19 +162,6 @@ declare module '@mui/material/Fab' {
 declare module '@mui/material/Chip' {
   interface ChipPropsVariantOverrides extends ChipExtendVariant {}
   interface ChipPropsColorOverrides extends ChipExtendColor {}
-}
-
-/**
- * ➤➤ Pagination (https://mui.com/components/pagination/)
- * @from {@link file://./core/components/pagination.tsx}
- */
-declare module '@mui/material/Pagination' {
-  interface PaginationPropsVariantOverrides extends PaginationExtendVariant {}
-  interface PaginationPropsColorOverrides extends PaginationExtendColor {}
-}
-declare module '@mui/material/PaginationItem' {
-  interface PaginationItemPropsVariantOverrides extends PaginationExtendVariant {}
-  interface PaginationItemPropsColorOverrides extends PaginationExtendColor {}
 }
 
 /**

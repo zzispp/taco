@@ -1,7 +1,5 @@
-use constants::auth::{USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH};
-use constants::pagination::{MAX_PAGE_SIZE, MIN_PAGE_NUMBER, MIN_PAGE_SIZE};
 use kernel::error::LocalizedError;
-use kernel::pagination::PageRequest;
+use kernel::pagination::CursorPageRequest;
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -10,6 +8,9 @@ use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser};
 
 static EMAIL_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").expect("email regex must compile"));
 static PHONE_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^1[3-9]\d{9}$").expect("phone regex must compile"));
+
+const USERNAME_MIN_LENGTH: usize = 3;
+const USERNAME_MAX_LENGTH: usize = 30;
 
 pub(super) fn validate_credentials(input: &Credentials) -> AppResult<()> {
     reject_blank("identifier", &input.identifier)?;
@@ -21,8 +22,9 @@ pub(super) fn validate_new_user(input: &NewUser, policy: &PasswordPolicy) -> App
     validate_password(&input.password, policy, Some(&input.username))?;
     reject_blank("nick_name", &input.nick_name)?;
     reject_blank("email", &input.email)?;
-    reject_blank("status", &input.status)?;
-    reject_empty_ids("role_ids", &input.role_ids)
+    validate_email(&input.email)?;
+    validate_optional_phone(input.phonenumber.as_deref())?;
+    reject_blank("status", &input.status)
 }
 
 pub(super) fn validate_replace_user(input: &ReplaceUser, policy: &PasswordPolicy) -> AppResult<()> {
@@ -32,8 +34,9 @@ pub(super) fn validate_replace_user(input: &ReplaceUser, policy: &PasswordPolicy
     }
     reject_blank("nick_name", &input.nick_name)?;
     reject_blank("email", &input.email)?;
-    reject_blank("status", &input.status)?;
-    reject_empty_ids("role_ids", &input.role_ids)
+    validate_email(&input.email)?;
+    validate_optional_phone(input.phonenumber.as_deref())?;
+    reject_blank("status", &input.status)
 }
 
 pub(super) fn validate_profile_update(input: &ProfileUpdate) -> AppResult<()> {
@@ -44,21 +47,8 @@ pub(super) fn validate_profile_update(input: &ProfileUpdate) -> AppResult<()> {
     reject_blank("sex", &input.sex)
 }
 
-pub(super) fn validate_page(page: PageRequest) -> AppResult<()> {
-    if page.page < MIN_PAGE_NUMBER {
-        return Err(AppError::InvalidInput(localized("errors.validation.page_positive")));
-    }
-    if page.page_size < MIN_PAGE_SIZE {
-        return Err(AppError::InvalidInput(localized("errors.validation.page_size_positive")));
-    }
-    if page.page_size > MAX_PAGE_SIZE {
-        return Err(AppError::InvalidInput(localized_param(
-            "errors.validation.page_size_max",
-            "max",
-            MAX_PAGE_SIZE.to_string(),
-        )));
-    }
-    Ok(())
+pub(super) fn validate_page(page: &CursorPageRequest) -> AppResult<()> {
+    crate::application::cursor::validate_cursor_request(page)
 }
 
 pub(super) fn sanitize_credentials(input: Credentials) -> Credentials {
@@ -74,7 +64,7 @@ pub(super) fn sanitize_new_user(input: NewUser) -> NewUser {
         password: input.password.trim().into(),
         nick_name: trim_required(input.nick_name),
         dept_id: trim_optional(input.dept_id),
-        email: input.email.trim().into(),
+        email: normalize_email(input.email),
         phonenumber: trim_optional(input.phonenumber),
         sex: trim_required(input.sex),
         status: trim_required(input.status),
@@ -90,7 +80,7 @@ pub(super) fn sanitize_replace_user(input: ReplaceUser) -> ReplaceUser {
         password: input.password.map(|password| password.trim().into()),
         nick_name: trim_required(input.nick_name),
         dept_id: trim_optional(input.dept_id),
-        email: input.email.trim().into(),
+        email: normalize_email(input.email),
         phonenumber: trim_optional(input.phonenumber),
         sex: trim_required(input.sex),
         status: trim_required(input.status),
@@ -104,7 +94,7 @@ pub(super) fn sanitize_profile_update(input: ProfileUpdate) -> ProfileUpdate {
     ProfileUpdate {
         nick_name: trim_required(input.nick_name),
         phonenumber: trim_optional(input.phonenumber),
-        email: input.email.trim().into(),
+        email: normalize_email(input.email),
         sex: trim_required(input.sex),
     }
 }
@@ -230,13 +220,6 @@ fn reject_blank(field: &str, value: &str) -> AppResult<()> {
     Ok(())
 }
 
-fn reject_empty_ids(field: &str, values: &[String]) -> AppResult<()> {
-    if values.is_empty() {
-        return Err(AppError::InvalidInput(localized_param("errors.validation.field_empty", "field", field)));
-    }
-    Ok(())
-}
-
 fn trim_ids(values: Vec<String>) -> Vec<String> {
     values.into_iter().map(trim_required).filter(|value| !value.is_empty()).collect()
 }
@@ -247,6 +230,10 @@ fn trim_optional(value: Option<String>) -> Option<String> {
 
 fn trim_required(value: String) -> String {
     value.trim().into()
+}
+
+fn normalize_email(value: String) -> String {
+    value.trim().to_lowercase()
 }
 
 fn localized(key: &'static str) -> LocalizedError {

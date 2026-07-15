@@ -1,36 +1,8 @@
 use std::collections::HashSet;
 
-use constants::pagination::{MAX_PAGE_SIZE, MIN_PAGE_NUMBER, MIN_PAGE_SIZE, PAGE_INDEX_OFFSET};
-use kernel::pagination::{PageRequest, PageSliceRequest};
 use serde_json::Value;
 
-use super::{SchedulerError, SchedulerResult, error::localized_param};
-
-pub fn validate_page(page: PageRequest) -> SchedulerResult<PageSliceRequest> {
-    if page.page < MIN_PAGE_NUMBER || page.page_size < MIN_PAGE_SIZE {
-        return Err(SchedulerError::InvalidInput(super::error::localized(
-            "errors.validation.page_and_size_positive",
-        )));
-    }
-    if page.page_size > MAX_PAGE_SIZE {
-        return Err(SchedulerError::InvalidInput(localized_param(
-            "errors.validation.page_size_max",
-            "max",
-            MAX_PAGE_SIZE.to_string(),
-        )));
-    }
-    let offset = page
-        .page
-        .checked_sub(PAGE_INDEX_OFFSET)
-        .and_then(|index| index.checked_mul(page.page_size))
-        .ok_or_else(|| SchedulerError::InvalidInput(super::error::localized("errors.validation.page_overflow")))?;
-    Ok(PageSliceRequest {
-        offset,
-        limit: page.page_size,
-        page: page.page,
-        page_size: page.page_size,
-    })
-}
+use super::{SchedulerError, SchedulerResult};
 
 pub fn require_text(value: &str, key: &'static str) -> SchedulerResult<()> {
     if value.trim().is_empty() {

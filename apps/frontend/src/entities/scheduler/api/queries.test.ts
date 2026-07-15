@@ -4,7 +4,7 @@ import { schedulerEndpoints } from './endpoints';
 import { JOB_LOG_STATUS } from '../model/constants';
 import {
   schedulerJobKey,
-  schedulerPageKey,
+  schedulerCursorKey,
   schedulerJobLogDetailKey,
   importableSchedulerTasksKey,
 } from './queries';
@@ -22,27 +22,26 @@ describe('importable scheduler task query key', () => {
   });
 });
 
-describe('localized scheduler page query key', () => {
+describe('localized scheduler cursor query key', () => {
   const request = {
     endpoint: schedulerEndpoints.jobLogs,
-    page: 1,
-    pageSize: 20,
+    request: { limit: 20, cursor: 'next-log' },
     params: { status: JOB_LOG_STATUS.FAILED },
   };
 
   it('uses language as cache identity without adding a locale query parameter', () => {
-    const key = schedulerPageKey({ ...request, language: 'tw' });
+    const key = schedulerCursorKey({ ...request, language: 'tw' });
 
     expect(key[1]).toEqual({
-      params: { page: 2, page_size: 20, status: JOB_LOG_STATUS.FAILED },
+      params: { limit: 20, cursor: 'next-log', status: JOB_LOG_STATUS.FAILED },
     });
     expect(key[1].params).not.toHaveProperty('language');
     expect(key[2]).toBe('tw');
   });
 
   it('creates distinct cache keys for different resolved languages', () => {
-    const cn = schedulerPageKey({ ...request, language: 'cn' });
-    const en = schedulerPageKey({ ...request, language: 'en' });
+    const cn = schedulerCursorKey({ ...request, language: 'cn' });
+    const en = schedulerCursorKey({ ...request, language: 'en' });
 
     expect(cn).not.toEqual(en);
   });

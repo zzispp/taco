@@ -1,39 +1,46 @@
-use std::sync::Arc;
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 
 use ::rbac::application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacResult, RbacUseCase};
 use async_trait::async_trait;
-use axum::{Extension, Router, middleware};
-use constants::system_config::{INIT_PASSWORD_KEY, REGISTER_USER_KEY};
+use audit_contract::{AuditOutboxEvent, SecurityAuditEvent};
+use axum::{Extension, Router, extract::ConnectInfo, middleware};
+use client_info::{ClientInfoResult, IpLocation, IpLocationResolver};
+use constants::system_config::REGISTER_USER_KEY;
 use kernel::error::LocalizedError;
-use types::{
-    http::Locale,
-    rbac::{DataScopeFilter, NavResponse},
-};
+use rbac::domain::DataScopeFilter;
+use types::rbac::NavResponse;
 
 use crate::{
-    api::{ApiState, ApiStateParts, TokenService, TokenSettings, TokenSettingsReader, TokenTtlConfig},
-    application::{AccountVerifier, AppError, AppResult, IpLocationResolver, PublicIpResolver, SystemConfigProvider, UserService},
-    test_support::{MemoryOnlineSessionStore, MemoryUserRepository, TestPasswordHasher, stored_user},
+    api::{ApiState, ApiStateParts, AuthHttpConfig, RefreshCookieConfig},
+    application::{AccountVerifier, AppError, AppResult, SystemConfigProvider, UserService},
+    test_support::{MemoryLoginFailureStore, MemoryOnlineSessionStore, MemoryUserRepository, TestLoginLockConfigProvider, TestPasswordHasher, stored_user},
 };
 
 use super::super::create_router;
 
+#[path = "support/audit.rs"]
+mod audit;
+#[path = "support/audit_recorders.rs"]
+mod audit_recorders;
 #[path = "support/http.rs"]
 mod http;
 #[path = "support/rbac.rs"]
 mod rbac_fixtures;
+#[path = "support/tokens.rs"]
+mod tokens;
 
+pub(super) use audit_recorders::{MemoryOperationAuditRecorder, MemorySecurityAuditRecorder};
 pub(super) use http::{
-    LocalizedJsonRequest, assert_non_empty_string, authenticated_request, json_body, json_request, json_request_with_accept_language, response_json, sign_in,
+    LocalizedJsonRequest, assert_non_empty_string, authenticated_request, json_body, json_request, json_request_with_accept_language, refresh_cookie_request,
+    response_json, sign_in,
 };
 pub(super) use rbac_fixtures::{admin_current_user, all_data_scope, self_current_user, self_data_scope};
 
 pub(super) use crate::test_support::VALID_PASSWORD;
 
-const TEST_SECRET: &str = "test-secret-with-enough-entropy";
-const ACCESS_TTL_SECONDS: u64 = 900;
-const REFRESH_TTL_SECONDS: u64 = 604800;
-const DEFAULT_INIT_PASSWORD: &str = "12345678";
 pub(super) const TEST_PUBLIC_IP: &str = "8.8.8.8";
 pub(super) const TEST_LOGIN_LOCATION: &str = "广东省 深圳市";
 pub(super) const VALID_CAPTCHA_TOKEN: &str = "valid-captcha-token";
@@ -47,10 +54,27 @@ pub(super) struct SessionTokens {
 pub(super) struct TestApp {
     pub(super) router: Router,
     pub(super) sessions: Arc<MemoryOnlineSessionStore>,
+    pub(super) repository: MemoryUserRepository,
+    pub(super) events: Arc<MemorySecurityAuditRecorder>,
+    pub(super) operation_events: Arc<MemoryOperationAuditRecorder>,
+}
+
+impl TestApp {
+    pub(super) fn persisted_security_events(&self) -> Vec<SecurityAuditEvent> {
+        self.repository
+            .audit_records()
+            .into_iter()
+            .filter_map(|record| match record.event {
+                AuditOutboxEvent::Security(event) => Some(event),
+                AuditOutboxEvent::Operation(_) => None,
+            })
+            .collect()
+    }
 }
 
 struct TestAppInput {
     repository: MemoryUserRepository,
+    login_failures: MemoryLoginFailureStore,
     config: TestConfig,
     captcha: TestCaptcha,
     current_user: ::rbac::api::CurrentUser,
@@ -65,12 +89,29 @@ pub(super) fn test_app() -> TestApp {
     test_app_with_repository(base_repository(), TestConfig::new(true), TestCaptcha::disabled())
 }
 
-pub(super) fn test_router_with_config(config: TestConfig) -> Router {
-    test_router_with_repository(base_repository(), config)
+pub(super) fn test_app_with_failed_login_cleanup() -> TestApp {
+    let login_failures = MemoryLoginFailureStore::default();
+    login_failures.fail_clear_with("login counter cleanup failed");
+    test_app_from_input(TestAppInput {
+        repository: base_repository(),
+        login_failures,
+        config: TestConfig::new(true),
+        captcha: TestCaptcha::disabled(),
+        current_user: admin_current_user(),
+        data_scope: all_data_scope(),
+    })
+}
+
+pub(super) fn test_app_with_config(config: TestConfig) -> TestApp {
+    test_app_with_repository(base_repository(), config, TestCaptcha::disabled())
 }
 
 pub(super) fn test_router_with_captcha(captcha: TestCaptcha) -> Router {
-    test_router_with_repository_and_captcha(base_repository(), TestConfig::new(true), captcha)
+    test_app_with_captcha(captcha).router
+}
+
+pub(super) fn test_app_with_captcha(captcha: TestCaptcha) -> TestApp {
+    test_app_with_repository(base_repository(), TestConfig::new(true), captcha)
 }
 
 pub(super) fn test_router_with_repository(repository: MemoryUserRepository, config: TestConfig) -> Router {
@@ -84,6 +125,7 @@ fn test_router_with_repository_and_captcha(repository: MemoryUserRepository, con
 fn test_app_with_repository(repository: MemoryUserRepository, config: TestConfig, captcha: TestCaptcha) -> TestApp {
     test_app_from_input(TestAppInput {
         repository,
+        login_failures: MemoryLoginFailureStore::default(),
         config,
         captcha,
         current_user: admin_current_user(),
@@ -94,6 +136,7 @@ fn test_app_with_repository(repository: MemoryUserRepository, config: TestConfig
 pub(super) fn test_app_with_scope(repository: MemoryUserRepository, current_user: ::rbac::api::CurrentUser, data_scope: DataScopeFilter) -> TestApp {
     test_app_from_input(TestAppInput {
         repository,
+        login_failures: MemoryLoginFailureStore::default(),
         config: TestConfig::new(true),
         captcha: TestCaptcha::disabled(),
         current_user,
@@ -102,23 +145,47 @@ pub(super) fn test_app_with_scope(repository: MemoryUserRepository, current_user
 }
 
 fn test_app_from_input(input: TestAppInput) -> TestApp {
-    let users = UserService::new(input.repository, TestPasswordHasher);
+    let repository = input.repository.clone();
+    let users = UserService::new(input.repository, TestPasswordHasher).with_login_security(input.login_failures, TestLoginLockConfigProvider::default());
     let sessions = Arc::new(MemoryOnlineSessionStore::default());
+    let events = Arc::new(MemorySecurityAuditRecorder::new(sessions.clone()));
+    let operation_events = Arc::new(MemoryOperationAuditRecorder::default());
     let state = ApiState::new(ApiStateParts {
         users: Arc::new(users),
-        tokens: token_service(sessions.clone()),
+        tokens: tokens::token_service(sessions.clone()),
         rbac: Arc::new(UnusedRbac),
         config: Arc::new(input.config),
         account_verifier: Arc::new(input.captcha),
-        public_ip_resolver: Arc::new(TestPublicIpResolver),
         ip_location_resolver: Arc::new(TestIpLocationResolver),
+        operation_audit: operation_events.clone(),
+        security_audit: events.clone(),
+        auth_http: test_auth_http_config(),
     });
     let router = Router::new()
         .nest("/api", create_router(state))
         .layer(Extension(input.current_user))
         .layer(Extension(input.data_scope))
+        .layer(Extension(ConnectInfo(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 40000))))
+        .layer(middleware::from_fn(audit::operation_context_middleware))
         .layer(middleware::from_fn(types::http::locale_middleware));
-    TestApp { router, sessions }
+    TestApp {
+        router,
+        sessions,
+        repository,
+        events,
+        operation_events,
+    }
+}
+
+fn test_auth_http_config() -> AuthHttpConfig {
+    AuthHttpConfig {
+        refresh_cookie: RefreshCookieConfig {
+            secure: true,
+            domain: None,
+            path: "/api/auth".into(),
+        },
+        trusted_origins: vec!["http://localhost:8082".into()],
+    }
 }
 
 pub(super) fn base_repository() -> MemoryUserRepository {
@@ -139,21 +206,12 @@ impl TestCaptcha {
     }
 }
 
-struct TestPublicIpResolver;
-
-#[async_trait]
-impl PublicIpResolver for TestPublicIpResolver {
-    async fn resolve_public_ip(&self) -> AppResult<String> {
-        Ok(TEST_PUBLIC_IP.into())
-    }
-}
-
 struct TestIpLocationResolver;
 
 #[async_trait]
 impl IpLocationResolver for TestIpLocationResolver {
-    async fn resolve_login_location(&self, _ipaddr: &str, _locale: Locale) -> AppResult<String> {
-        Ok(TEST_LOGIN_LOCATION.into())
+    async fn resolve_ip_location(&self, _ipaddr: &str) -> ClientInfoResult<IpLocation> {
+        Ok(IpLocation::Resolved(TEST_LOGIN_LOCATION.into()))
     }
 }
 
@@ -188,7 +246,6 @@ impl SystemConfigProvider for TestConfig {
     async fn config_by_key(&self, key: &str) -> AppResult<String> {
         match key {
             REGISTER_USER_KEY => Ok(self.register_enabled.to_string()),
-            INIT_PASSWORD_KEY => Ok(DEFAULT_INIT_PASSWORD.into()),
             _ => Err(crate::application::AppError::NotFound),
         }
     }
@@ -212,10 +269,6 @@ impl RbacUseCase for UnusedRbac {
         Err(unused_rbac_error())
     }
 
-    fn validate_data_scope_handlers(&self, _handlers: &[&str]) -> RbacResult<()> {
-        Err(unused_rbac_error())
-    }
-
     fn is_whitelisted(&self, _config: &AuthorizationConfig, _method: &str, _path: &str) -> RbacResult<bool> {
         Err(unused_rbac_error())
     }
@@ -223,20 +276,4 @@ impl RbacUseCase for UnusedRbac {
 
 fn unused_rbac_error() -> RbacError {
     RbacError::Infrastructure(UNUSED_RBAC_ERROR.into())
-}
-
-fn token_service(sessions: Arc<MemoryOnlineSessionStore>) -> TokenService {
-    TokenService::with_ttl_reader(TokenSettings { secret: TEST_SECRET.into() }, Arc::new(TestTokenSettingsReader), sessions)
-}
-
-struct TestTokenSettingsReader;
-
-#[async_trait]
-impl TokenSettingsReader for TestTokenSettingsReader {
-    async fn token_ttl_config(&self) -> AppResult<TokenTtlConfig> {
-        Ok(TokenTtlConfig {
-            access_token_ttl_seconds: ACCESS_TTL_SECONDS,
-            refresh_token_ttl_seconds: REFRESH_TTL_SECONDS,
-        })
-    }
 }

@@ -1,6 +1,6 @@
-use kernel::pagination::{PageRequest, PageSliceRequest};
+use kernel::pagination::{CursorDirection, CursorPageRequest};
 use scheduler::{
-    application::SchedulerUseCase,
+    application::{SchedulerCursorQuery, SchedulerUseCase, log_point},
     domain::{ExecutionOutcome, JobLogListFilter, TriggerType},
 };
 use sqlx::{PgPool, query};
@@ -9,27 +9,38 @@ use super::{TestDatabase, fresh, scheduler_runtime::SchedulerHarness};
 
 const PAGE_SIZE: u64 = 2;
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
-async fn job_log_query_combines_filters_and_keeps_export_pages_identical() {
+async fn job_log_query_combines_filters_and_keeps_export_batches_identical() {
     let database = TestDatabase::create().await;
     fresh(database.pool()).await.unwrap();
     insert_execution_fixtures(database.pool()).await;
     let harness = SchedulerHarness::new(database.pool());
     let filter = matching_filter();
 
-    let first = harness.service.page_job_logs(filter.clone(), list_page(1)).await.unwrap();
-    let second = harness.service.page_job_logs(filter.clone(), list_page(2)).await.unwrap();
+    let first = harness.service.page_job_logs(filter.clone(), cursor_request(None)).await.unwrap();
+    let second = harness
+        .service
+        .page_job_logs(filter.clone(), cursor_request(first.next_cursor.clone()))
+        .await
+        .unwrap();
 
-    assert_eq!(first.total, 3);
     assert_eq!(execution_ids(&first.items), ["match-end", "match-middle"]);
-    assert_eq!(second.total, 3);
+    assert!(first.has_next);
+    assert!(!first.has_previous);
     assert_eq!(execution_ids(&second.items), ["match-begin"]);
+    assert!(!second.has_next);
+    assert!(second.has_previous);
 
-    let exported_first = harness.service.export_job_logs_page(filter.clone(), export_page(1, 0)).await.unwrap();
-    let exported_second = harness.service.export_job_logs_page(filter, export_page(2, PAGE_SIZE)).await.unwrap();
-    assert_eq!(exported_first, first);
-    assert_eq!(exported_second, second);
+    let mut export = harness.service.begin_export().await.unwrap();
+    let exported_first = export.page_job_logs(filter.clone(), export_request(None, None)).await.unwrap();
+    let boundary = exported_first.items.last().map(log_point);
+    let exported_second = export
+        .page_job_logs(filter, export_request(boundary, exported_first.snapshot.clone()))
+        .await
+        .unwrap();
+    export.finish().await.unwrap();
+    assert_eq!(exported_first.items, first.items);
+    assert_eq!(exported_second.items, second.items);
 
     database.drop().await;
 }
@@ -45,16 +56,19 @@ fn matching_filter() -> JobLogListFilter {
     }
 }
 
-fn list_page(page: u64) -> PageRequest {
-    PageRequest { page, page_size: PAGE_SIZE }
+fn cursor_request(cursor: Option<String>) -> CursorPageRequest {
+    CursorPageRequest { limit: PAGE_SIZE, cursor }
 }
 
-fn export_page(page: u64, offset: u64) -> PageSliceRequest {
-    PageSliceRequest {
-        offset,
+fn export_request(
+    boundary: Option<scheduler::application::SchedulerCursorPoint>,
+    snapshot: Option<scheduler::application::SchedulerCursorPoint>,
+) -> SchedulerCursorQuery {
+    SchedulerCursorQuery {
         limit: PAGE_SIZE,
-        page,
-        page_size: PAGE_SIZE,
+        direction: CursorDirection::Next,
+        boundary,
+        snapshot,
     }
 }
 

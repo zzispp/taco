@@ -1,16 +1,18 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use kernel::pagination::{Page, PageSliceRequest};
+use kernel::pagination::CursorPage;
+use rbac::domain::DataScopeFilter;
 
 use crate::{
     application::{
-        AppError, AppResult, PasswordHasher, ReplaceUserRecord, SystemUserProvider, SystemUserRecord, UserAuthRecord, UserListFilter, UserRepository,
+        AppError, AppResult, AuthorizationUser, PasswordHasher, ReplaceUserRecord, UserAuthRecord, UserExportRequest, UserExportSink, UserListFilter,
+        UserRepository,
     },
-    domain::{NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfileGroups},
+    domain::{ProfileUpdate, User, UserFormOptions, UserId, UserProfileGroups},
 };
 use types::{
-    rbac::{DataScopeFilter, RoleSummary},
+    rbac::RoleSummary,
     system::{Post, TreeSelectNode},
 };
 
@@ -21,7 +23,7 @@ pub(crate) struct MemoryUserRepository {
     state: Arc<Mutex<RepositoryState>>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RepositoryState {
     next_id: u64,
     users: Vec<StoredUser>,
@@ -29,6 +31,10 @@ struct RepositoryState {
     replaced: Vec<(UserId, ReplaceUserRecord)>,
     deleted: Vec<UserId>,
     logins: Vec<UserId>,
+    login_ips: Vec<(UserId, String)>,
+    audits: Vec<audit_contract::AuditOutboxRecord>,
+    audit_failure: Option<String>,
+    auth_lookup_failure: Option<String>,
 }
 
 #[derive(Clone)]
@@ -39,11 +45,6 @@ pub(crate) struct StoredUser {
 
 #[derive(Clone)]
 pub(crate) struct TestPasswordHasher;
-
-#[derive(Clone)]
-pub(crate) struct TestSystemUserProvider {
-    record: SystemUserRecord,
-}
 
 impl MemoryUserRepository {
     pub(crate) fn with_user(user: StoredUser) -> Self {
@@ -73,12 +74,43 @@ impl MemoryUserRepository {
     pub(crate) fn login_records(&self) -> Vec<UserId> {
         self.state.lock().unwrap().logins.clone()
     }
+
+    pub(crate) fn login_ip_records(&self) -> Vec<(UserId, String)> {
+        self.state.lock().unwrap().login_ips.clone()
+    }
+
+    pub(crate) fn audit_records(&self) -> Vec<audit_contract::AuditOutboxRecord> {
+        self.state.lock().unwrap().audits.clone()
+    }
+
+    pub(crate) fn fail_audit_with(&self, message: &str) {
+        self.state.lock().unwrap().audit_failure = Some(message.into());
+    }
+
+    pub(crate) fn fail_auth_lookup_with(&self, message: &str) {
+        self.state.lock().unwrap().auth_lookup_failure = Some(message.into());
+    }
+
+    pub(crate) fn ensure_audit_available(&self) -> AppResult<()> {
+        self.state
+            .lock()
+            .unwrap()
+            .audit_failure
+            .clone()
+            .map_or(Ok(()), |message| Err(AppError::Infrastructure(message)))
+    }
 }
 
+mod audited_repository;
+mod bootstrap_repository;
 mod filters;
+mod fixtures;
+mod login_security;
 mod online_session_store;
 mod repository;
 
+pub(crate) use fixtures::{new_user, replace_user, stored_user};
+pub(crate) use login_security::{MemoryLoginFailureStore, TestLoginLockConfigProvider, user_service_with_login_security};
 pub(crate) use online_session_store::MemoryOnlineSessionStore;
 
 impl PasswordHasher for TestPasswordHasher {
@@ -91,49 +123,7 @@ impl PasswordHasher for TestPasswordHasher {
     }
 }
 
-impl SystemUserProvider for TestSystemUserProvider {
-    fn system_user(&self) -> Option<SystemUserRecord> {
-        Some(self.record.clone())
-    }
-}
-
 impl StoredUser {
-    pub(crate) fn with_id(mut self, id: UserId) -> Self {
-        self.user.id = id;
-        self
-    }
-
-    pub(crate) fn with_dept_id(mut self, dept_id: &str) -> Self {
-        self.user.dept_id = Some(dept_id.into());
-        self
-    }
-
-    pub(crate) fn with_nick_name(mut self, nick_name: &str) -> Self {
-        self.user.nick_name = nick_name.into();
-        self
-    }
-
-    pub(crate) fn with_email(mut self, email: &str) -> Self {
-        self.user.email = email.into();
-        self
-    }
-
-    pub(crate) fn with_sex(mut self, sex: &str) -> Self {
-        self.user.sex = sex.into();
-        self
-    }
-
-    pub(crate) fn with_role_ids(mut self, ids: Vec<&str>) -> Self {
-        self.user.role_ids = ids.iter().map(|id| (*id).into()).collect();
-        self.user.roles = self.user.role_ids.iter().map(|id| role_summary(id)).collect();
-        self
-    }
-
-    pub(crate) fn with_post_ids(mut self, ids: Vec<&str>) -> Self {
-        self.user.post_ids = ids.into_iter().map(str::to_owned).collect();
-        self
-    }
-
     fn auth_record(&self) -> UserAuthRecord {
         UserAuthRecord {
             user: self.user.clone(),
@@ -142,95 +132,20 @@ impl StoredUser {
     }
 }
 
-pub(crate) fn new_user(username: &str) -> NewUser {
-    NewUser {
-        username: username.into(),
-        password: VALID_PASSWORD.into(),
-        nick_name: username.trim().into(),
-        dept_id: Some("103".into()),
-        email: format!("{}@example.com", username.trim()),
-        phonenumber: Some("15888888888".into()),
-        sex: "2".into(),
-        status: "0".into(),
-        remark: None,
-        role_ids: vec!["1".into()],
-        post_ids: vec!["1".into()],
-    }
-}
-
-pub(crate) fn replace_user(username: &str, is_active: bool) -> ReplaceUser {
-    ReplaceUser {
-        username: username.into(),
-        password: Some(VALID_PASSWORD.into()),
-        nick_name: username.trim().into(),
-        dept_id: Some("103".into()),
-        email: format!("{}@example.com", username.trim()),
-        phonenumber: Some("15888888888".into()),
-        sex: "2".into(),
-        status: if is_active { "0".into() } else { "1".into() },
-        remark: None,
-        role_ids: vec!["1".into()],
-        post_ids: vec!["1".into()],
-    }
-}
-
-pub(crate) fn stored_user(id: u64, username: &str, password_hash: &str) -> StoredUser {
-    StoredUser {
-        user: User {
-            id: user_id(id),
-            username: username.into(),
-            nick_name: username.into(),
-            dept_id: Some("103".into()),
-            email: format!("{username}@example.com"),
-            phonenumber: Some("15888888888".into()),
-            sex: "2".into(),
-            avatar: None,
-            status: "0".into(),
-            auth_source: constants::auth::DEFAULT_AUTH_SOURCE.into(),
-            email_verified: false,
-            system: false,
-            remark: None,
-            roles: vec![admin_role()],
-            role_ids: vec!["1".into()],
-            post_ids: vec!["1".into()],
-            permissions: vec!["system:user:list".into()],
-            create_time: String::new(),
-        },
-        password_hash: password_hash.into(),
-    }
-}
-
-pub(crate) fn system_user() -> TestSystemUserProvider {
-    TestSystemUserProvider {
-        record: SystemUserRecord {
-            user: User {
-                id: user_id(0),
-                username: "admin".into(),
-                nick_name: "admin".into(),
-                dept_id: None,
-                email: "admin@example.com".into(),
-                phonenumber: None,
-                sex: "2".into(),
-                avatar: None,
-                status: "0".into(),
-                auth_source: constants::auth::DEFAULT_AUTH_SOURCE.into(),
-                email_verified: true,
-                system: true,
-                remark: None,
-                roles: vec![admin_role()],
-                role_ids: vec!["1".into()],
-                post_ids: vec![],
-                permissions: vec!["system:user:list".into()],
-                create_time: String::new(),
-            },
-            password_hash: format!("hashed:{VALID_PASSWORD}"),
-        },
-    }
-}
-
 fn next_user_id(state: &mut RepositoryState) -> UserId {
     state.next_id += 1;
     user_id(state.next_id)
+}
+
+fn store_created_user(state: &mut RepositoryState, record: ReplaceUserRecord) -> User {
+    let id = next_user_id(state);
+    let user = user_from_record(id, &record);
+    state.users.push(StoredUser {
+        user: user.clone(),
+        password_hash: record.password_hash.clone().unwrap_or_default(),
+    });
+    state.created.push(record);
+    user
 }
 
 fn find_stored_user_mut<'a>(state: &'a mut RepositoryState, id: &UserId) -> AppResult<&'a mut StoredUser> {
@@ -257,9 +172,8 @@ fn user_from_record(id: UserId, record: &ReplaceUserRecord) -> User {
         sex: record.sex.clone(),
         avatar: None,
         status: record.status.clone(),
-        auth_source: constants::auth::DEFAULT_AUTH_SOURCE.into(),
+        auth_source: "local".into(),
         email_verified: false,
-        system: false,
         remark: record.remark.clone(),
         roles: record.role_ids.iter().map(|id| role_summary(id)).collect(),
         role_ids: record.role_ids.clone(),
@@ -278,9 +192,14 @@ fn admin_role() -> RoleSummary {
 }
 
 fn role_summary(id: &str) -> RoleSummary {
+    let (role_name, role_key) = if id == "1" {
+        ("超级管理员", "admin")
+    } else {
+        ("普通角色", "common")
+    };
     RoleSummary {
         role_id: id.into(),
-        role_name: "超级管理员".into(),
-        role_key: "admin".into(),
+        role_name: role_name.into(),
+        role_key: role_key.into(),
     }
 }

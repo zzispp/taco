@@ -1,14 +1,17 @@
 use async_trait::async_trait;
-use kernel::pagination::Page;
+use audit_contract::AuditOutboxRecord;
+use kernel::pagination::CursorPage;
 use storage::{Database, StorageError};
 
 use crate::application::{SystemError, SystemResult};
 
 use super::{
     application::NoticeRepository,
-    domain::{Notice, NoticeInput, NoticeListFilter, NoticeReader, NoticeReaderFilter, NoticeSummary, NoticeTopResponse},
+    audited::AuditedNoticeRepository,
+    domain::{Notice, NoticeInput, NoticeListFilter, NoticeReader, NoticeReaderFilter, NoticeSummary, NoticeTopResponse, ReplaceNoticeCommand},
 };
 
+mod mapping;
 mod queries;
 mod records;
 
@@ -29,8 +32,8 @@ impl StorageNoticeRepository {
 
 #[async_trait]
 impl NoticeRepository for StorageNoticeRepository {
-    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<Page<NoticeSummary>> {
-        self.queries.page_notices(filter).await.map_err(map_storage_error)
+    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<CursorPage<NoticeSummary>> {
+        self.queries.page_notices(filter).await
     }
 
     async fn find_notice(&self, id: &str) -> SystemResult<Option<Notice>> {
@@ -65,8 +68,35 @@ impl NoticeRepository for StorageNoticeRepository {
         self.queries.mark_all_read(user_id).await.map_err(map_storage_error)
     }
 
-    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<Page<NoticeReader>> {
-        self.queries.page_readers(notice_id, filter).await.map_err(map_storage_error)
+    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<CursorPage<NoticeReader>> {
+        self.queries.page_readers(notice_id, filter).await
+    }
+}
+
+#[async_trait]
+impl AuditedNoticeRepository for StorageNoticeRepository {
+    async fn create_notice_with_audit(&self, input: NoticeInput, operator: &str, audit: &AuditOutboxRecord) -> SystemResult<Notice> {
+        self.queries.create_notice_with_audit(input, operator, audit).await.map_err(map_storage_error)
+    }
+
+    async fn replace_notice_with_audit(&self, command: &ReplaceNoticeCommand, audit: &AuditOutboxRecord) -> SystemResult<Notice> {
+        self.queries.replace_notice_with_audit(command, audit).await.map_err(map_storage_error)
+    }
+
+    async fn delete_notice_with_audit(&self, id: &str, audit: &AuditOutboxRecord) -> SystemResult<()> {
+        self.queries.delete_notice_with_audit(id, audit).await.map_err(map_storage_error)
+    }
+
+    async fn delete_notices_with_audit(&self, ids: &[String], audit: &AuditOutboxRecord) -> SystemResult<()> {
+        self.queries.delete_notices_with_audit(ids, audit).await.map_err(map_storage_error)
+    }
+
+    async fn mark_read_with_audit(&self, notice_id: &str, user_id: &str, audit: &AuditOutboxRecord) -> SystemResult<()> {
+        self.queries.mark_read_with_audit(notice_id, user_id, audit).await.map_err(map_storage_error)
+    }
+
+    async fn mark_all_read_with_audit(&self, user_id: &str, audit: &AuditOutboxRecord) -> SystemResult<()> {
+        self.queries.mark_all_read_with_audit(user_id, audit).await.map_err(map_storage_error)
     }
 }
 
@@ -74,6 +104,7 @@ fn map_storage_error(error: StorageError) -> SystemError {
     match error {
         StorageError::NotFound => SystemError::NotFound,
         StorageError::Conflict(_) => SystemError::Conflict(kernel::error::LocalizedError::new("errors.common.conflict")),
+        StorageError::UniqueViolation { message, .. } => SystemError::Infrastructure(message),
         StorageError::Database(message) => SystemError::Infrastructure(message),
     }
 }

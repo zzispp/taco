@@ -4,7 +4,12 @@ import { RoleManagementDialogs } from './dialogs';
 
 type RoleDialogSectionProps = RoleManagementController;
 
-export function RoleDialogSection({ resources, dialogs, binding, actions }: RoleDialogSectionProps) {
+export function RoleDialogSection({
+  resources,
+  dialogs,
+  binding,
+  actions,
+}: RoleDialogSectionProps) {
   const { t } = resources;
 
   return (

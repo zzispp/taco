@@ -1,9 +1,9 @@
-use kernel::pagination::PageRequest;
+use kernel::pagination::CursorPageRequest;
 use time::OffsetDateTime;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeptListFilter {
-    pub page: PageRequest,
+    pub page: CursorPageRequest,
     pub dept_name: Option<String>,
     pub leader: Option<String>,
     pub phone: Option<String>,
@@ -15,7 +15,7 @@ pub struct DeptListFilter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PostListFilter {
-    pub page: PageRequest,
+    pub page: CursorPageRequest,
     pub post_code: Option<String>,
     pub post_name: Option<String>,
     pub status: Option<String>,
@@ -26,7 +26,7 @@ pub struct PostListFilter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DictTypeListFilter {
-    pub page: PageRequest,
+    pub page: CursorPageRequest,
     pub dict_name: Option<String>,
     pub dict_type: Option<String>,
     pub status: Option<String>,
@@ -36,7 +36,7 @@ pub struct DictTypeListFilter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DictDataListFilter {
-    pub page: PageRequest,
+    pub page: CursorPageRequest,
     pub dict_type: Option<String>,
     pub dict_label: Option<String>,
     pub status: Option<String>,
@@ -46,7 +46,7 @@ pub struct DictDataListFilter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConfigListFilter {
-    pub page: PageRequest,
+    pub page: CursorPageRequest,
     pub config_name: Option<String>,
     pub config_key: Option<String>,
     pub config_type: Option<String>,

@@ -1,6 +1,7 @@
-use crate::{CorsSettings, HttpSettings, Settings, SettingsError, TracingFileSettings};
+use crate::{CorsSettings, HttpSettings, RefreshCookieSettings, Settings, SettingsError, TracingFileSettings};
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
+use url::Url;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatedTracingSettings {
@@ -57,22 +58,79 @@ impl Settings {
         Ok(self.scheduler.clone())
     }
 
+    pub fn audit_config(&self) -> Result<crate::AuditSettings, SettingsError> {
+        positive("audit.outbox.worker_count", self.audit.outbox.worker_count)?;
+        positive("audit.outbox.claim_batch_size", self.audit.outbox.claim_batch_size)?;
+        positive("audit.outbox.poll_interval_ms", self.audit.outbox.poll_interval_ms)?;
+        positive("audit.outbox.lease_duration_ms", self.audit.outbox.lease_duration_ms)?;
+        positive("audit.outbox.retry_delay_ms", self.audit.outbox.retry_delay_ms)?;
+        positive("audit.outbox.cleanup_interval_ms", self.audit.outbox.cleanup_interval_ms)?;
+        positive("audit.outbox.cleanup_batch_size", self.audit.outbox.cleanup_batch_size)?;
+        positive("audit.outbox.processed_retention_days", self.audit.outbox.processed_retention_days)?;
+        Ok(self.audit.clone())
+    }
+
+    pub fn online_session_config(&self) -> Result<crate::OnlineSessionSettings, SettingsError> {
+        positive("user.online_sessions.cleanup_interval_ms", self.user.online_sessions.cleanup_interval_ms)?;
+        positive("user.online_sessions.cleanup_batch_size", self.user.online_sessions.cleanup_batch_size)?;
+        Ok(self.user.online_sessions.clone())
+    }
+
+    pub fn client_info_config(&self) -> Result<crate::ClientInfoSettings, SettingsError> {
+        positive("client_info.ip_location.request_timeout_ms", self.client_info.ip_location.request_timeout_ms)?;
+        Ok(self.client_info.clone())
+    }
+
     pub fn validated_cors(&self) -> Result<ValidatedCorsSettings, SettingsError> {
         self.cors.validate()
     }
 
+    pub fn refresh_cookie_config(&self) -> Result<RefreshCookieSettings, SettingsError> {
+        if !self.auth.refresh_cookie.secure {
+            return Err(SettingsError::InsecureRefreshCookie);
+        }
+        let path = crate::loader::required_config_value("auth.refresh_cookie.path", &self.auth.refresh_cookie.path)?;
+        if !path.starts_with('/') {
+            return Err(SettingsError::InvalidCookiePath("auth.refresh_cookie.path"));
+        }
+        let domain = self
+            .auth
+            .refresh_cookie
+            .domain
+            .as_deref()
+            .map(|value| crate::loader::required_config_value("auth.refresh_cookie.domain", value))
+            .transpose()?;
+        Ok(RefreshCookieSettings {
+            secure: self.auth.refresh_cookie.secure,
+            domain,
+            path,
+        })
+    }
+
     pub(crate) fn validate(&self) -> Result<(), SettingsError> {
+        self.jwt_secret()?;
         self.http_config()?;
         self.scheduler_config()?;
+        self.audit_config()?;
+        self.online_session_config()?;
+        self.client_info_config()?;
+        self.refresh_cookie_config()?;
         self.validated_cors()?;
         self.tracing_config()?;
         Ok(())
     }
 }
 
+fn positive(key: &'static str, value: impl PartialEq + From<u8>) -> Result<(), SettingsError> {
+    if value == 0_u8.into() {
+        return Err(SettingsError::NonPositiveNumber(key));
+    }
+    Ok(())
+}
+
 impl CorsSettings {
     fn validate(&self) -> Result<ValidatedCorsSettings, SettingsError> {
-        let allowed_origins = validate_string_list("cors.allowed_origins", &self.allowed_origins)?;
+        let allowed_origins = validate_origin_list("cors.allowed_origins", &self.allowed_origins)?;
         let allowed_methods = validate_method_list("cors.allowed_methods", &self.allowed_methods)?;
         let allowed_headers = validate_header_list("cors.allowed_headers", &self.allowed_headers)?;
         let exposed_headers = validate_header_list("cors.exposed_headers", &self.exposed_headers)?;
@@ -95,8 +153,30 @@ impl CorsSettings {
     }
 }
 
-fn validate_string_list(key: &'static str, values: &[String]) -> Result<ValidatedCorsList, SettingsError> {
-    validate_list(key, values, false)
+fn validate_origin_list(key: &'static str, values: &[String]) -> Result<ValidatedCorsList, SettingsError> {
+    let ValidatedCorsList::Values(values) = validate_list(key, values, false)? else {
+        return Err(SettingsError::WildcardCorsOrigin(key));
+    };
+    let origins = values
+        .into_iter()
+        .map(|value| normalized_http_origin(key, value))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ValidatedCorsList::Values(origins))
+}
+
+fn normalized_http_origin(key: &'static str, value: String) -> Result<String, SettingsError> {
+    let parsed = Url::parse(&value).map_err(|_| invalid_http_origin(key, &value))?;
+    let valid_scheme = matches!(parsed.scheme(), "http" | "https");
+    let has_credentials = !parsed.username().is_empty() || parsed.password().is_some();
+    let has_resource = parsed.path() != "/" || parsed.query().is_some() || parsed.fragment().is_some();
+    if !valid_scheme || parsed.host().is_none() || has_credentials || has_resource {
+        return Err(invalid_http_origin(key, &value));
+    }
+    Ok(parsed.origin().ascii_serialization())
+}
+
+fn invalid_http_origin(key: &'static str, value: &str) -> SettingsError {
+    SettingsError::InvalidHttpOrigin { key, value: value.into() }
 }
 
 fn validate_method_list(key: &'static str, values: &[String]) -> Result<ValidatedCorsList, SettingsError> {

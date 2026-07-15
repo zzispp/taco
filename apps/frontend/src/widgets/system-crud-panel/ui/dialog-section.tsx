@@ -3,8 +3,9 @@ import type { SystemCrudController } from './controller';
 
 import Button from '@mui/material/Button';
 
-import { ManagementDialog } from 'src/shared/ui/admin';
 import { ConfirmDialog } from 'src/shared/ui/custom-dialog';
+
+import { ManagementDialog } from 'src/widgets/admin-common';
 
 import { CrudFieldControl } from './field-control';
 
@@ -27,7 +28,10 @@ export function CrudDialogSection<T extends CrudRecord, I extends CrudRecord>({
   );
 }
 
-function CrudEditDialog<T extends CrudRecord, I extends CrudRecord>({ props, controller }: CrudDialogSectionProps<T, I>) {
+function CrudEditDialog<T extends CrudRecord, I extends CrudRecord>({
+  props,
+  controller,
+}: CrudDialogSectionProps<T, I>) {
   const { t, state, actions } = controller;
 
   return (
@@ -38,20 +42,25 @@ function CrudEditDialog<T extends CrudRecord, I extends CrudRecord>({ props, con
       onClose={actions.closeDialog}
       onSubmit={actions.submit}
     >
-      {props.fields.filter((field) => !field.hiddenInForm).map((field) => (
-        <CrudFieldControl
-          key={String(field.key)}
-          field={field as unknown as CrudField<I>}
-          editing={state.editing}
-          form={state.form}
-          setForm={state.setForm}
-        />
-      ))}
+      {props.fields
+        .filter((field) => !field.hiddenInForm)
+        .map((field) => (
+          <CrudFieldControl
+            key={String(field.key)}
+            field={field as unknown as CrudField<I>}
+            editing={state.editing}
+            form={state.form}
+            setForm={state.setForm}
+          />
+        ))}
     </ManagementDialog>
   );
 }
 
-function CrudDeleteDialogs<T extends CrudRecord, I extends CrudRecord>({ props, controller }: CrudDialogSectionProps<T, I>) {
+function CrudDeleteDialogs<T extends CrudRecord, I extends CrudRecord>({
+  props,
+  controller,
+}: CrudDialogSectionProps<T, I>) {
   const { t, state, actions } = controller;
 
   return (
@@ -68,7 +77,9 @@ function CrudDeleteDialogs<T extends CrudRecord, I extends CrudRecord>({ props, 
         open={!!state.deleteTarget}
         onClose={() => state.setDeleteTarget(null)}
         title={t('common.delete')}
-        content={t('dialogs.deleteContent', { name: state.deleteTarget ? String(state.deleteTarget[props.nameKey]) : '' })}
+        content={t('dialogs.deleteContent', {
+          name: state.deleteTarget ? String(state.deleteTarget[props.nameKey]) : '',
+        })}
         cancelText={t('common.cancel')}
         action={<DeleteButton label={t('common.delete')} onClick={actions.confirmDelete} />}
       />

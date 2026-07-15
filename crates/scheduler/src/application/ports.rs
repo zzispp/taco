@@ -1,23 +1,31 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use kernel::pagination::{Page, PageSliceRequest};
 
 use crate::domain::{Execution, Job, JobListFilter, JobLogListFilter};
 
 use super::{
     ClaimExecutionRequest, ExecutionLogDetail, ExecutionLogSummary, FinishExecutionRequest, InterruptExecutionRequest, ManualExecutionRequest,
-    OccurrenceRequest, OccurrenceResult, PersistJobReplacement, PersistNewJob, RuntimeErrorUpdate, ScheduleInitialization, SchedulerResult,
-    UpdateJobStatusCommand,
+    OccurrenceRequest, OccurrenceResult, PersistJobReplacement, PersistNewJob, RuntimeErrorUpdate, ScheduleInitialization, SchedulerCursorQuery,
+    SchedulerCursorSlice, SchedulerResult, UpdateJobStatusCommand,
 };
 
 #[async_trait]
 pub trait SchedulerQueryStore: Send + Sync + 'static {
     async fn find_job(&self, id: &str) -> SchedulerResult<Job>;
-    async fn page_jobs(&self, filter: JobListFilter, page: PageSliceRequest) -> SchedulerResult<Page<Job>>;
+    async fn page_jobs(&self, filter: JobListFilter, page: SchedulerCursorQuery) -> SchedulerResult<SchedulerCursorSlice<Job>>;
+    async fn begin_export(&self) -> SchedulerResult<Box<dyn SchedulerQueryExportSession>>;
     async fn task_key_exists(&self, task_key: &str) -> SchedulerResult<bool>;
     async fn find_execution_log(&self, id: &str) -> SchedulerResult<ExecutionLogSummary>;
     async fn find_execution_log_detail(&self, id: &str) -> SchedulerResult<ExecutionLogDetail>;
-    async fn page_execution_logs(&self, filter: JobLogListFilter, page: PageSliceRequest) -> SchedulerResult<Page<ExecutionLogSummary>>;
+    async fn page_execution_logs(&self, filter: JobLogListFilter, page: SchedulerCursorQuery) -> SchedulerResult<SchedulerCursorSlice<ExecutionLogSummary>>;
+}
+
+#[async_trait]
+pub trait SchedulerQueryExportSession: Send {
+    async fn page_jobs(&mut self, filter: JobListFilter, page: SchedulerCursorQuery) -> SchedulerResult<SchedulerCursorSlice<Job>>;
+    async fn page_execution_logs(&mut self, filter: JobLogListFilter, page: SchedulerCursorQuery)
+    -> SchedulerResult<SchedulerCursorSlice<ExecutionLogSummary>>;
+    async fn finish(self: Box<Self>) -> SchedulerResult<()>;
 }
 
 #[async_trait]

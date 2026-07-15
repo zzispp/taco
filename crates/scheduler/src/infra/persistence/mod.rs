@@ -1,5 +1,7 @@
+mod audited;
 mod command;
 mod execution_store;
+mod export_session;
 mod mapping;
 mod query;
 mod records;

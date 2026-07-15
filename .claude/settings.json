@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx eslint *)",
+      "Bash(awk '/fn assert_detail_value_constraints/,0{print; c++; if\\(/^}/ && c>1\\){exit}}' apps/backend/src/migration/tests/scheduler_execution_detail.rs)",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

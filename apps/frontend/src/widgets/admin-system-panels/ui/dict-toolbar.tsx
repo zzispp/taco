@@ -4,7 +4,8 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 
 import { Iconify } from 'src/shared/ui/iconify';
-import { AddButton } from 'src/shared/ui/admin';
+
+import { AddButton } from 'src/widgets/admin-common';
 
 export function DictHeaderActions(props: DictHeaderActionsProps) {
   return (

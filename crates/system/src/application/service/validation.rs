@@ -1,6 +1,6 @@
-use constants::system_config::{CAPTCHA_CONFIG_KEY, INIT_PASSWORD_KEY};
+use constants::system_config::CAPTCHA_CONFIG_KEY;
 use kernel::error::LocalizedError;
-use kernel::pagination::PageRequest;
+use kernel::pagination::CursorPageRequest;
 
 use crate::application::{
     ConfigListFilter, DeptListFilter, DictDataListFilter, DictTypeListFilter, PostListFilter, SystemError, SystemRepository, SystemResult,
@@ -11,7 +11,7 @@ const DATA_SCOPE_FORBIDDEN_KEY: &str = "errors.system.data_scope_forbidden";
 
 pub(super) fn all_configs_filter() -> ConfigListFilter {
     ConfigListFilter {
-        page: PageRequest { page: 1, page_size: 100_000 },
+        page: CursorPageRequest::default(),
         config_name: None,
         config_key: None,
         config_type: None,
@@ -23,7 +23,7 @@ pub(super) fn all_configs_filter() -> ConfigListFilter {
 
 pub(super) fn all_dict_types_filter() -> DictTypeListFilter {
     DictTypeListFilter {
-        page: PageRequest { page: 1, page_size: 100_000 },
+        page: CursorPageRequest::default(),
         dict_name: None,
         dict_type: None,
         status: None,
@@ -34,7 +34,7 @@ pub(super) fn all_dict_types_filter() -> DictTypeListFilter {
 
 pub(super) fn all_depts_filter() -> DeptListFilter {
     DeptListFilter {
-        page: PageRequest { page: 1, page_size: 100_000 },
+        page: CursorPageRequest::default(),
         dept_name: None,
         leader: None,
         phone: None,
@@ -48,7 +48,7 @@ pub(super) fn all_depts_filter() -> DeptListFilter {
 pub(super) async fn reject_duplicate_dept<R: SystemRepository>(repository: &R, input: &DeptInput, current_id: Option<&str>) -> SystemResult<()> {
     let depts = repository
         .list_depts(DeptListFilter {
-            page: PageRequest { page: 1, page_size: 100_000 },
+            page: CursorPageRequest::default(),
             dept_name: None,
             leader: None,
             phone: None,
@@ -84,7 +84,7 @@ pub(super) fn reject_unscoped_dept_ids(requested: &[String], scoped: &[String]) 
 pub(super) async fn reject_duplicate_dict_type<R: SystemRepository>(repository: &R, input: &DictTypeInput, current_id: Option<&str>) -> SystemResult<()> {
     let items = repository
         .page_dict_types(DictTypeListFilter {
-            page: PageRequest { page: 1, page_size: 100_000 },
+            page: CursorPageRequest::default(),
             dict_name: None,
             dict_type: Some(input.dict_type.clone()),
             status: None,
@@ -105,7 +105,7 @@ pub(super) async fn reject_duplicate_dict_type<R: SystemRepository>(repository: 
 pub(super) async fn reject_duplicate_config_key<R: SystemRepository>(repository: &R, input: &ConfigInput, current_id: Option<&str>) -> SystemResult<()> {
     let items = repository
         .page_configs(ConfigListFilter {
-            page: PageRequest { page: 1, page_size: 100_000 },
+            page: CursorPageRequest::default(),
             config_name: None,
             config_key: Some(input.config_key.clone()),
             config_type: None,
@@ -154,9 +154,6 @@ pub(super) fn reject_builtin_config_identity_change(current: &ConfigItem, input:
 }
 
 pub(super) fn reject_sensitive_public_config(key: &str, public_read: bool) -> SystemResult<()> {
-    if key == INIT_PASSWORD_KEY && public_read {
-        return Err(SystemError::Conflict(localized("errors.system.initial_password_public")));
-    }
     if key == CAPTCHA_CONFIG_KEY && public_read {
         return Err(SystemError::Conflict(localized("errors.system.captcha_private_public")));
     }
@@ -187,11 +184,8 @@ pub(super) async fn reject_duplicate_post<R: SystemRepository>(repository: &R, i
     Ok(())
 }
 
-pub(super) fn validate_page(page: PageRequest) -> SystemResult<()> {
-    if page.page == 0 || page.page_size == 0 {
-        return Err(SystemError::InvalidInput(localized("errors.validation.page_and_size_positive")));
-    }
-    Ok(())
+pub(super) fn validate_page(page: CursorPageRequest) -> SystemResult<()> {
+    crate::application::validate_cursor_request(&page)
 }
 
 pub(super) fn sanitize_dept_filter(input: DeptListFilter) -> DeptListFilter {
@@ -256,6 +250,10 @@ pub(super) fn sanitize_config_filter(input: ConfigListFilter) -> ConfigListFilte
 fn trim(value: Option<String>) -> Option<String> {
     value.map(|item| item.trim().into()).filter(|item: &String| !item.is_empty())
 }
+
+#[cfg(test)]
+#[path = "validation_tests.rs"]
+mod tests;
 
 pub(super) fn localized(key: &'static str) -> LocalizedError {
     LocalizedError::new(key)

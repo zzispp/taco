@@ -1,7 +1,8 @@
 import type { SystemUser } from 'src/entities/user';
+import type { PasswordPolicy } from 'src/entities/system';
 import type { useTranslate } from 'src/shared/i18n/use-locales';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
 import { LOCAL_DATE_TIME_FILTER_ERROR_TRANSLATION_KEY } from 'src/shared/lib/local-date-time-filter';
@@ -13,24 +14,39 @@ import {
   exportUsers,
   importUsers,
   deleteUsers,
-  getUserRoles,
-  updateUserRoles,
-  resetUserPassword,
   downloadUserImportTemplate,
 } from 'src/features/user-management';
 
 import { toInput } from './helpers';
 import { DEFAULT_FORM } from './constants';
 import { useUserResources } from './resources';
+import { useUserRoleActions, useUserPasswordAction } from '../model/use-user-security-actions';
+import { validateAdminUserForm, adminUserValidationMessages } from '../model/user-form-validation';
 
 export function useUserManagementController() {
   const state = useUserState();
   const resources = useUserResources();
-  const crud = useUserCrudActions({ state, resources });
-  const roles = useUserRoleActions({ state, t: resources.t });
-  const password = useUserPasswordAction({ state, t: resources.t });
-  const imports = useUserImportActions({ state, t: resources.t });
-  const deletion = useUserDeleteActions({ state, t: resources.t });
+  const clearSelected = state.setSelected;
+  useEffect(
+    () => clearSelected([]),
+    [clearSelected, resources.filterQuery, resources.table.cursor, resources.table.limit]
+  );
+  const resetList = resources.table.onResetCursor;
+  const crud = useUserCrudActions({
+    state,
+    t: resources.t,
+    passwordPolicy: resources.passwordPolicy,
+    resetList,
+  });
+  const roles = useUserRoleActions({ state, t: resources.t, resetList });
+  const password = useUserPasswordAction({
+    state,
+    t: resources.t,
+    passwordPolicy: resources.passwordPolicy,
+    resetList,
+  });
+  const imports = useUserImportActions({ state, t: resources.t, resetList });
+  const deletion = useUserDeleteActions({ state, t: resources.t, resetList });
   const table = useUserTableActions({ state, resources });
 
   return {
@@ -94,12 +110,16 @@ type UserActionOptions = {
   state: ReturnType<typeof useUserState>;
   resources?: ReturnType<typeof useUserResources>;
   t?: ReturnType<typeof useTranslate>['t'];
+  passwordPolicy?: PasswordPolicy;
+  resetList?: () => void;
 };
 
-function useUserCrudActions({
-  state,
-  resources,
-}: Required<Pick<UserActionOptions, 'state' | 'resources'>>) {
+type ValidatedUserActionOptions = Required<Pick<UserActionOptions, 'state' | 't'>> & {
+  passwordPolicy: PasswordPolicy | undefined;
+  resetList: () => void;
+};
+
+function useUserCrudActions({ state, t, passwordPolicy, resetList }: ValidatedUserActionOptions) {
   const closeDialog = useCallback(() => {
     state.setEditing(null);
     state.setCreating(false);
@@ -108,11 +128,8 @@ function useUserCrudActions({
   const openCreate = useCallback(() => {
     state.setEditing(null);
     state.setCreating(true);
-    state.setForm({
-      ...DEFAULT_FORM,
-      role_ids: [resources.roles[0]?.role_id ?? ''].filter(Boolean),
-    });
-  }, [resources.roles, state]);
+    state.setForm(DEFAULT_FORM);
+  }, [state]);
   const openEdit = useCallback(
     (user: SystemUser) => {
       state.setEditing(user);
@@ -120,7 +137,7 @@ function useUserCrudActions({
     },
     [state]
   );
-  const submitUser = useSubmitUser({ state, closeDialog, t: resources.t });
+  const submitUser = useSubmitUser({ state, closeDialog, t, passwordPolicy, resetList });
 
   return { closeDialog, openCreate, openEdit, submitUser };
 }
@@ -129,74 +146,41 @@ type SubmitUserOptions = {
   state: ReturnType<typeof useUserState>;
   closeDialog: () => void;
   t: ReturnType<typeof useTranslate>['t'];
+  passwordPolicy: PasswordPolicy | undefined;
+  resetList: () => void;
 };
 
-function useSubmitUser({ state, closeDialog, t }: SubmitUserOptions) {
+function useSubmitUser({ state, closeDialog, t, passwordPolicy, resetList }: SubmitUserOptions) {
   return useCallback(async () => {
+    const validationError = validateAdminUserForm(state.form, {
+      mode: state.editing ? 'edit' : 'create',
+      policy: passwordPolicy,
+      messages: adminUserValidationMessages(t),
+    });
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     state.setSubmitting(true);
     try {
       if (state.editing) await updateUser(state.editing.user_id, state.form);
       else await createUser(state.form);
       toast.success(t('messages.saved'));
+      resetList();
       closeDialog();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
     } finally {
       state.setSubmitting(false);
     }
-  }, [closeDialog, state, t]);
+  }, [closeDialog, passwordPolicy, resetList, state, t]);
 }
 
-function useUserRoleActions({ state, t }: Required<Pick<UserActionOptions, 'state' | 't'>>) {
-  const openRoles = useCallback(
-    async (user: SystemUser) => {
-      state.setRoleTarget(user);
-      try {
-        const payload = await getUserRoles(user.user_id);
-        state.setAssignedRoles(payload.role_ids);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('messages.loadBindingsFailed'));
-      }
-    },
-    [state, t]
-  );
-  const submitRoles = useCallback(async () => {
-    if (!state.roleTarget) return;
-    state.setSubmitting(true);
-    try {
-      await updateUserRoles(state.roleTarget.user_id, state.assignedRoles);
-      toast.success(t('messages.rolePermissionsUpdated'));
-      state.setRoleTarget(null);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.saveBindingsFailed'));
-    } finally {
-      state.setSubmitting(false);
-    }
-  }, [state, t]);
-
-  return { openRoles, submitRoles };
-}
-
-function useUserPasswordAction({ state, t }: Required<Pick<UserActionOptions, 'state' | 't'>>) {
-  const submitPassword = useCallback(async () => {
-    if (!state.passwordTarget) return;
-    state.setSubmitting(true);
-    try {
-      await resetUserPassword(state.passwordTarget.user_id, state.newPassword);
-      toast.success(t('messages.saved'));
-      state.setPasswordTarget(null);
-      state.setNewPassword('');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
-    } finally {
-      state.setSubmitting(false);
-    }
-  }, [state, t]);
-
-  return { submitPassword };
-}
-
-function useUserImportActions({ state, t }: Required<Pick<UserActionOptions, 'state' | 't'>>) {
+function useUserImportActions({
+  state,
+  t,
+  resetList,
+}: Required<Pick<UserActionOptions, 'state' | 't' | 'resetList'>>) {
   const closeImportDialog = useCallback(() => {
     state.setImportOpen(false);
     state.setImportFile(null);
@@ -208,40 +192,47 @@ function useUserImportActions({ state, t }: Required<Pick<UserActionOptions, 'st
     try {
       const result = await importUsers(state.importFile, state.updateSupport);
       toast.success(result.message || t('messages.importSuccess'));
+      resetList();
       closeImportDialog();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.importFailed'));
     } finally {
       state.setSubmitting(false);
     }
-  }, [closeImportDialog, state, t]);
+  }, [closeImportDialog, resetList, state, t]);
 
   return { closeImportDialog, submitImport, downloadUserImportTemplate };
 }
 
-function useUserDeleteActions({ state, t }: Required<Pick<UserActionOptions, 'state' | 't'>>) {
+function useUserDeleteActions({
+  state,
+  t,
+  resetList,
+}: Required<Pick<UserActionOptions, 'state' | 't' | 'resetList'>>) {
   const confirmDelete = useCallback(async () => {
     if (!state.deleteTarget) return;
     try {
       await deleteUser(state.deleteTarget.user_id);
       toast.success(t('messages.deleted'));
+      resetList();
       state.setDeleteTarget(null);
       state.setSelected((current) => current.filter((id) => id !== state.deleteTarget?.user_id));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
   const confirmBatchDelete = useCallback(async () => {
     if (state.selected.length === 0) return;
     try {
       await deleteUsers(state.selected);
       toast.success(t('messages.deleted'));
+      resetList();
       state.setSelected([]);
       state.setBatchDeleteOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('messages.deleteFailed'));
     }
-  }, [state, t]);
+  }, [resetList, state, t]);
 
   return { confirmDelete, confirmBatchDelete };
 }

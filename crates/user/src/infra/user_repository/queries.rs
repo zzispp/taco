@@ -1,22 +1,28 @@
-use constants::pagination::PAGE_INDEX_OFFSET;
-use kernel::pagination::{Page, PageSliceRequest};
-use sqlx::query;
-use storage::{Database, StorageError, StorageResult, database::to_u64};
+use kernel::pagination::CursorPage;
+use rbac::domain::DataScopeFilter;
+use sqlx::{query, query_as};
+use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
-use types::{
-    rbac::DataScopeFilter,
-    user::{ProfileUpdate, User, UserId, UserProfileGroups},
-};
+use types::user::{ProfileUpdate, User, UserId, UserProfileGroups};
 
-use crate::application::{ReplaceUserRecord, UserListFilter};
+use crate::application::{AuthorizationUser, ReplaceUserRecord, UserListFilter};
 
 use super::write;
 
+mod audited_write;
+pub(super) mod bootstrap;
+mod cleanup;
+mod cursor_page;
+mod export;
 mod options;
 mod read_support;
+mod relations;
 mod write_support;
 
-use self::write_support::required_password;
+use self::{
+    cleanup::delete_user_relations,
+    write_support::{required_password, revoke_user_sessions, should_revoke_sessions},
+};
 
 #[derive(Clone)]
 pub struct UserQueries {
@@ -43,12 +49,17 @@ impl UserQueries {
     }
 
     pub async fn delete(&self, id: UserId) -> StorageResult<()> {
+        let user_id = id.0;
+        let mut tx = self.database.pool().begin().await?;
         let result = query("UPDATE sys_user SET del_flag = '2', update_time = $2 WHERE user_id = $1 AND del_flag = '0'")
-            .bind(id.0)
+            .bind(&user_id)
             .bind(OffsetDateTime::now_utc())
-            .execute(self.database.pool())
+            .execute(&mut *tx)
             .await?;
-        write::ensure_rows_affected(result.rows_affected())
+        write::ensure_rows_affected(result.rows_affected())?;
+        delete_user_relations(&mut tx, std::slice::from_ref(&user_id)).await?;
+        revoke_user_sessions(&mut tx, &[user_id]).await?;
+        tx.commit().await.map_err(StorageError::from)
     }
 
     pub async fn delete_many(&self, ids: Vec<UserId>) -> StorageResult<()> {
@@ -60,6 +71,8 @@ impl UserQueries {
             .execute(&mut *tx)
             .await?;
         ensure_batch_rows(result.rows_affected(), ids.len())?;
+        delete_user_relations(&mut tx, &ids).await?;
+        revoke_user_sessions(&mut tx, &ids).await?;
         tx.commit().await.map_err(StorageError::from)
     }
 
@@ -68,7 +81,7 @@ impl UserQueries {
     }
 
     pub async fn find_by_email(&self, email: &str) -> StorageResult<Option<User>> {
-        self.find_record("email = $1", email).await
+        self.find_record("LOWER(email) = LOWER($1)", email).await
     }
 
     pub async fn find_by_phone(&self, phone: &str) -> StorageResult<Option<User>> {
@@ -80,56 +93,52 @@ impl UserQueries {
     }
 
     pub async fn find_auth_by_email(&self, email: &str) -> StorageResult<Option<(User, String)>> {
-        self.find_auth_record("email = $1", email).await
+        self.find_auth_record("LOWER(email) = LOWER($1)", email).await
     }
 
     pub async fn find_auth_by_id(&self, id: UserId) -> StorageResult<Option<(User, String)>> {
         self.find_auth_record("user_id = $1", &id.0).await
     }
 
-    pub async fn record_login(&self, id: UserId) -> StorageResult<()> {
-        let now = OffsetDateTime::now_utc();
-        let result = query("UPDATE sys_user SET login_date = $2, update_time = $2 WHERE user_id = $1 AND del_flag = '0'")
+    pub async fn find_authorization_by_id(&self, id: UserId) -> StorageResult<Option<AuthorizationUser>> {
+        query_as::<_, super::record::AuthorizationUserRecord>(super::sql::authorization_user_query())
             .bind(id.0)
+            .fetch_optional(self.database.pool())
+            .await
+            .map(|record| record.map(super::mapping::authorization_user))
+            .map_err(StorageError::from)
+    }
+
+    pub async fn record_login(&self, id: UserId, ipaddr: String) -> StorageResult<()> {
+        let now = OffsetDateTime::now_utc();
+        let result = query("UPDATE sys_user SET login_ip = $2, login_date = $3, update_time = $3 WHERE user_id = $1 AND del_flag = '0'")
+            .bind(id.0)
+            .bind(ipaddr)
             .bind(now)
             .execute(self.database.pool())
             .await?;
         write::ensure_rows_affected(result.rows_affected())
     }
 
-    pub async fn list(&self, filter: UserListFilter) -> StorageResult<Page<User>> {
-        let page = filter.page;
-        let request = PageSliceRequest {
-            offset: (page.page - PAGE_INDEX_OFFSET) * page.page_size,
-            limit: page.page_size,
-            page: page.page,
-            page_size: page.page_size,
-        };
-        self.list_slice(filter, request).await
+    pub async fn list(&self, filter: UserListFilter) -> crate::application::AppResult<CursorPage<User>> {
+        self.list_page(filter, None).await
     }
 
-    pub async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> StorageResult<Page<User>> {
-        let page = filter.page;
-        let offset = (page.page - PAGE_INDEX_OFFSET) * page.page_size;
-        let ids = self
-            .scoped_user_ids(&filter, &scope, read_support::ScopedUserSlice { limit: page.page_size, offset })
-            .await?;
-        let total = self.scoped_user_total(&filter, &scope).await?;
-        Ok(Page {
-            items: self.users_by_ids(ids).await?,
-            total: to_u64(total)?,
-            page: page.page,
-            page_size: page.page_size,
-        })
+    pub async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> crate::application::AppResult<CursorPage<User>> {
+        self.list_page(filter, Some(scope)).await
     }
 
     pub async fn update_password(&self, id: UserId, password_hash: String) -> StorageResult<()> {
+        let user_id = id.0;
+        let mut tx = self.database.pool().begin().await?;
         let result = query("UPDATE sys_user SET password=$2,pwd_update_date=CURRENT_TIMESTAMP,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
-            .bind(id.0)
+            .bind(&user_id)
             .bind(password_hash)
-            .execute(self.database.pool())
+            .execute(&mut *tx)
             .await?;
-        write::ensure_rows_affected(result.rows_affected())
+        write::ensure_rows_affected(result.rows_affected())?;
+        revoke_user_sessions(&mut tx, &[user_id]).await?;
+        tx.commit().await.map_err(StorageError::from)
     }
 
     pub async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> StorageResult<User> {
@@ -156,12 +165,18 @@ impl UserQueries {
     }
 
     pub async fn update_status(&self, id: UserId, status: String) -> StorageResult<User> {
+        let revoke_sessions = should_revoke_sessions(false, &status);
+        let mut tx = self.database.pool().begin().await?;
         let result = query("UPDATE sys_user SET status=$2,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
             .bind(&id.0)
             .bind(status)
-            .execute(self.database.pool())
+            .execute(&mut *tx)
             .await?;
         write::ensure_rows_affected(result.rows_affected())?;
+        if revoke_sessions {
+            revoke_user_sessions(&mut tx, std::slice::from_ref(&id.0)).await?;
+        }
+        tx.commit().await.map_err(StorageError::from)?;
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
     }
 
@@ -174,10 +189,11 @@ impl UserQueries {
     }
 
     pub async fn profile_groups(&self, id: UserId) -> StorageResult<UserProfileGroups> {
+        let (role_group, post_group, dept_name) = tokio::try_join!(self.role_group(&id.0), self.post_group(&id.0), self.dept_name(&id.0),)?;
         Ok(UserProfileGroups {
-            role_group: self.role_group(&id.0).await?,
-            post_group: self.post_group(&id.0).await?,
-            dept_name: self.dept_name(&id.0).await?,
+            role_group,
+            post_group,
+            dept_name,
         })
     }
 }

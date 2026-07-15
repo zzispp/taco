@@ -1,7 +1,10 @@
 [workspace]
 members = [
     "apps/backend",
+    "crates/audit",
+    "crates/audit_contract",
     "crates/captcha",
+    "crates/client_info",
     "crates/config",
     "crates/constants",
     "crates/kernel",
@@ -26,18 +29,25 @@ publish = false
 argon2 = "0.5.3"
 async-trait = "0.1.89"
 base64 = "0.22.1"
+bytes = "1.11.1"
 calamine = "0.36.0"
 captcha = { path = "crates/captcha", version = "0.1.0" }
+audit = { path = "crates/audit", version = "0.1.0" }
+audit_contract = { path = "crates/audit_contract", version = "0.1.0" }
+client_info = { path = "crates/client_info", version = "0.1.0" }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
 croner = "3.0.1"
 axum = { version = "0.8.9", features = ["multipart"] }
 http = "1.3.1"
 http-body-util = "0.1.3"
+http-body = "1.0.1"
 hex = "0.4.3"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 inventory = "0.3.21"
 config_rs = { package = "config", version = "0.15.22", default-features = false, features = ["yaml"] }
 configuration = { path = "crates/config", version = "0.1.0" }
 encoding_rs = "0.8.35"
+futures-util = "0.3.31"
 constants = { path = "crates/constants", version = "0.1.0" }
 hook_tracing = { path = "crates/tracing", version = "0.1.0" }
 kernel = { path = "crates/kernel", version = "0.1.0" }
@@ -46,14 +56,13 @@ matchit = "0.8.4"
 metrics = "0.24.2"
 metrics-exporter-prometheus = "0.18.3"
 proc-macro2 = "1.0.103"
-public-ip-address = { version = "0.4.0", default-features = false, features = ["rustls-tls"] }
 quote = "1.0.42"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 rbac = { path = "crates/rbac", version = "0.1.0" }
 rbac_macros = { path = "crates/rbac_macros", version = "0.1.0" }
 scheduler = { path = "crates/scheduler", version = "0.1.0" }
 scheduler_macros = { path = "crates/scheduler_macros", version = "0.1.0" }
-redis = { version = "1.2.1", default-features = false, features = ["tokio-comp", "connection-manager"] }
+redis = { version = "1.2.1", default-features = false, features = ["tokio-comp", "connection-manager", "script"] }
 regex = "1.12.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
@@ -78,12 +87,13 @@ utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 user = { path = "crates/user", version = "0.1.0" }
 validator = { version = "0.20.0", features = ["derive"] }
 uuid = { version = "1.23.1", features = ["v7", "fast-rng"] }
+url = "2.5.8"
 jiff = "0.2.23"
 reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
 rust_decimal = { version = "1.41.0", features = ["serde-with-float"] }
 rust-i18n = "4.1.0"
 rust_xlsxwriter = "0.92.2"
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "derive", "migrate", "time", "chrono", "uuid", "json", "rust_decimal"] }
-time = { version = "0.3.44", features = ["formatting", "parsing"] }
+time = { version = "0.3.44", features = ["formatting", "macros", "parsing"] }
 nix = { version = "0.29.0", features = ["net"] }
 pulldown-cmark = "0.13.0"

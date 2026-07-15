@@ -1,19 +1,21 @@
-import type { QueryParams } from 'src/shared/api/pagination';
+import type { QueryParams, CursorPageRequest } from 'src/shared/api/pagination';
 import type { Notice, NoticeReader, NoticeSummary, NoticeTopResponse } from '../model/types';
-import type { PagedResourceState, PagedResourceOptions } from 'src/shared/api/use-paged-resource';
+import type {
+  CursorResourceState,
+  CursorResourceOptions,
+} from 'src/shared/api/use-cursor-resource';
 
 import useSWR from 'swr';
 
 import { fetcher } from 'src/shared/api/http-client';
-import { usePagedResource } from 'src/shared/api/use-paged-resource';
+import { useCursorResource } from 'src/shared/api/use-cursor-resource';
 
 import { noticeEndpoints } from './endpoints';
 
-export function useNotices(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<NoticeSummary>({
+export function useNotices(request: CursorPageRequest, params: QueryParams = {}) {
+  return useCursorResource<NoticeSummary>({
     endpoint: noticeEndpoints.notices,
-    page,
-    pageSize,
+    request,
     params,
   });
 }
@@ -25,27 +27,37 @@ export function useNotice(noticeId: string | null, enabled: boolean) {
 }
 
 export function useNoticeReaders(options: NoticeReaderQueryOptions) {
-  const resourceOptions = noticeReaderPagedOptions(options);
-  const resource = usePagedResource<NoticeReader>(resourceOptions);
+  const resourceOptions = noticeReaderCursorOptions(options);
+  const resource = useCursorResource<NoticeReader>(resourceOptions);
   return visibleNoticeReaderResource(resource, resourceOptions.endpoint.length > 0);
 }
 
-export function noticeReaderPagedOptions(options: NoticeReaderQueryOptions): PagedResourceOptions {
+export function noticeReaderCursorOptions(
+  options: NoticeReaderQueryOptions
+): CursorResourceOptions {
   return {
     endpoint: options.enabled && options.noticeId ? noticeEndpoints.readers(options.noticeId) : '',
-    page: options.page,
-    pageSize: options.pageSize,
+    request: options.request,
     params: options.params,
     keepPreviousData: false,
   };
 }
 
 export function visibleNoticeReaderResource(
-  resource: PagedResourceState<NoticeReader>,
+  resource: CursorResourceState<NoticeReader>,
   enabled: boolean
-): PagedResourceState<NoticeReader> {
+): CursorResourceState<NoticeReader> {
   return resource.error || !enabled
-    ? { ...resource, data: undefined, items: [], total: 0 }
+    ? {
+        ...resource,
+        data: undefined,
+        items: [],
+        itemCount: 0,
+        nextCursor: null,
+        previousCursor: null,
+        hasNext: false,
+        hasPrevious: false,
+      }
     : resource;
 }
 
@@ -61,8 +73,7 @@ export function noticeKey(noticeId: string | null, enabled: boolean) {
 
 export type NoticeReaderQueryOptions = Readonly<{
   noticeId: string | null;
-  page: number;
-  pageSize: number;
+  request: CursorPageRequest;
   params: QueryParams;
   enabled: boolean;
 }>;

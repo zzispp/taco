@@ -1,6 +1,7 @@
 import type React from 'react';
-import type { TableHeadCellProps } from 'src/shared/ui/table';
 import type { DictData, DictType } from 'src/entities/system';
+import type { CursorResourceState } from 'src/shared/api/use-cursor-resource';
+import type { UseTableReturn, TableHeadCellProps } from 'src/shared/ui/table';
 import type { DictDataFiltersValue, DictTypeFiltersValue } from './dict-constants';
 import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
@@ -10,8 +11,9 @@ import TableBody from '@mui/material/TableBody';
 
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+
+import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { DictDataToolbar } from './dict-data-toolbar';
 import { DictDataRow, DictTypeRow } from './dict-rows';
@@ -26,12 +28,16 @@ export function DictTypeSection(props: DictTypeSectionProps) {
         onChange={props.onFilterChange}
       />
       <DictTypeTable props={props} />
-      <TablePaginationCustom
-        page={props.table.page}
-        count={props.resource.total}
-        rowsPerPage={props.table.rowsPerPage}
-        onPageChange={props.table.onChangePage}
-        onRowsPerPageChange={props.table.onChangeRowsPerPage}
+      <CursorPagination
+        limit={props.table.limit}
+        itemCount={props.resource.itemCount}
+        visitedBatchIndex={props.table.visitedBatchIndex}
+        hasPrevious={props.resource.hasPrevious}
+        hasNext={props.resource.hasNext}
+        pending={props.resource.isValidating}
+        onPrevious={() => props.table.onPreviousCursor(props.resource.previousCursor)}
+        onNext={() => props.table.onNextCursor(props.resource.nextCursor)}
+        onLimitChange={props.table.onChangeLimit}
       />
     </Card>
   );
@@ -51,6 +57,7 @@ function DictTypeTable({ props }: { props: DictTypeSectionProps }) {
         <TableBody>
           <DictTypeRows props={props} />
           <TableNoData
+            colSpan={props.loadingHead.length}
             title={t('common.noData')}
             notFound={!props.resource.isLoading && props.resource.items.length === 0}
           />
@@ -62,7 +69,7 @@ function DictTypeTable({ props }: { props: DictTypeSectionProps }) {
 
 function DictTypeRows({ props }: { props: DictTypeSectionProps }) {
   if (props.resource.isLoading) {
-    return <TableLoadingRows head={props.loadingHead} rows={props.table.rowsPerPage} />;
+    return <TableLoadingRows head={props.loadingHead} rows={props.table.limit} />;
   }
   return props.resource.items.map((row) => (
     <DictTypeRow
@@ -94,12 +101,16 @@ export function DictDataSection(props: DictDataSectionProps) {
       />
       <DictDataFilters filters={props.filters} onChange={props.onFilterChange} />
       <DictDataTable props={props} />
-      <TablePaginationCustom
-        page={props.table.page}
-        count={props.resource.total}
-        rowsPerPage={props.table.rowsPerPage}
-        onPageChange={props.table.onChangePage}
-        onRowsPerPageChange={props.table.onChangeRowsPerPage}
+      <CursorPagination
+        limit={props.table.limit}
+        itemCount={props.resource.itemCount}
+        visitedBatchIndex={props.table.visitedBatchIndex}
+        hasPrevious={props.resource.hasPrevious}
+        hasNext={props.resource.hasNext}
+        pending={props.resource.isValidating}
+        onPrevious={() => props.table.onPreviousCursor(props.resource.previousCursor)}
+        onNext={() => props.table.onNextCursor(props.resource.nextCursor)}
+        onLimitChange={props.table.onChangeLimit}
       />
     </Card>
   );
@@ -119,6 +130,7 @@ function DictDataTable({ props }: { props: DictDataSectionProps }) {
         <TableBody>
           <DictDataRows props={props} />
           <TableNoData
+            colSpan={props.loadingHead.length}
             title={t('common.noData')}
             notFound={!props.resource.isLoading && props.resource.items.length === 0}
           />
@@ -130,7 +142,7 @@ function DictDataTable({ props }: { props: DictDataSectionProps }) {
 
 function DictDataRows({ props }: { props: DictDataSectionProps }) {
   if (props.resource.isLoading) {
-    return <TableLoadingRows head={props.loadingHead} rows={props.table.rowsPerPage} />;
+    return <TableLoadingRows head={props.loadingHead} rows={props.table.limit} />;
   }
   return props.resource.items.map((row) => (
     <DictDataRow
@@ -145,24 +157,11 @@ function DictDataRows({ props }: { props: DictDataSectionProps }) {
   ));
 }
 
-type TableState = {
-  page: number;
-  rowsPerPage: number;
-  onChangePage: (event: unknown, page: number) => void;
-  onChangeRowsPerPage: (event: React.ChangeEvent<HTMLInputElement>) => void;
-};
-
-type Resource<T> = {
-  items: T[];
-  total: number;
-  isLoading: boolean;
-};
-
 type DictTypeSectionProps = {
-  table: TableState;
+  table: UseTableReturn;
   filters: DictTypeFiltersValue;
   filterError: LocalDateTimeFilterError | null;
-  resource: Resource<DictType>;
+  resource: CursorResourceState<DictType>;
   activeType: string;
   head: TableHeadCellProps[];
   loadingHead: TableHeadCellProps[];
@@ -177,9 +176,9 @@ type DictTypeSectionProps = {
 };
 
 type DictDataSectionProps = {
-  table: TableState;
+  table: UseTableReturn;
   filters: DictDataFiltersValue;
-  resource: Resource<DictData>;
+  resource: CursorResourceState<DictData>;
   activeType: string;
   head: TableHeadCellProps[];
   loadingHead: TableHeadCellProps[];

@@ -8,7 +8,8 @@ import TableBody from '@mui/material/TableBody';
 
 import { TableNoData } from 'src/shared/ui/table';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
-import { ManagementTableHead } from 'src/shared/ui/admin';
+
+import { ManagementTableHead } from 'src/widgets/admin-common';
 
 import { DeptRow } from './dept-row';
 import { toggle } from './dept-helpers';
@@ -41,6 +42,7 @@ export function DeptTableSection({ resources, state, actions }: DeptManagementCo
               />
             ))}
             <TableNoData
+              colSpan={resources.head.length}
               title={t('common.noData')}
               notFound={!resource.isLoading && rows.length === 0}
             />

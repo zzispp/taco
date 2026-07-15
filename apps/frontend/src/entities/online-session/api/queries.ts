@@ -1,29 +1,20 @@
-import type { OnlineSessionQuery, OnlineSessionsResponse } from '../model/types';
+import type { CursorPageRequest } from 'src/shared/api/pagination';
+import type { OnlineSession, OnlineSessionQuery } from '../model/types';
 
-import useSWR from 'swr';
-
-import { fetcher } from 'src/shared/api/http-client';
-import { compactParams } from 'src/shared/api/pagination';
+import { cursorKey } from 'src/shared/api/pagination';
+import { useCursorResource } from 'src/shared/api/use-cursor-resource';
 
 import { onlineSessionEndpoints } from './endpoints';
 
-const swrOptions = {
-  keepPreviousData: true,
-  revalidateOnFocus: false,
-};
+export function onlineSessionsKey(request: CursorPageRequest, filters: OnlineSessionQuery) {
+  return cursorKey(onlineSessionEndpoints.list, request, filters);
+}
 
-export function useOnlineSessions(filters: OnlineSessionQuery) {
-  const { data, error, isLoading, isValidating } = useSWR<OnlineSessionsResponse>(
-    [onlineSessionEndpoints.list, { params: compactParams(filters) }],
-    fetcher,
-    swrOptions
-  );
-
-  return {
-    rows: data?.rows ?? [],
-    total: data?.total ?? 0,
-    error,
-    isLoading,
-    isValidating,
-  };
+export function useOnlineSessions(request: CursorPageRequest, filters: OnlineSessionQuery) {
+  const resource = useCursorResource<OnlineSession>({
+    endpoint: onlineSessionEndpoints.list,
+    request,
+    params: filters,
+  });
+  return { ...resource, rows: resource.items };
 }

@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use sysinfo::{Disks, MINIMUM_CPU_UPDATE_INTERVAL, Networks, ProcessesToUpdate, System};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::OffsetDateTime;
 
 use crate::{
     application::{ServerMetricsCollector, SystemError, SystemResult, evaluate_dashboard_health},
@@ -202,7 +202,7 @@ fn millis(duration: std::time::Duration) -> u64 {
 }
 
 fn sampled_at() -> SystemResult<String> {
-    OffsetDateTime::now_utc().format(&Rfc3339).map_err(time_error)
+    types::http::format_utc_rfc3339_millis(OffsetDateTime::now_utc()).map_err(time_error)
 }
 
 fn join_error(error: tokio::task::JoinError) -> SystemError {
@@ -211,4 +211,18 @@ fn join_error(error: tokio::task::JoinError) -> SystemError {
 
 fn time_error(error: time::error::Format) -> SystemError {
     SystemError::Infrastructure(format!("server metrics timestamp format error: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sampled_at;
+
+    #[test]
+    fn sampled_at_uses_fixed_utc_milliseconds() {
+        let value = sampled_at().unwrap();
+
+        assert_eq!(value.len(), 24);
+        assert_eq!(value.as_bytes()[19], b'.');
+        assert_eq!(value.as_bytes()[23], b'Z');
+    }
 }

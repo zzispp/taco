@@ -5,9 +5,12 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+audit.workspace = true
+audit_contract.workspace = true
 captcha.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+client_info.workspace = true
 configuration.workspace = true
 constants.workspace = true
 hook_tracing.workspace = true
@@ -35,3 +38,4 @@ http-body-util.workspace = true
 reqwest.workspace = true
 time.workspace = true
 tower.workspace = true
+url.workspace = true

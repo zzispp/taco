@@ -2,9 +2,8 @@ use sqlx::query;
 
 use super::{TestDatabase, managed_table_exists, up};
 
-const MIGRATIONS_BEFORE_SCHEDULER: u32 = 12;
+const MIGRATIONS_BEFORE_SCHEDULER: u32 = 11;
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn scheduler_seed_conflicts_roll_back_the_whole_migration() {
     let database = TestDatabase::create().await;

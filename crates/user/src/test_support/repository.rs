@@ -5,14 +5,7 @@ use super::*;
 impl UserRepository for MemoryUserRepository {
     async fn create(&self, record: ReplaceUserRecord) -> AppResult<User> {
         let mut state = self.state.lock().unwrap();
-        let id = next_user_id(&mut state);
-        let user = user_from_record(id, &record);
-        state.users.push(StoredUser {
-            user: user.clone(),
-            password_hash: record.password_hash.clone().unwrap_or_default(),
-        });
-        state.created.push(record);
-        Ok(user)
+        Ok(store_created_user(&mut state, record))
     }
 
     async fn replace(&self, id: UserId, record: ReplaceUserRecord) -> AppResult<User> {
@@ -66,14 +59,11 @@ impl UserRepository for MemoryUserRepository {
     }
 
     async fn find_auth_by_username(&self, username: &str) -> AppResult<Option<UserAuthRecord>> {
-        Ok(self
-            .state
-            .lock()
-            .unwrap()
-            .users
-            .iter()
-            .find(|stored| stored.user.username == username)
-            .map(StoredUser::auth_record))
+        let state = self.state.lock().unwrap();
+        if let Some(message) = state.auth_lookup_failure.clone() {
+            return Err(AppError::Infrastructure(message));
+        }
+        Ok(state.users.iter().find(|stored| stored.user.username == username).map(StoredUser::auth_record))
     }
 
     async fn find_auth_by_email(&self, email: &str) -> AppResult<Option<UserAuthRecord>> {
@@ -98,24 +88,39 @@ impl UserRepository for MemoryUserRepository {
             .map(StoredUser::auth_record))
     }
 
-    async fn record_login(&self, id: UserId) -> AppResult<()> {
-        self.state.lock().unwrap().logins.push(id);
+    async fn find_authorization_by_id(&self, id: UserId) -> AppResult<Option<AuthorizationUser>> {
+        Ok(self
+            .state
+            .lock()
+            .unwrap()
+            .users
+            .iter()
+            .find(|stored| stored.user.id == id)
+            .map(|stored| AuthorizationUser::from_user(stored.user.clone())))
+    }
+
+    async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()> {
+        let mut state = self.state.lock().unwrap();
+        state.logins.push(id.clone());
+        state.login_ips.push((id, ipaddr));
         Ok(())
     }
 
-    async fn list(&self, filter: UserListFilter) -> AppResult<Page<User>> {
-        let page = filter.page;
-        let request = PageSliceRequest {
-            offset: (page.page - 1) * page.page_size,
-            limit: page.page_size,
-            page: page.page,
-            page_size: page.page_size,
-        };
-        self.list_slice(filter, request).await
+    async fn list(&self, filter: UserListFilter) -> AppResult<CursorPage<User>> {
+        let limit = filter.page.limit;
+        let state = self.state.lock().unwrap();
+        let filtered = state
+            .users
+            .iter()
+            .filter(|stored| memory_filter_matches(&stored.user, &filter))
+            .map(|stored| stored.user.clone())
+            .collect::<Vec<_>>();
+        let items = filtered.into_iter().take(limit as usize).collect();
+        Ok(CursorPage::new(items, None, None))
     }
 
-    async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<Page<User>> {
-        let page = filter.page;
+    async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<CursorPage<User>> {
+        let limit = filter.page.limit;
         let state = self.state.lock().unwrap();
         let filtered = state
             .users
@@ -124,15 +129,8 @@ impl UserRepository for MemoryUserRepository {
             .filter(|stored| memory_filter_matches(&stored.user, &filter))
             .map(|stored| stored.user.clone())
             .collect::<Vec<_>>();
-        let start = ((page.page - 1) * page.page_size) as usize;
-        let end = start.saturating_add(page.page_size as usize).min(filtered.len());
-        let items = if start >= filtered.len() { vec![] } else { filtered[start..end].to_vec() };
-        Ok(Page {
-            items,
-            total: filtered.len() as u64,
-            page: page.page,
-            page_size: page.page_size,
-        })
+        let items = filtered.into_iter().take(limit as usize).collect();
+        Ok(CursorPage::new(items, None, None))
     }
 
     async fn list_scoped_ids(&self, ids: Vec<UserId>, scope: DataScopeFilter) -> AppResult<Vec<UserId>> {
@@ -145,23 +143,20 @@ impl UserRepository for MemoryUserRepository {
             .collect())
     }
 
-    async fn list_slice(&self, filter: UserListFilter, request: PageSliceRequest) -> AppResult<Page<User>> {
+    async fn export_users(&self, request: UserExportRequest, sink: &mut dyn UserExportSink) -> AppResult<()> {
         let state = self.state.lock().unwrap();
-        let filtered = state
+        let users = state
             .users
             .iter()
-            .filter(|stored| memory_filter_matches(&stored.user, &filter))
+            .filter(|stored| request.scope.as_ref().is_none_or(|scope| memory_scope_matches(&stored.user, scope)))
+            .filter(|stored| memory_filter_matches(&stored.user, &request.filter))
             .map(|stored| stored.user.clone())
             .collect::<Vec<_>>();
-        let start = request.offset as usize;
-        let end = start.saturating_add(request.limit as usize).min(filtered.len());
-        let items = if start >= filtered.len() { vec![] } else { filtered[start..end].to_vec() };
-        Ok(Page {
-            items,
-            total: filtered.len() as u64,
-            page: request.page,
-            page_size: request.page_size,
-        })
+        let batch_size = usize::try_from(request.batch_size).map_err(|error| AppError::Infrastructure(error.to_string()))?;
+        for batch in users.chunks(batch_size) {
+            sink.append(batch)?;
+        }
+        Ok(())
     }
 
     async fn update_password(&self, id: UserId, password_hash: String) -> AppResult<()> {

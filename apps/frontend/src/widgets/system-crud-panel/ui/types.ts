@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { IconifyName } from 'src/shared/ui/iconify';
-import type { TableHeadCellProps } from 'src/shared/ui/table';
+import type { UseTableReturn, TableHeadCellProps } from 'src/shared/ui/table';
+import type { CursorResourceState } from 'src/shared/api/use-cursor-resource';
 import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
 
 export type CrudField<T> = {
@@ -33,9 +34,8 @@ export type CrudPanelProps<T extends Record<string, unknown>, I extends Record<s
   nameKey: keyof T;
   fields: CrudField<T>[];
   defaultInput: I;
-  resource: { items: T[]; total: number; isLoading: boolean };
-  page: number;
-  rowsPerPage: number;
+  resource: CursorResourceState<T>;
+  table: UseTableReturn;
   filters?: CrudFilter[];
   filterValues?: Record<string, string>;
   filterError?: LocalDateTimeFilterError | null;
@@ -45,12 +45,9 @@ export type CrudPanelProps<T extends Record<string, unknown>, I extends Record<s
   batchDeleteItems?: (ids: string[]) => Promise<void>;
   isRowSelectable?: (row: T) => boolean;
   onFilterChange?: (filters: Record<string, string>) => void;
-  onPageChange: (event: unknown, page: number) => void;
-  onRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   createItem: (input: I) => Promise<T>;
   updateItem: (id: string, input: I) => Promise<T>;
   deleteItem: (id: string) => Promise<void>;
-  onAfterSave?: () => void;
 };
 
 export type ActionIconProps = {

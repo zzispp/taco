@@ -1,24 +1,22 @@
 import type { Role, RoleUser } from '../model/types';
-import type { QueryParams } from 'src/shared/api/pagination';
+import type { QueryParams, CursorPageRequest } from 'src/shared/api/pagination';
 
-import { usePagedResource } from 'src/shared/api/use-paged-resource';
+import { useCursorResource } from 'src/shared/api/use-cursor-resource';
 
 import { roleEndpoints } from './endpoints';
 
-export function useRoles(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<Role>({ endpoint: roleEndpoints.roles, page, pageSize, params });
+export function useRoles(request: CursorPageRequest, params: QueryParams = {}) {
+  return useCursorResource<Role>({ endpoint: roleEndpoints.roles, request, params });
 }
 
 export function useRoleUsers(
   roleId: string | null,
-  page: number,
-  pageSize: number,
+  request: CursorPageRequest,
   params: QueryParams = {}
 ) {
-  return usePagedResource<RoleUser>({
+  return useCursorResource<RoleUser>({
     endpoint: roleId ? roleEndpoints.users(roleId) : '',
-    page,
-    pageSize,
+    request,
     params,
   });
 }

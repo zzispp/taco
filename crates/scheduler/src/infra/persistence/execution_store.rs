@@ -2,7 +2,10 @@ use serde_json::Value;
 use sqlx::{AssertSqlSafe, PgConnection, query, query_as, query_scalar};
 
 use crate::{
-    application::{ClaimExecutionRequest, FinishExecutionRequest, InterruptExecutionRequest, SchedulerResult},
+    application::{
+        ClaimExecutionRequest, FinishExecutionRequest, InterruptExecutionRequest, SchedulerResult,
+        tasks::{HTTP_REQUEST_TASK_KEY, redacted_http_invoke_target},
+    },
     domain::{Execution, ExecutionDetail, ExecutionOutcome, ExecutionState, TriggerType},
 };
 
@@ -71,10 +74,13 @@ pub async fn claim_execution(repository: &StorageSchedulerRepository, request: C
 
 pub async fn finish_execution(repository: &StorageSchedulerRepository, request: FinishExecutionRequest) -> SchedulerResult<bool> {
     let values = finish_values(&request);
+    let redacted_target = redacted_http_invoke_target();
     let rows = query(
         "UPDATE sys_job_execution SET state=$1, outcome=$2, message_key=$3, message_params=$4, \
          error_key=$5, error_params=$6, detail_kind=$7, detail_schema_version=$8, \
-         detail_payload=$9, end_time=$10 WHERE execution_id=$11 AND state=$12",
+         detail_payload=$9, task_params=CASE WHEN task_key=$10 THEN '{}'::jsonb ELSE task_params END, \
+         invoke_target=CASE WHEN task_key=$10 THEN $11 ELSE invoke_target END, \
+         end_time=$12 WHERE execution_id=$13 AND state=$14",
     )
     .bind(ExecutionState::Terminal.code())
     .bind(request.outcome.code())
@@ -85,6 +91,8 @@ pub async fn finish_execution(repository: &StorageSchedulerRepository, request: 
     .bind(values.detail_kind.as_deref())
     .bind(values.detail_schema_version)
     .bind(&values.detail_payload)
+    .bind(HTTP_REQUEST_TASK_KEY)
+    .bind(&redacted_target)
     .bind(request.ended_at)
     .bind(&request.execution_id)
     .bind(ExecutionState::Running.code())
@@ -102,14 +110,19 @@ pub async fn finish_execution(repository: &StorageSchedulerRepository, request: 
 }
 
 pub async fn interrupt_execution(repository: &StorageSchedulerRepository, request: InterruptExecutionRequest) -> SchedulerResult<bool> {
+    let redacted_target = redacted_http_invoke_target();
     let rows = query(
         "UPDATE sys_job_execution SET state=$1, outcome=$2, message_key=$3, \
-         message_params='{}'::jsonb, end_time=$4 WHERE execution_id=$5 AND state=$6",
+         message_params='{}'::jsonb, task_params=CASE WHEN task_key=$5 THEN '{}'::jsonb ELSE task_params END, \
+         invoke_target=CASE WHEN task_key=$5 THEN $6 ELSE invoke_target END, \
+         end_time=$4 WHERE execution_id=$7 AND state=$8",
     )
     .bind(ExecutionState::Terminal.code())
     .bind(ExecutionOutcome::Interrupted.code())
     .bind(INTERRUPTED_EXECUTOR_LOST)
     .bind(request.ended_at)
+    .bind(HTTP_REQUEST_TASK_KEY)
+    .bind(&redacted_target)
     .bind(request.execution_id)
     .bind(ExecutionState::Running.code())
     .execute(repository.pool())
@@ -152,13 +165,18 @@ fn claim_decision(identity: &PendingIdentity, current_revision: Option<i64>) -> 
 }
 
 async fn cancel_stale_pending(connection: &mut PgConnection, execution_id: &str, message_key: &str) -> SchedulerResult<()> {
+    let redacted_target = redacted_http_invoke_target();
     query(
         "UPDATE sys_job_execution SET state=$1, outcome=$2, message_key=$3, \
-         message_params='{}'::jsonb, end_time=clock_timestamp() WHERE execution_id=$4 AND state=$5",
+         message_params='{}'::jsonb, task_params=CASE WHEN task_key=$4 THEN '{}'::jsonb ELSE task_params END, \
+         invoke_target=CASE WHEN task_key=$4 THEN $5 ELSE invoke_target END, \
+         end_time=clock_timestamp() WHERE execution_id=$6 AND state=$7",
     )
     .bind(ExecutionState::Terminal.code())
     .bind(ExecutionOutcome::Skipped.code())
     .bind(message_key)
+    .bind(HTTP_REQUEST_TASK_KEY)
+    .bind(&redacted_target)
     .bind(execution_id)
     .bind(ExecutionState::Pending.code())
     .execute(connection)

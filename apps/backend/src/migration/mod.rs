@@ -16,6 +16,10 @@ const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../migrati
 const MIGRATION_TABLE_NAME: &str = "_sqlx_migrations";
 
 const MANAGED_TABLES: &[&str] = &[
+    "audit_outbox",
+    "sys_user_session",
+    "sys_logininfor",
+    "sys_oper_log",
     "sys_notice_read",
     "sys_notice",
     "sys_job_execution",

@@ -6,7 +6,11 @@ export function isValidAnchor(element: HTMLAnchorElement): boolean {
   const target = element.getAttribute('target');
   const rel = element.getAttribute('rel');
 
-  return href.startsWith('/') && target !== '_blank' && (!rel || !['noopener', 'noreferrer'].some((value) => rel.includes(value)));
+  return (
+    href.startsWith('/') &&
+    target !== '_blank' &&
+    (!rel || !['noopener', 'noreferrer'].some((value) => rel.includes(value)))
+  );
 }
 
 export function startProgressForUrl(currentUrl: string, newUrl: string) {

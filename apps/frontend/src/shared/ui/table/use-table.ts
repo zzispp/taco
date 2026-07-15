@@ -4,110 +4,119 @@ import type { UseTableProps, UseTableReturn } from './use-table-types';
 
 import { useState, useCallback } from 'react';
 
+import { DEFAULT_CURSOR_LIMIT } from 'src/shared/api/pagination';
+import { useCursorNavigation } from 'src/shared/lib/use-cursor-navigation';
+
 export type { UseTableProps, UseTableReturn } from './use-table-types';
 
+export const DEFAULT_TABLE_LIMIT = DEFAULT_CURSOR_LIMIT;
+
 export function useTable(props?: UseTableProps): UseTableReturn {
-  const state = useTableState(props);
-  const sort = useTableSort(state);
-  const selection = useTableSelection(state);
-  const pagination = useTablePagination(state, selection.selected.length);
+  const options = props ?? {};
+  const state = useTableState(options);
+  const { setDense, setOrder, setOrderBy, setSelected } = state;
+  const navigation = useCursorNavigation(
+    options.defaultLimit ?? DEFAULT_TABLE_LIMIT,
+    options.scopeKey
+  );
+  const cursorActions = useTableCursorActions({ navigation, setSelected });
+  const onSort = useTableSortAction({ state, resetCursor: cursorActions.onResetCursor });
+  const selectionActions = useTableSelectionActions(setSelected);
 
   return {
     ...state,
-    ...sort,
-    ...selection,
-    ...pagination,
+    limit: navigation.limit,
+    cursor: navigation.cursor,
+    cursorRequest: navigation.request,
+    visitedBatchIndex: navigation.visitedBatchIndex,
+    onSort,
+    ...cursorActions,
+    ...selectionActions,
+    onChangeDense: useCallback(
+      (event: React.ChangeEvent<HTMLInputElement>) => setDense(event.target.checked),
+      [setDense]
+    ),
+    setOrder,
+    setOrderBy,
   };
 }
 
-function useTableState(props?: UseTableProps) {
-  const [dense, setDense] = useState(!!props?.defaultDense);
-  const [page, setPage] = useState(props?.defaultCurrentPage ?? 0);
-  const [orderBy, setOrderBy] = useState(props?.defaultOrderBy ?? 'name');
-  const [rowsPerPage, setRowsPerPage] = useState(props?.defaultRowsPerPage ?? 5);
-  const [order, setOrder] = useState<'asc' | 'desc'>(props?.defaultOrder ?? 'asc');
-  const [selected, setSelected] = useState<string[]>(props?.defaultSelected ?? []);
+function useTableState(options: UseTableProps) {
+  const [dense, setDense] = useState(!!options.defaultDense);
+  const [orderBy, setOrderBy] = useState(options.defaultOrderBy ?? 'name');
+  const [order, setOrder] = useState<'asc' | 'desc'>(options.defaultOrder ?? 'asc');
+  const [selected, setSelected] = useState<string[]>(options.defaultSelected ?? []);
 
-  return { dense, page, orderBy, rowsPerPage, order, selected, setDense, setPage, setOrderBy, setRowsPerPage, setOrder, setSelected };
+  return { dense, orderBy, order, selected, setDense, setOrderBy, setOrder, setSelected };
 }
 
-function useTableSort(state: ReturnType<typeof useTableState>) {
-  const onSort = useCallback(
+type TableCursorActionsOptions = Readonly<{
+  navigation: ReturnType<typeof useCursorNavigation>;
+  setSelected: UseTableReturn['setSelected'];
+}>;
+
+function useTableCursorActions({ navigation, setSelected }: TableCursorActionsOptions) {
+  const onResetCursor = useCallback(() => {
+    setSelected([]);
+    navigation.reset();
+  }, [navigation, setSelected]);
+  const onNextCursor = useCallback(
+    (targetCursor: string | null) => {
+      if (!targetCursor || targetCursor === navigation.cursor) return;
+      setSelected([]);
+      navigation.next(targetCursor);
+    },
+    [navigation, setSelected]
+  );
+  const onPreviousCursor = useCallback(
+    (targetCursor: string | null) => {
+      if (!targetCursor || targetCursor === navigation.cursor) return;
+      setSelected([]);
+      navigation.previous(targetCursor);
+    },
+    [navigation, setSelected]
+  );
+  const onChangeLimit = useCallback(
+    (nextLimit: number) => {
+      setSelected([]);
+      navigation.changeLimit(nextLimit);
+    },
+    [navigation, setSelected]
+  );
+
+  return { onResetCursor, onNextCursor, onPreviousCursor, onChangeLimit };
+}
+
+type TableSortOptions = Readonly<{
+  state: ReturnType<typeof useTableState>;
+  resetCursor: () => void;
+}>;
+
+function useTableSortAction({ state, resetCursor }: TableSortOptions) {
+  return useCallback(
     (id: string) => {
-      const isAsc = state.orderBy === id && state.order === 'asc';
-      if (id !== '') {
-        state.setOrder(isAsc ? 'desc' : 'asc');
-        state.setOrderBy(id);
-      }
+      if (!id) return;
+      state.setOrder(state.orderBy === id && state.order === 'asc' ? 'desc' : 'asc');
+      state.setOrderBy(id);
+      resetCursor();
     },
-    [state]
+    [resetCursor, state]
   );
-
-  return { onSort };
 }
 
-function useTableSelection(state: ReturnType<typeof useTableState>) {
-  const onSelectRow = useCallback(
-    (inputValue: string) => {
-      state.setSelected(toggleSelected(state.selected, inputValue));
-    },
-    [state]
-  );
-
-  const onSelectAllRows = useCallback(
-    (checked: boolean, inputValue: string[]) => {
-      state.setSelected(checked ? inputValue : []);
-    },
-    [state]
-  );
-
-  return { selected: state.selected, onSelectRow, onSelectAllRows };
-}
-
-function useTablePagination(state: ReturnType<typeof useTableState>, totalSelected: number) {
-  const onChangeRowsPerPage = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    state.setPage(0);
-    state.setRowsPerPage(parseInt(event.target.value, 10));
-  }, [state]);
-
-  const onUpdatePageDeleteRows = useCallback(
-    (totalRowsInPage: number, totalRowsFiltered: number) => {
-      state.setSelected([]);
-      state.setPage(nextPageAfterRowsDelete({ currentPage: state.page, rowsPerPage: state.rowsPerPage, totalRowsInPage, totalRowsFiltered, totalSelected }));
-    },
-    [state, totalSelected]
-  );
-
+function useTableSelectionActions(setSelected: UseTableReturn['setSelected']) {
   return {
-    onResetPage: useCallback(() => state.setPage(0), [state]),
-    onChangeDense: useCallback((event: React.ChangeEvent<HTMLInputElement>) => state.setDense(event.target.checked), [state]),
-    onChangePage: useCallback((event: unknown, newPage: number) => state.setPage(newPage), [state]),
-    onChangeRowsPerPage,
-    onUpdatePageDeleteRow: useCallback((totalRowsInPage: number) => state.setPage(nextPageAfterRowDelete(state.page, totalRowsInPage)), [state]),
-    onUpdatePageDeleteRows,
+    onSelectRow: useCallback(
+      (id: string) => setSelected((current) => toggleSelected(current, id)),
+      [setSelected]
+    ),
+    onSelectAllRows: useCallback(
+      (checked: boolean, ids: string[]) => setSelected(checked ? [...ids] : []),
+      [setSelected]
+    ),
   };
 }
 
-function toggleSelected(selected: string[], inputValue: string) {
-  return selected.includes(inputValue) ? selected.filter((value) => value !== inputValue) : [...selected, inputValue];
-}
-
-function nextPageAfterRowDelete(page: number, totalRowsInPage: number) {
-  return page && totalRowsInPage < 2 ? page - 1 : page;
-}
-
-type DeleteRowsState = {
-  currentPage: number;
-  rowsPerPage: number;
-  totalRowsInPage: number;
-  totalRowsFiltered: number;
-  totalSelected: number;
-};
-
-function nextPageAfterRowsDelete(state: DeleteRowsState) {
-  if (!state.currentPage) return state.currentPage;
-  if (state.totalSelected === state.totalRowsInPage) return state.currentPage - 1;
-  if (state.totalSelected === state.totalRowsFiltered) return 0;
-  if (state.totalSelected > state.totalRowsInPage) return Math.ceil((state.totalRowsFiltered - state.totalSelected) / state.rowsPerPage) - 1;
-  return state.currentPage;
+function toggleSelected(selected: string[], id: string) {
+  return selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id];
 }

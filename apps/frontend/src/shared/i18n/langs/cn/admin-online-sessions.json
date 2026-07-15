@@ -1,0 +1,17 @@
+{
+  "onlineSessions": {
+    "tokenId": "会话编号",
+    "userName": "登录名称",
+    "ipaddr": "登录地址",
+    "host": "主机",
+    "loginLocation": "登录地点",
+    "browser": "浏览器",
+    "os": "操作系统",
+    "loginTime": "登录时间",
+    "invalidDateTime": "请输入有效的登录时间",
+    "invalidTimeRange": "登录开始时间不能晚于结束时间",
+    "forceLogout": "强退",
+    "forceLogoutConfirm": "是否确认强退名称为\"{{name}}\"的用户？",
+    "forceLogoutSuccess": "强退成功"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "nav": {
+    "overview": "概覽",
+    "dashboard": "儀表盤",
+    "resources": "資源",
+    "account": "賬戶",
+    "systemManagement": "系統管理",
+    "systemMonitor": "系統監控",
+    "users": "用戶管理",
+    "roles": "角色管理",
+    "menus": "菜單管理",
+    "customKeyboardShortcuts": "自定義鍵盤快捷鍵。",
+    "depts": "部門管理",
+    "posts": "崗位管理",
+    "dicts": "字典管理",
+    "configs": "參數設置",
+    "online": "在線用戶",
+    "jobs": "定時任務",
+    "jobLogs": "調度日誌",
+    "notices": "通知公告",
+    "logManagement": "日誌管理",
+    "operationLogs": "操作日誌",
+    "loginLogs": "登入日誌"
+  }
+}

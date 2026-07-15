@@ -5,17 +5,11 @@ import type { LangCode } from './locales-config';
 import { cache } from 'react';
 import { headers } from 'next/headers';
 import { createInstance } from 'i18next';
-import acceptLanguage from 'accept-language';
 import { initReactI18next } from 'react-i18next/initReactI18next';
 
+import { resolveAcceptedLanguage } from './language';
 import { formatDashboardDocumentTitle } from './document-title-format';
-import {
-  defaultNS,
-  i18nOptions,
-  fallbackLng,
-  supportedLngs,
-  i18nResourceLoader,
-} from './locales-config';
+import { defaultNS, i18nOptions, fallbackLng, i18nResourceLoader } from './locales-config';
 
 // ----------------------------------------------------------------------
 
@@ -26,63 +20,10 @@ import {
  * User-selected language persistence is handled on the client via localStorage.
  */
 
-acceptLanguage.languages([...supportedLngs]);
-
-function normalizeLanguage(value?: string | null): LangCode | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const lower = value.toLowerCase().replace('_', '-');
-
-  if (
-    lower === 'tw' ||
-    lower.startsWith('zh-tw') ||
-    lower.startsWith('zh-hk') ||
-    lower.startsWith('zh-hant')
-  ) {
-    return 'tw';
-  }
-
-  if (
-    lower === 'cn' ||
-    lower === 'zh' ||
-    lower.startsWith('zh-cn') ||
-    lower.startsWith('zh-hans')
-  ) {
-    return 'cn';
-  }
-
-  if (lower === 'en' || lower.startsWith('en-')) {
-    return 'en';
-  }
-
-  return undefined;
-}
-
-function detectHeaderLanguage(header?: string | null): LangCode | undefined {
-  if (!header) {
-    return undefined;
-  }
-
-  return header
-    .split(',')
-    .map((part) => part.split(';')[0]?.trim())
-    .map(normalizeLanguage)
-    .find(Boolean);
-}
-
 export async function detectLanguage() {
   const headerStore = await headers();
   const headerLang = headerStore.get('accept-language') ?? undefined;
-  const matchedLang = headerLang ? acceptLanguage.get(headerLang) : undefined;
-  const fromHeader =
-    detectHeaderLanguage(headerLang) ??
-    normalizeLanguage(typeof matchedLang === 'string' ? matchedLang : undefined);
-
-  const lang = fromHeader || fallbackLng;
-
-  return lang as LangCode;
+  return resolveAcceptedLanguage(headerLang) ?? fallbackLng;
 }
 
 // ----------------------------------------------------------------------

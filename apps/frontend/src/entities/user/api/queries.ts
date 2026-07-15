@@ -1,15 +1,15 @@
-import type { QueryParams } from 'src/shared/api/pagination';
+import type { QueryParams, CursorPageRequest } from 'src/shared/api/pagination';
 import type { SystemUser, AccountProfile, UserFormOptions } from '../model/types';
 
 import useSWR from 'swr';
 
 import { fetcher } from 'src/shared/api/http-client';
-import { usePagedResource } from 'src/shared/api/use-paged-resource';
+import { useCursorResource } from 'src/shared/api/use-cursor-resource';
 
 import { userEndpoints } from './endpoints';
 
-export function useUsers(page: number, pageSize: number, params: QueryParams = {}) {
-  return usePagedResource<SystemUser>({ endpoint: userEndpoints.users, page, pageSize, params });
+export function useUsers(request: CursorPageRequest, params: QueryParams = {}) {
+  return useCursorResource<SystemUser>({ endpoint: userEndpoints.users, request, params });
 }
 
 export function useUserFormOptions() {

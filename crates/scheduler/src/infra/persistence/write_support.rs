@@ -1,10 +1,13 @@
 use chrono::{DateTime, Utc};
-use serde_json::json;
-use sqlx::{AssertSqlSafe, PgConnection, query, query_as, query_scalar};
+use serde_json::{Value, json};
+use sqlx::{AssertSqlSafe, PgConnection, Postgres, Transaction, query, query_as, query_scalar};
 
 use crate::{
-    application::{SchedulerError, SchedulerResult},
-    domain::{ExecutionOutcome, ExecutionSnapshot, ExecutionState, LocalizedMessage, TriggerType},
+    application::{
+        ManualExecutionRequest, SchedulerError, SchedulerResult,
+        tasks::{HTTP_REQUEST_TASK_KEY, redacted_http_invoke_target, sanitize_execution_task_params, sanitize_http_invoke_target},
+    },
+    domain::{ConcurrentPolicy, ExecutionOutcome, ExecutionSnapshot, ExecutionState, Job, LocalizedMessage, TriggerType},
 };
 
 use super::{
@@ -46,6 +49,8 @@ struct TerminalValues {
 }
 
 pub async fn insert_execution(connection: &mut PgConnection, input: ExecutionInsert<'_>) -> SchedulerResult<()> {
+    let task_params = persisted_task_params(&input.snapshot.task_key, &input.snapshot.task_params, input.terminal.is_some());
+    let invoke_target = persisted_invoke_target(&input.snapshot.task_key, &input.snapshot.invoke_target, input.terminal.is_some());
     let terminal = terminal_values(input.terminal);
     query(INSERT_EXECUTION)
         .bind(input.id)
@@ -54,10 +59,10 @@ pub async fn insert_execution(connection: &mut PgConnection, input: ExecutionIns
         .bind(&input.snapshot.job_name)
         .bind(&input.snapshot.job_group)
         .bind(&input.snapshot.task_key)
-        .bind(&input.snapshot.task_params)
+        .bind(task_params)
         .bind(input.snapshot.params_schema_version)
         .bind(input.snapshot.repeatable)
-        .bind(&input.snapshot.invoke_target)
+        .bind(invoke_target)
         .bind(input.snapshot.concurrent.code())
         .bind(input.trigger.code())
         .bind(input.scheduled_at)
@@ -87,15 +92,34 @@ pub async fn lock_job(connection: &mut PgConnection, id: &str) -> SchedulerResul
     map_job(record)
 }
 
+pub async fn ensure_manual_execution_can_start(
+    transaction: &mut Transaction<'_, Postgres>,
+    job: &Job,
+    request: &ManualExecutionRequest,
+) -> SchedulerResult<()> {
+    if job.schedule_revision != request.expected_revision {
+        return Err(SchedulerError::conflict("scheduler_job_changed", "errors.scheduler.job_changed"));
+    }
+    if job.concurrent == ConcurrentPolicy::Disallow && has_active_execution(transaction, &job.id).await? {
+        return Err(SchedulerError::conflict("scheduler_execution_active", "errors.scheduler.execution_active"));
+    }
+    Ok(())
+}
+
 pub async fn cancel_pending(connection: &mut PgConnection, cancellation: PendingCancellation<'_>) -> SchedulerResult<u64> {
+    let redacted_target = redacted_http_invoke_target();
     let rows = query(
         "UPDATE sys_job_execution SET state=$1, outcome=$2, message_key=$3, message_params='{}'::jsonb, \
-         end_time=$4 WHERE job_id=$5 AND state=$6",
+         task_params=CASE WHEN task_key=$5 THEN '{}'::jsonb ELSE task_params END, \
+         invoke_target=CASE WHEN task_key=$5 THEN $6 ELSE invoke_target END, \
+         end_time=$4 WHERE job_id=$7 AND state=$8",
     )
     .bind(ExecutionState::Terminal.code())
     .bind(ExecutionOutcome::Skipped.code())
     .bind(cancellation.message_key)
     .bind(cancellation.ended_at)
+    .bind(HTTP_REQUEST_TASK_KEY)
+    .bind(&redacted_target)
     .bind(cancellation.job_id)
     .bind(ExecutionState::Pending.code())
     .execute(connection)
@@ -145,9 +169,49 @@ fn terminal_values(terminal: Option<TerminalInsert>) -> TerminalValues {
     }
 }
 
+fn persisted_task_params(task_key: &str, task_params: &Value, terminal: bool) -> Value {
+    if terminal {
+        return sanitize_execution_task_params(task_key, task_params.clone());
+    }
+    task_params.clone()
+}
+
+fn persisted_invoke_target(task_key: &str, invoke_target: &str, terminal: bool) -> String {
+    if terminal {
+        return sanitize_http_invoke_target(task_key, invoke_target);
+    }
+    invoke_target.into()
+}
+
 fn map_write_error(error: sqlx::Error) -> SchedulerError {
     if error.as_database_error().and_then(|database| database.constraint()) == Some("idx_sys_job_execution_occurrence") {
         return SchedulerError::conflict("scheduler_occurrence_exists", "errors.scheduler.occurrence_already_materialized");
     }
     map_sqlx_error(error)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{HTTP_REQUEST_TASK_KEY, persisted_invoke_target, persisted_task_params};
+
+    #[test]
+    fn terminal_http_execution_storage_drops_credential_bearing_params() {
+        let raw = json!({
+            "method": "POST",
+            "url": "https://url-user:url-password@example.test/run?token=query-token",
+            "headers": {"Authorization": "request-token"},
+            "body": "request-file-content",
+        });
+
+        let pending = persisted_task_params(HTTP_REQUEST_TASK_KEY, &raw, false);
+        let terminal = persisted_task_params(HTTP_REQUEST_TASK_KEY, &raw, true);
+        let target = "httpClient.request(POST, https://url-user:url-password@example.test/run?token=query-token)";
+
+        assert_eq!(pending, raw);
+        assert_eq!(terminal, json!({"method": "POST", "url": "https://example.test/run"}));
+        assert_eq!(persisted_invoke_target(HTTP_REQUEST_TASK_KEY, target, false), target);
+        assert_eq!(persisted_invoke_target(HTTP_REQUEST_TASK_KEY, target, true), "httpClient.request(...)");
+    }
 }

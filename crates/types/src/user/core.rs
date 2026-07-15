@@ -21,7 +21,6 @@ pub struct User {
     pub status: String,
     pub auth_source: String,
     pub email_verified: bool,
-    pub system: bool,
     pub remark: Option<String>,
     pub roles: Vec<RoleSummary>,
     pub role_ids: Vec<String>,

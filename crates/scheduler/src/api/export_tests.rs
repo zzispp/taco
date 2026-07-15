@@ -1,8 +1,5 @@
 use chrono::{DateTime, Utc};
-use kernel::{
-    excel::{StreamingXlsxWriter, read_xlsx},
-    pagination::PageSliceRequest,
-};
+use kernel::excel::{StreamingXlsxWriter, read_xlsx};
 use serde_json::json;
 use types::http::Locale;
 
@@ -11,60 +8,43 @@ use crate::{
     domain::{ExecutionOutcome, LocalizedMessage, TriggerType},
 };
 
-use super::{ExportPage, JOB_HEADER_KEYS, LOG_HEADER_KEYS, log_row, translated_headers};
+use super::{ExportCursor, JOB_HEADER_KEYS, LOG_HEADER_KEYS, log_row, translated_headers};
 
 const AUTHORIZATION_MARKER: &str = "Authorization: Bearer execution-detail-secret";
 const COOKIE_MARKER: &str = "Cookie: session=execution-detail-secret";
 const RESPONSE_BODY_MARKER: &str = "execution-detail-response-body";
 
 #[test]
-fn export_page_advances_with_checked_offsets() {
-    let mut page = ExportPage::new(2).unwrap();
-    page.observe_total(3).unwrap();
-
-    assert_eq!(
-        page.request().unwrap(),
-        PageSliceRequest {
-            offset: 0,
-            limit: 2,
-            page: 1,
-            page_size: 2,
-        }
-    );
-    assert!(page.advance(2).unwrap());
-    assert_eq!(page.request().unwrap().offset, 2);
-    assert_eq!(page.request().unwrap().page, 2);
-    assert!(!page.advance(1).unwrap());
-}
-
-#[test]
-fn export_page_rejects_invalid_or_inconsistent_progress() {
-    assert_infrastructure(ExportPage::new(0).unwrap_err(), "export page size is zero after validation");
-
-    let mut page = ExportPage::new(2).unwrap();
-    page.observe_total(1).unwrap();
-    assert_infrastructure(page.ensure_complete().unwrap_err(), "export page was empty before all reported rows were read");
-    assert_infrastructure(page.observe_total(2).unwrap_err(), "export total changed while paging");
-
-    let mut page = ExportPage::new(2).unwrap();
-    page.observe_total(1).unwrap();
-    assert_infrastructure(page.advance(2).unwrap_err(), "export page returned more rows than the reported total");
-
-    let mut page = ExportPage {
-        page: 1,
-        page_size: 1,
-        offset: u64::MAX,
-        total: Some(u64::MAX),
+fn export_cursor_advances_with_a_stable_snapshot_and_no_offset() {
+    let mut cursor = ExportCursor::new(2).unwrap();
+    let point = crate::application::SchedulerCursorPoint {
+        created_at_nanos: "0".into(),
+        id: "job-2".into(),
     };
-    assert_infrastructure(page.advance(1).unwrap_err(), "export offset overflow");
+
+    assert!(cursor.advance(point.clone(), Some(point.clone()), true).unwrap());
+    let request = cursor.request();
+    assert_eq!(request.limit, 2);
+    assert_eq!(request.boundary, Some(point.clone()));
+    assert_eq!(request.snapshot, Some(point));
 }
 
 #[test]
-#[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
+fn export_cursor_rejects_zero_limit_and_missing_snapshot() {
+    assert_infrastructure(ExportCursor::new(0).unwrap_err(), "export page size is zero after validation");
+    let mut cursor = ExportCursor::new(2).unwrap();
+    let point = crate::application::SchedulerCursorPoint {
+        created_at_nanos: "0".into(),
+        id: "job-2".into(),
+    };
+    assert_infrastructure(cursor.advance(point, None, true).unwrap_err(), "scheduler export batch is missing its snapshot");
+}
+
+#[test]
 fn job_log_export_is_summary_only() {
     assert_eq!(LOG_HEADER_KEYS.len(), 9);
     assert!(LOG_HEADER_KEYS.iter().all(|key| !key.contains("detail") && !key.contains("params")));
-    let row = log_row(execution_summary(), Locale::En);
+    let row = log_row(execution_summary(), Locale::En).unwrap();
     assert_eq!(row.len(), LOG_HEADER_KEYS.len());
     assert_eq!(row[0], "job");
     assert_eq!(row[3], "Misfire recovery");
@@ -74,7 +54,8 @@ fn job_log_export_is_summary_only() {
     let headers = translated_headers(Locale::En, LOG_HEADER_KEYS);
     let mut writer = StreamingXlsxWriter::new("logs", &headers).unwrap();
     writer.append_rows(&[row]).unwrap();
-    let cells = read_xlsx(&writer.finish().unwrap()).unwrap();
+    let artifact = writer.finish().unwrap();
+    let cells = read_xlsx(&std::fs::read(artifact.path()).unwrap()).unwrap();
     let rendered = cells.into_iter().flatten().collect::<Vec<_>>().join("\n");
 
     for marker in [AUTHORIZATION_MARKER, COOKIE_MARKER, RESPONSE_BODY_MARKER] {

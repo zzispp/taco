@@ -1,0 +1,18 @@
+{
+  "dataScope": {
+    "all": "全部數據權限",
+    "custom": "自定數據權限",
+    "dept": "本部門數據權限",
+    "deptAndChild": "本部門及以下數據權限",
+    "self": "僅本人數據權限"
+  },
+  "menuType": {
+    "directory": "目錄",
+    "menu": "菜單",
+    "button": "按鈕"
+  },
+  "dateTimeFilters": {
+    "invalidDateTime": "請輸入有效的建立時間",
+    "invalidTimeRange": "開始時間不能晚於結束時間"
+  }
+}

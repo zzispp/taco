@@ -1,0 +1,41 @@
+[package]
+name = "audit"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+audit_contract.workspace = true
+axum.workspace = true
+bytes.workspace = true
+client_info.workspace = true
+constants.workspace = true
+hook_tracing.workspace = true
+http-body.workspace = true
+kernel.workspace = true
+matchit.workspace = true
+metrics.workspace = true
+rbac.workspace = true
+rbac_macros.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+storage.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+types.workspace = true
+user.workspace = true
+utoipa.workspace = true
+uuid.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+testcontainers.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

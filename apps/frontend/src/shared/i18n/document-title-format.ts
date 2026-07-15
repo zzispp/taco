@@ -1,9 +1,5 @@
 import { CONFIG } from 'src/shared/config';
 
-export function formatHomeDocumentTitle(siteName = CONFIG.appName) {
-  return `${siteName} | Backend Control Plane`;
-}
-
 export function formatPageDocumentTitle(title: string, siteName = CONFIG.appName) {
   return `${title} | ${siteName}`;
 }

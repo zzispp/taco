@@ -1,6 +1,5 @@
 use super::*;
-use crate::domain::PermissionSnapshot;
-use types::rbac::{DATA_SCOPE_ALL, DATA_SCOPE_SELF};
+use crate::domain::{DataScope, PermissionSnapshot};
 
 #[derive(Clone, Default)]
 pub(super) struct MemoryRepository {
@@ -37,25 +36,31 @@ impl MemoryRepository {
 }
 
 pub(super) fn config() -> AuthorizationConfig {
-    AuthorizationConfig {
-        whitelist: vec![],
-        route_permissions: vec![crate::application::RoutePermissionRule {
+    config_with_requirement(crate::application::PermissionRequirement::all_of(&["system:user:list"]))
+}
+
+pub(super) fn config_with_requirement(requirement: crate::application::PermissionRequirement) -> AuthorizationConfig {
+    AuthorizationConfig::compile(
+        vec![],
+        vec![crate::application::RoutePermissionRule {
             methods: vec!["GET".into()],
             path_pattern: "/api/system/users".into(),
-            requirement: crate::application::PermissionRequirement::all_of(&["system:user:list"]),
+            requirement,
             handler: "list_users",
         }],
-    }
+    )
+    .unwrap()
 }
 
 pub(super) fn auth_me_config() -> AuthorizationConfig {
-    AuthorizationConfig {
-        whitelist: vec![AuthWhitelistRule {
+    AuthorizationConfig::compile(
+        vec![AuthWhitelistRule {
             methods: vec!["GET".into()],
             path_pattern: "/api/auth/me".into(),
         }],
-        route_permissions: vec![],
-    }
+        vec![],
+    )
+    .unwrap()
 }
 
 pub(super) fn request(permissions: Vec<&str>, admin: bool) -> ApiCheckRequest {
@@ -86,7 +91,6 @@ pub(super) fn current_user(role_keys: Vec<&str>, admin: bool) -> CurrentUser {
         permissions: vec![],
         dept_id: Some("103".into()),
         admin,
-        system: admin,
     }
 }
 
@@ -171,20 +175,24 @@ impl RbacRepository for MemoryRepository {
         Ok(false)
     }
 
-    async fn page_roles(&self, filter: RoleListFilter) -> RbacResult<Page<Role>> {
-        Ok(empty_page(filter.page))
+    async fn page_roles(&self, _filter: RoleListFilter) -> RbacResult<CursorPage<Role>> {
+        Ok(empty_page())
     }
 
-    async fn page_roles_scoped(&self, filter: RoleListFilter, _scope: DataScopeFilter) -> RbacResult<Page<Role>> {
-        Ok(empty_page(filter.page))
+    async fn page_roles_scoped(&self, _filter: RoleListFilter, _scope: DataScopeFilter) -> RbacResult<CursorPage<Role>> {
+        Ok(empty_page())
+    }
+
+    async fn export_roles(&self, _request: RoleExportRequest, _sink: &mut dyn RoleExportSink) -> RbacResult<()> {
+        Ok(())
     }
 
     async fn role_options(&self) -> RbacResult<Vec<RoleOption>> {
         Ok(vec![])
     }
 
-    async fn page_role_users(&self, filter: RoleUserListFilter, _scope: Option<DataScopeFilter>) -> RbacResult<Page<RoleUser>> {
-        Ok(empty_page(filter.page))
+    async fn page_role_users(&self, _filter: RoleUserListFilter, _scope: Option<DataScopeFilter>) -> RbacResult<CursorPage<RoleUser>> {
+        Ok(empty_page())
     }
 
     async fn scoped_user_ids(&self, user_ids: &[String], scope: DataScopeFilter) -> RbacResult<Vec<String>> {
@@ -244,8 +252,8 @@ impl RbacRepository for MemoryRepository {
         Ok(vec![])
     }
 
-    async fn page_menus(&self, filter: MenuListFilter) -> RbacResult<Page<Menu>> {
-        Ok(empty_page(filter.page))
+    async fn page_menus(&self, _filter: MenuListFilter) -> RbacResult<CursorPage<Menu>> {
+        Ok(empty_page())
     }
 
     async fn replace_role_menus(&self, _role_id: &str, _input: RoleMenuBindingInput) -> RbacResult<()> {
@@ -269,19 +277,14 @@ impl RbacRepository for MemoryRepository {
     }
 }
 
-fn empty_page<T>(page: PageRequest) -> Page<T> {
-    Page {
-        items: vec![],
-        total: 0,
-        page: page.page,
-        page_size: page.page_size,
-    }
+fn empty_page<T>() -> CursorPage<T> {
+    CursorPage::new(vec![], None, None)
 }
 
 fn test_user_scope_matches(user: &TestUser, scope: &DataScopeFilter) -> bool {
-    match scope.data_scope.as_str() {
-        DATA_SCOPE_ALL => true,
-        DATA_SCOPE_SELF => user.user_id == scope.user_id,
+    match scope.data_scope {
+        DataScope::All => true,
+        DataScope::SelfOnly => user.user_id == scope.user_id,
         _ => user.dept_id == scope.dept_id,
     }
 }

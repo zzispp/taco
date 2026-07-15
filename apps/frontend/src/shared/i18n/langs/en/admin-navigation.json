@@ -1,0 +1,25 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "dashboard": "Dashboard",
+    "resources": "Resources",
+    "account": "Account",
+    "systemManagement": "System Management",
+    "systemMonitor": "System Monitoring",
+    "users": "Users",
+    "roles": "Roles",
+    "menus": "Menus",
+    "customKeyboardShortcuts": "Custom keyboard shortcuts.",
+    "depts": "Departments",
+    "posts": "Posts",
+    "dicts": "Dictionaries",
+    "configs": "Configs",
+    "online": "Online Users",
+    "jobs": "Scheduled Jobs",
+    "jobLogs": "Job Logs",
+    "notices": "Notices",
+    "logManagement": "Log Management",
+    "operationLogs": "Operation Logs",
+    "loginLogs": "Login Logs"
+  }
+}

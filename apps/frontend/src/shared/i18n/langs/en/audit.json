@@ -1,0 +1,112 @@
+{
+  "operationLogs": "Operation Logs",
+  "loginLogs": "Login Logs",
+  "filters": {
+    "invalidDateTime": "Enter a valid date and time",
+    "invalidRange": "The start time cannot be after the end time"
+  },
+  "fields": {
+    "operationId": "Operation ID",
+    "loginId": "Visit ID",
+    "title": "Module",
+    "businessType": "Operation Type",
+    "method": "Handler",
+    "requestMethod": "Request Method",
+    "operatorType": "Operator Type",
+    "operator": "Operator",
+    "department": "Department",
+    "url": "Request URL",
+    "operationIp": "Operation Address",
+    "operationLocation": "Operation Location",
+    "operationStatus": "Operation Status",
+    "loginIp": "Login Address",
+    "loginLocation": "Login Location",
+    "loginStatus": "Login Status",
+    "operationTime": "Operation Time",
+    "duration": "Duration",
+    "username": "Username",
+    "browser": "Browser",
+    "os": "Operating System",
+    "message": "Message",
+    "eventType": "Event Type",
+    "loginTime": "Access Time",
+    "beginTime": "Start Time",
+    "endTime": "End Time"
+  },
+  "actions": {
+    "detail": "Details",
+    "delete": "Delete",
+    "clean": "Clear",
+    "export": "Export",
+    "unlock": "Unlock",
+    "reset": "Reset",
+    "copy": "Copy"
+  },
+  "statuses": {
+    "success": "Success",
+    "failure": "Failure"
+  },
+  "businessTypes": {
+    "other": "Other",
+    "insert": "Create",
+    "update": "Update",
+    "delete": "Delete",
+    "grant": "Grant",
+    "export": "Export",
+    "import": "Import",
+    "force": "Force Logout",
+    "generate": "Generate Code",
+    "clean": "Clear Data"
+  },
+  "operatorTypes": {
+    "other": "Other",
+    "backendUser": "Admin User",
+    "mobileUser": "Mobile User"
+  },
+  "eventTypes": {
+    "loginSuccess": "Login Successful",
+    "loginFailure": "Login Failed",
+    "registerSuccess": "Registration Successful",
+    "registerFailure": "Registration Failed",
+    "logoutSuccess": "Logout Successful",
+    "logoutFailure": "Logout Failed",
+    "refreshSuccess": "Token Refresh Successful",
+    "refreshFailure": "Token Refresh Failed"
+  },
+  "detail": {
+    "title": "Operation Log Details",
+    "request": "Request Parameters",
+    "response": "Response Parameters",
+    "error": "Error Message",
+    "empty": "No captured content",
+    "copySuccess": "Copied",
+    "copyFailure": "Copy failed"
+  },
+  "dialogs": {
+    "deleteOne": "Delete this log entry?",
+    "deleteSelected": "Delete the selected {{count}} log entries?",
+    "cleanOperation": "Clear all operation logs? A new clear operation record will be created.",
+    "cleanLogin": "Clear all login logs?",
+    "unlock": "Unlock login access for {{username}}?"
+  },
+  "messages": {
+    "deleteSuccess": "Deleted successfully",
+    "deleteFailure": "Delete failed",
+    "cleanSuccess": "Cleared successfully",
+    "cleanFailure": "Clear failed",
+    "exportFailure": "Export failed",
+    "unlockSuccess": "Unlocked successfully",
+    "unlockFailure": "Unlock failed"
+  },
+  "table": {
+    "actions": "Actions",
+    "selectAll": "Select all logs",
+    "selectRow": "Select log {{id}}",
+    "noData": "No data",
+    "loading": "Loading...",
+    "milliseconds": "{{value}} ms"
+  },
+  "all": "All",
+  "cancel": "Cancel",
+  "confirm": "Confirm"
+}

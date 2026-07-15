@@ -6,11 +6,14 @@ import type { IconifyName } from 'src/shared/ui/iconify';
 import type { NavSectionProps } from 'src/shared/ui/nav-section';
 
 import { CONFIG } from 'src/shared/config';
-import { paths } from 'src/shared/routes/paths';
 import { Iconify } from 'src/shared/ui/iconify';
 import { SvgColor } from 'src/shared/ui/svg-color';
 
+import { systemMenuItemTranslationKey } from './system-menu-translation';
+
 // ----------------------------------------------------------------------
+
+type NavIconMap = NonNullable<NonNullable<NavSectionProps['render']>['navIcon']>;
 
 export const NAV_ICON_OPTIONS = [
   'icon.dashboard',
@@ -34,9 +37,12 @@ export const NAV_ICON_OPTIONS = [
   'icon.job',
   'icon.job-log',
   'icon.notice',
+  'icon.logs',
+  'icon.operation-log',
+  'icon.login-log',
 ];
 
-export const NAV_ICONS: NonNullable<NavSectionProps['render']>['navIcon'] = {
+export const NAV_ICONS: NavIconMap = {
   'icon.analytics': icon('ic-analytics'),
   'icon.blank': icon('ic-blank'),
   'icon.calendar': icon('ic-calendar'),
@@ -55,33 +61,16 @@ export const NAV_ICONS: NonNullable<NavSectionProps['render']>['navIcon'] = {
   'icon.online': iconify('solar:monitor-bold'),
   'icon.job': iconify('solar:calendar-date-bold'),
   'icon.job-log': iconify('solar:bill-list-bold-duotone'),
+  'icon.login-log': iconify('solar:user-id-bold'),
+  'icon.logs': iconify('solar:bill-list-bold-duotone'),
   'icon.notice': iconify('solar:bell-bing-bold-duotone'),
+  'icon.operation-log': iconify('solar:file-text-bold'),
   'icon.post': icon('ic-job'),
   'icon.user': icon('ic-user'),
 };
 
 export function translatedMenuItem(item: Menu, t: TranslateFn) {
-  const keyByPath: Record<string, string> = {
-    [paths.dashboard.overview]: 'nav.overview',
-    [paths.dashboard.admin.root]: 'nav.systemManagement',
-    [paths.dashboard.monitor]: 'nav.systemMonitor',
-    [paths.dashboard.admin.jobs]: 'nav.jobs',
-    [paths.dashboard.admin.jobLogs]: 'nav.jobLogs',
-    [paths.dashboard.admin.notices]: 'nav.notices',
-  };
-  const keyByPerms: Record<string, string> = {
-    'system:dashboard:view': 'nav.dashboard',
-    'system:user:list': 'nav.users',
-    'system:role:list': 'nav.roles',
-    'system:menu:list': 'nav.menus',
-    'system:dept:list': 'nav.depts',
-    'system:post:list': 'nav.posts',
-    'system:dict:list': 'nav.dicts',
-    'system:config:list': 'nav.configs',
-    'system:online:list': 'nav.online',
-    'system:notice:list': 'nav.notices',
-  };
-  const key = keyByPath[item.path] ?? (item.perms ? keyByPerms[item.perms] : undefined);
+  const key = systemMenuItemTranslationKey(item.menu_id, item.path);
   return key ? t(key) : item.menu_name;
 }
 

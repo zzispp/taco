@@ -8,14 +8,26 @@ export type ParallaxState = {
 };
 
 export function setTweenNodes(state: ParallaxState, carouselApi: EmblaCarouselType): void {
-  state.tweenNodes.current = carouselApi.slideNodes().map((slideNode) => slideNode.querySelector(`.${carouselClasses.slide.parallax}`) as HTMLElement);
+  state.tweenNodes.current = carouselApi
+    .slideNodes()
+    .map(
+      (slideNode) => slideNode.querySelector(`.${carouselClasses.slide.parallax}`) as HTMLElement
+    );
 }
 
-export function setTweenFactor(state: ParallaxState, carouselApi: EmblaCarouselType, baseFactor: number) {
+export function setTweenFactor(
+  state: ParallaxState,
+  carouselApi: EmblaCarouselType,
+  baseFactor: number
+) {
   state.tweenFactor.current = baseFactor * carouselApi.scrollSnapList().length;
 }
 
-export function tweenParallax(state: ParallaxState, carouselApi: EmblaCarouselType, eventName?: EmblaEventType) {
+export function tweenParallax(
+  state: ParallaxState,
+  carouselApi: EmblaCarouselType,
+  eventName?: EmblaEventType
+) {
   const context = parallaxContext(carouselApi, eventName);
   carouselApi.scrollSnapList().forEach((scrollSnap, snapIndex) => {
     const slidesInSnap = context.engine.slideRegistry[snapIndex];
@@ -31,7 +43,8 @@ type TweenSlideOptions = {
 };
 
 function tweenSlide(options: TweenSlideOptions) {
-  if (options.context.isScrollEvent && !options.context.slidesInView.includes(options.slideIndex)) return;
+  if (options.context.isScrollEvent && !options.context.slidesInView.includes(options.slideIndex))
+    return;
   const diffToTarget = slideDiff(options.context, options.scrollSnap, options.slideIndex);
   const translateValue = diffToTarget * (-1 * options.state.tweenFactor.current) * 100;
   const tweenNode = options.state.tweenNodes.current[options.slideIndex];
@@ -47,17 +60,28 @@ function parallaxContext(carouselApi: EmblaCarouselType, eventName?: EmblaEventT
   };
 }
 
-function slideDiff(context: ReturnType<typeof parallaxContext>, scrollSnap: number, slideIndex: number) {
+function slideDiff(
+  context: ReturnType<typeof parallaxContext>,
+  scrollSnap: number,
+  slideIndex: number
+) {
   if (!context.engine.options.loop) return scrollSnap - context.scrollProgress;
   return loopAdjustedDiff(context, scrollSnap, slideIndex);
 }
 
-function loopAdjustedDiff(context: ReturnType<typeof parallaxContext>, scrollSnap: number, slideIndex: number) {
+function loopAdjustedDiff(
+  context: ReturnType<typeof parallaxContext>,
+  scrollSnap: number,
+  slideIndex: number
+) {
   let diffToTarget = scrollSnap - context.scrollProgress;
   context.engine.slideLooper.loopPoints.forEach((loopItem) => {
     const target = loopItem.target();
     if (slideIndex === loopItem.index && target !== 0) {
-      diffToTarget = target < 0 ? scrollSnap - (1 + context.scrollProgress) : scrollSnap + (1 - context.scrollProgress);
+      diffToTarget =
+        target < 0
+          ? scrollSnap - (1 + context.scrollProgress)
+          : scrollSnap + (1 - context.scrollProgress);
     }
   });
   return diffToTarget;

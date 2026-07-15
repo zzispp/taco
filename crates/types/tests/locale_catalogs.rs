@@ -1,12 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use types::http::{Locale, translate_message, translate_message_with_params};
 
-const CATALOGS: &[(&str, &str)] = &[
-    ("zh-CN", include_str!("../locales/zh-CN.yml")),
-    ("en", include_str!("../locales/en.yml")),
-    ("zh-TW", include_str!("../locales/zh-TW.yml")),
-];
+mod support;
+use support::{LOCALE_PARTS, parsed_catalogs, parsed_responsibility_catalogs, placeholders};
 
 const RBAC_DATE_FILTER_KEYS: &[&str] = &["errors.rbac.invalid_date_filter", "errors.rbac.invalid_date_range"];
 const SYSTEM_DATE_FILTER_KEYS: &[&str] = &["errors.system.invalid_created_time_filter", "errors.system.invalid_created_time_range"];
@@ -42,7 +39,6 @@ const SCHEDULER_CONTRACT_KEYS: &[&str] = &[
     "errors.scheduler.task_missing",
     "errors.system.invalid_export_batch_config",
     "errors.user.invalid_system_config",
-    "errors.validation.page_overflow",
     "excel.scheduler.job.headers.concurrent",
     "excel.scheduler.job.headers.cron_expression",
     "excel.scheduler.job.headers.group",
@@ -122,6 +118,29 @@ fn locale_catalogs_have_identical_keys_and_placeholders() {
 }
 
 #[test]
+fn locale_responsibility_files_have_identical_keys_and_no_cross_file_duplicates() {
+    for part in LOCALE_PARTS {
+        let catalogs = parsed_responsibility_catalogs(part);
+        let baseline = &catalogs[0].1;
+        assert!(!baseline.is_empty(), "locale responsibility file is empty: {part}");
+        for (locale, catalog) in &catalogs[1..] {
+            assert_eq!(
+                catalog.keys().collect::<Vec<_>>(),
+                baseline.keys().collect::<Vec<_>>(),
+                "locale key mismatch: {part}/{locale}"
+            );
+            for (key, value) in catalog {
+                assert_eq!(
+                    placeholders(value),
+                    placeholders(&baseline[key]),
+                    "placeholder mismatch for {part}/{locale}:{key}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn scheduler_catalog_contract_is_complete() {
     for (locale, catalog) in parsed_catalogs() {
         for key in SCHEDULER_CONTRACT_KEYS {
@@ -139,6 +158,24 @@ fn scheduler_runtime_messages_translate_in_all_locales() {
     assert_eq!(
         translate_message_with_params(Locale::En, "errors.scheduler.invalid_preview_count", &[("max", "20".into())]),
         "Preview count must be between 1 and 20"
+    );
+}
+
+#[test]
+fn cursor_limit_messages_translate_in_all_locales() {
+    let params = &[("min", "1".into()), ("max", "100".into())];
+
+    assert_eq!(
+        translate_message_with_params(Locale::ZhCn, "errors.validation.cursor_limit_range", params),
+        "limit 必须在 1 到 100 之间"
+    );
+    assert_eq!(
+        translate_message_with_params(Locale::En, "errors.validation.cursor_limit_range", params),
+        "Limit must be between 1 and 100"
+    );
+    assert_eq!(
+        translate_message_with_params(Locale::ZhTw, "errors.validation.cursor_limit_range", params),
+        "limit 必須在 1 到 100 之間"
     );
 }
 
@@ -229,35 +266,6 @@ fn system_date_filter_contract_is_complete() {
         translate_message(Locale::ZhTw, "errors.system.invalid_created_time_range"),
         "建立時間範圍無效，開始時間不能晚於結束時間"
     );
-}
-
-fn parsed_catalogs() -> Vec<(&'static str, BTreeMap<String, String>)> {
-    CATALOGS.iter().map(|(locale, source)| (*locale, parse_catalog(source))).collect()
-}
-
-fn parse_catalog(source: &str) -> BTreeMap<String, String> {
-    let mut entries = BTreeMap::new();
-    for (index, line) in source.lines().enumerate() {
-        if line.trim().is_empty() || line.trim_start().starts_with('#') {
-            continue;
-        }
-        let (key, value) = line.split_once(':').unwrap_or_else(|| panic!("invalid locale entry on line {}", index + 1));
-        let previous = entries.insert(key.trim().to_owned(), value.trim().trim_matches('"').to_owned());
-        assert!(previous.is_none(), "duplicate locale key {}", key.trim());
-    }
-    entries
-}
-
-fn placeholders(value: &str) -> BTreeSet<String> {
-    let mut remaining = value;
-    let mut result = BTreeSet::new();
-    while let Some(start) = remaining.find("%{") {
-        let after_start = &remaining[start + 2..];
-        let end = after_start.find('}').unwrap_or_else(|| panic!("unterminated placeholder in {value}"));
-        result.insert(after_start[..end].to_owned());
-        remaining = &after_start[end + 1..];
-    }
-    result
 }
 
 fn expected_placeholders(key: &str) -> BTreeSet<String> {

@@ -6,7 +6,7 @@ SELECT '10', '认证-JWT Token 配置', 'sys.auth.tokenConfig', '{"access_token_
 WHERE NOT EXISTS (SELECT 1 FROM sys_config WHERE config_key = 'sys.auth.tokenConfig');
 
 INSERT INTO sys_config (config_id, config_name, config_key, config_value, config_type, public_read, create_by, create_time, remark)
-SELECT '11', '用户管理-密码策略', 'sys.user.passwordPolicy', '{"min_length":8,"max_length":128,"require_letter":false,"require_number":false,"require_symbol":false,"forbid_username_contains":false}', 'Y', TRUE, 'admin', CURRENT_TIMESTAMP,
+SELECT '11', '用户管理-密码策略', 'sys.user.passwordPolicy', '{"min_length":8,"max_length":128,"require_letter":false,"require_number":false,"require_symbol":false,"forbid_username_contains":true}', 'Y', TRUE, 'admin', CURRENT_TIMESTAMP,
        '用户密码策略 JSON。min_length 最小长度，max_length 最大长度，require_letter 是否必须含字母，require_number 是否必须含数字，require_symbol 是否必须含符号，forbid_username_contains 是否禁止包含用户名。'
 WHERE NOT EXISTS (SELECT 1 FROM sys_config WHERE config_key = 'sys.user.passwordPolicy');
 
@@ -17,7 +17,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_config WHERE config_key = 'sys.upload.avatar
 
 INSERT INTO sys_config (config_id, config_name, config_key, config_value, config_type, public_read, create_by, create_time, remark)
 SELECT '13', '导出-批量配置', 'sys.export.batchConfig', '{"page_size":100}', 'Y', FALSE, 'admin', CURRENT_TIMESTAMP,
-       '后端导出批量查询配置 JSON。page_size 是导出时每批从数据库读取的记录数。'
+       '后端导出批量查询配置 JSON。page_size 是导出时每批从数据库读取的记录数，有效范围为 1..=10000。'
 WHERE NOT EXISTS (SELECT 1 FROM sys_config WHERE config_key = 'sys.export.batchConfig');
 
 INSERT INTO sys_config (config_id, config_name, config_key, config_value, config_type, public_read, create_by, create_time, remark)

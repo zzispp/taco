@@ -1,16 +1,21 @@
-use kernel::pagination::Page;
+use audit_contract::AuditOutboxRecord;
+use kernel::pagination::CursorPage;
 use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
 use crate::{
-    application::ConfigListFilter,
+    application::{ConfigListFilter, SystemResult},
     domain::{ConfigInput, ConfigItem},
 };
 
-use super::{mapping::config, page, record::ConfigRecord};
+use super::{audited_transaction::commit_audited_write, mapping::config, record::ConfigRecord};
 
-const COLUMNS: &str = "config_id,config_name,config_key,config_value,config_type,public_read,remark,create_time::text AS create_time";
+pub(super) const COLUMNS: &str = "config_id,config_name,config_key,config_value,config_type,public_read,remark,create_time";
+
+#[path = "config_pages.rs"]
+mod pages;
+pub(super) use pages::filtered_query;
 
 #[derive(Clone)]
 pub struct ConfigQueries {
@@ -22,42 +27,21 @@ impl ConfigQueries {
         Self { database }
     }
 
-    pub async fn page(&self, filter: ConfigListFilter) -> StorageResult<Page<ConfigItem>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(total_sql()))
-            .bind(&filter.config_name)
-            .bind(&filter.config_key)
-            .bind(&filter.config_type)
-            .bind(filter.public_read)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .fetch_one(self.database.pool())
-            .await?;
-        let rows = query_as::<_, ConfigRecord>(AssertSqlSafe(page_sql()))
-            .bind(&filter.config_name)
-            .bind(&filter.config_key)
-            .bind(&filter.config_type)
-            .bind(filter.public_read)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
-            .bind(page::limit(filter.page)?)
-            .bind(page::offset(filter.page)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        page::page(rows.into_iter().map(config).collect(), total, filter.page)
+    pub async fn page(&self, filter: ConfigListFilter) -> SystemResult<CursorPage<ConfigItem>> {
+        pages::page(&self.database, filter).await
     }
 
     pub async fn list(&self, filter: ConfigListFilter) -> StorageResult<Vec<ConfigItem>> {
-        query_as::<_, ConfigRecord>(AssertSqlSafe(list_sql()))
-            .bind(&filter.config_name)
-            .bind(&filter.config_key)
-            .bind(&filter.config_type)
-            .bind(filter.public_read)
-            .bind(filter.begin_time)
-            .bind(filter.end_time)
+        let mut query = pages::filtered_query(&filter);
+        query.push(" ORDER BY config_id ASC");
+        query
+            .build_query_as::<ConfigRecord>()
             .fetch_all(self.database.pool())
             .await
-            .map(|rows| rows.into_iter().map(config).collect())
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .into_iter()
+            .map(config)
+            .collect()
     }
 
     pub async fn create(&self, input: ConfigInput) -> StorageResult<ConfigItem> {
@@ -76,6 +60,24 @@ impl ConfigQueries {
         self.find(&id).await?.ok_or(StorageError::NotFound)
     }
 
+    pub(in crate::infra) async fn create_with_audit(&self, input: ConfigInput, audit: &AuditOutboxRecord) -> StorageResult<ConfigItem> {
+        let id = self.database.next_id();
+        let mut transaction = self.database.pool().begin().await?;
+        query(insert_sql())
+            .bind(&id)
+            .bind(input.config_name)
+            .bind(input.config_key)
+            .bind(input.config_value)
+            .bind(input.config_type)
+            .bind(input.public_read)
+            .bind(input.remark)
+            .bind(OffsetDateTime::now_utc())
+            .execute(&mut *transaction)
+            .await?;
+        commit_audited_write(transaction, audit).await?;
+        self.find(&id).await?.ok_or(StorageError::NotFound)
+    }
+
     pub async fn replace(&self, id: &str, input: ConfigInput) -> StorageResult<ConfigItem> {
         let result = query(update_sql())
             .bind(id)
@@ -91,12 +93,36 @@ impl ConfigQueries {
         self.find(id).await?.ok_or(StorageError::NotFound)
     }
 
+    pub(in crate::infra) async fn replace_with_audit(&self, id: &str, input: ConfigInput, audit: &AuditOutboxRecord) -> StorageResult<ConfigItem> {
+        let mut transaction = self.database.pool().begin().await?;
+        let result = query(update_sql())
+            .bind(id)
+            .bind(input.config_name)
+            .bind(input.config_key)
+            .bind(input.config_value)
+            .bind(input.config_type)
+            .bind(input.public_read)
+            .bind(input.remark)
+            .execute(&mut *transaction)
+            .await?;
+        ensure_rows(result.rows_affected())?;
+        commit_audited_write(transaction, audit).await?;
+        self.find(id).await?.ok_or(StorageError::NotFound)
+    }
+
     pub async fn delete(&self, id: &str) -> StorageResult<()> {
         let result = query("DELETE FROM sys_config WHERE config_id = $1")
             .bind(id)
             .execute(self.database.pool())
             .await?;
         ensure_rows(result.rows_affected())
+    }
+
+    pub(in crate::infra) async fn delete_with_audit(&self, id: &str, audit: &AuditOutboxRecord) -> StorageResult<()> {
+        let mut transaction = self.database.pool().begin().await?;
+        let result = query("DELETE FROM sys_config WHERE config_id = $1").bind(id).execute(&mut *transaction).await?;
+        ensure_rows(result.rows_affected())?;
+        commit_audited_write(transaction, audit).await
     }
 
     pub async fn delete_many(&self, ids: &[String]) -> StorageResult<()> {
@@ -106,13 +132,24 @@ impl ConfigQueries {
         tx.commit().await.map_err(StorageError::from)
     }
 
+    pub(in crate::infra) async fn delete_many_with_audit(&self, ids: &[String], audit: &AuditOutboxRecord) -> StorageResult<()> {
+        let mut transaction = self.database.pool().begin().await?;
+        let result = query("DELETE FROM sys_config WHERE config_id = ANY($1)")
+            .bind(ids)
+            .execute(&mut *transaction)
+            .await?;
+        ensure_batch_rows(result.rows_affected(), ids.len())?;
+        commit_audited_write(transaction, audit).await
+    }
+
     pub async fn find(&self, id: &str) -> StorageResult<Option<ConfigItem>> {
         query_as::<_, ConfigRecord>(AssertSqlSafe(format!("SELECT {COLUMNS} FROM sys_config WHERE config_id = $1")))
             .bind(id)
             .fetch_optional(self.database.pool())
             .await
-            .map(|row| row.map(config))
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .map(config)
+            .transpose()
     }
 
     pub async fn find_by_key(&self, key: &str) -> StorageResult<Option<ConfigItem>> {
@@ -120,8 +157,9 @@ impl ConfigQueries {
             .bind(key)
             .fetch_optional(self.database.pool())
             .await
-            .map(|row| row.map(config))
-            .map_err(StorageError::from)
+            .map_err(StorageError::from)?
+            .map(config)
+            .transpose()
     }
 
     pub async fn value_by_key(&self, key: &str) -> StorageResult<Option<String>> {
@@ -133,21 +171,6 @@ impl ConfigQueries {
     }
 }
 
-fn predicate() -> &'static str {
-    "($1::text IS NULL OR config_name ILIKE '%' || $1 || '%') AND ($2::text IS NULL OR config_key ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR config_type=$3) AND ($4::boolean IS NULL OR public_read=$4::boolean) AND ($5::timestamptz IS NULL OR create_time >= $5) AND ($6::timestamptz IS NULL OR create_time <= $6)"
-}
-fn list_sql() -> String {
-    format!("SELECT {COLUMNS} FROM sys_config WHERE {} ORDER BY config_id ASC", predicate())
-}
-fn page_sql() -> String {
-    format!(
-        "SELECT {COLUMNS} FROM sys_config WHERE {} ORDER BY config_id ASC LIMIT $7 OFFSET $8",
-        predicate()
-    )
-}
-fn total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_config WHERE {}", predicate())
-}
 fn insert_sql() -> &'static str {
     "INSERT INTO sys_config (config_id,config_name,config_key,config_value,config_type,public_read,remark,create_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)"
 }
@@ -166,26 +189,4 @@ fn ensure_batch_rows(rows: u64, expected: usize) -> StorageResult<()> {
         return Err(StorageError::NotFound);
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::page_sql;
-
-    #[test]
-    fn config_text_filters_use_case_insensitive_search() {
-        let sql = page_sql();
-
-        assert!(sql.contains("config_name ILIKE"));
-        assert!(sql.contains("config_key ILIKE"));
-    }
-
-    #[test]
-    fn config_time_filters_compare_timestamps_without_date_truncation() {
-        let sql = page_sql();
-
-        assert!(sql.contains("create_time >="));
-        assert!(sql.contains("create_time <="));
-        assert!(!sql.contains("::date"));
-    }
 }

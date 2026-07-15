@@ -1,5 +1,5 @@
 import type { TranslateFn } from 'src/shared/i18n';
-import type { ConfigItem, ConfigInput } from 'src/entities/system';
+import type { ConfigItem } from 'src/entities/system';
 
 export function configFields(t: TranslateFn) {
   return [
@@ -25,7 +25,6 @@ export function configFields(t: TranslateFn) {
       label: t('fields.publicRead'),
       type: 'boolean' as const,
       width: 120,
-      disabled: publicReadDisabled,
     },
     {
       key: 'remark' as const,
@@ -80,11 +79,6 @@ export function isConfigSelectable(row: ConfigItem) {
   return row.config_type !== 'Y';
 }
 
-export function normalizeConfigInput(input: ConfigInput): ConfigInput {
-  if (input.config_key === 'sys.user.initPassword') return { ...input, public_read: false };
-  return input;
-}
-
 function configTypeOptions(t: TranslateFn) {
   return [
     { value: 'Y', label: t('common.yes') },
@@ -106,15 +100,4 @@ function allBooleanOptions(t: TranslateFn) {
 
 function builtInFieldDisabled({ editing }: { editing: Record<string, unknown> | null }) {
   return editing?.config_type === 'Y';
-}
-
-function publicReadDisabled({
-  form,
-  editing,
-}: {
-  form: Record<string, unknown>;
-  editing: Record<string, unknown> | null;
-}) {
-  const key = String(form.config_key || editing?.config_key || '');
-  return key === 'sys.user.initPassword';
 }

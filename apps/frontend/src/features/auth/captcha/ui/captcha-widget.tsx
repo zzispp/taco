@@ -25,13 +25,7 @@ export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: Captc
   }
 
   if (config.provider === CAPTCHA_PROVIDER_CAP) {
-    return (
-      <CapCaptcha
-        resetKey={resetKey}
-        onTokenChange={onTokenChange}
-        labels={captchaLabels}
-      />
-    );
+    return <CapCaptcha resetKey={resetKey} onTokenChange={onTokenChange} labels={captchaLabels} />;
   }
 
   if (config.provider === CAPTCHA_PROVIDER_CLOUDFLARE_TURNSTILE) {
@@ -45,7 +39,11 @@ export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: Captc
     );
   }
 
-  return <Alert severity="error">{t('auth.captcha.unsupportedProvider', { provider: config.provider })}</Alert>;
+  return (
+    <Alert severity="error">
+      {t('auth.captcha.unsupportedProvider', { provider: config.provider })}
+    </Alert>
+  );
 }
 
 export function isCaptchaReady(config: CaptchaConfig | undefined, token: string | null) {

@@ -1,24 +1,36 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use kernel::pagination::{Page, PageRequest, PageSliceRequest};
+use kernel::pagination::{CursorPage, CursorPageRequest};
 
 use crate::domain::{ExecutionSnapshot, Job, JobListFilter, JobLogListFilter, JobStatus};
 
 use super::{
-    Clock, ExecutionLogDetail, ExecutionLogSummary, ImportJobCommand, ImportableTask, JobView, ManualExecutionRequest, ReplaceJobCommand,
-    SchedulerCommandStore, SchedulerError, SchedulerQueryStore, SchedulerResult, UpdateJobStatusCommand,
+    AuditedSchedulerCommandStore, Clock, ExecutionLogDetail, ExecutionLogSummary, ImportJobCommand, ImportableTask, JobView, ManualExecutionRequest,
+    ReplaceJobCommand, SchedulerCommandStore, SchedulerCursorQuery, SchedulerCursorSlice, SchedulerError, SchedulerQueryStore, SchedulerResult,
+    UpdateJobStatusCommand,
     cron::next_times_after,
+    job_cursor_page, job_cursor_query, log_cursor_page, log_cursor_query,
     service_support::{new_job, registry_status, replacement, require_editable, require_runnable, validate_import, validate_replace},
     task::{ScheduledTaskDefinition, TaskCatalog},
-    validation::{require_text, validate_ids, validate_page},
+    validation::{require_text, validate_ids},
 };
+
+mod audited;
+mod export;
+
+#[async_trait]
+pub trait SchedulerExportSession: Send {
+    async fn page_jobs(&mut self, filter: JobListFilter, page: SchedulerCursorQuery) -> SchedulerResult<SchedulerCursorSlice<JobView>>;
+    async fn page_job_logs(&mut self, filter: JobLogListFilter, page: SchedulerCursorQuery) -> SchedulerResult<SchedulerCursorSlice<ExecutionLogSummary>>;
+    async fn finish(self: Box<Self>) -> SchedulerResult<()>;
+}
 
 #[async_trait]
 pub trait SchedulerUseCase: Send + Sync + 'static {
     async fn importable_tasks(&self) -> SchedulerResult<Vec<ImportableTask>>;
-    async fn page_jobs(&self, filter: JobListFilter, page: PageRequest) -> SchedulerResult<Page<JobView>>;
-    async fn export_jobs_page(&self, filter: JobListFilter, page: PageSliceRequest) -> SchedulerResult<Page<JobView>>;
+    async fn page_jobs(&self, filter: JobListFilter, page: CursorPageRequest) -> SchedulerResult<CursorPage<JobView>>;
+    async fn begin_export(&self) -> SchedulerResult<Box<dyn SchedulerExportSession>>;
     async fn get_job(&self, id: &str) -> SchedulerResult<JobView>;
     async fn import_job(&self, command: ImportJobCommand) -> SchedulerResult<JobView>;
     async fn replace_job(&self, command: ReplaceJobCommand) -> SchedulerResult<JobView>;
@@ -27,8 +39,7 @@ pub trait SchedulerUseCase: Send + Sync + 'static {
     async fn delete_job(&self, id: &str) -> SchedulerResult<()>;
     async fn delete_jobs(&self, ids: Vec<String>) -> SchedulerResult<()>;
     async fn cron_next_times(&self, expression: &str, count: Option<u8>) -> SchedulerResult<Vec<chrono::DateTime<chrono::Utc>>>;
-    async fn page_job_logs(&self, filter: JobLogListFilter, page: PageRequest) -> SchedulerResult<Page<ExecutionLogSummary>>;
-    async fn export_job_logs_page(&self, filter: JobLogListFilter, page: PageSliceRequest) -> SchedulerResult<Page<ExecutionLogSummary>>;
+    async fn page_job_logs(&self, filter: JobLogListFilter, page: CursorPageRequest) -> SchedulerResult<CursorPage<ExecutionLogSummary>>;
     async fn get_job_log(&self, id: &str) -> SchedulerResult<ExecutionLogSummary>;
     async fn get_job_log_detail(&self, id: &str) -> SchedulerResult<ExecutionLogDetail>;
     async fn delete_job_log(&self, id: &str) -> SchedulerResult<()>;
@@ -39,6 +50,7 @@ pub trait SchedulerUseCase: Send + Sync + 'static {
 pub struct SchedulerService {
     query: Arc<dyn SchedulerQueryStore>,
     commands: Arc<dyn SchedulerCommandStore>,
+    audited_commands: Arc<dyn AuditedSchedulerCommandStore>,
     catalog: Arc<dyn TaskCatalog>,
     clock: Arc<dyn Clock>,
 }
@@ -46,6 +58,7 @@ pub struct SchedulerService {
 pub struct SchedulerServiceParts {
     pub query: Arc<dyn SchedulerQueryStore>,
     pub commands: Arc<dyn SchedulerCommandStore>,
+    pub audited_commands: Arc<dyn AuditedSchedulerCommandStore>,
     pub catalog: Arc<dyn TaskCatalog>,
     pub clock: Arc<dyn Clock>,
 }
@@ -55,6 +68,7 @@ impl SchedulerService {
         Self {
             query: parts.query,
             commands: parts.commands,
+            audited_commands: parts.audited_commands,
             catalog: parts.catalog,
             clock: parts.clock,
         }
@@ -90,29 +104,21 @@ impl SchedulerUseCase for SchedulerService {
         Ok(tasks)
     }
 
-    async fn page_jobs(&self, filter: JobListFilter, page: PageRequest) -> SchedulerResult<Page<JobView>> {
-        let slice = validate_page(page)?;
-        let page = self.query.page_jobs(filter, slice).await?;
-        Ok(Page {
-            items: page.items.into_iter().map(|job| self.decorate(job)).collect(),
-            total: page.total,
-            page: page.page,
-            page_size: page.page_size,
-        })
+    async fn page_jobs(&self, filter: JobListFilter, page: CursorPageRequest) -> SchedulerResult<CursorPage<JobView>> {
+        let query = job_cursor_query(&filter, &page)?;
+        let slice = self.query.page_jobs(filter.clone(), query.clone()).await?;
+        Ok(job_cursor_page(&filter, &query, slice)?.map(|job| self.decorate(job)))
     }
 
     async fn get_job(&self, id: &str) -> SchedulerResult<JobView> {
         Ok(self.decorate(self.query.find_job(id).await?))
     }
 
-    async fn export_jobs_page(&self, filter: JobListFilter, page: PageSliceRequest) -> SchedulerResult<Page<JobView>> {
-        let page = self.query.page_jobs(filter, page).await?;
-        Ok(Page {
-            items: page.items.into_iter().map(|job| self.decorate(job)).collect(),
-            total: page.total,
-            page: page.page,
-            page_size: page.page_size,
-        })
+    async fn begin_export(&self) -> SchedulerResult<Box<dyn SchedulerExportSession>> {
+        Ok(Box::new(export::ServiceExportSession::new(
+            self.query.begin_export().await?,
+            Arc::clone(&self.catalog),
+        )))
     }
 
     async fn import_job(&self, command: ImportJobCommand) -> SchedulerResult<JobView> {
@@ -169,12 +175,10 @@ impl SchedulerUseCase for SchedulerService {
         next_times_after(expression, count, self.clock.now().await?)
     }
 
-    async fn page_job_logs(&self, filter: JobLogListFilter, page: PageRequest) -> SchedulerResult<Page<ExecutionLogSummary>> {
-        self.query.page_execution_logs(filter, validate_page(page)?).await
-    }
-
-    async fn export_job_logs_page(&self, filter: JobLogListFilter, page: PageSliceRequest) -> SchedulerResult<Page<ExecutionLogSummary>> {
-        self.query.page_execution_logs(filter, page).await
+    async fn page_job_logs(&self, filter: JobLogListFilter, page: CursorPageRequest) -> SchedulerResult<CursorPage<ExecutionLogSummary>> {
+        let query = log_cursor_query(&filter, &page)?;
+        let slice = self.query.page_execution_logs(filter.clone(), query.clone()).await?;
+        log_cursor_page(&filter, &query, slice)
     }
 
     async fn get_job_log(&self, id: &str) -> SchedulerResult<ExecutionLogSummary> {

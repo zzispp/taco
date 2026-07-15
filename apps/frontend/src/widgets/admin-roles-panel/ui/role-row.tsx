@@ -9,16 +9,28 @@ import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
 
 import { Iconify } from 'src/shared/ui/iconify';
-import { BooleanLabel } from 'src/shared/ui/admin';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 
 import { translatedRoleName } from 'src/entities/role';
 import { useHasPermission } from 'src/entities/session';
 
+import { BooleanLabel } from 'src/widgets/admin-common';
+
 import { dataScopeLabel } from './role-dialog';
 
 const DATE_TIME_CELL_SX = { whiteSpace: 'nowrap' } as const;
+
+type RoleRowProps = {
+  row: Role;
+  selected: boolean;
+  onToggleSelected: (id: string) => void;
+  onEdit: (role: Role) => void;
+  onDelete: (role: Role) => void;
+  onBind: (role: Role, type: 'menus' | 'depts') => void;
+  onUsers: (role: Role) => void;
+  onStatusChange: (status: string) => void;
+};
 
 export function RoleRow({
   row,
@@ -29,16 +41,7 @@ export function RoleRow({
   onBind,
   onUsers,
   onStatusChange,
-}: {
-  row: Role;
-  selected: boolean;
-  onToggleSelected: (id: string) => void;
-  onEdit: (role: Role) => void;
-  onDelete: (role: Role) => void;
-  onBind: (role: Role, type: 'menus' | 'depts') => void;
-  onUsers: (role: Role) => void;
-  onStatusChange: (status: string) => void;
-}) {
+}: RoleRowProps) {
   const { t } = useTranslate('admin');
   const canEdit = useHasPermission('system:role:edit');
   const canDelete = useHasPermission('system:role:remove');
@@ -73,21 +76,54 @@ export function RoleRow({
         />
       </TableCell>
       <TableCell sx={DATE_TIME_CELL_SX}>{fAdminDateTime(row.create_time) || '-'}</TableCell>
-      <TableCell align="right">
-        <RoleActions
-          system={row.system}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          onMenu={() => onBind(row, 'menus')}
-          onDept={() => onBind(row, 'depts')}
-          onUsers={() => onUsers(row)}
-          onEdit={() => onEdit(row)}
-          onDelete={() => onDelete(row)}
-        />
-      </TableCell>
+      <RoleActionsCell {...{ row, canEdit, canDelete, onBind, onUsers, onEdit, onDelete }} />
     </TableRow>
   );
 }
+
+type RoleActionsCellProps = Pick<
+  RoleRowProps,
+  'row' | 'onBind' | 'onUsers' | 'onEdit' | 'onDelete'
+> & {
+  canEdit: boolean;
+  canDelete: boolean;
+};
+
+function RoleActionsCell({
+  row,
+  canEdit,
+  canDelete,
+  onBind,
+  onUsers,
+  onEdit,
+  onDelete,
+}: RoleActionsCellProps) {
+  return (
+    <TableCell align="right">
+      <RoleActions
+        system={row.system}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        onMenu={() => onBind(row, 'menus')}
+        onDept={() => onBind(row, 'depts')}
+        onUsers={() => onUsers(row)}
+        onEdit={() => onEdit(row)}
+        onDelete={() => onDelete(row)}
+      />
+    </TableCell>
+  );
+}
+
+type RoleActionsProps = {
+  system: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  onMenu: () => void;
+  onDept: () => void;
+  onUsers: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+};
 
 function RoleActions({
   system,
@@ -98,16 +134,7 @@ function RoleActions({
   onUsers,
   onEdit,
   onDelete,
-}: {
-  system: boolean;
-  canEdit: boolean;
-  canDelete: boolean;
-  onMenu: () => void;
-  onDept: () => void;
-  onUsers: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
+}: RoleActionsProps) {
   const { t } = useTranslate('admin');
   return (
     <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>

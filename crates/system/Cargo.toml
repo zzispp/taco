@@ -7,8 +7,10 @@ publish.workspace = true
 [dependencies]
 constants.workspace = true
 async-trait.workspace = true
+audit_contract.workspace = true
 axum.workspace = true
 inventory.workspace = true
+hook_tracing.workspace = true
 kernel.workspace = true
 rbac.workspace = true
 rbac_macros.workspace = true
@@ -22,9 +24,11 @@ thiserror.workspace = true
 time.workspace = true
 tokio.workspace = true
 types.workspace = true
+utoipa.workspace = true
 nix.workspace = true
 pulldown-cmark.workspace = true
 
 [dev-dependencies]
+base64.workspace = true
 tokio.workspace = true
 tower.workspace = true

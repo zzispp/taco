@@ -9,31 +9,18 @@ pub(super) fn update_sql() -> &'static str {
 }
 
 pub(super) fn list_sql() -> String {
-    format!("SELECT {COLUMNS} FROM sys_dept WHERE {} ORDER BY parent_id ASC, order_num ASC", predicate())
-}
-
-pub(super) fn page_sql() -> String {
-    format!("{} LIMIT $8 OFFSET $9", list_sql())
-}
-
-pub(super) fn total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_dept WHERE {}", predicate())
+    format!(
+        "SELECT {COLUMNS} FROM sys_dept WHERE {} ORDER BY parent_id ASC, order_num ASC, dept_id ASC",
+        predicate()
+    )
 }
 
 pub(super) fn scoped_list_sql() -> String {
     format!(
-        "SELECT {COLUMNS} FROM sys_dept d WHERE {} AND {} ORDER BY parent_id ASC, order_num ASC",
+        "SELECT {COLUMNS} FROM sys_dept d WHERE {} AND {} ORDER BY parent_id ASC, order_num ASC, dept_id ASC",
         scoped_filter_predicate(),
         scoped_predicate()
     )
-}
-
-pub(super) fn scoped_page_sql() -> String {
-    format!("{} LIMIT $11 OFFSET $12", scoped_list_sql())
-}
-
-pub(super) fn scoped_total_sql() -> String {
-    format!("SELECT COUNT(*) FROM sys_dept d WHERE {} AND {}", scoped_filter_predicate(), scoped_predicate())
 }
 
 fn predicate() -> &'static str {
@@ -50,11 +37,11 @@ fn scoped_predicate() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{page_sql, scoped_page_sql};
+    use super::{list_sql, scoped_list_sql};
 
     #[test]
     fn dept_text_filters_use_case_insensitive_search() {
-        for sql in [page_sql(), scoped_page_sql()] {
+        for sql in [list_sql(), scoped_list_sql()] {
             assert!(sql.contains("dept_name ILIKE"));
             assert!(sql.contains("leader ILIKE"));
             assert!(sql.contains("phone ILIKE"));
@@ -64,7 +51,7 @@ mod tests {
 
     #[test]
     fn dept_time_filters_compare_timestamps_without_date_truncation() {
-        for sql in [page_sql(), scoped_page_sql()] {
+        for sql in [list_sql(), scoped_list_sql()] {
             assert!(sql.contains("create_time >="));
             assert!(sql.contains("create_time <="));
             assert!(!sql.contains("::date"));

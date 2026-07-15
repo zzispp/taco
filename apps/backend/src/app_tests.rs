@@ -7,10 +7,8 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::util::ServiceExt;
 
-    use crate::composition;
-    use configuration::Settings;
+    use crate::{composition, composition::tests::test_settings};
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn docs_and_metrics_routes_are_public() {
         let settings = test_settings();
@@ -34,7 +32,6 @@ mod tests {
         assert_eq!(metrics.status(), StatusCode::OK);
     }
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn docs_support_gzip_and_request_id() {
         let settings = test_settings();
@@ -60,7 +57,6 @@ mod tests {
         assert!(response.headers().contains_key("x-request-id"));
     }
 
-    #[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
     #[tokio::test]
     async fn metrics_output_exposes_http_series() {
         let settings = test_settings();
@@ -81,19 +77,5 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let text = String::from_utf8(body.to_vec()).unwrap();
         assert!(text.contains("http_requests_total"));
-    }
-
-    fn test_settings() -> Settings {
-        let config_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../config/config.yaml")
-            .canonicalize()
-            .unwrap();
-
-        Settings::load_from_args([
-            std::ffi::OsString::from("backend"),
-            std::ffi::OsString::from("--config"),
-            config_path.into_os_string(),
-        ])
-        .unwrap()
     }
 }

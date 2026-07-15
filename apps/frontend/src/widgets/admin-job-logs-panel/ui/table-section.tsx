@@ -8,8 +8,9 @@ import TableBody from '@mui/material/TableBody';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
-import { TableNoData, TablePaginationCustom } from 'src/shared/ui/table';
-import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/shared/ui/admin';
+import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+
+import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { JobLogRow } from './job-log-row';
 import { JobLogFilters } from './filters';
@@ -71,26 +72,52 @@ function JobLogTableContent({ controller }: { controller: JobLogController }) {
           />
           <TableBody>
             {resources.logs.isLoading ? (
-              <TableLoadingRows head={withSelectionHead(head)} rows={state.table.rowsPerPage} />
+              <TableLoadingRows head={withSelectionHead(head)} rows={state.table.limit} />
             ) : (
               resources.logs.items.map((log) => (
                 <JobLogRow key={log.execution_id} log={log} controller={controller} />
               ))
             )}
-            <TableNoData
-              title={t('admin:common.noData')}
-              notFound={!resources.logs.isLoading && resources.logs.items.length === 0}
-            />
+            <JobLogEmptyState controller={controller} head={head} />
           </TableBody>
         </Table>
       </Scrollbar>
-      <TablePaginationCustom
-        page={state.table.page}
-        count={resources.logs.total}
-        rowsPerPage={state.table.rowsPerPage}
-        onPageChange={state.table.onChangePage}
-        onRowsPerPageChange={state.table.onChangeRowsPerPage}
-      />
+      <JobLogCursorNavigation controller={controller} />
     </>
+  );
+}
+
+function JobLogCursorNavigation({ controller }: { controller: JobLogController }) {
+  const { state, resources } = controller;
+  return (
+    <CursorPagination
+      limit={state.table.limit}
+      itemCount={resources.logs.itemCount}
+      visitedBatchIndex={state.table.visitedBatchIndex}
+      hasPrevious={resources.logs.hasPrevious}
+      hasNext={resources.logs.hasNext}
+      pending={resources.logs.isValidating}
+      onPrevious={() => state.table.onPreviousCursor(resources.logs.previousCursor)}
+      onNext={() => state.table.onNextCursor(resources.logs.nextCursor)}
+      onLimitChange={state.table.onChangeLimit}
+    />
+  );
+}
+
+function JobLogEmptyState({
+  controller,
+  head,
+}: {
+  controller: JobLogController;
+  head: ReturnType<typeof withSelectionHead>;
+}) {
+  const { t } = useTranslate('scheduler');
+  const { logs } = controller.resources;
+  return (
+    <TableNoData
+      colSpan={withSelectionHead(head).length}
+      title={t('admin:common.noData')}
+      notFound={!logs.isLoading && logs.items.length === 0}
+    />
   );
 }

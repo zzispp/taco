@@ -1,11 +1,19 @@
 use super::*;
+use crate::{
+    api::dto::{AuthSessionResponse, SignUpPayload},
+    application::AppResult,
+};
+use audit_contract::{AuditOutboxRecord, OperationAuditContext};
 
-#[cfg(test)]
-mod pagination_tests;
+const MISSING_OPERATION_AUDIT_ACTOR: &str = "authenticated operation audit actor is missing";
+const MISSING_OPERATION_AUDIT_CONTEXT: &str = "operation audit context is missing";
 
-const EXPORT_PAGE_INCREMENT: u64 = 1;
-
-pub(super) type AccountPasswordRequest = (State<ApiState>, Extension<CurrentUser>, RequestJson<ChangePasswordPayload>);
+pub(super) type AccountPasswordRequest = (
+    State<ApiState>,
+    Extension<CurrentUser>,
+    Option<Extension<OperationAuditContext>>,
+    RequestJson<ChangePasswordPayload>,
+);
 pub(super) type ExportUsersRequest = (
     State<ApiState>,
     Extension<CurrentUser>,
@@ -18,58 +26,28 @@ pub(super) type ListUsersRequest = (
     Extension<DataScopeFilter>,
     RequestQuery<ListUsersQuery>,
 );
-pub(super) type UserPathRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>);
-pub(super) type UserJsonRequest<T> = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, Path<String>, T);
-pub(super) type UserBatchRequest = (State<ApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>, RequestJson<BatchIdsInput>);
-
-pub(super) struct ExportUsersInput<'a> {
-    pub(super) state: &'a ApiState,
-    pub(super) current_user: &'a CurrentUser,
-    pub(super) data_scope: DataScopeFilter,
-    pub(super) filter: UserListFilter,
+pub(super) struct SuccessfulOperationAudit {
+    context: OperationAuditContext,
+    record: AuditOutboxRecord,
 }
 
-pub(super) async fn all_export_users(input: ExportUsersInput<'_>) -> ApiResult<Vec<User>> {
-    let export_page_size = input.state.export_config.export_batch_config().await?.page_size;
-    let mut page = 1;
-    let mut users = Vec::new();
-    loop {
-        let filter = export_filter_page(
-            &input.filter,
-            PageRequest {
-                page,
-                page_size: export_page_size,
-            },
-        );
-        let current = if input.current_user.admin {
-            input.state.users.list_users(filter).await?
-        } else {
-            input.state.users.list_users_scoped(filter, input.data_scope.clone()).await?
-        };
-        let is_last = is_last_export_page(users.len(), current.items.len(), current.total)?;
-        users.extend(current.items);
-        if is_last {
-            return Ok(users);
-        }
-        page = next_export_page(page)?;
+impl SuccessfulOperationAudit {
+    pub(super) fn record(&self) -> AuditOutboxRecord {
+        self.record.clone()
+    }
+
+    pub(super) fn mark_persisted(&self) {
+        self.context.mark_persisted();
     }
 }
 
-fn is_last_export_page(existing: usize, current: usize, total: u64) -> ApiResult<bool> {
-    let loaded = existing.checked_add(current).ok_or_else(pagination_overflow)?;
-    Ok(current == 0 || loaded >= export_total(total)?)
-}
-
-fn export_total(total: u64) -> ApiResult<usize> {
-    usize::try_from(total).map_err(|_| pagination_overflow())
-}
-
-fn next_export_page(page: u64) -> ApiResult<u64> {
-    page.checked_add(EXPORT_PAGE_INCREMENT).ok_or_else(pagination_overflow)
-}
-
-fn pagination_overflow() -> ApiError {
-    AppError::InvalidInput(localized("errors.validation.page_overflow")).into()
+pub(super) fn successful_operation_audit(context: Option<Extension<OperationAuditContext>>) -> ApiResult<SuccessfulOperationAudit> {
+    let Extension(context) = context.ok_or_else(|| ApiError(AppError::Infrastructure(MISSING_OPERATION_AUDIT_CONTEXT.into())))?;
+    let record = context
+        .success_record()
+        .map_err(|error| ApiError(AppError::Infrastructure(error.to_string())))?
+        .ok_or_else(|| ApiError(AppError::Infrastructure(MISSING_OPERATION_AUDIT_ACTOR.into())))?;
+    Ok(SuccessfulOperationAudit { context, record })
 }
 
 pub(super) struct UserImportForm {
@@ -126,14 +104,10 @@ pub(super) fn ok<T>(data: T) -> ApiJson<T> {
     Json(data)
 }
 
-const UNKNOWN_BROWSER: &str = "Unknown";
-const UNKNOWN_OS: &str = "Unknown";
-const USER_AGENT: &str = "user-agent";
-
-pub(super) async fn issue_tokens_for_user(state: &ApiState, headers: &HeaderMap, user: &User) -> ApiResult<TokenPair> {
-    let ipaddr = state.public_ip_resolver.resolve_public_ip().await?;
-    let login_location = state.ip_location_resolver.resolve_login_location(&ipaddr, current_locale()).await?;
-    let user_agent = header_value(headers, USER_AGENT);
+pub(super) async fn issue_tokens_for_user(state: &ApiState, client: &client_info::ClientInfo, user: &User) -> AppResult<TokenPair> {
+    let ipaddr = client.ipaddr();
+    let location = state.ip_location_resolver.resolve_ip_location(&ipaddr).await.map_err(client_info_error)?;
+    let login_location = login_location(location, current_locale());
     let profile = state.users.profile(user.id.clone()).await?;
     state
         .tokens
@@ -143,81 +117,38 @@ pub(super) async fn issue_tokens_for_user(state: &ApiState, headers: &HeaderMap,
             user_name: user.username.clone(),
             ipaddr,
             login_location,
-            browser: browser_name(user_agent),
-            os: os_name(user_agent),
+            browser: client.browser.clone(),
+            os: client.os.clone(),
         })
         .await
-        .map_err(ApiError)
 }
 
-fn header_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
-    headers.get(name).and_then(|value| value.to_str().ok()).filter(|value| !value.trim().is_empty())
+fn login_location(location: client_info::IpLocation, locale: types::http::Locale) -> String {
+    match location {
+        client_info::IpLocation::Resolved(value) => value,
+        client_info::IpLocation::Internal => types::http::translate_message(locale, "messages.client_info.location.internal"),
+        client_info::IpLocation::Unknown => types::http::translate_message(locale, "messages.client_info.location.unknown"),
+    }
 }
 
-fn browser_name(user_agent: Option<&str>) -> String {
-    let Some(agent) = user_agent else {
-        return UNKNOWN_BROWSER.into();
-    };
-    if agent.contains("Edg/") {
-        return "Edge".into();
-    }
-    if agent.contains("Firefox/") {
-        return "Firefox".into();
-    }
-    if agent.contains("Chrome/") {
-        return "Chrome".into();
-    }
-    if agent.contains("Safari/") {
-        return "Safari".into();
-    }
-    UNKNOWN_BROWSER.into()
+fn client_info_error(error: client_info::ClientInfoError) -> AppError {
+    hook_tracing::error_with_fields!("client information resolution failed", &error, component = "ip_location");
+    AppError::Infrastructure(error.to_string())
 }
 
-fn os_name(user_agent: Option<&str>) -> String {
-    let Some(agent) = user_agent else {
-        return UNKNOWN_OS.into();
-    };
-    if agent.contains("Windows") {
-        return "Windows".into();
-    }
-    if agent.contains("Mac OS X") || agent.contains("Macintosh") {
-        return "macOS".into();
-    }
-    if agent.contains("Android") {
-        return "Android".into();
-    }
-    if agent.contains("iPhone") || agent.contains("iPad") {
-        return "iOS".into();
-    }
-    if agent.contains("Linux") {
-        return "Linux".into();
-    }
-    UNKNOWN_OS.into()
+pub(super) async fn verify_account_captcha(state: &ApiState, token: Option<&str>) -> AppResult<()> {
+    state.account_verifier.verify_account(token).await
 }
 
-pub(super) async fn verify_account_captcha(state: &ApiState, token: Option<&str>) -> ApiResult<()> {
-    state.account_verifier.verify_account(token).await.map_err(ApiError)
-}
-
-pub(super) async fn reject_disabled_registration(state: &ApiState) -> ApiResult<()> {
+pub(super) async fn reject_disabled_registration(state: &ApiState) -> AppResult<()> {
     if !state.config.config_by_key(REGISTER_USER_KEY).await?.trim().eq_ignore_ascii_case("true") {
-        return Err(ApiError(crate::application::AppError::Forbidden(localized(
-            "errors.user.registration_disabled",
-        ))));
+        return Err(AppError::Forbidden(localized("errors.user.registration_disabled")));
     }
     Ok(())
 }
 
 pub(super) fn localized(key: &'static str) -> LocalizedError {
     LocalizedError::new(key)
-}
-
-pub(super) async fn new_admin_user(state: &ApiState, payload: UserPayload) -> ApiResult<NewUser> {
-    let mut user: NewUser = payload.into();
-    if user.password.trim().is_empty() {
-        user.password = state.config.config_by_key(INIT_PASSWORD_KEY).await?;
-    }
-    Ok(user)
 }
 
 pub(super) fn new_sign_up_user(payload: SignUpPayload) -> NewUser {
@@ -241,7 +172,6 @@ impl AuthSessionResponse {
         Self {
             user,
             access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
         }
     }
 }
@@ -250,7 +180,6 @@ impl From<TokenPair> for TokenPairResponse {
     fn from(value: TokenPair) -> Self {
         Self {
             access_token: value.access_token,
-            refresh_token: value.refresh_token,
         }
     }
 }
@@ -262,4 +191,34 @@ pub(super) fn bearer_token(headers: &HeaderMap) -> ApiResult<&str> {
         .ok_or(ApiError(crate::application::AppError::Unauthorized))?;
 
     value.strip_prefix("Bearer ").ok_or(ApiError(crate::application::AppError::Unauthorized))
+}
+
+#[cfg(test)]
+mod location_tests {
+    use client_info::IpLocation;
+    use types::http::Locale;
+
+    use super::login_location;
+
+    #[test]
+    fn online_session_location_is_rendered_at_the_user_api_boundary() {
+        assert_eq!(login_location(IpLocation::Internal, Locale::ZhCn), "内网IP");
+        assert_eq!(login_location(IpLocation::Internal, Locale::En), "Intranet IP");
+        assert_eq!(login_location(IpLocation::Internal, Locale::ZhTw), "內網IP");
+        assert_eq!(login_location(IpLocation::Unknown, Locale::En), "Unknown");
+        assert_eq!(login_location(IpLocation::Resolved("Provider Text".into()), Locale::ZhCn), "Provider Text");
+    }
+}
+
+#[cfg(test)]
+mod operation_audit_tests {
+    use super::*;
+
+    #[test]
+    fn successful_operation_audit_rejects_a_missing_request_context() {
+        assert!(matches!(
+            successful_operation_audit(None),
+            Err(ApiError(AppError::Infrastructure(message))) if message == MISSING_OPERATION_AUDIT_CONTEXT
+        ));
+    }
 }

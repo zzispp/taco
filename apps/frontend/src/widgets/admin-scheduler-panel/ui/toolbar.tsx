@@ -3,8 +3,9 @@ import type { SchedulerController } from 'src/features/scheduler-management';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 
-import { AddButton } from 'src/shared/ui/admin';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+
+import { AddButton } from 'src/widgets/admin-common';
 
 export function SchedulerToolbar({ controller }: { controller: SchedulerController }) {
   const { t } = useTranslate('scheduler');

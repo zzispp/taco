@@ -14,6 +14,8 @@ import {
   zhTW as zhTWDataGrid,
 } from '@mui/x-data-grid/locales';
 
+import { mergeAdminResources } from './admin-resources';
+
 // ----------------------------------------------------------------------
 
 // Supported languages
@@ -81,9 +83,31 @@ export const allLangs: LangOption[] = [
 
 // ----------------------------------------------------------------------
 
-export const i18nResourceLoader = resourcesToBackend(
-  (lang: LangCode, namespace: string) => import(`./langs/${lang}/${namespace}.json`)
-);
+export const i18nResourceLoader = resourcesToBackend(async (lang: LangCode, namespace: string) => {
+  if (namespace === 'admin') {
+    const [base, navigation, dashboard, accessControl, profile, onlineSessions, notice] =
+      await Promise.all([
+        import(`./langs/${lang}/admin.json`),
+        import(`./langs/${lang}/admin-navigation.json`),
+        import(`./langs/${lang}/admin-dashboard.json`),
+        import(`./langs/${lang}/admin-access-control.json`),
+        import(`./langs/${lang}/admin-profile.json`),
+        import(`./langs/${lang}/admin-online-sessions.json`),
+        import(`./langs/${lang}/admin-notice.json`),
+      ]);
+    return mergeAdminResources(
+      base.default,
+      navigation.default,
+      dashboard.default,
+      accessControl.default,
+      profile.default,
+      onlineSessions.default,
+      notice.default
+    );
+  }
+  const resource = await import(`./langs/${lang}/${namespace}.json`);
+  return resource.default;
+});
 
 export function i18nOptions(lang = fallbackLng, namespace = defaultNS): InitOptions {
   return {

@@ -1,10 +1,10 @@
-use kernel::excel::write_xlsx;
+use kernel::excel::{StreamingXlsxWriter, TemporaryXlsxFile};
 use types::{
     http::{Locale, translate_message},
     rbac::Role,
 };
 
-use crate::application::{RbacError, RbacResult};
+use crate::application::{RbacError, RbacResult, RoleExportSink};
 
 const ROLE_SHEET_KEY: &str = "excel.rbac.role.sheet";
 const ROLE_HEADER_KEYS: &[&str] = &[
@@ -18,9 +18,26 @@ const ROLE_HEADER_KEYS: &[&str] = &[
     "excel.rbac.role.headers.create_time",
 ];
 
-pub fn export_roles_xlsx(roles: &[Role], locale: Locale) -> RbacResult<Vec<u8>> {
-    let rows = roles.iter().map(role_row).collect::<Vec<_>>();
-    write_xlsx(&text(locale, ROLE_SHEET_KEY), &localized_headers(locale), &rows).map_err(RbacError::Infrastructure)
+pub struct RoleXlsxExport {
+    writer: StreamingXlsxWriter,
+}
+
+impl RoleXlsxExport {
+    pub fn new(locale: Locale) -> RbacResult<Self> {
+        let writer = StreamingXlsxWriter::new(&text(locale, ROLE_SHEET_KEY), &localized_headers(locale)).map_err(RbacError::Infrastructure)?;
+        Ok(Self { writer })
+    }
+
+    pub fn finish(self) -> RbacResult<TemporaryXlsxFile> {
+        self.writer.finish().map_err(RbacError::Infrastructure)
+    }
+}
+
+impl RoleExportSink for RoleXlsxExport {
+    fn append(&mut self, roles: &[Role]) -> RbacResult<()> {
+        let rows = roles.iter().map(role_row).collect::<Vec<_>>();
+        self.writer.append_rows(&rows).map_err(RbacError::Infrastructure)
+    }
 }
 
 fn localized_headers(locale: Locale) -> Vec<String> {
@@ -48,12 +65,13 @@ fn role_row(role: &Role) -> Vec<String> {
 mod tests {
     use types::http::Locale;
 
-    use super::export_roles_xlsx;
+    use super::RoleXlsxExport;
 
-    #[cfg_attr(miri, ignore = "Miri isolation blocks rust_xlsxwriter SystemTime usage")]
     #[test]
     fn export_roles_headers_use_requested_locale() {
-        let rows = kernel::excel::read_xlsx(&export_roles_xlsx(&[], Locale::En).unwrap()).unwrap();
+        let artifact = RoleXlsxExport::new(Locale::En).unwrap().finish().unwrap();
+        let bytes = std::fs::read(artifact.path()).unwrap();
+        let rows = kernel::excel::read_xlsx(&bytes).unwrap();
 
         assert_eq!(rows[0][0], "Role ID");
         assert_eq!(rows[0][1], "Role name");

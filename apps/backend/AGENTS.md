@@ -24,7 +24,7 @@
 - Backend code must use the internal `hook_tracing` crate for logging. Do not call `println!`, `eprintln!`, `dbg!`, `log::*`, `tracing::*`, or `tracing_subscriber::*` directly from backend modules.
 - Initialize tracing exactly once in the backend composition root after loading `configuration::Settings`.
 - Tracing runtime behavior must be driven by config, including `tracing.log_level`. Invalid logging config must fail startup explicitly; do not fall back to environment variables or a hardcoded default.
-- When adding new logging controls, add them to the typed config model and `config/config.yaml` in the same change.
+- When adding new logging controls, add them to the typed config model and `config/config.example.yaml` in the same change.
 
 ## Rust Style Rules
 

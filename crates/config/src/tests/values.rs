@@ -1,164 +1,12 @@
 use super::*;
-use std::{ffi::OsString, path::PathBuf};
 
-#[test]
-fn database_url_prefers_explicit_url() {
-    let settings = settings_with_database(DatabaseSettings {
-        url: Some("postgres://user:pass@remote:5432/app".into()),
-        password: Some("ignored".into()),
-        ..database_parts()
-    });
+mod captcha;
+mod connections;
+mod jwt;
+mod loading;
+mod runtime;
 
-    assert_eq!(settings.database_url().unwrap(), "postgres://user:pass@remote:5432/app");
-}
-
-#[test]
-fn database_url_uses_parts_when_url_is_missing() {
-    assert_eq!(
-        settings_with_database(database_parts()).database_url().unwrap(),
-        "postgres://postgres:123456@localhost:5433/postgres"
-    );
-}
-
-#[test]
-fn database_url_uses_parts_when_url_is_blank() {
-    let settings = settings_with_database(DatabaseSettings {
-        url: Some("  ".into()),
-        ..database_parts()
-    });
-
-    assert_eq!(settings.database_url().unwrap(), "postgres://postgres:123456@localhost:5433/postgres");
-}
-
-#[test]
-fn database_url_errors_without_password_when_url_is_missing() {
-    let settings = settings_with_database(DatabaseSettings {
-        password: None,
-        ..database_parts()
-    });
-
-    assert!(matches!(settings.database_url(), Err(SettingsError::MissingDatabasePassword)));
-}
-
-#[test]
-fn jwt_secret_trims_config_value() {
-    let jwt = settings_with_jwt(JwtSettings {
-        secret: "  secret-from-config  ".into(),
-    });
-
-    assert_eq!(jwt.jwt_secret().unwrap(), "secret-from-config");
-}
-
-#[test]
-fn redis_url_trims_explicit_value() {
-    let settings = settings_with_redis(RedisSettings {
-        url: Some("  redis://localhost:6379/0  ".into()),
-        ..redis_settings()
-    });
-
-    assert_eq!(settings.redis_url().unwrap(), "redis://localhost:6379/0");
-}
-
-#[test]
-fn redis_url_uses_parts_when_url_is_missing() {
-    let settings = settings_with_redis(RedisSettings { url: None, ..redis_settings() });
-
-    assert_eq!(settings.redis_url().unwrap(), "redis://default:@localhost:6380?protocol=resp3");
-}
-
-#[test]
-fn tracing_config_validates_log_level_and_file_settings() {
-    let settings = settings_with_tracing(TracingSettings {
-        log_level: "debug".into(),
-        file: TracingFileSettings {
-            enabled: true,
-            directory: " logs ".into(),
-            prefix: " app.log ".into(),
-        },
-    });
-
-    let tracing = settings.tracing_config().unwrap();
-
-    assert_eq!(tracing.log_level, "debug");
-    assert!(tracing.file.enabled);
-}
-
-#[test]
-fn http_config_rejects_zero_timeout() {
-    let settings = settings_with_http(HttpSettings {
-        request_timeout_ms: 0,
-        compression_enabled: true,
-    });
-
-    assert!(matches!(
-        settings.http_config(),
-        Err(SettingsError::NonPositiveNumber("http.request_timeout_ms"))
-    ));
-}
-
-#[test]
-fn scheduler_config_rejects_non_positive_runtime_values() {
-    let mut request_timeout = settings_with_database(database_parts());
-    request_timeout.scheduler.http_client.request_timeout_ms = 0;
-    let mut reconcile_interval = settings_with_database(database_parts());
-    reconcile_interval.scheduler.runtime.reconcile_interval_ms = 0;
-
-    assert!(matches!(
-        request_timeout.scheduler_config(),
-        Err(SettingsError::NonPositiveNumber("scheduler.http_client.request_timeout_ms"))
-    ));
-    assert!(matches!(
-        reconcile_interval.scheduler_config(),
-        Err(SettingsError::NonPositiveNumber("scheduler.runtime.reconcile_interval_ms"))
-    ));
-}
-
-#[test]
-fn scheduler_config_is_required_and_rejects_unknown_fields() {
-    let missing = deserialize_settings(&minimal_config_without_auto_migrate().replace(scheduler_yaml(), ""));
-    let unknown = deserialize_settings(&minimal_config_without_auto_migrate().replace(
-        scheduler_yaml(),
-        &format!("{scheduler}\n  unexpected: true\n", scheduler = scheduler_yaml().trim_end()),
-    ));
-
-    assert!(missing.is_err());
-    assert!(unknown.is_err());
-}
-
-#[test]
-fn explicit_config_path_reads_path_after_config_arg() {
-    let args = vec![OsString::from("backend"), OsString::from("--config"), OsString::from("custom.yaml")];
-
-    assert_eq!(crate::loader::explicit_config_path(&args).unwrap(), Some(PathBuf::from("custom.yaml")));
-}
-
-#[test]
-fn explicit_config_path_errors_without_value() {
-    let args = vec![OsString::from("backend"), OsString::from("--config")];
-
-    assert!(matches!(crate::loader::explicit_config_path(&args), Err(SettingsError::MissingConfigArgument)));
-}
-
-#[test]
-fn default_config_paths_are_ordered() {
-    assert_eq!(crate::loader::MODULE_CONFIG_PATH, "config/config.yaml");
-    assert_eq!(crate::loader::ROOT_CONFIG_PATH, "config.yaml");
-}
-
-#[test]
-fn database_auto_migrate_defaults_to_false() {
-    let settings = deserialize_settings(&minimal_config_without_auto_migrate()).unwrap();
-
-    assert!(!settings.database.auto_migrate);
-}
-
-#[test]
-fn database_auto_migrate_reads_explicit_true() {
-    let settings = deserialize_settings(&minimal_config_without_auto_migrate().replace("database:\n", "database:\n  auto_migrate: true\n")).unwrap();
-
-    assert!(settings.database.auto_migrate);
-}
-
+const CONFIG_EXAMPLE: &str = include_str!("../../../../config/config.example.yaml");
 const MINIMAL_CONFIG_WITHOUT_AUTO_MIGRATE: &str = r#"
 server:
   host: "127.0.0.1"
@@ -167,16 +15,27 @@ database:
   url:
   scheme: "postgres"
   host: "localhost"
-  port: 5433
+  port: 5435
   username: "postgres"
-  password: "123456"
+  password: "unit-test-password"
   name: "postgres"
 jwt:
-  secret: "jwt-secret-from-config"
+  secret: "config-test-jwt-secret-32-bytes!"
+captcha:
+  cloudflare_turnstile:
+    secret_key: "config-test-turnstile-secret"
 auth:
   whitelist: []
+  refresh_cookie:
+    secure: true
+    domain:
+    path: "/api/auth"
+user:
+  online_sessions:
+    cleanup_interval_ms: 60000
+    cleanup_batch_size: 1000
 cors:
-  allowed_origins: ["*"]
+  allowed_origins: ["https://admin.example.test"]
   allowed_methods: ["*"]
   allowed_headers: ["*"]
   exposed_headers: ["*"]
@@ -187,16 +46,29 @@ http:
   compression_enabled: true
 metrics:
   enabled: true
+audit:
+  outbox:
+    worker_count: 4
+    claim_batch_size: 64
+    poll_interval_ms: 250
+    lease_duration_ms: 30000
+    retry_delay_ms: 5000
+    cleanup_interval_ms: 3600000
+    cleanup_batch_size: 1000
+    processed_retention_days: 7
+client_info:
+  ip_location:
+    request_timeout_ms: 3000
 scheduler:
   http_client:
     request_timeout_ms: 30000
   runtime:
     reconcile_interval_ms: 1000
 redis:
-  url: "redis://default:@localhost:6380?protocol=resp3"
+  url: "redis://default:@localhost:6381?protocol=resp3"
   scheme: "redis"
   host: "localhost"
-  port: 6380
+  port: 6381
   username: "default"
   password: ""
   database:
@@ -216,6 +88,22 @@ fn minimal_config_without_auto_migrate() -> String {
 
 fn scheduler_yaml() -> &'static str {
     "scheduler:\n  http_client:\n    request_timeout_ms: 30000\n  runtime:\n    reconcile_interval_ms: 1000\n"
+}
+
+fn captcha_yaml() -> &'static str {
+    "captcha:\n  cloudflare_turnstile:\n    secret_key: \"config-test-turnstile-secret\"\n"
+}
+
+fn audit_yaml() -> &'static str {
+    "audit:\n  outbox:\n    worker_count: 4\n    claim_batch_size: 64\n    poll_interval_ms: 250\n    lease_duration_ms: 30000\n    retry_delay_ms: 5000\n    cleanup_interval_ms: 3600000\n    cleanup_batch_size: 1000\n    processed_retention_days: 7\n"
+}
+
+fn client_info_yaml() -> &'static str {
+    "client_info:\n  ip_location:\n    request_timeout_ms: 3000\n"
+}
+
+fn user_yaml() -> &'static str {
+    "user:\n  online_sessions:\n    cleanup_interval_ms: 60000\n    cleanup_batch_size: 1000\n"
 }
 
 fn deserialize_settings(value: &str) -> Result<Settings, config_rs::ConfigError> {

@@ -1,15 +1,20 @@
 use crate::{
-    application::{AppError, UserService, UserUseCase},
+    application::{AdminBootstrapUseCase, AppError, AppResult, UserService, UserUseCase},
     domain::Credentials,
-    test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user, user_id},
+    test_support::{
+        MemoryLoginFailureStore, MemoryUserRepository, TestLoginLockConfigProvider, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user,
+        user_id, user_service_with_login_security,
+    },
 };
-use constants::pagination::MAX_PAGE_SIZE;
-use types::rbac::{DATA_SCOPE_CUSTOM, DATA_SCOPE_SELF, DataScopeFilter};
+use kernel::pagination::MAX_CURSOR_LIMIT;
+use rbac::domain::{DataScope, DataScopeFilter};
 
 mod admin;
+mod audited;
 mod auth;
+mod bootstrap;
 mod profile;
 mod support;
 
 pub(super) use support::WithPassword;
-use support::{profile_update, super_admin_user_id, user_filter};
+use support::{profile_update, user_filter};

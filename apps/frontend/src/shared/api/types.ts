@@ -1,6 +1,7 @@
-export type PageResponse<T> = {
+export type CursorPageResponse<T> = Readonly<{
   items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-};
+  next_cursor: string | null;
+  previous_cursor: string | null;
+  has_next: boolean;
+  has_previous: boolean;
+}>;

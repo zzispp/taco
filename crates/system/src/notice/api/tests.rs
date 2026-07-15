@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use audit_contract::{ActorSnapshot, BusinessType, OperationAuditContext, OperationAuditSeed, OperationRequestSnapshot, OperatorType};
 use axum::{
     Extension, Router,
     body::{Body, to_bytes},
@@ -12,7 +13,7 @@ use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use super::{NoticeApiState, create_router};
-use crate::notice::{NoticeService, domain::NOTICE_STATUS_CLOSED};
+use crate::notice::{NoticeAuditedUseCase, NoticeService, NoticeUseCase, domain::NOTICE_STATUS_CLOSED};
 
 mod support;
 
@@ -20,8 +21,8 @@ use support::TestRepository;
 
 const QUERY_PERMISSION: &str = "system:notice:query";
 const ADD_PERMISSION: &str = "system:notice:add";
+const LIST_PERMISSION: &str = "system:notice:list";
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn closed_notice_requires_admin_wildcard_or_query_permission() {
     let cases = [
@@ -39,7 +40,6 @@ async fn closed_notice_requires_admin_wildcard_or_query_permission() {
     }
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn normal_notice_is_readable_without_notice_permission() {
     let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(false, &[]));
@@ -47,7 +47,28 @@ async fn normal_notice_is_readable_without_notice_permission() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
+#[tokio::test]
+async fn list_endpoints_reject_legacy_page_parameters() {
+    let cases = ["/system/notices?page=1&page_size=10", "/system/notices/notice-1/readers?page=1&page_size=10"];
+
+    for uri in cases {
+        let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(false, &[LIST_PERMISSION]));
+        let response = app.oneshot(empty_request(Method::GET, uri)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "uri={uri}");
+        let body = response_json(response).await;
+        assert_eq!(body["code"], "invalid_input");
+    }
+}
+
+#[test]
+fn list_queries_default_to_the_public_cursor_limit() {
+    let list: super::NoticeListQuery = serde_json::from_value(json!({})).unwrap();
+    let readers: super::NoticeReaderQuery = serde_json::from_value(json!({})).unwrap();
+
+    assert_eq!(list.limit, kernel::pagination::DEFAULT_CURSOR_LIMIT);
+    assert_eq!(readers.limit, kernel::pagination::DEFAULT_CURSOR_LIMIT);
+}
+
 #[tokio::test]
 async fn create_notice_uses_authenticated_username_for_audit() {
     let repository = TestRepository::with_status(STATUS_NORMAL);
@@ -59,9 +80,11 @@ async fn create_notice_uses_authenticated_username_for_audit() {
     assert_eq!(body["create_by"], "alice");
     assert_eq!(body["update_by"], Value::Null);
     assert_eq!(repository.operators(), vec!["alice"]);
+    let audits = repository.audits();
+    assert_eq!(audits.len(), 1);
+    assert_eq!(audits[0].id, "019f5f96-f723-72a0-81dd-2502fbba6658");
 }
 
-#[cfg_attr(miri, ignore = "Miri does not support Tokio runtime I/O on macOS")]
 #[tokio::test]
 async fn invalid_markdown_returns_localized_bad_request() {
     let cases = [
@@ -81,10 +104,48 @@ async fn invalid_markdown_returns_localized_bad_request() {
 }
 
 fn test_router(repository: TestRepository, user: CurrentUser) -> Router {
-    let notices = Arc::new(NoticeService::new(repository));
-    create_router(NoticeApiState::new(notices))
+    let service = Arc::new(NoticeService::new(repository));
+    let notices: Arc<dyn NoticeUseCase> = service.clone();
+    let notices_audited: Arc<dyn NoticeAuditedUseCase> = service;
+    create_router(NoticeApiState::new(notices, notices_audited))
         .layer(Extension(user))
+        .layer(Extension(operation_audit_context()))
         .layer(middleware::from_fn(types::http::locale_middleware))
+}
+
+struct EmptyRequestSnapshot;
+
+impl OperationRequestSnapshot for EmptyRequestSnapshot {
+    fn request_params(&self) -> String {
+        String::new()
+    }
+}
+
+fn operation_audit_context() -> OperationAuditContext {
+    let context = OperationAuditContext::new(
+        OperationAuditSeed {
+            id: "019f5f96-f723-72a0-81dd-2502fbba6658".into(),
+            occurred_at: time::OffsetDateTime::UNIX_EPOCH,
+            title_key: "audit.module.notice".into(),
+            business_type: BusinessType::Insert,
+            handler: "system::create_notice".into(),
+            request_method: "POST".into(),
+            operator_type: OperatorType::Manage,
+            operation_url: "/system/notices".into(),
+            operation_ip: "198.51.100.10".into(),
+            request_id: "request-1".into(),
+        },
+        Arc::new(EmptyRequestSnapshot),
+    );
+    context
+        .set_actor(ActorSnapshot {
+            user_id: Some("user-1".into()),
+            username: "alice".into(),
+            department_id: None,
+            department_name: String::new(),
+        })
+        .unwrap();
+    context
 }
 
 fn current_user(admin: bool, permissions: &[&str]) -> CurrentUser {
@@ -95,7 +156,6 @@ fn current_user(admin: bool, permissions: &[&str]) -> CurrentUser {
         permissions: permissions.iter().map(|permission| (*permission).into()).collect(),
         dept_id: None,
         admin,
-        system: false,
     }
 }
 

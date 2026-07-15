@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use constants::system::STATUS_NORMAL;
-use kernel::{error::LocalizedError, pagination::Page};
+use kernel::{error::LocalizedError, pagination::CursorPage};
 use pulldown_cmark::{Event, Parser, Tag};
 
-use crate::application::{SystemError, SystemResult};
+use crate::application::{SystemError, SystemResult, validate_cursor_request};
 
 use super::domain::{
     NOTICE_STATUS_CLOSED, NOTICE_TOP_LIMIT, NOTICE_TYPE_ANNOUNCEMENT, NOTICE_TYPE_NOTICE, Notice, NoticeInput, NoticeListFilter, NoticeReader,
@@ -15,11 +15,11 @@ const REMARK_MAX_LENGTH: usize = 500;
 const INVALID_NOTICE_KEY: &str = "errors.system.notice_invalid";
 const INVALID_REMARK_KEY: &str = "errors.system.notice_invalid_remark";
 const INVALID_MARKDOWN_KEY: &str = "errors.system.notice_invalid_markdown";
-const EMPTY_IDS_KEY: &str = "errors.system.ids_required";
+pub(super) const EMPTY_IDS_KEY: &str = "errors.system.ids_required";
 
 #[async_trait]
 pub trait NoticeUseCase: Send + Sync + 'static {
-    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<Page<NoticeSummary>>;
+    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<CursorPage<NoticeSummary>>;
     async fn get_notice(&self, id: &str, can_view_closed: bool) -> SystemResult<Notice>;
     async fn create_notice(&self, input: NoticeInput, operator: String) -> SystemResult<Notice>;
     async fn replace_notice(&self, id: &str, input: NoticeInput, operator: String) -> SystemResult<Notice>;
@@ -28,12 +28,12 @@ pub trait NoticeUseCase: Send + Sync + 'static {
     async fn top_notices(&self, user_id: &str) -> SystemResult<NoticeTopResponse>;
     async fn mark_read(&self, notice_id: &str, user_id: &str) -> SystemResult<()>;
     async fn mark_all_read(&self, user_id: &str) -> SystemResult<()>;
-    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<Page<NoticeReader>>;
+    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<CursorPage<NoticeReader>>;
 }
 
 #[async_trait]
 pub trait NoticeRepository: Send + Sync + 'static {
-    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<Page<NoticeSummary>>;
+    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<CursorPage<NoticeSummary>>;
     async fn find_notice(&self, id: &str) -> SystemResult<Option<Notice>>;
     async fn create_notice(&self, input: NoticeInput, operator: &str) -> SystemResult<Notice>;
     async fn replace_notice(&self, id: &str, input: NoticeInput, operator: &str) -> SystemResult<Notice>;
@@ -42,11 +42,11 @@ pub trait NoticeRepository: Send + Sync + 'static {
     async fn top_notices(&self, user_id: &str, limit: u64) -> SystemResult<NoticeTopResponse>;
     async fn mark_read(&self, notice_id: &str, user_id: &str) -> SystemResult<()>;
     async fn mark_all_read(&self, user_id: &str) -> SystemResult<()>;
-    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<Page<NoticeReader>>;
+    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<CursorPage<NoticeReader>>;
 }
 
 pub struct NoticeService<R> {
-    repository: R,
+    pub(super) repository: R,
 }
 
 impl<R: NoticeRepository> NoticeService<R> {
@@ -57,7 +57,7 @@ impl<R: NoticeRepository> NoticeService<R> {
 
 #[async_trait]
 impl<R: NoticeRepository> NoticeUseCase for NoticeService<R> {
-    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<Page<NoticeSummary>> {
+    async fn page_notices(&self, filter: NoticeListFilter) -> SystemResult<CursorPage<NoticeSummary>> {
         let filter = sanitize_list_filter(filter)?;
         self.repository.page_notices(filter).await
     }
@@ -108,21 +108,14 @@ impl<R: NoticeRepository> NoticeUseCase for NoticeService<R> {
         self.repository.mark_all_read(user_id).await
     }
 
-    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<Page<NoticeReader>> {
+    async fn page_readers(&self, notice_id: &str, filter: NoticeReaderFilter) -> SystemResult<CursorPage<NoticeReader>> {
         let filter = sanitize_reader_filter(filter)?;
         self.repository.find_notice(notice_id).await?.ok_or(SystemError::NotFound)?;
         self.repository.page_readers(notice_id, filter).await
     }
 }
 
-fn validate_page(page: u64, page_size: u64) -> SystemResult<()> {
-    if page == 0 || page_size == 0 {
-        return Err(SystemError::InvalidInput(LocalizedError::new("errors.validation.page_and_size_positive")));
-    }
-    Ok(())
-}
-
-fn validate_input(input: NoticeInput) -> SystemResult<NoticeInput> {
+pub(super) fn validate_input(input: NoticeInput) -> SystemResult<NoticeInput> {
     let title = input.notice_title.trim().to_owned();
     if title.is_empty() || title.chars().count() > TITLE_MAX_LENGTH {
         return Err(SystemError::InvalidInput(LocalizedError::new(INVALID_NOTICE_KEY)));
@@ -146,7 +139,7 @@ fn validate_input(input: NoticeInput) -> SystemResult<NoticeInput> {
 }
 
 fn sanitize_list_filter(filter: NoticeListFilter) -> SystemResult<NoticeListFilter> {
-    validate_page(filter.page.page, filter.page.page_size)?;
+    validate_cursor_request(&filter.page)?;
     let notice_type = trim_optional(filter.notice_type);
     if notice_type
         .as_deref()
@@ -163,7 +156,7 @@ fn sanitize_list_filter(filter: NoticeListFilter) -> SystemResult<NoticeListFilt
 }
 
 fn sanitize_reader_filter(filter: NoticeReaderFilter) -> SystemResult<NoticeReaderFilter> {
-    validate_page(filter.page.page, filter.page.page_size)?;
+    validate_cursor_request(&filter.page)?;
     Ok(NoticeReaderFilter {
         page: filter.page,
         search_value: trim_optional(filter.search_value),
@@ -204,7 +197,7 @@ fn url_scheme(url: &str) -> Option<&str> {
         .then_some(candidate)
 }
 
-fn clean_ids(ids: Vec<String>) -> Vec<String> {
+pub(super) fn clean_ids(ids: Vec<String>) -> Vec<String> {
     let mut cleaned = ids.into_iter().map(|id| id.trim().to_owned()).filter(|id| !id.is_empty()).collect::<Vec<_>>();
     cleaned.sort_unstable();
     cleaned.dedup();

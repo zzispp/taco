@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
-use kernel::pagination::PageRequest;
+use kernel::pagination::CursorPageRequest;
 
 use crate::{
     application::{ImportJobCommand, ReplaceJobCommand, SchedulerError, SchedulerResult, UpdateJobStatusCommand},
     domain::{ConcurrentPolicy, ExecutionOutcome, JobListFilter, JobLogListFilter, JobStatus, MisfirePolicy, TriggerType},
 };
 
-use super::dto::{ImportJobRequest, JobListQuery, JobLogListQuery, ReplaceJobRequest, UpdateJobStatusRequest};
+use super::dto::{ImportJobRequest, JobExportQuery, JobListQuery, JobLogExportQuery, JobLogListQuery, ReplaceJobRequest, UpdateJobStatusRequest};
 
 pub fn job_filter(query: &JobListQuery) -> SchedulerResult<JobListFilter> {
     let begin_time = parse_time(query.begin_time.as_deref(), "begin_time")?;
@@ -18,6 +18,18 @@ pub fn job_filter(query: &JobListQuery) -> SchedulerResult<JobListFilter> {
         status: parse_optional_code(query.status.as_deref(), JobStatus::parse, "errors.scheduler.invalid_status")?,
         begin_time,
         end_time,
+    })
+}
+
+pub fn job_export_filter(query: JobExportQuery) -> SchedulerResult<JobListFilter> {
+    job_filter(&JobListQuery {
+        limit: kernel::pagination::DEFAULT_CURSOR_LIMIT,
+        cursor: None,
+        job_name: query.job_name,
+        job_group: query.job_group,
+        status: query.status,
+        begin_time: query.begin_time,
+        end_time: query.end_time,
     })
 }
 
@@ -35,8 +47,21 @@ pub fn log_filter(query: &JobLogListQuery) -> SchedulerResult<JobLogListFilter> 
     })
 }
 
-pub fn page_request(page: u64, page_size: u64) -> PageRequest {
-    PageRequest { page, page_size }
+pub fn log_export_filter(query: JobLogExportQuery) -> SchedulerResult<JobLogListFilter> {
+    log_filter(&JobLogListQuery {
+        limit: kernel::pagination::DEFAULT_CURSOR_LIMIT,
+        cursor: None,
+        job_name: query.job_name,
+        job_group: query.job_group,
+        status: query.status,
+        trigger_type: query.trigger_type,
+        begin_time: query.begin_time,
+        end_time: query.end_time,
+    })
+}
+
+pub fn page_request(limit: u64, cursor: Option<String>) -> CursorPageRequest {
+    CursorPageRequest { limit, cursor }
 }
 
 pub fn import_command(request: ImportJobRequest, operator: String) -> SchedulerResult<ImportJobCommand> {
@@ -130,7 +155,7 @@ mod tests {
     };
 
     use super::{job_filter, log_filter};
-    use crate::api::dto::{JobListQuery, JobLogListQuery};
+    use crate::api::dto::{JobExportQuery, JobListQuery, JobLogExportQuery, JobLogListQuery};
 
     #[test]
     fn job_filter_parses_rfc3339_at_the_api_boundary() {
@@ -184,10 +209,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn deleted_page_number_parameters_are_rejected() {
+        assert!(serde_json::from_value::<JobListQuery>(serde_json::json!({"page": 1})).is_err());
+        assert!(serde_json::from_value::<JobLogListQuery>(serde_json::json!({"page_size": 20})).is_err());
+    }
+
+    #[test]
+    fn cursor_limits_default_to_twenty() {
+        let jobs = serde_json::from_value::<JobListQuery>(serde_json::json!({})).unwrap();
+        let logs = serde_json::from_value::<JobLogListQuery>(serde_json::json!({})).unwrap();
+
+        assert_eq!(jobs.limit, kernel::pagination::DEFAULT_CURSOR_LIMIT);
+        assert_eq!(logs.limit, kernel::pagination::DEFAULT_CURSOR_LIMIT);
+    }
+
+    #[test]
+    fn export_queries_reject_cursor_controls() {
+        assert!(serde_json::from_value::<JobExportQuery>(serde_json::json!({"cursor": "opaque"})).is_err());
+        assert!(serde_json::from_value::<JobExportQuery>(serde_json::json!({"limit": 20})).is_err());
+        assert!(serde_json::from_value::<JobLogExportQuery>(serde_json::json!({"cursor": "opaque"})).is_err());
+        assert!(serde_json::from_value::<JobLogExportQuery>(serde_json::json!({"limit": 20})).is_err());
+    }
+
     fn job_query(begin_time: Option<&str>, end_time: Option<&str>) -> JobListQuery {
         JobListQuery {
-            page: 1,
-            page_size: 20,
+            limit: 20,
+            cursor: None,
             job_name: None,
             job_group: None,
             status: None,
@@ -198,8 +246,8 @@ mod tests {
 
     fn log_query() -> JobLogListQuery {
         JobLogListQuery {
-            page: 1,
-            page_size: 20,
+            limit: 20,
+            cursor: None,
             job_name: None,
             job_group: None,
             status: None,

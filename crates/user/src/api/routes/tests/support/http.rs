@@ -6,7 +6,10 @@ use axum::{
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-use super::{SessionTokens, VALID_PASSWORD};
+use super::{SessionTokens, TEST_PUBLIC_IP, VALID_PASSWORD};
+
+const TEST_REQUEST_ID: &str = "019f5a5c-0823-7c22-acf1-add778ee83bf";
+const TEST_ORIGIN: &str = "http://localhost:8082";
 
 pub(crate) struct LocalizedJsonRequest<'a> {
     pub(crate) method: Method,
@@ -27,12 +30,31 @@ pub(crate) async fn sign_in(app: Router) -> SessionTokens {
         ))
         .await
         .unwrap();
+    let refresh_token = response
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(refresh_token_from_set_cookie)
+        .unwrap()
+        .to_owned();
     let body = response_json(response).await;
 
     SessionTokens {
         access_token: body["access_token"].as_str().unwrap().into(),
-        refresh_token: body["refresh_token"].as_str().unwrap().into(),
+        refresh_token,
     }
+}
+
+pub(crate) fn refresh_cookie_request(method: Method, uri: &str, refresh_token: &str) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::COOKIE, format!("refresh_token={refresh_token}"))
+        .header(header::ORIGIN, TEST_ORIGIN)
+        .header("x-forwarded-for", TEST_PUBLIC_IP)
+        .header("x-request-id", TEST_REQUEST_ID)
+        .body(Body::empty())
+        .unwrap()
 }
 
 pub(crate) fn json_request(method: Method, uri: &str, body: Value) -> Request<Body> {
@@ -40,6 +62,8 @@ pub(crate) fn json_request(method: Method, uri: &str, body: Value) -> Request<Bo
         .method(method)
         .uri(uri)
         .header(header::CONTENT_TYPE, "application/json")
+        .header("x-forwarded-for", TEST_PUBLIC_IP)
+        .header("x-request-id", TEST_REQUEST_ID)
         .body(Body::from(body.to_string()))
         .unwrap()
 }
@@ -50,6 +74,8 @@ pub(crate) fn json_request_with_accept_language(input: LocalizedJsonRequest<'_>)
         .uri(input.uri)
         .header(header::CONTENT_TYPE, "application/json")
         .header(header::ACCEPT_LANGUAGE, input.accept_language)
+        .header("x-forwarded-for", TEST_PUBLIC_IP)
+        .header("x-request-id", TEST_REQUEST_ID)
         .body(Body::from(input.body.to_string()))
         .unwrap()
 }
@@ -59,6 +85,8 @@ pub(crate) fn authenticated_request(method: Method, uri: &str, token: &str) -> R
         .method(method)
         .uri(uri)
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .header("x-forwarded-for", TEST_PUBLIC_IP)
+        .header("x-request-id", TEST_REQUEST_ID)
         .body(Body::empty())
         .unwrap()
 }
@@ -75,4 +103,8 @@ pub(crate) async fn json_body(response: Response<Body>) -> Value {
 
 pub(crate) fn assert_non_empty_string(value: &Value) {
     assert!(!value.as_str().unwrap().is_empty());
+}
+
+fn refresh_token_from_set_cookie(value: &str) -> Option<&str> {
+    value.split(';').next()?.strip_prefix("refresh_token=")
 }

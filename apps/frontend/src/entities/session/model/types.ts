@@ -13,7 +13,6 @@ export type SessionUser = {
   is_active: boolean;
   auth_source: string;
   email_verified: boolean;
-  system: boolean;
   remark: string | null;
   roles: RoleSummary[];
   role_ids: string[];

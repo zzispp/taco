@@ -1,0 +1,42 @@
+{
+  "notice": {
+    "notifications": "Notifications",
+    "unread": "Unread",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No notifications",
+    "viewAll": "View all",
+    "detailTitle": "Notice details",
+    "viewDetail": "View details",
+    "emptyContent": "No content",
+    "createTitle": "Add notice",
+    "editTitle": "Edit notice",
+    "readers": "Readers",
+    "readersTitle": "Readers: {{name}}",
+    "readerSearch": "Login name or nickname",
+    "readTime": "Read time",
+    "batchDeleteContent": "Delete the selected {{count}} notices?",
+    "fields": {
+      "title": "Title",
+      "type": "Type",
+      "content": "Content",
+      "createBy": "Created by"
+    },
+    "types": {
+      "notice": "Notice",
+      "announcement": "Announcement"
+    },
+    "status": {
+      "normal": "Normal",
+      "closed": "Closed"
+    },
+    "editor": {
+      "edit": "Edit Markdown",
+      "preview": "Preview",
+      "emptyPreview": "Nothing to preview"
+    },
+    "validation": {
+      "required": "Enter a title",
+      "tooLong": "Title must not exceed {{max}} characters"
+    }
+  }
+}

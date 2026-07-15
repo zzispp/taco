@@ -4,9 +4,9 @@ import type { SchedulerJobLog, SchedulerJobLogQuery } from 'src/entities/schedul
 
 import { useState, useCallback } from 'react';
 
-import { useTable } from 'src/shared/ui/table';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 
 import { useHasPermission } from 'src/entities/session';
 import {
@@ -18,6 +18,10 @@ import {
 import { copyTextWithFeedback } from './clipboard';
 import { useMutationRunner } from './use-mutation-runner';
 import { deleteJobLog, clearJobLogs, deleteJobLogs, exportJobLogs } from '../api';
+import {
+  requireSchedulerJobLogDeleteTarget,
+  requireUsableSchedulerJobLogFilters,
+} from './mutation-preconditions';
 import {
   JOB_LOG_FILTER_ERROR,
   DEFAULT_JOB_LOG_QUERY,
@@ -48,7 +52,7 @@ export function useJobLogController() {
 export type JobLogController = ReturnType<typeof useJobLogController>;
 
 function useJobLogState() {
-  const table = useTable({ defaultRowsPerPage: 10 });
+  const table = useTable({ defaultLimit: DEFAULT_TABLE_LIMIT });
   const [filterDraft, setFilterDraft] = useState(DEFAULT_JOB_LOG_FILTER_DRAFT);
   const [query, setQuery] = useState<SchedulerJobLogQuery>(DEFAULT_JOB_LOG_QUERY);
   const [filterError, setFilterError] = useState<keyof typeof FILTER_ERROR_KEYS | null>(null);
@@ -81,7 +85,7 @@ function useJobLogResources(state: ReturnType<typeof useJobLogState>) {
   const canExport = useHasPermission(SCHEDULER_PERMISSION.JOB_LOG_EXPORT);
   const canQuery = useHasPermission(SCHEDULER_PERMISSION.JOB_LOG_QUERY);
   const canDetail = useHasPermission(SCHEDULER_PERMISSION.JOB_LOG_DETAIL);
-  const logs = useSchedulerJobLogs(state.table.page, state.table.rowsPerPage, state.query);
+  const logs = useSchedulerJobLogs(state.table.cursorRequest, state.query);
   const detail = useSchedulerJobLogDetail({
     executionId: state.detailTarget?.execution_id ?? null,
     canQuery,
@@ -133,13 +137,15 @@ function useJobLogViewActions(state: LogActionOptions['state']) {
 
 function useJobLogDeleteActions(options: LogActionOptions) {
   const confirmDelete = useCallback(() => {
-    const log = options.state.deleteTarget;
-    if (!log) return Promise.resolve();
+    const log = requireSchedulerJobLogDeleteTarget(options.state.deleteTarget);
     return options.mutation.run({
       key: `delete:${log.execution_id}`,
       failureMessage: options.resources.t('mutation.deleteFailed'),
       action: () => deleteJobLog(log.execution_id),
-      onSuccess: () => options.state.setDeleteTarget(null),
+      onSuccess: () => {
+        options.state.table.onResetCursor();
+        options.state.setDeleteTarget(null);
+      },
     });
   }, [options]);
   const confirmBatchDelete = useCallback(
@@ -149,7 +155,7 @@ function useJobLogDeleteActions(options: LogActionOptions) {
         failureMessage: options.resources.t('mutation.deleteFailed'),
         action: () => deleteJobLogs(options.state.table.selected),
         onSuccess: () => {
-          options.state.table.setSelected([]);
+          options.state.table.onResetCursor();
           options.state.setBatchOpen(false);
         },
       }),
@@ -165,17 +171,15 @@ function useJobLogMaintenanceActions(options: LogActionOptions) {
         key: 'delete:clean',
         failureMessage: options.resources.t('mutation.deleteFailed'),
         action: clearJobLogs,
-        onSuccess: () => options.state.setCleanOpen(false),
+        onSuccess: () => {
+          options.state.table.onResetCursor();
+          options.state.setCleanOpen(false);
+        },
       }),
     [options]
   );
   const submitExport = useCallback(() => {
-    if (!options.resources.filtersValid) {
-      toast.error(
-        options.resources.filterErrorMessage ?? options.resources.t('filters.invalidDateTime')
-      );
-      return Promise.resolve();
-    }
+    requireUsableSchedulerJobLogFilters(options.resources.filtersValid);
     return options.mutation.run({
       key: 'export',
       failureMessage: options.resources.t('mutation.exportFailed'),
@@ -193,8 +197,7 @@ function useJobLogFilterAction(state: ReturnType<typeof useJobLogState>) {
       state.setFilterError(next.error);
       state.setQuery(next.query);
       if (next.resetTable) {
-        state.table.setPage(0);
-        state.table.setSelected([]);
+        state.table.onResetCursor();
       }
     },
     [state]

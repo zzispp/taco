@@ -4,7 +4,6 @@ export { default as SeoIllustration } from './seo-illustration';
 
 export { default as UploadIllustration } from './upload-illustration';
 
-
 export { default as CheckInIllustration } from './check-in-illustration';
 
 export { default as CheckoutIllustration } from './check-out-illustration';

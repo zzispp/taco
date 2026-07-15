@@ -16,20 +16,17 @@ const DEFAULT_SIZE: &str = "normal";
 
 pub struct CloudflareTurnstileProvider<V> {
     verifier: V,
+    secret_key: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TurnstilePublicConfig {
     site_key: String,
     #[serde(default)]
     theme: Option<String>,
     #[serde(default)]
     size: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-struct TurnstilePrivateConfig {
-    secret_key: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -44,8 +41,8 @@ impl<V> CloudflareTurnstileProvider<V>
 where
     V: CloudflareTurnstileVerifier,
 {
-    pub const fn new(verifier: V) -> Self {
-        Self { verifier }
+    pub fn new(verifier: V, secret_key: String) -> Self {
+        Self { verifier, secret_key }
     }
 
     fn public_response(&self, settings: &CaptchaSettings) -> CaptchaResult<TurnstilePublicResponse> {
@@ -80,10 +77,9 @@ where
         Err(CaptchaError::InvalidInput(localized("errors.captcha.redeem_unsupported")))
     }
 
-    async fn verify(&self, settings: &CaptchaSettings, token: Option<&str>) -> CaptchaResult<()> {
+    async fn verify(&self, _settings: &CaptchaSettings, token: Option<&str>) -> CaptchaResult<()> {
         let token = required_token(token)?;
-        let private = private_config(settings)?;
-        let secret = required_value("cloudflare turnstile secret_key", &private.secret_key)?;
+        let secret = required_value("cloudflare turnstile secret_key", &self.secret_key)?;
         let response = self.verifier.verify(CloudflareTurnstileVerifyRequest::new(secret, token)).await?;
         validate_response(response)
     }
@@ -91,10 +87,6 @@ where
 
 fn public_config(settings: &CaptchaSettings) -> CaptchaResult<TurnstilePublicConfig> {
     serde_json::from_value(settings.provider_config(PROVIDER_NAME)?.clone()).map_err(invalid_public_config)
-}
-
-fn private_config(settings: &CaptchaSettings) -> CaptchaResult<TurnstilePrivateConfig> {
-    serde_json::from_value(settings.provider_config(PROVIDER_NAME)?.clone()).map_err(invalid_private_config)
 }
 
 fn validate_response(response: CloudflareTurnstileVerifyResponse) -> CaptchaResult<()> {
@@ -137,11 +129,6 @@ fn invalid_public_config(error: serde_json::Error) -> CaptchaError {
     CaptchaError::InvalidInput(localized("errors.captcha.invalid_public_config"))
 }
 
-fn invalid_private_config(error: serde_json::Error) -> CaptchaError {
-    let _ = error;
-    CaptchaError::InvalidInput(localized("errors.captcha.invalid_private_config"))
-}
-
 fn to_value<T: Serialize>(value: T) -> CaptchaResult<Value> {
     serde_json::to_value(value).map_err(json_error)
 }
@@ -157,7 +144,6 @@ fn localized(key: &'static str) -> LocalizedError {
 pub fn default_config_template() -> Value {
     json!({
         "site_key": "",
-        "secret_key": "",
         "theme": DEFAULT_THEME,
         "size": DEFAULT_SIZE,
     })

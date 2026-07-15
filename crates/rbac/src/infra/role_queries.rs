@@ -1,32 +1,34 @@
-use kernel::pagination::Page;
+use kernel::pagination::CursorPage;
 use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
-use storage::{
-    Database, StorageError, StorageResult,
-    database::{to_i64, to_u64},
-};
+use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
 
 use super::{
-    mapping::{role, role_option, role_user},
-    records::{RoleDeptRecord, RoleOptionRecord, RolePermissionRecord, RoleRecord, RoleUserRecord},
+    mapping::{role, role_option},
+    records::{RoleDeptRecord, RoleOptionRecord, RolePermissionRecord, RoleRecord},
 };
 use crate::{
-    application::{RoleListFilter, RoleUserListFilter},
+    application::{RbacResult, RoleListFilter, RoleUserListFilter},
     domain::{DataScopeFilter, Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleOption, RoleUser, RoleUserBindingInput},
 };
 
+mod audited;
+mod cleanup;
+mod export;
 mod pages;
 mod relations;
 mod scoped_users;
 mod sql;
 mod support;
+mod user_pages;
 
 use self::{
+    cleanup::delete_role_relations,
     relations::{
         dept_ids, insert_dept_ids, menu_ids, normalize_data_scope_dept_ids, normalize_menu_ids, replace_dept_ids, replace_menu_ids, replace_user_ids,
         role_key_exists, role_name_exists,
     },
-    sql::{ROLE_COLUMNS, dept_query, insert_role_sql, permission_query, role_users_page_sql, role_users_total_sql, update_role_sql},
+    sql::{ROLE_COLUMNS, dept_query, insert_role_sql, permission_query, update_role_sql},
     support::{ensure_batch_rows, ensure_rows_affected},
 };
 
@@ -102,11 +104,14 @@ impl RoleQueries {
     }
 
     pub async fn delete(&self, id: &str) -> StorageResult<()> {
+        let mut tx = self.database.pool().begin().await?;
         let result = query("UPDATE sys_role SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE role_id = $1 AND del_flag = '0'")
             .bind(id)
-            .execute(self.database.pool())
+            .execute(&mut *tx)
             .await?;
-        ensure_rows_affected(result.rows_affected())
+        ensure_rows_affected(result.rows_affected())?;
+        delete_role_relations(&mut tx, &[id.to_owned()]).await?;
+        tx.commit().await.map_err(StorageError::from)
     }
 
     pub async fn delete_many(&self, ids: &[String]) -> StorageResult<()> {
@@ -116,6 +121,7 @@ impl RoleQueries {
             .execute(&mut *tx)
             .await?;
         ensure_batch_rows(result.rows_affected(), ids.len())?;
+        delete_role_relations(&mut tx, ids).await?;
         tx.commit().await.map_err(StorageError::from)
     }
 
@@ -126,8 +132,9 @@ impl RoleQueries {
         .bind(id)
         .fetch_optional(self.database.pool())
         .await
-        .map(|record| record.map(role))
-        .map_err(StorageError::from)
+        .map_err(StorageError::from)?
+        .map(role)
+        .transpose()
     }
 
     pub async fn role_name_exists(&self, name: &str, current_id: Option<&str>) -> StorageResult<bool> {
@@ -139,60 +146,31 @@ impl RoleQueries {
     }
 
     pub async fn has_users(&self, id: &str) -> StorageResult<bool> {
-        query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sys_user_role WHERE role_id = $1)")
+        query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sys_user_role ur JOIN sys_user u ON u.user_id=ur.user_id WHERE ur.role_id=$1 AND u.del_flag='0')")
             .bind(id)
             .fetch_one(self.database.pool())
             .await
             .map_err(StorageError::from)
     }
 
-    pub async fn page(&self, filter: RoleListFilter) -> StorageResult<Page<Role>> {
+    pub async fn page(&self, filter: RoleListFilter) -> RbacResult<CursorPage<Role>> {
         pages::page(&self.database, filter).await
     }
 
-    pub async fn page_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> StorageResult<Page<Role>> {
+    pub async fn page_scoped(&self, filter: RoleListFilter, scope: DataScopeFilter) -> RbacResult<CursorPage<Role>> {
         pages::page_scoped(&self.database, filter, scope).await
     }
 
     pub async fn options(&self) -> StorageResult<Vec<RoleOption>> {
-        query_as::<_, RoleOptionRecord>("SELECT role_id,role_name,role_key,status FROM sys_role WHERE del_flag='0' ORDER BY role_sort ASC")
+        query_as::<_, RoleOptionRecord>("SELECT role_id,role_name,role_key,status FROM sys_role WHERE del_flag='0' ORDER BY role_sort ASC, role_id ASC")
             .fetch_all(self.database.pool())
             .await
             .map(|rows| rows.into_iter().map(role_option).collect())
             .map_err(StorageError::from)
     }
 
-    pub async fn page_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> StorageResult<Page<RoleUser>> {
-        let total = query_scalar::<_, i64>(AssertSqlSafe(role_users_total_sql(scope.is_some())))
-            .bind(&filter.role_id)
-            .bind(&filter.username)
-            .bind(&filter.phonenumber)
-            .bind(filter.allocated)
-            .bind(scope.as_ref().map(|s| s.data_scope.as_str()))
-            .bind(scope.as_ref().map(|s| s.user_id.as_str()))
-            .bind(scope.as_ref().and_then(|s| s.dept_id.as_deref()))
-            .bind(scope.as_ref().map(|s| s.dept_ids.as_slice()).unwrap_or(&[]))
-            .fetch_one(self.database.pool())
-            .await?;
-        let items = query_as::<_, RoleUserRecord>(AssertSqlSafe(role_users_page_sql(scope.is_some())))
-            .bind(&filter.role_id)
-            .bind(&filter.username)
-            .bind(&filter.phonenumber)
-            .bind(filter.allocated)
-            .bind(scope.as_ref().map(|s| s.data_scope.as_str()))
-            .bind(scope.as_ref().map(|s| s.user_id.as_str()))
-            .bind(scope.as_ref().and_then(|s| s.dept_id.as_deref()))
-            .bind(scope.as_ref().map(|s| s.dept_ids.as_slice()).unwrap_or(&[]))
-            .bind(to_i64(filter.page.page_size)?)
-            .bind(to_i64((filter.page.page - 1) * filter.page.page_size)?)
-            .fetch_all(self.database.pool())
-            .await?;
-        Ok(Page {
-            items: items.into_iter().map(role_user).collect(),
-            total: to_u64(total)?,
-            page: filter.page.page,
-            page_size: filter.page.page_size,
-        })
+    pub async fn page_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<CursorPage<RoleUser>> {
+        user_pages::page(&self.database, filter, scope).await
     }
 
     pub async fn replace_menus(&self, role_id: &str, input: RoleMenuBindingInput) -> StorageResult<()> {

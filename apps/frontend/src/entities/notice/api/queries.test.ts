@@ -2,10 +2,10 @@ import type { NoticeReader } from '../model/types';
 
 import { it, expect, describe } from 'vitest';
 
-import { pageKey } from 'src/shared/api/pagination';
+import { cursorKey } from 'src/shared/api/pagination';
 
 import { noticeEndpoints } from './endpoints';
-import { noticeKey, noticeReaderPagedOptions, visibleNoticeReaderResource } from './queries';
+import { noticeKey, noticeReaderCursorOptions, visibleNoticeReaderResource } from './queries';
 
 describe('notice detail query key', () => {
   it.each([
@@ -19,19 +19,23 @@ describe('notice detail query key', () => {
     expect(noticeKey('notice-1', true)).toBe(noticeEndpoints.notice('notice-1'));
   });
 
-  it('converts the zero-based table page and notice filters to API query parameters', () => {
+  it('passes an opaque cursor and notice filters without offset parameters', () => {
     expect(
-      pageKey(noticeEndpoints.notices, 1, 20, {
-        notice_title: 'Release',
-        create_by: 'admin',
-        notice_type: '2',
-      })
+      cursorKey(
+        noticeEndpoints.notices,
+        { limit: 20, cursor: 'next-notice' },
+        {
+          notice_title: 'Release',
+          create_by: 'admin',
+          notice_type: '2',
+        }
+      )
     ).toEqual([
       noticeEndpoints.notices,
       {
         params: {
-          page: 2,
-          page_size: 20,
+          limit: 20,
+          cursor: 'next-notice',
           notice_title: 'Release',
           create_by: 'admin',
           notice_type: '2',
@@ -53,45 +57,51 @@ describe('notice reader resource', () => {
 
   it('removes previous reader data after the current request fails', () => {
     const error = new Error('request failed');
-    const resource = readerResource({ items: [reader], total: 1, error });
+    const resource = readerResource({ items: [reader], count: 1, error });
 
     expect(visibleNoticeReaderResource(resource, true)).toEqual({
       ...resource,
       data: undefined,
       items: [],
-      total: 0,
+      itemCount: 0,
+      nextCursor: null,
+      previousCursor: null,
+      hasNext: false,
+      hasPrevious: false,
     });
   });
 
   it('disables previous data for reader requests', () => {
     expect(
-      noticeReaderPagedOptions({
+      noticeReaderCursorOptions({
         noticeId: 'notice-1',
-        page: 1,
-        pageSize: 10,
+        request: { limit: 20, cursor: 'reader-next' },
         params: { search_value: 'admin' },
         enabled: true,
       })
     ).toEqual({
       endpoint: noticeEndpoints.readers('notice-1'),
-      page: 1,
-      pageSize: 10,
+      request: { limit: 20, cursor: 'reader-next' },
       params: { search_value: 'admin' },
       keepPreviousData: false,
     });
   });
 
   it('removes reader data while the reader query is disabled', () => {
-    const resource = readerResource({ items: [reader], total: 1 });
+    const resource = readerResource({ items: [reader], count: 1 });
     expect(visibleNoticeReaderResource(resource, false).items).toEqual([]);
   });
 });
 
-function readerResource(options: { items: NoticeReader[]; total: number; error?: unknown }) {
+function readerResource(options: { items: NoticeReader[]; count: number; error?: unknown }) {
   return {
     data: undefined,
     items: options.items,
-    total: options.total,
+    itemCount: options.count,
+    nextCursor: null,
+    previousCursor: null,
+    hasNext: false,
+    hasPrevious: false,
     isLoading: false,
     error: options.error,
     isValidating: false,
