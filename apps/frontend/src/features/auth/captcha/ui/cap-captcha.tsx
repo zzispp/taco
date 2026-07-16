@@ -14,6 +14,7 @@ import { useTheme } from '@mui/material/styles';
 import { CONFIG } from 'src/shared/config';
 
 import { captchaEndpoints } from '../api/endpoints';
+import { CAP_RUNTIME_ASSETS } from '../lib/runtime-assets';
 
 type CapElement = HTMLElement & {
   reset?: () => void;
@@ -66,7 +67,7 @@ export function CapCaptcha({ resetKey, onTokenChange, labels }: CapCaptchaProps)
 
   return (
     <Box sx={{ width: 1 }}>
-      <Script src="/assets/js/cap.min.js" strategy="afterInteractive" />
+      <Script src={CAP_RUNTIME_ASSETS.widgetScriptUrl} strategy="afterInteractive" />
       {createElement('cap-widget', {
         ref: widgetRef,
         required: true,

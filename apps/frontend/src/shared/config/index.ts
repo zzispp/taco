@@ -1,6 +1,7 @@
 import { paths } from 'src/shared/routes/paths';
 
 import packageJson from '../../../package.json';
+import { DEFAULT_SERVER_URL } from './server-url';
 
 // ----------------------------------------------------------------------
 
@@ -17,8 +18,6 @@ export type ConfigValue = {
 };
 
 // ----------------------------------------------------------------------
-
-const DEFAULT_SERVER_URL = 'http://127.0.0.1:3000';
 
 export const CONFIG: ConfigValue = {
   appName: 'taco',

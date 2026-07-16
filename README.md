@@ -237,7 +237,7 @@ cargo run -p backend -- --config config/config.local.yaml
 
 Backend default address:
 
-- `http://127.0.0.1:3000`
+- `http://localhost:3000`
 
 ### 7. Start the frontend
 
@@ -247,9 +247,9 @@ pnpm dev:frontend
 
 Frontend default address:
 
-- `http://127.0.0.1:8082`
+- `http://localhost:8082`
 
-By default, the frontend calls the backend at `http://127.0.0.1:3000`. Override it with `NEXT_PUBLIC_SERVER_URL` when needed.
+By default, the frontend calls the backend at `http://localhost:3000`. Local browser traffic must use `localhost` for both applications so the strict refresh cookie remains same-site. Requests to the frontend through `127.0.0.1:8082` redirect to the canonical localhost origin. Override the backend URL with `NEXT_PUBLIC_SERVER_URL` only when the configured frontend and backend origins remain same-site.
 
 ## Useful Commands
 

@@ -1,5 +1,7 @@
 import type { NextConfig } from 'next';
 
+import { DEFAULT_SERVER_URL } from './src/shared/config/server-url';
+
 // ----------------------------------------------------------------------
 
 /**
@@ -14,8 +16,10 @@ import type { NextConfig } from 'next';
  * NOTE: Remove all "generateStaticParams()" functions if not using static exports.
  */
 const isStaticExport = false;
-const DEFAULT_BACKEND_URL = 'http://127.0.0.1:3000';
+const LOCAL_FRONTEND_ORIGIN = 'http://localhost:8082';
+const LOOPBACK_HOST_PATTERN = '127\\.0\\.0\\.1';
 const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+const WASM_EVAL_SOURCE = "'wasm-unsafe-eval'";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -29,7 +33,7 @@ const contentSecurityPolicy = [
   "manifest-src 'self'",
   "media-src 'self' blob:",
   "object-src 'none'",
-  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${TURNSTILE_ORIGIN}`,
+  `script-src 'self' 'unsafe-inline' ${WASM_EVAL_SOURCE}${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${TURNSTILE_ORIGIN}`,
   "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
 ].join('; ');
@@ -53,6 +57,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: NEXT_SECURITY_HEADERS }];
   },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: LOOPBACK_HOST_PATTERN }],
+        destination: `${LOCAL_FRONTEND_ORIGIN}/:path*`,
+        permanent: false,
+      },
+    ];
+  },
   // Without --turbopack (next dev)
   webpack(config) {
     config.module.rules.push({
@@ -74,7 +88,7 @@ const nextConfig: NextConfig = {
 };
 
 function backendOrigin() {
-  return new URL(process.env.NEXT_PUBLIC_SERVER_URL ?? DEFAULT_BACKEND_URL).origin;
+  return new URL(process.env.NEXT_PUBLIC_SERVER_URL ?? DEFAULT_SERVER_URL).origin;
 }
 
 export default nextConfig;
