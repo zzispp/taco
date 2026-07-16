@@ -110,7 +110,7 @@ async fn authorized_handler_timeout_is_written_to_the_operation_outbox() {
 async fn metrics_cover_success_and_timeout_responses() {
     let mut settings = super::test_settings();
     settings.http.request_timeout_ms = TEST_TIMEOUT_MS;
-    let metrics = hook_tracing::init_metrics(hook_tracing::MetricsConfig { enabled: true }).unwrap();
+    let metrics = taco_tracing::init_metrics(taco_tracing::MetricsConfig { enabled: true }).unwrap();
     let routes = Router::new().route(SUCCESS_PATH, post(ok_handler)).route(TIMEOUT_PATH, post(slow_handler));
     let app = apply_runtime_layers(
         routes,

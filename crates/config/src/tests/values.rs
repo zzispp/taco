@@ -2,18 +2,20 @@ use super::*;
 
 mod captcha;
 mod connections;
+mod interpolation;
 mod jwt;
 mod loading;
 mod runtime;
 
 const CONFIG_EXAMPLE: &str = include_str!("../../../../config/config.example.yaml");
-const MINIMAL_CONFIG_WITHOUT_AUTO_MIGRATE: &str = r#"
+const MINIMAL_CONFIG: &str = r#"
 server:
   host: "127.0.0.1"
   port: 3000
 database:
-  url:
+  auto_migrate: false
   scheme: "postgres"
+  ssl_mode: "disable"
   host: "localhost"
   port: 5435
   username: "postgres"
@@ -28,7 +30,6 @@ auth:
   whitelist: []
   refresh_cookie:
     secure: true
-    domain:
     path: "/api/auth"
 user:
   online_sessions:
@@ -65,7 +66,6 @@ scheduler:
   runtime:
     reconcile_interval_ms: 1000
 redis:
-  url: "redis://default:@localhost:6381?protocol=resp3"
   scheme: "redis"
   host: "localhost"
   port: 6381
@@ -73,17 +73,19 @@ redis:
   password: ""
   database:
   protocol: "resp3"
-  key_prefix: "hook"
+  key_prefix: "taco"
+uploads:
+  avatar_directory: "storage/uploads/avatars"
 tracing:
   log_level: "info"
   file:
     enabled: false
     directory: "logs"
-    prefix: "hook.log"
+    prefix: "taco.log"
 "#;
 
-fn minimal_config_without_auto_migrate() -> String {
-    MINIMAL_CONFIG_WITHOUT_AUTO_MIGRATE.into()
+fn minimal_config() -> String {
+    MINIMAL_CONFIG.into()
 }
 
 fn scheduler_yaml() -> &'static str {
@@ -106,9 +108,15 @@ fn user_yaml() -> &'static str {
     "user:\n  online_sessions:\n    cleanup_interval_ms: 60000\n    cleanup_batch_size: 1000\n"
 }
 
-fn deserialize_settings(value: &str) -> Result<Settings, config_rs::ConfigError> {
-    config_rs::Config::builder()
-        .add_source(config_rs::File::from_str(value, config_rs::FileFormat::Yaml))
-        .build()?
-        .try_deserialize()
+#[derive(Default)]
+struct EmptyEnvironment;
+
+impl EnvironmentReader for EmptyEnvironment {
+    fn read(&self, _: &str) -> Result<Option<String>, EnvironmentReadError> {
+        Ok(None)
+    }
+}
+
+fn deserialize_settings(value: &str) -> Result<Settings, SettingsError> {
+    crate::loader::deserialize_settings_with_environment(value, &EmptyEnvironment)
 }

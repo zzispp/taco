@@ -71,6 +71,6 @@ where
 }
 
 fn invalid_config(error: serde_json::Error) -> CaptchaError {
-    hook_tracing::error_with_fields!("invalid captcha config document", &error, key = constants::system_config::CAPTCHA_CONFIG_KEY);
+    taco_tracing::error_with_fields!("invalid captcha config document", &error, key = constants::system_config::CAPTCHA_CONFIG_KEY);
     super::invalid_captcha_config_json()
 }

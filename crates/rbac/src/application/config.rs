@@ -5,7 +5,7 @@ use super::{RbacError, RbacResult};
 
 pub fn parse_export_batch_config(value: &str) -> RbacResult<ExportBatchConfig> {
     kernel::runtime_config::parse_export_batch_config(value).map_err(|error| {
-        hook_tracing::error_with_fields!("invalid RBAC export runtime config", &error, key = EXPORT_BATCH_CONFIG_KEY);
+        taco_tracing::error_with_fields!("invalid RBAC export runtime config", &error, key = EXPORT_BATCH_CONFIG_KEY);
         RbacError::InvalidInput(kernel::error::LocalizedError::new("errors.rbac.invalid_export_batch_config"))
     })
 }

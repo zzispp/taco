@@ -20,14 +20,16 @@ fn settings_validation_rejects_blank_jwt_secrets() {
 
 #[test]
 fn settings_validation_rejects_known_insecure_jwt_secret() {
-    let settings = settings_with_jwt(JwtSettings {
-        secret: ["hook-local-", "development-jwt-", "secret-change-before-deploy"].concat(),
-    });
+    let retired_prefix = ['h', 'o', 'o', 'k'].into_iter().collect::<String>();
+    let secrets = [
+        ["taco-local-", "development-jwt-", "secret-change-before-deploy"].concat(),
+        format!("{retired_prefix}-local-development-jwt-secret-change-before-deploy"),
+    ];
 
-    assert_eq!(
-        settings.validate().unwrap_err().to_string(),
-        "jwt.secret must not use the known insecure development value"
-    );
+    for secret in secrets {
+        let error = settings_with_jwt(JwtSettings { secret }).validate().unwrap_err();
+        assert_eq!(error.to_string(), "jwt.secret must not use the known insecure development value");
+    }
 }
 
 #[test]
@@ -60,12 +62,34 @@ fn settings_validation_accepts_jwt_secrets_at_the_32_byte_boundary() {
 }
 
 #[test]
-fn repository_config_example_has_the_full_schema_without_usable_credentials() {
-    let settings = deserialize_settings(CONFIG_EXAMPLE).unwrap();
+fn repository_config_example_has_the_full_interpolated_schema() {
+    struct ExampleEnvironment;
 
-    assert_eq!(settings.jwt.secret, "");
+    impl EnvironmentReader for ExampleEnvironment {
+        fn read(&self, variable: &str) -> Result<Option<String>, EnvironmentReadError> {
+            let value = match variable {
+                "TACO_DATABASE_HOST" | "TACO_REDIS_HOST" => "localhost",
+                "TACO_DATABASE_PORT" => "5435",
+                "TACO_REDIS_PORT" => "6381",
+                "TACO_DATABASE_USERNAME" | "TACO_DATABASE_NAME" => "postgres",
+                "TACO_DATABASE_PASSWORD" => "unit-test-password",
+                "TACO_JWT_SECRET" => TEST_JWT_SECRET,
+                "TACO_TURNSTILE_SECRET_KEY" | "TACO_REDIS_USERNAME" | "TACO_REDIS_PASSWORD" | "TACO_REDIS_DATABASE" => "",
+                "TACO_ADMIN_ORIGIN" => "https://admin.example.test",
+                "TACO_AVATAR_DIRECTORY" => "storage/uploads/avatars",
+                "TACO_LOG_DIRECTORY" => "logs",
+                _ => return Ok(None),
+            };
+            Ok(Some(value.into()))
+        }
+    }
+
+    let settings = crate::loader::deserialize_settings_with_environment(CONFIG_EXAMPLE, &ExampleEnvironment).unwrap();
+    settings.validate().unwrap();
+
+    assert_eq!(settings.jwt.secret, TEST_JWT_SECRET);
     assert_eq!(settings.captcha.cloudflare_turnstile.secret_key, "");
-    assert_eq!(settings.database.password, None);
+    assert_eq!(settings.database.password, "unit-test-password");
     assert_eq!(settings.redis.username, None);
     assert_eq!(settings.redis.password, None);
     assert_eq!(settings.refresh_cookie_config().unwrap().path, "/api/auth");

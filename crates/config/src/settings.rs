@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::{DatabaseScheme, DatabaseSslMode, RedisProtocol, RedisScheme};
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
@@ -16,7 +18,6 @@ pub struct Settings {
     pub client_info: ClientInfoSettings,
     pub redis: RedisSettings,
     pub scheduler: SchedulerSettings,
-    #[serde(default)]
     pub uploads: UploadSettings,
     pub tracing: TracingSettings,
 }
@@ -31,14 +32,13 @@ pub struct ServerSettings {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DatabaseSettings {
-    #[serde(default)]
     pub auto_migrate: bool,
-    pub url: Option<String>,
-    pub scheme: String,
+    pub scheme: DatabaseScheme,
+    pub ssl_mode: DatabaseSslMode,
     pub host: String,
     pub port: u16,
     pub username: String,
-    pub password: Option<String>,
+    pub password: String,
     pub name: String,
 }
 
@@ -86,7 +86,6 @@ pub struct OnlineSessionSettings {
 #[serde(deny_unknown_fields)]
 pub struct RefreshCookieSettings {
     pub secure: bool,
-    pub domain: Option<String>,
     pub path: String,
 }
 
@@ -111,16 +110,13 @@ pub struct CorsSettings {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HttpSettings {
-    #[serde(default = "default_request_timeout_ms")]
     pub request_timeout_ms: u64,
-    #[serde(default = "default_compression_enabled")]
     pub compression_enabled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MetricsSettings {
-    #[serde(default = "default_metrics_enabled")]
     pub enabled: bool,
 }
 
@@ -187,21 +183,19 @@ pub struct SchedulerRuntimeSettings {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RedisSettings {
-    pub url: Option<String>,
-    pub scheme: String,
+    pub scheme: RedisScheme,
     pub host: String,
     pub port: u16,
     pub username: Option<String>,
     pub password: Option<String>,
     pub database: Option<u16>,
-    pub protocol: Option<String>,
+    pub protocol: Option<RedisProtocol>,
     pub key_prefix: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UploadSettings {
-    #[serde(default = "default_avatar_directory")]
     pub avatar_directory: String,
 }
 
@@ -217,18 +211,14 @@ impl Default for UploadSettings {
 #[serde(deny_unknown_fields)]
 pub struct TracingSettings {
     pub log_level: String,
-    #[serde(default)]
     pub file: TracingFileSettings,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TracingFileSettings {
-    #[serde(default = "default_tracing_file_enabled")]
     pub enabled: bool,
-    #[serde(default = "default_tracing_file_directory")]
     pub directory: String,
-    #[serde(default = "default_tracing_file_prefix")]
     pub prefix: String,
 }
 
@@ -242,18 +232,6 @@ impl Default for TracingFileSettings {
     }
 }
 
-fn default_request_timeout_ms() -> u64 {
-    30_000
-}
-
-fn default_compression_enabled() -> bool {
-    true
-}
-
-fn default_metrics_enabled() -> bool {
-    true
-}
-
 fn default_tracing_file_enabled() -> bool {
     false
 }
@@ -263,7 +241,7 @@ fn default_tracing_file_directory() -> String {
 }
 
 fn default_tracing_file_prefix() -> String {
-    "hook.log".to_owned()
+    "taco.log".to_owned()
 }
 
 fn default_avatar_directory() -> String {

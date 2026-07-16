@@ -107,13 +107,13 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     })
 }
 
-pub async fn build_router(settings: &Settings, metrics_handle: hook_tracing::MetricsHandle) -> BackendResult<Router> {
+pub async fn build_router(settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
     let state = build_app_state(settings).await?;
     create_app(state, settings, metrics_handle)
 }
 
 #[cfg(test)]
-pub(crate) fn build_public_router(settings: &Settings, metrics_handle: hook_tracing::MetricsHandle) -> BackendResult<Router> {
+pub(crate) fn build_public_router(settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
     let app = add_metrics_route(public_routes(settings), &metrics_handle);
     let app = app.layer(middleware::from_fn(types::http::locale_middleware));
     let app = http_pipeline::with_timeout(app, settings)?;
@@ -121,7 +121,7 @@ pub(crate) fn build_public_router(settings: &Settings, metrics_handle: hook_trac
     http_pipeline::apply_http_layers(app, settings)
 }
 
-pub fn create_app(state: AppState, settings: &Settings, metrics_handle: hook_tracing::MetricsHandle) -> BackendResult<Router> {
+pub fn create_app(state: AppState, settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
     let auth_state = AuthState::new(AuthStateParts {
         users: state.users.clone(),
         tokens: state.tokens.clone(),
@@ -199,7 +199,6 @@ fn auth_http_config(settings: &Settings) -> BackendResult<AuthHttpConfig> {
     Ok(AuthHttpConfig {
         refresh_cookie: RefreshCookieConfig {
             secure: cookie.secure,
-            domain: cookie.domain,
             path: cookie.path,
         },
         trusted_origins,

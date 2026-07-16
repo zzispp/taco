@@ -195,7 +195,6 @@ dependencies = [
  "bytes",
  "client_info",
  "constants",
- "hook_tracing",
  "http-body",
  "http-body-util",
  "kernel",
@@ -207,6 +206,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "storage",
+ "taco_tracing",
  "testcontainers",
  "thiserror",
  "time",
@@ -327,7 +327,6 @@ dependencies = [
  "client_info",
  "configuration",
  "constants",
- "hook_tracing",
  "http-body-util",
  "kernel",
  "matchit",
@@ -339,6 +338,7 @@ dependencies = [
  "sqlx",
  "storage",
  "system",
+ "taco_tracing",
  "time",
  "tokio",
  "tower",
@@ -627,7 +627,6 @@ dependencies = [
  "axum",
  "constants",
  "hex",
- "hook_tracing",
  "kernel",
  "rand_core 0.6.4",
  "redis",
@@ -635,6 +634,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "taco_tracing",
  "thiserror",
  "time",
  "tokio",
@@ -697,11 +697,11 @@ dependencies = [
  "async-trait",
  "constants",
  "encoding_rs",
- "hook_tracing",
  "http",
  "reqwest",
  "serde",
  "serde_json",
+ "taco_tracing",
  "thiserror",
  "tokio",
 ]
@@ -788,7 +788,9 @@ version = "0.1.0"
 dependencies = [
  "config",
  "http",
+ "redis",
  "serde",
+ "serde_path_to_error",
  "sha2 0.10.9",
  "thiserror",
  "tracing",
@@ -1611,19 +1613,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d"
 dependencies = [
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "hook_tracing"
-version = "0.1.0"
-dependencies = [
- "axum",
- "metrics",
- "metrics-exporter-prometheus",
- "thiserror",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2973,7 +2962,6 @@ dependencies = [
  "axum",
  "base64",
  "constants",
- "hook_tracing",
  "inventory",
  "kernel",
  "matchit",
@@ -2983,6 +2971,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "storage",
+ "taco_tracing",
  "thiserror",
  "time",
  "tokio",
@@ -3018,10 +3007,13 @@ dependencies = [
  "itoa",
  "percent-encoding",
  "pin-project-lite",
+ "rustls",
+ "rustls-native-certs",
  "ryu",
  "sha1_smol",
  "socket2",
  "tokio",
+ "tokio-rustls",
  "tokio-util",
  "url",
  "xxhash-rust",
@@ -3373,7 +3365,6 @@ dependencies = [
  "chrono",
  "constants",
  "croner",
- "hook_tracing",
  "kernel",
  "metrics",
  "rbac",
@@ -3385,6 +3376,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "storage",
+ "taco_tracing",
  "thiserror",
  "time",
  "tokio",
@@ -4091,7 +4083,6 @@ dependencies = [
  "axum",
  "base64",
  "constants",
- "hook_tracing",
  "inventory",
  "kernel",
  "nix",
@@ -4104,12 +4095,26 @@ dependencies = [
  "sqlx",
  "storage",
  "sysinfo",
+ "taco_tracing",
  "thiserror",
  "time",
  "tokio",
  "tower",
  "types",
  "utoipa",
+]
+
+[[package]]
+name = "taco_tracing"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "thiserror",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4758,7 +4763,6 @@ dependencies = [
  "axum",
  "client_info",
  "constants",
- "hook_tracing",
  "image",
  "inventory",
  "jsonwebtoken",
@@ -4772,6 +4776,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "storage",
+ "taco_tracing",
  "tempfile",
  "thiserror",
  "time",

@@ -20,7 +20,7 @@ impl From<SchedulerError> for SchedulerApiError {
 impl IntoResponse for SchedulerApiError {
     fn into_response(self) -> Response {
         if matches!(self.0, SchedulerError::Infrastructure(_)) {
-            hook_tracing::error_with_fields!("scheduler API infrastructure failure", &self.0, component = "scheduler");
+            taco_tracing::error_with_fields!("scheduler API infrastructure failure", &self.0, component = "scheduler");
         }
         (status_code(&self.0), Json(error_response(&self.0))).into_response()
     }

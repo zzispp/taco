@@ -20,7 +20,7 @@ impl From<AppError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         if matches!(&self.0, AppError::Infrastructure(_)) {
-            hook_tracing::error_with_fields!("user API infrastructure failure", &self.0, component = "user");
+            taco_tracing::error_with_fields!("user API infrastructure failure", &self.0, component = "user");
         }
         let body = error_response(&self.0);
         (status_code(&self.0), Json(body)).into_response()

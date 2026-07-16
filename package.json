@@ -1,12 +1,12 @@
 {
-  "name": "hook-monorepo",
+  "name": "taco-monorepo",
   "private": true,
   "packageManager": "pnpm@10.33.4",
   "scripts": {
     "dev:frontend": "pnpm --filter frontend dev",
     "build:frontend": "pnpm --filter frontend build",
     "lint:frontend": "pnpm --filter frontend lint",
-    "dev:backend": "cargo run -p backend",
+    "dev:backend": "just run-local",
     "check:backend": "cargo check -p backend",
     "build:backend": "cargo build -p backend"
   }

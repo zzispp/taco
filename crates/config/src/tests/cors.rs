@@ -114,3 +114,46 @@ fn validated_cors_accepts_specific_methods_and_headers() {
     assert_eq!(cors.exposed_headers, ValidatedCorsList::Values(vec!["x-request-id".into()]));
     assert_eq!(cors.max_age_seconds, Some(3600));
 }
+
+#[test]
+fn validated_cors_allows_http_only_for_loopback_origins() {
+    for origin in ["http://localhost:8082", "http://127.0.0.1:8082", "http://[::1]:8082"] {
+        let settings = settings_with_cors(CorsSettings {
+            allowed_origins: vec![origin.into()],
+            ..cors_settings()
+        });
+
+        assert!(settings.validated_cors().is_ok());
+    }
+
+    let external = settings_with_cors(CorsSettings {
+        allowed_origins: vec!["http://admin.example.test".into()],
+        ..cors_settings()
+    });
+    let other_loopback = settings_with_cors(CorsSettings {
+        allowed_origins: vec!["http://127.0.0.2:8082".into()],
+        ..cors_settings()
+    });
+
+    assert!(matches!(
+        external.validated_cors(),
+        Err(SettingsError::InsecureHttpOrigin("cors.allowed_origins"))
+    ));
+    assert!(matches!(
+        other_loopback.validated_cors(),
+        Err(SettingsError::InsecureHttpOrigin("cors.allowed_origins"))
+    ));
+}
+
+#[test]
+fn validated_cors_requires_exactly_one_origin() {
+    let settings = settings_with_cors(CorsSettings {
+        allowed_origins: vec!["https://admin.example.test".into(), "https://other.example.test".into()],
+        ..cors_settings()
+    });
+
+    assert!(matches!(
+        settings.validated_cors(),
+        Err(SettingsError::ExpectedSingleCorsOrigin("cors.allowed_origins"))
+    ));
+}

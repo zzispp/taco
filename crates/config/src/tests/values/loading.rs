@@ -22,3 +22,22 @@ fn settings_loading_requires_config_argument() {
 
     assert!(matches!(Settings::load_from_args(args), Err(SettingsError::MissingConfigArgument)));
 }
+
+#[test]
+fn settings_loading_rejects_all_ambient_postgres_variables() {
+    struct PresentEnvironment(&'static str);
+
+    impl EnvironmentReader for PresentEnvironment {
+        fn read(&self, variable: &str) -> Result<Option<String>, EnvironmentReadError> {
+            Ok((variable == self.0).then(|| "must-not-be-used".into()))
+        }
+    }
+
+    for variable in crate::loader::FORBIDDEN_POSTGRES_ENVIRONMENT_VARIABLES {
+        let error = crate::loader::reject_postgres_environment(&PresentEnvironment(variable)).unwrap_err();
+        assert!(
+            matches!(error, SettingsError::ConflictingPostgresEnvironmentVariable(actual) if actual == variable),
+            "{variable}"
+        );
+    }
+}

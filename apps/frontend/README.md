@@ -1,43 +1,31 @@
+# Taco Frontend
+
+The admin frontend is a Next.js application in the root pnpm workspace.
+
 ## Prerequisites
 
-- Node.js >=22 (Recommended)
+- Node.js 22+
+- pnpm 10+
 
-## Installation
+Install dependencies and run commands from the repository root:
 
-```sh
+```bash
 pnpm install
-pnpm dev
+pnpm dev:frontend
 ```
 
-## Build
+The local frontend listens on `http://localhost:8082` and calls `http://localhost:3000` by default. Use `localhost` for both applications so the strict refresh Cookie remains same-site. A request through `127.0.0.1:8082` redirects to the canonical localhost frontend Origin.
 
-```sh
-pnpm build
+## Process Environment
+
+The frontend accepts environment variables only from its inherited process environment. `.env` and every `.env.*` file are unsupported; development, build, and start fail explicitly when one is present in the repository root or `apps/frontend`.
+
+`NEXT_PUBLIC_SERVER_URL` optionally selects a different backend Origin. The frontend and backend must remain in the same schemeful site, and non-local deployments must use HTTPS.
+
+## Validation
+
+```bash
+pnpm --filter frontend test
+pnpm lint:frontend
+pnpm build:frontend
 ```
-
-## Mock server
-
-By default we provide demo data from : `https://api-dev-minimal-[version].vercel.app`
-
-To set up your local server:
-
-- **Guide:** [https://docs.minimals.cc/mock-server](https://docs.minimals.cc/mock-server).
-
-- **Resource:** [Download](https://www.dropbox.com/scl/fo/bopqsyaatc8fbquswxwww/AKgu6V6ZGmxtu22MuzsL5L4?rlkey=8s55vnilwz2d8nsrcmdo2a6ci&dl=0).
-
-## Full version
-
-- Create React App ([migrate to CRA](https://docs.minimals.cc/migrate-to-cra/)).
-- Next.js
-- Vite.js
-
-## Starter version
-
-- To remove unnecessary components. This is a simplified version ([https://starter.minimals.cc/](https://starter.minimals.cc/))
-- Good to start a new project. You can copy components from the full version.
-- Make sure to install the dependencies exactly as compared to the full version.
-
----
-
-**NOTE:**
-_When copying folders remember to also copy hidden files like .env. This is important because .env files often contain environment variables that are crucial for the application to run correctly._

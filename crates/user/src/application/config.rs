@@ -75,7 +75,7 @@ pub fn parse_avatar_config(value: &str) -> AppResult<AvatarConfig> {
 
 pub fn parse_export_batch_config(value: &str) -> AppResult<kernel::runtime_config::ExportBatchConfig> {
     kernel::runtime_config::parse_export_batch_config(value).map_err(|error| {
-        hook_tracing::error_with_fields!(
+        taco_tracing::error_with_fields!(
             "invalid user export runtime config",
             &error,
             key = constants::system_config::EXPORT_BATCH_CONFIG_KEY

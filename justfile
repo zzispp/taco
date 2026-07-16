@@ -38,5 +38,20 @@ install-git-hooks:
 run-backend CONFIG:
     cargo run -p backend -- --config {{CONFIG}}
 
+run-local:
+    cargo run -p backend -- --config config/config.local.yaml
+
+run-dev:
+    cargo run -p backend -- --config config/config.dev.yaml
+
+run-prod:
+    cargo run -p backend -- --config config/config.prod.yaml
+
 backend-migration CONFIG ARGS:
     cargo run -p backend -- --config {{CONFIG}} migration {{ARGS}}
+
+services-up:
+    COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose up -d
+
+services-down:
+    COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose down

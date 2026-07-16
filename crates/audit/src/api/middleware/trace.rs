@@ -8,7 +8,7 @@ pub(super) fn request_id(headers: &HeaderMap) -> String {
 
 pub(super) fn trace_missing_peer(uri: &Uri, headers: &HeaderMap) {
     let error = std::io::Error::other("ConnectInfo<SocketAddr> missing from request extensions");
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "operation audit client peer missing",
         &error,
         request_id = request_id(headers),

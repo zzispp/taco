@@ -40,7 +40,7 @@ async fn run_bootstrap_admin(settings: Settings, command: BootstrapAdminCommand)
 
 fn init_tracing(settings: &Settings) -> BackendResult<Option<tracing_appender::non_blocking::WorkerGuard>> {
     let config = settings.tracing_config()?;
-    hook_tracing::init_global_subscriber(hook_tracing::TracingConfig {
+    taco_tracing::init_global_subscriber(taco_tracing::TracingConfig {
         log_level: config.log_level,
         file_logging_enabled: config.file.enabled,
         file_directory: config.file.directory,

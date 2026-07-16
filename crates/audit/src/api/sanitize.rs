@@ -145,7 +145,7 @@ fn serialize_json(value: &Value) -> String {
     match serde_json::to_string(value) {
         Ok(serialized) => serialized,
         Err(error) => {
-            hook_tracing::error_with_fields!(
+            taco_tracing::error_with_fields!(
                 "operation audit JSON snapshot serialization failed",
                 &error,
                 event_type = "operation",

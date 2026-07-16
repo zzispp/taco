@@ -54,6 +54,6 @@ fn next_occurrence(cron: &croner::Cron, cursor: &DateTime<Utc>) -> SchedulerResu
 }
 
 fn cron_error(operation: &'static str, error: croner::errors::CronError) -> SchedulerError {
-    hook_tracing::error_with_fields!("scheduler cron operation failed", &error, operation = operation);
+    taco_tracing::error_with_fields!("scheduler cron operation failed", &error, operation = operation);
     SchedulerError::InvalidInput(super::error::localized("errors.scheduler.invalid_cron"))
 }

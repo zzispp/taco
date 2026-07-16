@@ -181,7 +181,6 @@ fn test_auth_http_config() -> AuthHttpConfig {
     AuthHttpConfig {
         refresh_cookie: RefreshCookieConfig {
             secure: true,
-            domain: None,
             path: "/api/auth".into(),
         },
         trusted_origins: vec!["http://localhost:8082".into()],

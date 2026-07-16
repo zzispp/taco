@@ -35,11 +35,10 @@ fn client_info_http_timeout_must_be_positive() {
 }
 
 #[test]
-fn refresh_cookie_config_normalizes_domain_and_path() {
+fn refresh_cookie_config_normalizes_path() {
     let mut settings = settings_with_database(database_parts());
     settings.auth.refresh_cookie = RefreshCookieSettings {
         secure: true,
-        domain: Some("  admin.example.test  ".into()),
         path: "  /api/auth  ".into(),
     };
 
@@ -47,23 +46,16 @@ fn refresh_cookie_config_normalizes_domain_and_path() {
         settings.refresh_cookie_config().unwrap(),
         RefreshCookieSettings {
             secure: true,
-            domain: Some("admin.example.test".into()),
             path: "/api/auth".into(),
         }
     );
 }
 
 #[test]
-fn refresh_cookie_config_rejects_blank_domain_and_relative_path() {
-    let mut blank_domain = settings_with_database(database_parts());
-    blank_domain.auth.refresh_cookie.domain = Some("   ".into());
+fn refresh_cookie_config_rejects_relative_path() {
     let mut relative_path = settings_with_database(database_parts());
     relative_path.auth.refresh_cookie.path = "api/auth".into();
 
-    assert!(matches!(
-        blank_domain.refresh_cookie_config(),
-        Err(SettingsError::BlankConfigValue("auth.refresh_cookie.domain"))
-    ));
     assert!(matches!(
         relative_path.refresh_cookie_config(),
         Err(SettingsError::InvalidCookiePath("auth.refresh_cookie.path"))

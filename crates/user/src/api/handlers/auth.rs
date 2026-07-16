@@ -83,7 +83,7 @@ pub async fn sign_in(
         Ok(user) => user,
         Err(error) => {
             if let Err(revoke_error) = state.tokens.logout_access(&tokens.access_token).await {
-                hook_tracing::error_with_fields!(
+                taco_tracing::error_with_fields!(
                     "failed to revoke incomplete login session",
                     &revoke_error,
                     request_id = request_id(&headers),

@@ -184,6 +184,7 @@ These rules are part of the repository contract:
 - Node.js 22+
 - pnpm 10+
 - Docker
+- just
 
 ### 1. Install dependencies
 
@@ -191,12 +192,34 @@ These rules are part of the repository contract:
 pnpm install
 ```
 
-### 2. Start infrastructure
+### 2. Export the local process environment
+
+The project reads runtime secrets only from the environment inherited by the process. Export the variables required by `config/config.local.yaml` in the current shell, IDE run configuration, `direnv` process environment, or a secret manager:
+
+- `TACO_DATABASE_PASSWORD`: required, non-empty PostgreSQL password
+- `TACO_REDIS_USERNAME`: required to exist; set it to an empty string when unused
+- `TACO_REDIS_PASSWORD`: required to exist; set it to an empty string when unused
+- `TACO_REDIS_DATABASE`: required to exist; set it to an empty string to use the Redis server default
+- `TACO_JWT_SECRET`: required, non-empty JWT signing secret of at least 32 UTF-8 bytes
+- `TACO_TURNSTILE_SECRET_KEY`: required to exist; set it to an empty string while Turnstile is not selected
+
+Example for the local Compose services:
 
 ```bash
-cp .env.example .env
-# Set TACO_POSTGRES_PASSWORD in the ignored .env file, then start the services.
-docker compose up -d
+export TACO_DATABASE_PASSWORD='<local-postgres-password>'
+export TACO_REDIS_USERNAME=''
+export TACO_REDIS_PASSWORD=''
+export TACO_REDIS_DATABASE=''
+export TACO_JWT_SECRET='<at-least-32-UTF-8-bytes>'
+export TACO_TURNSTILE_SECRET_KEY=''
+```
+
+Environment files are not a runtime input. The backend does not load them, the frontend refuses to start or build when a prohibited `.env*` file exists, and the supported Compose commands disable automatic env-file loading.
+
+### 3. Start infrastructure
+
+```bash
+just services-up
 ```
 
 This starts:
@@ -204,18 +227,12 @@ This starts:
 - PostgreSQL on `localhost:5435`
 - Redis on `localhost:6381`
 
-### 3. Create deployment configuration
-
-```bash
-cp config/config.example.yaml config/config.local.yaml
-```
-
-Set the PostgreSQL and Redis connection credentials, generate a deployment-specific `jwt.secret` of at least 32 UTF-8 bytes, set `captcha.cloudflare_turnstile.secret_key` before selecting that provider, and replace the example CORS origin. The example intentionally contains no usable credentials or secrets. `config/config.local.yaml` is ignored by Git. Every backend invocation must select its deployment file with `--config <path>`; no configuration path is searched implicitly.
+`just services-up` and `just services-down` force `COMPOSE_DISABLE_ENV_FILE=1` and clear inherited `COMPOSE_ENV_FILES`. They are the supported project entry points for Compose. PostgreSQL uses the same `TACO_DATABASE_PASSWORD` as the local backend profile.
 
 ### 4. Apply database migrations
 
 ```bash
-cargo run -p backend -- --config config/config.local.yaml migration up
+just backend-migration config/config.local.yaml "up"
 ```
 
 ### 5. Bootstrap the first system administrator
@@ -232,7 +249,7 @@ The command accepts the password only from stdin and fails when any non-deleted 
 ### 6. Start the backend
 
 ```bash
-cargo run -p backend -- --config config/config.local.yaml
+just run-local
 ```
 
 Backend default address:
@@ -249,20 +266,25 @@ Frontend default address:
 
 - `http://localhost:8082`
 
-By default, the frontend calls the backend at `http://localhost:3000`. Local browser traffic must use `localhost` for both applications so the strict refresh cookie remains same-site. Requests to the frontend through `127.0.0.1:8082` redirect to the canonical localhost origin. Override the backend URL with `NEXT_PUBLIC_SERVER_URL` only when the configured frontend and backend origins remain same-site.
+By default, the frontend calls the backend at `http://localhost:3000`. Local browser traffic must use `localhost` for both applications so the strict refresh Cookie remains same-site. Requests to the frontend through `127.0.0.1:8082` redirect to the canonical localhost origin. Supply `NEXT_PUBLIC_SERVER_URL` through the frontend process environment only when the configured frontend and backend origins remain same-site.
 
 ## Useful Commands
 
 ### Rust workspace
 
-Before running Rust tests, create the ignored `config/config.local.yaml` from the example and set its PostgreSQL fields to a reachable server whose configured user may create and drop databases. Migration integration tests load the complete typed YAML path from `TACO_TEST_CONFIG`; relative values resolve from the workspace root. The repository `.cargo/config.toml` supplies only the relative path `config/config.local.yaml`, never credentials or a fallback connection.
+Before running Rust tests, export the local profile variables listed above. The PostgreSQL user must be able to create and drop test databases. Migration integration tests load the complete typed YAML path from `TACO_TEST_CONFIG`; relative values resolve from the workspace root. The repository `.cargo/config.toml` supplies only `config/config.local.yaml`, never credentials or fallback values.
 
 ```bash
 just check
 just build
 just test
+just run-local
+just run-dev
+just run-prod
 just backend-migration config/config.local.yaml "status"
 just backend-migration config/config.local.yaml "fresh"
+just services-up
+just services-down
 ```
 
 ### Frontend workspace
@@ -275,14 +297,54 @@ pnpm lint:frontend
 
 ## Configuration
 
-`config/config.example.yaml` documents the required schema without credentials. Each deployment supplies its own ignored configuration file and passes that path explicitly with `--config <path>`.
+The repository tracks four explicit YAML files:
+
+- `config/config.local.yaml`: developer workstation profile with fixed loopback services
+- `config/config.dev.yaml`: shared remote development and integration profile
+- `config/config.prod.yaml`: production profile
+- `config/config.example.yaml`: fully commented production-security reference
+
+Every backend invocation must pass `--config <path>` explicitly; no profile is inferred and no default path is searched. `${VAR}` must occupy the complete YAML scalar. Missing variables, embedded expressions such as `prefix-${VAR}`, default expressions such as `${VAR:-value}`, invalid UTF-8, and values that cannot be parsed as the target field type fail startup explicitly.
+
+The selected profile requires every variable it references to exist. An explicitly empty value becomes `None` only for optional fields such as the Redis username, password, and database. Empty required strings remain empty and then fail field validation when the field does not permit them.
+
+All profiles use these variables:
+
+| Variable | Empty allowed | Meaning |
+| --- | --- | --- |
+| `TACO_DATABASE_PASSWORD` | No | PostgreSQL password |
+| `TACO_REDIS_USERNAME` | Yes | Optional Redis username |
+| `TACO_REDIS_PASSWORD` | Yes | Optional Redis password |
+| `TACO_REDIS_DATABASE` | Yes | Optional Redis database number |
+| `TACO_JWT_SECRET` | No | JWT signing secret, at least 32 UTF-8 bytes |
+| `TACO_TURNSTILE_SECRET_KEY` | Yes | Turnstile private key; empty only while Turnstile is not selected |
+
+The `dev`, `prod`, and production-baseline `example` profiles additionally use:
+
+| Variable | Type and meaning |
+| --- | --- |
+| `TACO_DATABASE_HOST` | Non-empty PostgreSQL host |
+| `TACO_DATABASE_PORT` | PostgreSQL port integer |
+| `TACO_DATABASE_USERNAME` | Non-empty PostgreSQL username |
+| `TACO_DATABASE_NAME` | Non-empty PostgreSQL database name |
+| `TACO_REDIS_HOST` | Non-empty Redis host |
+| `TACO_REDIS_PORT` | Redis port integer |
+| `TACO_ADMIN_ORIGIN` | Exact HTTPS frontend Origin allowed by CORS |
+| `TACO_LOG_DIRECTORY` | Non-empty directory for daily rolling log files |
+| `TACO_AVATAR_DIRECTORY` | Non-empty persistent avatar storage path |
+
+Connection URLs are constructed from typed PostgreSQL and Redis fields. `database.url`, `redis.url`, aliases, profile-prefixed variable names, and env-file compatibility paths are not supported. PostgreSQL schemes are restricted to `postgres` and `postgresql`; Redis schemes are restricted to `redis` and `rediss`; Redis protocol values are restricted to `resp2` and `resp3`.
+
+The local profile explicitly disables PostgreSQL TLS and uses plain Redis only on loopback. The `dev`, `prod`, and `example` profiles set PostgreSQL `ssl_mode` to `verify-full` and use `rediss` with certificate and hostname verification.
+
+SQLx-compatible ambient connection variables conflict with the typed YAML contract and must be unset: `PGHOSTADDR`, `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT`, `PGSSLKEY`, `PGAPPNAME`, `PGOPTIONS`, and `PGPASSFILE`.
 
 Important areas:
 
 - server host and port
 - PostgreSQL connection
 - Redis connection
-- JWT secret and token TTL
+- JWT signing secret
 - Cloudflare Turnstile server-side secret
 - auth whitelist and refresh Cookie scope
 - PostgreSQL online-session cleanup interval and batch size
@@ -308,21 +370,23 @@ Required online-session lifecycle settings:
 - `user.online_sessions.cleanup_interval_ms`: interval between independent expired-session cleanup cycles
 - `user.online_sessions.cleanup_batch_size`: maximum expired sessions removed by one cleanup transaction
 
-The typed YAML schema always requires `captcha.cloudflare_turnstile.secret_key` to be present, but it may remain blank while the CAP provider is selected. A non-blank value is required for Turnstile verification; a missing value fails that verification explicitly without fallback. The secret belongs exclusively in the deployment YAML. `sys.account.captchaConfig` contains only non-sensitive runtime settings, including the provider selection, Turnstile site key, theme, and size; it must never contain the private key.
+The typed YAML schema always requires `captcha.cloudflare_turnstile.secret_key` to be present. Its value comes only from `TACO_TURNSTILE_SECRET_KEY` and may remain explicitly empty while the CAP provider is selected. Turnstile verification requires a non-empty value and fails explicitly without fallback. `sys.account.captchaConfig` contains only non-sensitive runtime settings, including provider selection, Turnstile site key, theme, and size; it never contains the private key.
 
-Production traffic must reach the applications through a trusted reverse proxy. The proxy owns TLS termination and HSTS, enforces IP rate limits for sign-in, refresh, and captcha endpoints, strips client-supplied forwarding headers, and writes the canonical client IP headers consumed by the backend. The backend intentionally does not duplicate proxy-owned IP limiting or HSTS behavior.
+Production traffic must reach the applications through a trusted reverse proxy. The proxy owns TLS termination and HSTS, enforces IP rate limits for sign-in, refresh, and captcha endpoints, strips client-supplied forwarding headers, and writes the canonical client IP headers consumed by the backend. It must not expose `/docs` or `/openapi.json`; those routes are also absent from the production authentication whitelist. The backend intentionally does not duplicate proxy-owned IP limiting or HSTS behavior.
+
+The production frontend and API must use HTTPS and remain in the same schemeful site, for example `admin.example.com` and `api.example.com`. Refresh Cookies are host-only, `Secure`, `SameSite=Strict`, and scoped to `/api/auth`; cross-site deployment topologies are unsupported.
 
 Before deploying anywhere beyond local development, review and change:
 
-- database credentials
+- database host and credentials
 - Redis connection settings
 - JWT secret of at least 32 UTF-8 bytes
 - Cloudflare Turnstile secret when that provider is selected
-- CORS policy
+- exact HTTPS admin Origin
 
 ## Notes
 
-- `database.auto_migrate` defaults to `false`; use the explicit migration command unless a deployment deliberately enables startup migration.
+- All tracked profiles set `database.auto_migrate` to `false`; apply migrations explicitly before starting a new release.
 - The in-development baseline and audit migrations were rewritten destructively; databases that applied their earlier checksums must be rebuilt with `just backend-migration config/config.local.yaml "fresh"`.
 - RBAC cache is rebuilt during backend startup.
 - The baseline data seeds roles, API permissions, menu sections, and menu items for the admin console, but no user accounts.

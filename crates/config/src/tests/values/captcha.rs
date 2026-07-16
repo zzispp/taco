@@ -25,7 +25,7 @@ fn settings_validation_allows_blank_turnstile_secret_until_provider_use() {
 
 #[test]
 fn turnstile_secret_config_is_required_and_strict() {
-    let source = minimal_config_without_auto_migrate();
+    let source = minimal_config();
     let missing = deserialize_settings(&source.replace(captcha_yaml(), ""));
     let unknown = deserialize_settings(&source.replace(captcha_yaml(), &format!("{captcha}    unexpected: true\n", captcha = captcha_yaml())));
 

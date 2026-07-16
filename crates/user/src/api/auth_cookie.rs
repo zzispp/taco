@@ -15,7 +15,6 @@ pub struct AuthHttpConfig {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RefreshCookieConfig {
     pub secure: bool,
-    pub domain: Option<String>,
     pub path: String,
 }
 
@@ -54,9 +53,6 @@ impl AuthHttpConfig {
         ];
         if self.refresh_cookie.secure {
             attributes.push("Secure".into());
-        }
-        if let Some(domain) = &self.refresh_cookie.domain {
-            attributes.push(format!("Domain={domain}"));
         }
         if let Some(max_age) = max_age_seconds {
             attributes.push(format!("Max-Age={max_age}"));

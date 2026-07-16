@@ -24,7 +24,7 @@ pub async fn prepare_runtime_schema(pool: &PgPool, auto_migrate: bool) -> Backen
 
     if auto_migrate && !pending_versions.is_empty() {
         migrator.run(pool).await?;
-        hook_tracing::info_with_fields!("database auto migration completed", applied = pending_versions.join(","));
+        taco_tracing::info_with_fields!("database auto migration completed", applied = pending_versions.join(","));
     }
 
     ensure_runtime_schema_ready(pool).await
@@ -127,11 +127,11 @@ async fn managed_table_exists(pool: &PgPool, table: &str) -> BackendResult<bool>
 
 fn log_pending_state(pending_versions: &[String], auto_migrate: bool) {
     if pending_versions.is_empty() {
-        hook_tracing::info_with_fields!("database schema already up to date", auto_migrate = auto_migrate);
+        taco_tracing::info_with_fields!("database schema already up to date", auto_migrate = auto_migrate);
         return;
     }
 
-    hook_tracing::info_with_fields!(
+    taco_tracing::info_with_fields!(
         "database pending migrations detected",
         auto_migrate = auto_migrate,
         versions = pending_versions.join(",")

@@ -101,7 +101,7 @@ impl PconlineIpLocationResolver {
             .bytes()
             .await
             .map_err(provider_error)?;
-        hook_tracing::info_with_fields!("ip location provider response received", ip_address = ip_address, bytes = response.len());
+        taco_tracing::info_with_fields!("ip location provider response received", ip_address = ip_address, bytes = response.len());
         parse_pconline_response(&response)
     }
 }
@@ -117,7 +117,7 @@ impl IpLocationResolver for PconlineIpLocationResolver {
             IpAddressClass::Public => {}
         }
         if !self.settings.ip_location_config().await?.enabled {
-            hook_tracing::info_with_fields!("ip location lookup disabled", ip_address = ip_address);
+            taco_tracing::info_with_fields!("ip location lookup disabled", ip_address = ip_address);
             return Ok(IpLocation::Unknown);
         }
         self.lookup(ip_address).await.map(|resolved| log_resolved_location(ip_address, resolved))
@@ -138,7 +138,7 @@ fn build_client(config: IpLocationClientConfig) -> ClientInfoResult<reqwest::Cli
 
 fn log_resolved_location(ip_address: &str, resolved: ProviderLocation) -> IpLocation {
     let Some(location) = resolved.location else {
-        hook_tracing::warn_with_fields!(
+        taco_tracing::warn_with_fields!(
             "ip location provider returned empty location",
             ip_address = ip_address,
             response_ip = resolved.response_ip,
@@ -146,7 +146,7 @@ fn log_resolved_location(ip_address: &str, resolved: ProviderLocation) -> IpLoca
         );
         return IpLocation::Unknown;
     };
-    hook_tracing::info_with_fields!(
+    taco_tracing::info_with_fields!(
         "ip location resolved",
         ip_address = ip_address,
         response_ip = resolved.response_ip,
@@ -158,10 +158,10 @@ fn log_resolved_location(ip_address: &str, resolved: ProviderLocation) -> IpLoca
 
 fn log_ip_class(ip_address: &str, address_class: IpAddressClass) {
     if address_class == IpAddressClass::Invalid {
-        hook_tracing::warn_with_fields!("invalid client IP address", ip_address = ip_address);
+        taco_tracing::warn_with_fields!("invalid client IP address", ip_address = ip_address);
         return;
     }
-    hook_tracing::info_with_fields!("client IP address classified", ip_address = ip_address, class = address_class);
+    taco_tracing::info_with_fields!("client IP address classified", ip_address = ip_address, class = address_class);
 }
 
 pub(super) fn parse_pconline_response(response: &[u8]) -> ClientInfoResult<ProviderLocation> {

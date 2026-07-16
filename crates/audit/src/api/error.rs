@@ -20,7 +20,7 @@ impl From<AuditError> for AuditApiError {
 impl IntoResponse for AuditApiError {
     fn into_response(self) -> Response {
         if matches!(self.0, AuditError::Infrastructure(_)) {
-            hook_tracing::error_with_fields!("audit API infrastructure failure", &self.0, component = "audit");
+            taco_tracing::error_with_fields!("audit API infrastructure failure", &self.0, component = "audit");
         }
         (status(&self.0), Json(body(&self.0))).into_response()
     }

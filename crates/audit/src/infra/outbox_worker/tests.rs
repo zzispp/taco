@@ -35,7 +35,7 @@ fn config_rejects_zero_operational_values() {
 
 #[tokio::test]
 async fn location_resolution_failure_projects_unknown_without_retry_signal() {
-    let metrics = hook_tracing::init_metrics(hook_tracing::MetricsConfig { enabled: true })
+    let metrics = taco_tracing::init_metrics(taco_tracing::MetricsConfig { enabled: true })
         .unwrap()
         .expect("enabled metrics must expose a handle");
     let before = counter_value(&metrics.render());

@@ -31,7 +31,7 @@ impl HttpTaskClient for ReqwestHttpTaskClient {
 
 fn parse_method(method: &str, started: Instant) -> Result<Method, OutboundHttpFailure> {
     Method::from_bytes(method.as_bytes()).map_err(|error| {
-        hook_tracing::error_with_fields!("scheduled HTTP request method is invalid", &error,);
+        taco_tracing::error_with_fields!("scheduled HTTP request method is invalid", &error,);
         OutboundHttpFailure {
             code: HttpFailureCode::RequestBuild,
             duration: started.elapsed(),
@@ -82,7 +82,7 @@ fn response_head(response: &Response) -> OutboundHttpResponseHead {
 fn request_failure(error: reqwest::Error, started: Instant) -> OutboundHttpFailure {
     let code = classify_request_failure(&error);
     let error = error.without_url();
-    hook_tracing::error_with_fields!("scheduled HTTP request failed", &error, failure_code = code.code());
+    taco_tracing::error_with_fields!("scheduled HTTP request failed", &error, failure_code = code.code());
     OutboundHttpFailure {
         code,
         duration: started.elapsed(),
@@ -93,7 +93,7 @@ fn request_failure(error: reqwest::Error, started: Instant) -> OutboundHttpFailu
 fn response_body_failure(error: reqwest::Error, started: Instant, response: OutboundHttpResponseHead) -> OutboundHttpFailure {
     let timeout = error.is_timeout();
     let error = error.without_url();
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "scheduled HTTP response body read failed",
         &error,
         status = response.status,

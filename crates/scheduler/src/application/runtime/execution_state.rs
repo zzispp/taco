@@ -136,7 +136,7 @@ async fn abort_task(task: RunningTask) {
     match handle.await {
         Ok(()) => {}
         Err(error) if error.is_cancelled() => {}
-        Err(error) => hook_tracing::error_with_fields!(
+        Err(error) => taco_tracing::error_with_fields!(
             "scheduled task failed while stopping after execution session loss",
             &error,
             execution_id = task.execution.id.as_str()

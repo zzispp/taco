@@ -19,14 +19,14 @@ node_modules
 .pnp
 .pnp.js
 
-# env
+# process environment files (unsupported; ignored to prevent secret commits)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 /config/*.yaml
 !/config/config.example.yaml
+!/config/config.local.yaml
+!/config/config.dev.yaml
+!/config/config.prod.yaml
 
 # frontend build output
 .next

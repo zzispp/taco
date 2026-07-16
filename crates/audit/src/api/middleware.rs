@@ -219,7 +219,7 @@ async fn persist_or_error(input: PersistOperation<'_>) -> Response {
 }
 
 fn audit_error_response(context: &RequestContext, error: AuditError) -> Response {
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "operation audit construction failed",
         &error,
         request_id = context.request_id,
@@ -231,7 +231,7 @@ fn audit_error_response(context: &RequestContext, error: AuditError) -> Response
 }
 
 fn audit_recorder_error_response(context: &RequestContext, error: AuditOutboxError) -> Response {
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "operation audit outbox recording failed",
         &error,
         request_id = context.request_id,
@@ -249,6 +249,6 @@ fn audit_infrastructure_response(reason: &'static str) -> Response {
         Some(&LocalizedError::new("errors.common.service_unavailable")),
     );
     let error = std::io::Error::other(reason);
-    hook_tracing::error_with_fields!("operation audit infrastructure failure", &error, reason = reason, event_type = "operation");
+    taco_tracing::error_with_fields!("operation audit infrastructure failure", &error, reason = reason, event_type = "operation");
     (StatusCode::INTERNAL_SERVER_ERROR, Json(body)).into_response()
 }

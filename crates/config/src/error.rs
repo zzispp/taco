@@ -4,8 +4,18 @@ use thiserror::Error;
 pub enum SettingsError {
     #[error("configuration error: {0}")]
     Config(#[from] config_rs::ConfigError),
-    #[error("database.password is required when database.url is not set")]
-    MissingDatabasePassword,
+    #[error("environment variable {variable} is required at {path}")]
+    MissingEnvironmentVariable { variable: String, path: String },
+    #[error("environment variable {variable} at {path} is not valid UTF-8")]
+    InvalidEnvironmentEncoding { variable: String, path: String },
+    #[error("invalid environment placeholder at {path}; expected a complete ${{VAR}} scalar")]
+    InvalidEnvironmentPlaceholder { path: String },
+    #[error("environment variable {variable} at {path} is not a valid {expected}")]
+    InvalidEnvironmentValue { variable: String, path: String, expected: &'static str },
+    #[error("{0} conflicts with the explicit PostgreSQL configuration and must be unset")]
+    ConflictingPostgresEnvironmentVariable(&'static str),
+    #[error("invalid configuration value at {path}: {reason}")]
+    InvalidConfigValue { path: String, reason: String },
     #[error("--config <path> is required")]
     MissingConfigArgument,
     #[error("{0} cannot be blank")]
@@ -28,8 +38,12 @@ pub enum SettingsError {
     WildcardCorsWithCredentials(&'static str),
     #[error("{0} requires concrete HTTP(S) origins and cannot use '*'")]
     WildcardCorsOrigin(&'static str),
+    #[error("{0} must contain exactly one origin")]
+    ExpectedSingleCorsOrigin(&'static str),
     #[error("invalid HTTP(S) origin in {key}: {value}")]
     InvalidHttpOrigin { key: &'static str, value: String },
+    #[error("{0} permits HTTP only for loopback origins")]
+    InsecureHttpOrigin(&'static str),
     #[error("{0} must be an absolute cookie path")]
     InvalidCookiePath(&'static str),
     #[error("auth.refresh_cookie.secure must be true")]
@@ -38,4 +52,6 @@ pub enum SettingsError {
     NonPositiveNumber(&'static str),
     #[error("{0} is not a valid tracing level filter")]
     InvalidTracingFilter(&'static str),
+    #[error("{0} is not a valid URL component")]
+    InvalidUrlComponent(&'static str),
 }

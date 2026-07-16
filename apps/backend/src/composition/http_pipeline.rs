@@ -23,7 +23,7 @@ const DOCS_CONTENT_SECURITY_POLICY: &str = "frame-ancestors 'none'; object-src '
 pub(super) struct RuntimeLayerParts<'a> {
     pub settings: &'a Settings,
     pub audit: OperationAuditState,
-    pub metrics: &'a hook_tracing::MetricsHandle,
+    pub metrics: &'a taco_tracing::MetricsHandle,
 }
 
 pub(super) fn apply_runtime_layers(app: Router, parts: RuntimeLayerParts<'_>) -> BackendResult<Router> {
@@ -34,19 +34,19 @@ pub(super) fn apply_runtime_layers(app: Router, parts: RuntimeLayerParts<'_>) ->
     apply_http_layers(app, parts.settings)
 }
 
-pub(super) fn add_metrics_route(mut app: Router, handle: &hook_tracing::MetricsHandle) -> Router {
+pub(super) fn add_metrics_route(mut app: Router, handle: &taco_tracing::MetricsHandle) -> Router {
     if let Some(handle) = handle {
         let handle = handle.clone();
-        app = app.route("/metrics", axum::routing::get(move || hook_tracing::metrics_handler(handle.clone())));
+        app = app.route("/metrics", axum::routing::get(move || taco_tracing::metrics_handler(handle.clone())));
     }
     app
 }
 
-pub(super) fn apply_metrics_layer(app: Router, handle: &hook_tracing::MetricsHandle) -> Router {
+pub(super) fn apply_metrics_layer(app: Router, handle: &taco_tracing::MetricsHandle) -> Router {
     if handle.is_none() {
         return app;
     }
-    app.layer(middleware::from_fn(hook_tracing::metrics_middleware))
+    app.layer(middleware::from_fn(taco_tracing::metrics_middleware))
 }
 
 pub(super) fn with_timeout(app: Router, settings: &Settings) -> BackendResult<Router> {

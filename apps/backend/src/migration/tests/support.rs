@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use configuration::Settings;
+use configuration::{DatabaseSettings, Settings};
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions, query, query_scalar};
 use url::Url;
 
@@ -22,23 +22,26 @@ pub(super) struct TestDatabase {
     admin_pool: PgPool,
     pool: PgPool,
     database_url: Url,
+    database_settings: DatabaseSettings,
     name: String,
 }
 
 impl TestDatabase {
     pub(super) async fn create() -> Self {
-        let configured_url = configured_database_url();
+        let (mut database_settings, configured_url) = configured_database();
         let admin_url = database_url_for(&configured_url, ADMIN_DATABASE_NAME);
         let admin_pool = PgPoolOptions::new().max_connections(1).connect(admin_url.as_str()).await.unwrap();
         let name = test_database_name();
         query(AssertSqlSafe(format!(r#"CREATE DATABASE "{name}""#))).execute(&admin_pool).await.unwrap();
         let database_url = database_url_for(&configured_url, &name);
         let pool = PgPoolOptions::new().max_connections(5).connect(database_url.as_str()).await.unwrap();
+        database_settings.name = name.clone();
 
         Self {
             admin_pool,
             pool,
             database_url,
+            database_settings,
             name,
         }
     }
@@ -49,6 +52,10 @@ impl TestDatabase {
 
     pub(super) fn database_url(&self) -> String {
         self.database_url.to_string()
+    }
+
+    pub(super) fn database_settings(&self) -> DatabaseSettings {
+        self.database_settings.clone()
     }
 
     pub(super) async fn drop(self) {
@@ -66,7 +73,7 @@ impl TestDatabase {
     }
 }
 
-fn configured_database_url() -> Url {
+fn configured_database() -> (DatabaseSettings, Url) {
     let config_path = test_config_path();
     let settings = Settings::load_from_args([OsString::from(TEST_BINARY_NAME), OsString::from(CONFIG_ARG), config_path])
         .unwrap_or_else(|error| panic!("failed to load test configuration from {TEST_CONFIG_ENV}: {error}"));
@@ -78,7 +85,7 @@ fn configured_database_url() -> Url {
         matches!(parsed.scheme(), "postgres" | "postgresql"),
         "database connection in {TEST_CONFIG_ENV} must use PostgreSQL"
     );
-    parsed
+    (settings.database, parsed)
 }
 
 fn test_config_path() -> OsString {
@@ -125,7 +132,7 @@ pub(super) async fn rollback_from(pool: &PgPool, target_version: i64) {
 fn test_database_name() -> String {
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros();
     let sequence = NEXT_TEST_DB_ID.fetch_add(1, Ordering::Relaxed);
-    format!("hook_migration_test_{}_{}_{}", std::process::id(), timestamp, sequence)
+    format!("taco_migration_test_{}_{}_{}", std::process::id(), timestamp, sequence)
 }
 
 #[test]

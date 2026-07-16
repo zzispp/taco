@@ -1,6 +1,7 @@
 use super::*;
 
 mod cors;
+mod profiles;
 mod runtime;
 mod values;
 
@@ -80,12 +81,12 @@ pub(super) fn settings_with_http(http: HttpSettings) -> Settings {
 pub(super) fn database_parts() -> DatabaseSettings {
     DatabaseSettings {
         auto_migrate: false,
-        url: None,
-        scheme: "postgres".into(),
+        scheme: DatabaseScheme::Postgres,
+        ssl_mode: DatabaseSslMode::Disable,
         host: "localhost".into(),
         port: 5435,
         username: "postgres".into(),
-        password: Some(TEST_DATABASE_PASSWORD.into()),
+        password: TEST_DATABASE_PASSWORD.into(),
         name: "postgres".into(),
     }
 }
@@ -107,7 +108,6 @@ pub(super) fn captcha_settings() -> CaptchaSettings {
 pub(super) fn refresh_cookie_settings() -> RefreshCookieSettings {
     RefreshCookieSettings {
         secure: true,
-        domain: None,
         path: "/api/auth".into(),
     }
 }
@@ -123,15 +123,14 @@ pub(super) fn user_settings() -> UserSettings {
 
 pub(super) fn redis_settings() -> RedisSettings {
     RedisSettings {
-        url: Some("redis://default:@localhost:6381?protocol=resp3".into()),
-        scheme: "redis".into(),
+        scheme: RedisScheme::Redis,
         host: "localhost".into(),
         port: 6381,
         username: Some("default".into()),
-        password: Some(String::new()),
+        password: None,
         database: None,
-        protocol: Some("resp3".into()),
-        key_prefix: "hook".into(),
+        protocol: Some(RedisProtocol::Resp3),
+        key_prefix: "taco".into(),
     }
 }
 

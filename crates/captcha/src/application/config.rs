@@ -6,7 +6,7 @@ use super::{CaptchaError, CaptchaResult};
 
 pub fn parse_captcha_config_json(value: &str) -> CaptchaResult<Value> {
     serde_json::from_str(value).map_err(|error| {
-        hook_tracing::error_with_fields!("invalid captcha runtime config JSON", &error, key = CAPTCHA_CONFIG_KEY);
+        taco_tracing::error_with_fields!("invalid captcha runtime config JSON", &error, key = CAPTCHA_CONFIG_KEY);
         invalid_captcha_config_json()
     })
 }

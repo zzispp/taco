@@ -84,11 +84,11 @@ fn shutdown_requested(shutdown: &watch::Receiver<bool>) -> bool {
 
 async fn join_execution_actor(actor: JoinHandle<()>) {
     if let Err(error) = actor.await {
-        hook_tracing::error_with_fields!("scheduler execution actor stopped unexpectedly", &error,);
+        taco_tracing::error_with_fields!("scheduler execution actor stopped unexpectedly", &error,);
     }
 }
 
 pub(super) fn log_runtime_error(operation: &'static str, error: &SchedulerError, telemetry: &dyn SchedulerTelemetry) {
     telemetry.runtime_error(operation);
-    hook_tracing::error_with_fields!("scheduler runtime operation failed", error, operation = operation);
+    taco_tracing::error_with_fields!("scheduler runtime operation failed", error, operation = operation);
 }

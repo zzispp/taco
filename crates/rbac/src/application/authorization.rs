@@ -83,6 +83,6 @@ fn matching_rules<'a, T: RoutePattern>(matcher: &'a Router<Vec<T>>, method: &'a 
 }
 
 fn invalid_route_pattern(pattern: &str, error: &matchit::InsertError) -> RbacError {
-    hook_tracing::error_with_fields!("RBAC route pattern compilation failed", error, path_pattern = pattern);
+    taco_tracing::error_with_fields!("RBAC route pattern compilation failed", error, path_pattern = pattern);
     RbacError::InvalidInput(LocalizedError::new("errors.rbac.invalid_route_pattern"))
 }

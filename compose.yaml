@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: hook-postgres
+    container_name: taco-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "${TACO_POSTGRES_PASSWORD:?TACO_POSTGRES_PASSWORD is required}"
+      POSTGRES_PASSWORD: "${TACO_DATABASE_PASSWORD:?TACO_DATABASE_PASSWORD is required}"
     ports:
       - '5435:5432'
     volumes:
@@ -19,7 +19,7 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    container_name: hook-redis
+    container_name: taco-redis
     restart: unless-stopped
     ports:
       - '6381:6379'

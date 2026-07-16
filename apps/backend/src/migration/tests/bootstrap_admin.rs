@@ -13,8 +13,7 @@ async fn bootstrap_admin_allows_ordinary_users_then_rejects_a_second_super_admin
     fresh(database.pool()).await.unwrap();
     insert_ordinary_user(database.pool()).await;
     let mut settings = test_settings();
-    settings.database.url = Some(database.database_url());
-    settings.database.password = None;
+    settings.database = database.database_settings();
 
     let user = bootstrap_admin(&settings, input("root-admin")).await.unwrap();
 
@@ -38,8 +37,7 @@ async fn bootstrap_admin_rejects_a_disabled_existing_super_admin() {
     let database = TestDatabase::create().await;
     fresh(database.pool()).await.unwrap();
     let mut settings = test_settings();
-    settings.database.url = Some(database.database_url());
-    settings.database.password = None;
+    settings.database = database.database_settings();
     let admin = bootstrap_admin(&settings, input("disabled-admin")).await.unwrap();
     query("UPDATE sys_user SET status='1' WHERE user_id=$1")
         .bind(&admin.id.0)

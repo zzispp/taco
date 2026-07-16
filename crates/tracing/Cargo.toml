@@ -1,5 +1,5 @@
 [package]
-name = "hook_tracing"
+name = "taco_tracing"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

@@ -1,0 +1,95 @@
+server:
+  host: "0.0.0.0"
+  port: 3000
+
+database:
+  auto_migrate: false
+  scheme: "postgres"
+  ssl_mode: "verify-full"
+  host: "${TACO_DATABASE_HOST}"
+  port: "${TACO_DATABASE_PORT}"
+  username: "${TACO_DATABASE_USERNAME}"
+  password: "${TACO_DATABASE_PASSWORD}"
+  name: "${TACO_DATABASE_NAME}"
+
+jwt:
+  secret: "${TACO_JWT_SECRET}"
+
+captcha:
+  cloudflare_turnstile:
+    secret_key: "${TACO_TURNSTILE_SECRET_KEY}"
+
+auth:
+  whitelist:
+    - methods: ["GET"]
+      path_pattern: "/health"
+    - methods: ["GET"]
+      path_pattern: "/metrics"
+    - methods: ["GET"]
+      path_pattern: "/openapi.json"
+    - methods: ["GET"]
+      path_pattern: "/docs"
+  refresh_cookie:
+    secure: true
+    path: "/api/auth"
+
+user:
+  online_sessions:
+    cleanup_interval_ms: 60000
+    cleanup_batch_size: 1000
+
+cors:
+  allowed_origins: ["${TACO_ADMIN_ORIGIN}"]
+  allowed_methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+  allowed_headers: ["authorization", "content-type", "accept-language"]
+  exposed_headers: ["x-request-id"]
+  allow_credentials: true
+  max_age_seconds: 3600
+
+http:
+  request_timeout_ms: 30000
+  compression_enabled: true
+
+metrics:
+  enabled: true
+
+audit:
+  outbox:
+    worker_count: 4
+    claim_batch_size: 64
+    poll_interval_ms: 250
+    lease_duration_ms: 30000
+    retry_delay_ms: 5000
+    cleanup_interval_ms: 3600000
+    cleanup_batch_size: 1000
+    processed_retention_days: 7
+
+client_info:
+  ip_location:
+    request_timeout_ms: 3000
+
+scheduler:
+  http_client:
+    request_timeout_ms: 30000
+  runtime:
+    reconcile_interval_ms: 1000
+
+redis:
+  scheme: "rediss"
+  host: "${TACO_REDIS_HOST}"
+  port: "${TACO_REDIS_PORT}"
+  username: "${TACO_REDIS_USERNAME}"
+  password: "${TACO_REDIS_PASSWORD}"
+  database: "${TACO_REDIS_DATABASE}"
+  protocol: "resp3"
+  key_prefix: "taco:dev"
+
+uploads:
+  avatar_directory: "${TACO_AVATAR_DIRECTORY}"
+
+tracing:
+  log_level: "debug"
+  file:
+    enabled: true
+    directory: "${TACO_LOG_DIRECTORY}"
+    prefix: "taco.log"

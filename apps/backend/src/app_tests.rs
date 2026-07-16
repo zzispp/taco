@@ -12,7 +12,7 @@ mod tests {
     #[tokio::test]
     async fn docs_and_metrics_routes_are_public() {
         let settings = test_settings();
-        let metrics = hook_tracing::init_metrics(hook_tracing::MetricsConfig {
+        let metrics = taco_tracing::init_metrics(taco_tracing::MetricsConfig {
             enabled: settings.metrics.enabled,
         })
         .unwrap();
@@ -35,7 +35,7 @@ mod tests {
     #[tokio::test]
     async fn docs_support_gzip_and_request_id() {
         let settings = test_settings();
-        let metrics = hook_tracing::init_metrics(hook_tracing::MetricsConfig {
+        let metrics = taco_tracing::init_metrics(taco_tracing::MetricsConfig {
             enabled: settings.metrics.enabled,
         })
         .unwrap();
@@ -60,7 +60,7 @@ mod tests {
     #[tokio::test]
     async fn metrics_output_exposes_http_series() {
         let settings = test_settings();
-        let metrics = hook_tracing::init_metrics(hook_tracing::MetricsConfig {
+        let metrics = taco_tracing::init_metrics(taco_tracing::MetricsConfig {
             enabled: settings.metrics.enabled,
         })
         .unwrap();

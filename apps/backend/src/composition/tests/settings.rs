@@ -1,7 +1,8 @@
 use configuration::{
     AuditOutboxSettings, AuditSettings, AuthSettings, CaptchaSettings, ClientInfoSettings, ClientIpLocationSettings, CloudflareTurnstileSettings, CorsSettings,
-    DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisSettings, RefreshCookieSettings, SchedulerHttpClientSettings,
-    SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, TracingFileSettings, TracingSettings, UploadSettings, UserSettings,
+    DatabaseScheme, DatabaseSettings, DatabaseSslMode, HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisProtocol, RedisScheme,
+    RedisSettings, RefreshCookieSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings,
+    TracingFileSettings, TracingSettings, UploadSettings, UserSettings,
 };
 
 const TEST_SERVER_PORT: u16 = 3_000;
@@ -38,7 +39,6 @@ pub(crate) fn test_settings() -> Settings {
             whitelist: vec![],
             refresh_cookie: RefreshCookieSettings {
                 secure: true,
-                domain: None,
                 path: "/api/auth".into(),
             },
         },
@@ -94,12 +94,12 @@ fn scheduler_settings() -> SchedulerSettings {
 fn database_settings() -> DatabaseSettings {
     DatabaseSettings {
         auto_migrate: false,
-        url: None,
-        scheme: "postgres".into(),
+        scheme: DatabaseScheme::Postgres,
+        ssl_mode: DatabaseSslMode::Disable,
         host: "localhost".into(),
         port: TEST_DATABASE_PORT,
         username: "postgres".into(),
-        password: Some("postgres".into()),
+        password: "postgres".into(),
         name: "postgres".into(),
     }
 }
@@ -117,14 +117,13 @@ fn cors_settings() -> CorsSettings {
 
 fn redis_settings() -> RedisSettings {
     RedisSettings {
-        url: None,
-        scheme: "redis".into(),
+        scheme: RedisScheme::Redis,
         host: "localhost".into(),
         port: TEST_REDIS_PORT,
         username: None,
         password: None,
         database: Some(TEST_REDIS_DATABASE),
-        protocol: Some("resp3".into()),
+        protocol: Some(RedisProtocol::Resp3),
         key_prefix: "taco".into(),
     }
 }

@@ -103,7 +103,7 @@ impl SharedCapture {
     fn lock_state(&self, operation: &'static str) -> Result<MutexGuard<'_, CaptureState>, CaptureLockError> {
         self.0.lock().map_err(|_| {
             let error = CaptureLockError;
-            hook_tracing::error_with_fields!(
+            taco_tracing::error_with_fields!(
                 "operation audit body capture state lock failed",
                 &error,
                 event_type = "operation",
@@ -147,7 +147,7 @@ pub(crate) fn trace_stream_error(trace: CaptureTrace<'_>, failed: bool) {
         return;
     }
     let error = std::io::Error::other(format!("operation audit {} body stream did not complete", trace.phase));
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "operation audit body capture failed",
         &error,
         request_id = trace.request_id,

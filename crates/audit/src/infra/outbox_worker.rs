@@ -173,7 +173,7 @@ async fn run_worker(worker: Arc<AuditOutboxWorker>, mut shutdown: watch::Receive
             Ok(0) => worker.config.poll_interval,
             Ok(_) => continue,
             Err(error) => {
-                hook_tracing::error_with_fields!("audit outbox worker failed", &error, worker_id = worker_id, reason = "worker_cycle_failed");
+                taco_tracing::error_with_fields!("audit outbox worker failed", &error, worker_id = worker_id, reason = "worker_cycle_failed");
                 worker.config.retry_delay
             }
         };
@@ -194,7 +194,7 @@ async fn run_cleanup(worker: Arc<AuditOutboxWorker>, mut shutdown: watch::Receiv
             return;
         }
         if let Err(error) = worker.cleanup_once().await {
-            hook_tracing::error_with_fields!("audit outbox cleanup failed", &error, reason = "cleanup_failed");
+            taco_tracing::error_with_fields!("audit outbox cleanup failed", &error, reason = "cleanup_failed");
         }
     }
 }
@@ -217,7 +217,7 @@ fn add_duration(now: OffsetDateTime, value: Duration) -> AuditResult<OffsetDateT
 }
 
 fn trace_retry<E: std::error::Error + ?Sized>(claimed: &ClaimedAuditEvent, reason: &'static str, error: &E) {
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "audit outbox projection deferred",
         error,
         outbox_id = claimed.id,
@@ -227,7 +227,7 @@ fn trace_retry<E: std::error::Error + ?Sized>(claimed: &ClaimedAuditEvent, reaso
 }
 
 fn trace_location_resolution_failure<E: std::error::Error + ?Sized>(claimed: &ClaimedAuditEvent, error: &E) {
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "audit outbox location resolution failed; projecting unknown location",
         error,
         outbox_id = claimed.id,

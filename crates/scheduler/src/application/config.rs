@@ -5,7 +5,7 @@ use super::{SchedulerError, SchedulerResult, localized};
 
 pub fn parse_export_batch_config(value: &str) -> SchedulerResult<ExportBatchConfig> {
     kernel::runtime_config::parse_export_batch_config(value).map_err(|error| {
-        hook_tracing::error_with_fields!("invalid scheduler export runtime config", &error, key = EXPORT_BATCH_CONFIG_KEY);
+        taco_tracing::error_with_fields!("invalid scheduler export runtime config", &error, key = EXPORT_BATCH_CONFIG_KEY);
         SchedulerError::InvalidInput(localized("errors.scheduler.invalid_export_batch_config"))
     })
 }

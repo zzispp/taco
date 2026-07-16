@@ -1,97 +1,170 @@
+# Required server listener settings.
 server:
-  host: "127.0.0.1"
+  # Required string. Bind all container interfaces behind the trusted reverse proxy.
+  host: "0.0.0.0"
+  # Required integer in the range 1-65535. Backend HTTP listener port.
   port: 3000
 
+# Required PostgreSQL connection and migration settings.
 database:
+  # Required boolean. Keep false; run schema migrations as an explicit deployment step.
   auto_migrate: false
-  url:
+  # Required string. SQLx PostgreSQL URL scheme.
   scheme: "postgres"
-  host: "localhost"
-  port: 5435
-  username: "postgres"
-  password:
-  name: "postgres"
+  # Required string. Production verifies the server certificate and hostname.
+  ssl_mode: "verify-full"
+  # Required non-empty string from TACO_DATABASE_HOST.
+  host: "${TACO_DATABASE_HOST}"
+  # Required integer from TACO_DATABASE_PORT.
+  port: "${TACO_DATABASE_PORT}"
+  # Required non-empty string from TACO_DATABASE_USERNAME.
+  username: "${TACO_DATABASE_USERNAME}"
+  # Required non-empty secret string from TACO_DATABASE_PASSWORD.
+  password: "${TACO_DATABASE_PASSWORD}"
+  # Required non-empty database name from TACO_DATABASE_NAME.
+  name: "${TACO_DATABASE_NAME}"
 
+# Required JWT signing settings.
 jwt:
-  secret: ""
+  # Required secret string from TACO_JWT_SECRET; must contain at least 32 UTF-8 bytes.
+  secret: "${TACO_JWT_SECRET}"
 
+# Required captcha provider credentials.
 captcha:
+  # Required Cloudflare Turnstile credential mapping.
   cloudflare_turnstile:
-    secret_key: ""
+    # Required variable TACO_TURNSTILE_SECRET_KEY; set it explicitly empty when Turnstile is not selected.
+    secret_key: "${TACO_TURNSTILE_SECRET_KEY}"
 
+# Required authentication route and refresh-cookie settings.
 auth:
+  # Required list of routes allowed without an access token; production exposes only health and metrics here.
   whitelist:
+    # Allow unauthenticated liveness checks.
+    # Required scalar list of valid HTTP methods for this rule.
     - methods: ["GET"]
+      # Required route pattern matched by the authentication middleware.
       path_pattern: "/health"
+    # Allow unauthenticated metrics collection through a restricted proxy route.
+    # Required scalar list of valid HTTP methods for this rule.
     - methods: ["GET"]
+      # Required route pattern matched by the authentication middleware.
       path_pattern: "/metrics"
-    - methods: ["GET"]
-      path_pattern: "/openapi.json"
-    - methods: ["GET"]
-      path_pattern: "/docs"
+  # Required refresh-token Cookie settings; SameSite is fixed to Strict by the backend.
   refresh_cookie:
+    # Required boolean. Must remain true so the Cookie is sent only over HTTPS.
     secure: true
-    domain:
+    # Required absolute path. Restricts the Cookie to authentication endpoints.
     path: "/api/auth"
 
+# Required user bounded-context runtime policies.
 user:
+  # Required online-session cleanup policy.
   online_sessions:
+    # Required positive integer in milliseconds. Delay between cleanup cycles.
     cleanup_interval_ms: 60000
+    # Required positive integer. Maximum expired sessions deleted per transaction.
     cleanup_batch_size: 1000
 
+# Required browser cross-origin policy.
 cors:
-  allowed_origins: ["https://admin.example.test"]
+  # Required scalar list containing one concrete admin Origin from TACO_ADMIN_ORIGIN; non-loopback Origins must use HTTPS.
+  allowed_origins: ["${TACO_ADMIN_ORIGIN}"]
+  # Required scalar list of HTTP methods accepted from the configured admin Origin.
   allowed_methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+  # Required scalar list of request headers accepted from the configured admin Origin.
   allowed_headers: ["authorization", "content-type", "accept-language"]
+  # Required scalar list of response headers exposed to browser code.
   exposed_headers: ["x-request-id"]
+  # Required boolean. Allows the browser to include the refresh Cookie.
   allow_credentials: true
+  # Optional non-negative integer in seconds. Browser preflight cache lifetime; zero disables caching.
   max_age_seconds: 3600
 
+# Required shared HTTP middleware behavior.
 http:
+  # Required positive integer in milliseconds. Total timeout for one API request.
   request_timeout_ms: 30000
+  # Required boolean. Enables response compression middleware.
   compression_enabled: true
 
+# Required Prometheus metrics behavior.
 metrics:
+  # Required boolean. Registers metrics collection and the /metrics endpoint.
   enabled: true
 
+# Required durable audit-delivery policies.
 audit:
+  # Required PostgreSQL audit outbox worker policy.
   outbox:
+    # Required positive integer. Number of independent outbox consumers.
     worker_count: 4
+    # Required positive integer. Maximum rows claimed by one consumer transaction.
     claim_batch_size: 64
+    # Required positive integer in milliseconds. Delay before polling an empty outbox again.
     poll_interval_ms: 250
+    # Required positive integer in milliseconds. Time before an abandoned claim can be reclaimed.
     lease_duration_ms: 30000
+    # Required positive integer in milliseconds. Delay before retrying a failed projection.
     retry_delay_ms: 5000
+    # Required positive integer in milliseconds. Interval between completed-receipt cleanup cycles.
     cleanup_interval_ms: 3600000
+    # Required positive integer. Maximum completed receipts deleted per cleanup transaction.
     cleanup_batch_size: 1000
+    # Required positive integer in days. Retention for completed receipts, not final audit logs.
     processed_retention_days: 7
 
+# Required client information infrastructure settings.
 client_info:
+  # Required IP-location provider request policy.
   ip_location:
+    # Required positive integer in milliseconds. Total, connect, and read timeout for one provider request.
     request_timeout_ms: 3000
 
+# Required scheduled-job execution policies.
 scheduler:
+  # Required outbound HTTP client policy for scheduled requests.
   http_client:
+    # Required positive integer in milliseconds. Total timeout for one scheduled HTTP request.
     request_timeout_ms: 30000
+  # Required scheduler coordination policy.
   runtime:
+    # Required positive integer in milliseconds. Leader health-check, recovery, and retry interval.
     reconcile_interval_ms: 1000
 
+# Required Redis connection and namespace settings.
 redis:
-  url:
-  scheme: "redis"
-  host: "localhost"
-  port: 6381
-  username:
-  password:
-  database:
+  # Required string. Production uses the rediss TLS scheme.
+  scheme: "rediss"
+  # Required non-empty string from TACO_REDIS_HOST.
+  host: "${TACO_REDIS_HOST}"
+  # Required integer from TACO_REDIS_PORT.
+  port: "${TACO_REDIS_PORT}"
+  # Optional string from TACO_REDIS_USERNAME; set the variable explicitly empty when unused.
+  username: "${TACO_REDIS_USERNAME}"
+  # Optional secret string from TACO_REDIS_PASSWORD; set the variable explicitly empty when unused.
+  password: "${TACO_REDIS_PASSWORD}"
+  # Optional integer from TACO_REDIS_DATABASE; set the variable explicitly empty to select the server default database.
+  database: "${TACO_REDIS_DATABASE}"
+  # Optional string. RESP protocol version passed to the Redis client.
   protocol: "resp3"
-  key_prefix: "hook"
+  # Required non-empty string. Namespace prefix that isolates production keys.
+  key_prefix: "taco:prod"
 
+# Required uploaded-file storage settings.
 uploads:
-  avatar_directory: "storage/uploads/avatars"
+  # Required non-empty path from TACO_AVATAR_DIRECTORY; mount this path on persistent storage.
+  avatar_directory: "${TACO_AVATAR_DIRECTORY}"
 
+# Required structured logging settings.
 tracing:
+  # Required tracing filter. Production uses info-level logging.
   log_level: "info"
+  # Required rolling file-appender settings.
   file:
-    enabled: false
-    directory: "logs"
-    prefix: "hook.log"
+    # Required boolean. Production writes daily rolling log files.
+    enabled: true
+    # Required non-empty directory from TACO_LOG_DIRECTORY.
+    directory: "${TACO_LOG_DIRECTORY}"
+    # Required non-empty filename prefix for daily rolling files.
+    prefix: "taco.log"

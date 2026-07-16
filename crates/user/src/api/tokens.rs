@@ -111,7 +111,7 @@ impl TokenService {
 
     async fn compensate_failed_session_save(&self, token_id: &str) {
         if let Err(error) = self.sessions.delete(token_id).await {
-            hook_tracing::error_with_fields!(
+            taco_tracing::error_with_fields!(
                 "failed to compensate ambiguous online session save",
                 &error,
                 token_id = token_id,

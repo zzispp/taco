@@ -249,7 +249,7 @@ fn invalid_redeem_payload(error: serde_json::Error) -> CaptchaError {
 }
 
 fn invalid_cap_config(error: serde_json::Error) -> CaptchaError {
-    hook_tracing::error_with_fields!("invalid CAP provider config", &error, provider = PROVIDER_NAME);
+    taco_tracing::error_with_fields!("invalid CAP provider config", &error, provider = PROVIDER_NAME);
     invalid_cap_options()
 }
 

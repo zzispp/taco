@@ -1,6 +1,17 @@
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { NextConfig } from 'next';
 
+import { assertNoEnvironmentFiles } from './src/shared/config/environment-files';
 import { DEFAULT_SERVER_URL } from './src/shared/config/server-url';
+
+// ----------------------------------------------------------------------
+
+const FRONTEND_ROOT = fileURLToPath(new URL('.', import.meta.url));
+const WORKSPACE_ROOT = resolve(FRONTEND_ROOT, '../..');
+
+assertNoEnvironmentFiles([WORKSPACE_ROOT, FRONTEND_ROOT]);
 
 // ----------------------------------------------------------------------
 

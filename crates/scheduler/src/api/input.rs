@@ -107,7 +107,7 @@ fn parse_time(value: Option<&str>, field: &'static str) -> SchedulerResult<Optio
     DateTime::parse_from_rfc3339(value.trim())
         .map(|value| Some(value.with_timezone(&Utc)))
         .map_err(|error| {
-            hook_tracing::error_with_fields!("invalid scheduler date filter", &error, field = field);
+            taco_tracing::error_with_fields!("invalid scheduler date filter", &error, field = field);
             SchedulerError::InvalidInput(crate::application::localized_param("errors.scheduler.invalid_date_filter", "field", field))
         })
 }

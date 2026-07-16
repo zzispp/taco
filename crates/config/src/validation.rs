@@ -1,7 +1,7 @@
 use crate::{CorsSettings, HttpSettings, RefreshCookieSettings, Settings, SettingsError, TracingFileSettings};
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
-use url::Url;
+use url::{Host, Url};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatedTracingSettings {
@@ -93,21 +93,18 @@ impl Settings {
         if !path.starts_with('/') {
             return Err(SettingsError::InvalidCookiePath("auth.refresh_cookie.path"));
         }
-        let domain = self
-            .auth
-            .refresh_cookie
-            .domain
-            .as_deref()
-            .map(|value| crate::loader::required_config_value("auth.refresh_cookie.domain", value))
-            .transpose()?;
         Ok(RefreshCookieSettings {
             secure: self.auth.refresh_cookie.secure,
-            domain,
             path,
         })
     }
 
     pub(crate) fn validate(&self) -> Result<(), SettingsError> {
+        crate::loader::required_config_value("server.host", &self.server.host)?;
+        positive("server.port", self.server.port)?;
+        self.database_url()?;
+        self.redis_url()?;
+        crate::loader::required_config_value("uploads.avatar_directory", &self.uploads.avatar_directory)?;
         self.jwt_secret()?;
         self.http_config()?;
         self.scheduler_config()?;
@@ -157,6 +154,9 @@ fn validate_origin_list(key: &'static str, values: &[String]) -> Result<Validate
     let ValidatedCorsList::Values(values) = validate_list(key, values, false)? else {
         return Err(SettingsError::WildcardCorsOrigin(key));
     };
+    if values.len() != 1 {
+        return Err(SettingsError::ExpectedSingleCorsOrigin(key));
+    }
     let origins = values
         .into_iter()
         .map(|value| normalized_http_origin(key, value))
@@ -172,7 +172,19 @@ fn normalized_http_origin(key: &'static str, value: String) -> Result<String, Se
     if !valid_scheme || parsed.host().is_none() || has_credentials || has_resource {
         return Err(invalid_http_origin(key, &value));
     }
+    if parsed.scheme() == "http" && !is_loopback_origin(&parsed) {
+        return Err(SettingsError::InsecureHttpOrigin(key));
+    }
     Ok(parsed.origin().ascii_serialization())
+}
+
+fn is_loopback_origin(origin: &Url) -> bool {
+    match origin.host() {
+        Some(Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(Host::Ipv4(address)) => address == std::net::Ipv4Addr::LOCALHOST,
+        Some(Host::Ipv6(address)) => address == std::net::Ipv6Addr::LOCALHOST,
+        None => false,
+    }
 }
 
 fn invalid_http_origin(key: &'static str, value: &str) -> SettingsError {

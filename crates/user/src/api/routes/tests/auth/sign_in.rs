@@ -56,6 +56,7 @@ async fn sign_in_sets_strict_http_only_refresh_cookie_without_exposing_refresh_t
     assert!(cookie.contains("SameSite=Strict"));
     assert!(cookie.contains("Path=/api/auth"));
     assert!(cookie.contains("Max-Age=604800"));
+    assert!(!cookie.contains("Domain="));
     let body = json_body(response).await;
     assert!(body.get("refresh_token").is_none());
     assert_non_empty_string(&body["access_token"]);

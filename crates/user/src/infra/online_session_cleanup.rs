@@ -55,7 +55,7 @@ async fn run_cleanup(cleanup: Arc<dyn OnlineSessionCleanup>, config: OnlineSessi
             return;
         }
         if let Err(error) = cleanup_once(cleanup.as_ref(), config.batch_size).await {
-            hook_tracing::error_with_fields!("online session cleanup failed", &error, reason = "cleanup_failed");
+            taco_tracing::error_with_fields!("online session cleanup failed", &error, reason = "cleanup_failed");
         }
         if wait_for(config.interval, &mut shutdown).await {
             return;

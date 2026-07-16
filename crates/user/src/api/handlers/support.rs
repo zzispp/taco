@@ -132,7 +132,7 @@ fn login_location(location: client_info::IpLocation, locale: types::http::Locale
 }
 
 fn client_info_error(error: client_info::ClientInfoError) -> AppError {
-    hook_tracing::error_with_fields!("client information resolution failed", &error, component = "ip_location");
+    taco_tracing::error_with_fields!("client information resolution failed", &error, component = "ip_location");
     AppError::Infrastructure(error.to_string())
 }
 

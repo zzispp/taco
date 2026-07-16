@@ -82,7 +82,7 @@ pub(super) fn pending_finish(completion: TaskCompletion) -> PendingFinish {
 }
 
 pub(super) fn panicked_finish(execution: Execution, error: tokio::task::JoinError) -> PendingFinish {
-    hook_tracing::error_with_fields!("scheduled task panicked", &error, execution_id = execution.id.as_str());
+    taco_tracing::error_with_fields!("scheduled task panicked", &error, execution_id = execution.id.as_str());
     PendingFinish {
         execution,
         outcome: ExecutionOutcome::Failed,
@@ -105,7 +105,7 @@ fn successful_finish(execution: Execution, output: TaskExecutionOutput) -> Pendi
 }
 
 fn failed_finish(execution: Execution, error: TaskExecutionFailure) -> PendingFinish {
-    hook_tracing::error_with_fields!(
+    taco_tracing::error_with_fields!(
         "scheduled task execution failed",
         &error,
         execution_id = execution.id.as_str(),
