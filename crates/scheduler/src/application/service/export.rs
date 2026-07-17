@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use crate::{
     application::{
         ExecutionLogSummary, JobView, SchedulerCursorQuery, SchedulerCursorSlice, SchedulerExportSession, SchedulerQueryExportSession, SchedulerResult,
-        service_support::registry_status, task::TaskCatalog,
+        service_support::{lifecycle_capabilities, registry_status},
+        task::TaskCatalog,
     },
     domain::{Job, JobListFilter, JobLogListFilter},
 };
@@ -24,6 +25,7 @@ impl ServiceExportSession {
         let registry_status = registry_status(self.catalog.as_ref(), &job);
         let param_form = self.catalog.get(&job.task_key).map(|definition| (definition.params.form)());
         JobView {
+            capabilities: lifecycle_capabilities(self.catalog.as_ref(), &job),
             job,
             registry_status,
             param_form,

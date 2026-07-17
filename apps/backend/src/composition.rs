@@ -21,6 +21,7 @@ use captcha::{
     },
 };
 use configuration::{Settings, SettingsError, ValidatedCorsList};
+use observability::api::{SystemLogApiState, SystemLogApiStateParts, create_router as create_system_log_router};
 use rbac::api::{RbacApiState, RbacApiStateParts, create_router as create_rbac_router};
 use scheduler::api::{SchedulerApiState, SchedulerApiStateParts, create_router as create_scheduler_router};
 use storage::{Database, connect_database};
@@ -38,6 +39,7 @@ use self::{
     routes::authorization_config,
     runtime_config::{CaptchaAccountVerifier, CaptchaSystemConfig, RuntimeRbacConfig, RuntimeSystemConfig, RuntimeUserConfig},
     scheduler_wiring::build_scheduler_services,
+    tracing_runtime::{build_observability_services, observability_export_config},
 };
 use crate::{
     BackendResult,
@@ -55,6 +57,9 @@ mod rbac_wiring;
 mod routes;
 mod runtime_config;
 mod scheduler_wiring;
+mod system_log_cleanup_execution;
+pub(crate) mod tracing_config_listener;
+pub(crate) mod tracing_runtime;
 pub(crate) use bootstrap_wiring::bootstrap_admin;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -63,21 +68,36 @@ const AVATAR_URL_PREFIX: &str = "/uploads/avatars";
 
 pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let database = connect_database(&settings.database_url()?).await?;
-    migration::prepare_runtime_schema(database.pool(), settings.database.auto_migrate).await?;
-    let rbac = build_rbac_services(settings, database.clone()).await?;
+    migration::prepare_runtime_schema(database.raw_pool(), settings.database.auto_migrate).await?;
+    let observability = build_observability_services(database.clone()).await?;
+    let rbac = build_rbac_services(settings, database.clone(), observability.infrastructure_observer.clone()).await?;
     let endpoints = access_catalog::EndpointCatalog::build()?;
     let authorization = authorization_config(settings, &endpoints)?;
     rbac.use_case.validate_protected_handlers(&authorization)?;
-    let system = build_system_services(settings, database.clone()).await?;
-    let users = build_user_services(settings, database.clone(), system.use_case.clone()).await?;
-    let captcha = build_captcha_service(settings, system.use_case.clone()).await?;
-    let scheduler = build_scheduler_services(settings, database.clone(), system.use_case.clone())?;
+    let system = build_system_services(settings, database.clone(), observability.infrastructure_observer.clone()).await?;
+    let users = build_user_services(
+        settings,
+        database.clone(),
+        system.use_case.clone(),
+        observability.infrastructure_observer.clone(),
+    )
+    .await?;
+    let captcha = build_captcha_service(settings, system.use_case.clone(), observability.infrastructure_observer.clone()).await?;
+    let scheduler = build_scheduler_services(
+        settings,
+        database.clone(),
+        system.use_case.clone(),
+        observability.logs.clone(),
+        observability.retention,
+        observability.infrastructure_observer,
+    )?;
     let audit = build_audit_services(AuditServiceParts {
         database,
         system: system.use_case.clone(),
         location_resolver: users.location_resolver.clone(),
         outbox: audit_outbox_config(settings)?,
     })?;
+    let system_log_export_config = observability_export_config(system.use_case.clone());
 
     Ok(AppState {
         users: users.use_case,
@@ -97,6 +117,12 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         audit_outbox: audit.outbox,
         audit_outbox_runtime: audit.runtime,
         audit_export_config: audit.export_config,
+        system_logs: observability.logs,
+        system_log_export_config,
+        system_log_runtime: observability.system_log_runtime,
+        _tracing_config_listener_runtime: observability.config_listener_runtime,
+        tracing_config_listener_health: observability.config_listener_health,
+        http_log_state: observability.http_log_state,
         ip_location_resolver: users.location_resolver,
         scheduler: scheduler.use_case,
         scheduler_audited: scheduler.audited,
@@ -107,14 +133,12 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     })
 }
 
-pub async fn build_router(settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
-    let state = build_app_state(settings).await?;
-    create_app(state, settings, metrics_handle)
-}
-
 #[cfg(test)]
 pub(crate) fn build_public_router(settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
-    let app = add_metrics_route(public_routes(settings), &metrics_handle);
+    let app = add_metrics_route(
+        public_routes(settings, system::HealthState::for_test(tracing_runtime::TracingConfigListenerHealth::new())),
+        &metrics_handle,
+    );
     let app = app.layer(middleware::from_fn(types::http::locale_middleware));
     let app = http_pipeline::with_timeout(app, settings)?;
     let app = http_pipeline::apply_metrics_layer(app, &metrics_handle);
@@ -131,10 +155,13 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: taco_tra
         endpoints: state.endpoints.clone(),
     });
     let api_router = create_api_router(&state, settings)?;
-    let app = public_routes(settings).nest("/api", api_router);
+    let health_state = system::HealthState::new(state.tracing_config_listener_health.clone(), state.system_log_runtime.clone());
+    let app = public_routes(settings, health_state).nest("/api", api_router);
     let app = add_metrics_route(app, &metrics_handle);
     let app = app.layer(Extension(state.audit_outbox_runtime.clone()));
     let app = app.layer(Extension(state.session_cleanup_runtime.clone()));
+    let app = app.layer(Extension(state.system_log_runtime.clone()));
+    let app = app.layer(Extension(state._tracing_config_listener_runtime.clone()));
     let app = app.layer(middleware::from_fn_with_state(auth_state, auth_middleware));
     apply_runtime_layers(
         app,
@@ -142,6 +169,7 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: taco_tra
             settings,
             audit: operation_audit_state(&state)?,
             metrics: &metrics_handle,
+            http_logs: Some(state.http_log_state.clone()),
         },
     )
 }
@@ -162,6 +190,7 @@ fn create_api_router(state: &AppState, settings: &Settings) -> BackendResult<Rou
         .merge(create_notice_router(NoticeApiState::new(state.notices.clone(), state.notices_audited.clone())))
         .merge(create_captcha_router(CaptchaApiState::new(state.captcha.clone())))
         .merge(create_audit_router(audit_api_state(state)))
+        .merge(create_system_log_router(system_log_api_state(state)))
         .merge(create_scheduler_router(SchedulerApiState::new(SchedulerApiStateParts {
             scheduler: state.scheduler.clone(),
             audited_scheduler: state.scheduler_audited.clone(),
@@ -225,20 +254,31 @@ fn audit_api_state(state: &AppState) -> AuditApiState {
     })
 }
 
+fn system_log_api_state(state: &AppState) -> SystemLogApiState {
+    SystemLogApiState::new(SystemLogApiStateParts {
+        logs: state.system_logs.clone(),
+        cleanup_executions: Arc::new(system_log_cleanup_execution::SchedulerSystemLogCleanupExecutionAdapter::new(
+            state.scheduler.clone(),
+            state.scheduler_audited.clone(),
+        )),
+        export_config: state.system_log_export_config.clone(),
+    })
+}
+
 fn operation_audit_state(state: &AppState) -> Result<OperationAuditState, audit::application::AuditError> {
     OperationAuditState::try_new(state.endpoints.specs().to_vec(), state.audit_outbox.clone())
 }
 
-fn public_routes(settings: &Settings) -> Router {
+fn public_routes(settings: &Settings, health_state: system::HealthState) -> Router {
     docs::router()
-        .merge(system::create_router())
+        .merge(system::create_router(health_state))
         .nest_service(AVATAR_URL_PREFIX, ServeDir::new(&settings.uploads.avatar_directory))
 }
 
 pub use rbac_wiring::rebuild_rbac_cache;
 
-pub async fn rebuild_persistent_system_cache(settings: &Settings, database: Database) -> BackendResult<()> {
-    let cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+pub async fn rebuild_persistent_system_cache(settings: &Settings, database: Database, observer: taco_tracing::InfrastructureObserver) -> BackendResult<()> {
+    let cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
     let system: Arc<dyn SystemUseCase> = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database), cache));
     rebuild_system_cache(&system).await
 }
@@ -249,12 +289,16 @@ async fn rebuild_system_cache(system: &Arc<dyn SystemUseCase>) -> BackendResult<
     Ok(())
 }
 
-async fn build_captcha_service(settings: &Settings, system: Arc<dyn SystemUseCase>) -> BackendResult<Arc<dyn CaptchaUseCase>> {
-    let store = RedisCaptchaStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+async fn build_captcha_service(
+    settings: &Settings,
+    system: Arc<dyn SystemUseCase>,
+    observer: taco_tracing::InfrastructureObserver,
+) -> BackendResult<Arc<dyn CaptchaUseCase>> {
+    let store = RedisCaptchaStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer.clone()).await?;
     let turnstile_secret_key = settings.cloudflare_turnstile_secret_key();
     let providers: Vec<Arc<dyn CaptchaProvider>> = vec![
         Arc::new(CapProvider::new(store)),
-        Arc::new(CloudflareTurnstileProvider::new(ReqwestTurnstileVerifier::new(), turnstile_secret_key)),
+        Arc::new(CloudflareTurnstileProvider::new(ReqwestTurnstileVerifier::new(observer), turnstile_secret_key)),
     ];
     Ok(Arc::new(CaptchaService::new(CaptchaSystemConfig::new(system), providers)))
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use kernel::pagination::{CursorPage, CursorPageRequest};
 
-use crate::domain::{ExecutionSnapshot, Job, JobListFilter, JobLogListFilter, JobStatus};
+use crate::domain::{Execution, ExecutionSnapshot, Job, JobListFilter, JobLogListFilter, JobStatus};
 
 use super::{
     AuditedSchedulerCommandStore, Clock, ExecutionLogDetail, ExecutionLogSummary, ImportJobCommand, ImportableTask, JobView, ManualExecutionRequest,
@@ -11,8 +11,12 @@ use super::{
     UpdateJobStatusCommand,
     cron::next_times_after,
     job_cursor_page, job_cursor_query, log_cursor_page, log_cursor_query,
-    service_support::{new_job, registry_status, replacement, require_editable, require_runnable, validate_import, validate_replace},
+    service_support::{
+        lifecycle_capabilities, new_job, registry_status, replacement, require_deletion_allowed, require_editable, require_runnable,
+        require_status_change_allowed, validate_import, validate_replace,
+    },
     task::{ScheduledTaskDefinition, TaskCatalog},
+    tasks::{ManualSystemLogCleanupExecution, manual_system_log_cleanup_execution},
     validation::{require_text, validate_ids},
 };
 
@@ -40,6 +44,8 @@ pub trait SchedulerUseCase: Send + Sync + 'static {
     async fn delete_jobs(&self, ids: Vec<String>) -> SchedulerResult<()>;
     async fn cron_next_times(&self, expression: &str, count: Option<u8>) -> SchedulerResult<Vec<chrono::DateTime<chrono::Utc>>>;
     async fn page_job_logs(&self, filter: JobLogListFilter, page: CursorPageRequest) -> SchedulerResult<CursorPage<ExecutionLogSummary>>;
+    async fn get_execution(&self, id: &str) -> SchedulerResult<Execution>;
+    async fn get_manual_system_log_cleanup_execution(&self, id: &str) -> SchedulerResult<ManualSystemLogCleanupExecution>;
     async fn get_job_log(&self, id: &str) -> SchedulerResult<ExecutionLogSummary>;
     async fn get_job_log_detail(&self, id: &str) -> SchedulerResult<ExecutionLogDetail>;
     async fn delete_job_log(&self, id: &str) -> SchedulerResult<()>;
@@ -78,6 +84,7 @@ impl SchedulerService {
         let registry_status = registry_status(self.catalog.as_ref(), &job);
         let param_form = self.catalog.get(&job.task_key).map(|definition| (definition.params.form)());
         JobView {
+            capabilities: lifecycle_capabilities(self.catalog.as_ref(), &job),
             job,
             registry_status,
             param_form,
@@ -130,7 +137,7 @@ impl SchedulerUseCase for SchedulerService {
                 "errors.scheduler.task_already_imported",
             ));
         }
-        (definition.params.validate)(&command.task_params)?;
+        (definition.params.validate_persisted)(&command.task_params)?;
         Ok(self.decorate(self.commands.insert_job(new_job(command, definition)?).await?))
     }
 
@@ -138,13 +145,14 @@ impl SchedulerUseCase for SchedulerService {
         validate_replace(&command)?;
         let current = self.query.find_job(&command.id).await?;
         let definition = require_editable(self.catalog.as_ref(), &current)?;
-        (definition.params.validate)(&command.task_params)?;
+        (definition.params.validate_persisted)(&command.task_params)?;
         Ok(self.decorate(self.commands.replace_job(replacement(command, definition)?).await?))
     }
 
     async fn update_job_status(&self, command: UpdateJobStatusCommand) -> SchedulerResult<JobView> {
+        let current = self.query.find_job(&command.id).await?;
+        require_status_change_allowed(self.catalog.as_ref(), &current, command.status)?;
         if command.status == JobStatus::Normal {
-            let current = self.query.find_job(&command.id).await?;
             require_runnable(self.catalog.as_ref(), &current)?;
         }
         Ok(self.decorate(self.commands.update_job_status(command).await?))
@@ -163,11 +171,16 @@ impl SchedulerUseCase for SchedulerService {
     }
 
     async fn delete_job(&self, id: &str) -> SchedulerResult<()> {
+        require_deletion_allowed(self.catalog.as_ref(), &self.query.find_job(id).await?)?;
         self.commands.delete_job(id).await
     }
 
     async fn delete_jobs(&self, ids: Vec<String>) -> SchedulerResult<()> {
-        self.commands.delete_jobs(validate_ids(ids)?).await
+        let ids = validate_ids(ids)?;
+        for id in &ids {
+            require_deletion_allowed(self.catalog.as_ref(), &self.query.find_job(id).await?)?;
+        }
+        self.commands.delete_jobs(ids).await
     }
 
     async fn cron_next_times(&self, expression: &str, count: Option<u8>) -> SchedulerResult<Vec<chrono::DateTime<chrono::Utc>>> {
@@ -179,6 +192,20 @@ impl SchedulerUseCase for SchedulerService {
         let query = log_cursor_query(&filter, &page)?;
         let slice = self.query.page_execution_logs(filter.clone(), query.clone()).await?;
         log_cursor_page(&filter, &query, slice)
+    }
+
+    async fn get_execution(&self, id: &str) -> SchedulerResult<Execution> {
+        self.query.find_execution(id).await
+    }
+
+    async fn get_manual_system_log_cleanup_execution(&self, id: &str) -> SchedulerResult<ManualSystemLogCleanupExecution> {
+        let execution = self.query.find_execution(id).await?;
+        let detail = if execution.state == crate::domain::ExecutionState::Terminal {
+            self.query.find_execution_log_detail(id).await?.detail
+        } else {
+            None
+        };
+        manual_system_log_cleanup_execution(&execution, detail.as_ref())
     }
 
     async fn get_job_log(&self, id: &str) -> SchedulerResult<ExecutionLogSummary> {

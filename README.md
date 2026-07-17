@@ -2,7 +2,7 @@
 
 `taco` is a Rust + Next.js admin monorepo with a DDD + Clean Architecture backend and a Feature-Sliced Design frontend.
 
-The backend is organized around user, RBAC, system, scheduler, captcha, and audit capabilities. The frontend uses FSD layers under `apps/frontend/src` and keeps page composition out of Next.js route entries.
+The backend is organized around user, RBAC, system, scheduler, captcha, audit, and observability capabilities. The frontend uses FSD layers under `apps/frontend/src` and keeps page composition out of Next.js route entries.
 
 ## Highlights
 
@@ -11,7 +11,7 @@ The backend is organized around user, RBAC, system, scheduler, captcha, and audi
 - JWT sign-in, sign-up, refresh, and current-user endpoints
 - RBAC for users, roles, API permissions, and menus
 - System administration for departments, posts, dictionaries, configuration, notices, and online sessions
-- Scheduled jobs plus operation and login audit log management with XLSX exports
+- Scheduled jobs plus operation, login, and system-log management with XLSX exports
 - PostgreSQL persistence with SQLx migrations
 - PostgreSQL-backed online sessions plus Redis-backed RBAC cache, captcha state, and authentication lock state
 - pnpm workspace + Cargo workspace in one repository
@@ -44,6 +44,7 @@ The backend keeps business logic inside domain crates and uses `apps/backend` as
 
 - `apps/backend`: app entry, dependency wiring, HTTP bootstrap, migration commands
 - `crates/audit`: operation and login audit bounded context with management APIs and exports
+- `crates/observability`: system-log bounded context with retention, search, and exports
 - `crates/audit_contract`: cross-context audit event and endpoint contracts
 - `crates/client_info`: shared client address, user-agent, and IP location infrastructure
 - `crates/user`: user bounded context with `domain`, `application`, `infra`, `api`
@@ -101,6 +102,7 @@ Important frontend rule: `src/app/**/page.tsx` stays thin and delegates page com
 - `/dashboard/admin/job-logs`
 - `/dashboard/monitor/logs/operation-logs`
 - `/dashboard/monitor/logs/login-logs`
+- `/dashboard/monitor/logs/system-logs`
 - `/dashboard/profile`
 - `/error/403`
 - `/error/404`
@@ -127,7 +129,7 @@ Protected APIs are grouped under:
 - `/api/system/depts*`, `/api/system/posts*`, `/api/system/dict-*`, and `/api/system/configs*`
 - `/api/system/notices*`, `/api/system/online*`, and `/api/system/dashboard`
 - `/api/system/jobs*` and `/api/system/job-logs*`
-- `/api/system/operation-logs*` and `/api/system/login-logs*`
+- `/api/system/operation-logs*`, `/api/system/login-logs*`, and `/api/system/system-logs*`
 
 ## Backend Domain Scope
 
@@ -136,6 +138,7 @@ Protected APIs are grouped under:
 - dictionaries, runtime system configuration, notices, and online sessions
 - scheduled jobs and execution logs
 - operation and authentication audit logs
+- system-log retention, search, and exports
 - captcha issuance and redemption
 
 ## Repository Layout
@@ -153,6 +156,7 @@ Protected APIs are grouped under:
 │   ├── config          # typed config loading and validation
 │   ├── constants       # shared constants
 │   ├── kernel          # shared low-level primitives
+│   ├── observability   # system-log bounded context
 │   ├── rbac            # RBAC bounded context
 │   ├── scheduler       # scheduled job bounded context
 │   ├── storage         # database and storage foundation
@@ -330,7 +334,6 @@ The `dev`, `prod`, and production-baseline `example` profiles additionally use:
 | `TACO_REDIS_HOST` | Non-empty Redis host |
 | `TACO_REDIS_PORT` | Redis port integer |
 | `TACO_ADMIN_ORIGIN` | Exact HTTPS frontend Origin allowed by CORS |
-| `TACO_LOG_DIRECTORY` | Non-empty directory for daily rolling log files |
 | `TACO_AVATAR_DIRECTORY` | Non-empty persistent avatar storage path |
 
 Connection URLs are constructed from typed PostgreSQL and Redis fields. `database.url`, `redis.url`, aliases, profile-prefixed variable names, and env-file compatibility paths are not supported. PostgreSQL schemes are restricted to `postgres` and `postgresql`; Redis schemes are restricted to `redis` and `rediss`; Redis protocol values are restricted to `resp2` and `resp3`.

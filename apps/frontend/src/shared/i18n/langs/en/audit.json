@@ -29,7 +29,7 @@
     "os": "Operating System",
     "message": "Message",
     "eventType": "Event Type",
-    "loginTime": "Access Time",
+    "loginTime": "Login Time",
     "beginTime": "Start Time",
     "endTime": "End Time"
   },

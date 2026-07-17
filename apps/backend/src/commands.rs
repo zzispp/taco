@@ -11,7 +11,6 @@ use migration_command::migration_command;
 
 pub async fn run() -> BackendResult<()> {
     let settings = Settings::load()?;
-    let _tracing_guard = init_tracing(&settings)?;
 
     match command_from_args(std::env::args().skip(1).collect())? {
         BackendCommand::Serve => startup::serve(settings).await,
@@ -38,21 +37,10 @@ async fn run_bootstrap_admin(settings: Settings, command: BootstrapAdminCommand)
     Ok(())
 }
 
-fn init_tracing(settings: &Settings) -> BackendResult<Option<tracing_appender::non_blocking::WorkerGuard>> {
-    let config = settings.tracing_config()?;
-    taco_tracing::init_global_subscriber(taco_tracing::TracingConfig {
-        log_level: config.log_level,
-        file_logging_enabled: config.file.enabled,
-        file_directory: config.file.directory,
-        file_prefix: config.file.prefix,
-    })
-    .map_err(Into::into)
-}
-
 async fn run_migration(settings: Settings, command: MigrationCommand) -> BackendResult<()> {
     let database = connect_database(&settings.database_url()?).await?;
     let rebuild_caches = command.rebuilds_caches();
-    let pool = database.pool();
+    let pool = database.raw_pool();
     match command {
         MigrationCommand::Up(steps) => migration::up(pool, steps).await?,
         MigrationCommand::Down(steps) => migration::down(pool, steps).await?,
@@ -74,8 +62,9 @@ fn print_status(rows: Vec<migration::MigrationStatusRow>) {
 }
 
 async fn rebuild_caches_after_migration(settings: &Settings, database: storage::Database) -> BackendResult<()> {
-    composition::rebuild_rbac_cache(settings, database.clone()).await?;
-    composition::rebuild_persistent_system_cache(settings, database).await
+    let observer = composition::tracing_runtime::runtime_infrastructure_observer(database.raw_pool()).await?;
+    composition::rebuild_rbac_cache(settings, database.clone(), observer.clone()).await?;
+    composition::rebuild_persistent_system_cache(settings, database, observer).await
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

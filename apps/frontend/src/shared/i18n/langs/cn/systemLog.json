@@ -1,0 +1,64 @@
+{
+  "title": "系统日志",
+  "filters": {
+    "invalidDateTime": "请输入有效的日期时间",
+    "invalidRange": "开始时间不能晚于结束时间"
+  },
+  "fields": {
+    "id": "日志编号",
+    "keyword": "关键词",
+    "level": "日志级别",
+    "target": "目标模块",
+    "message": "日志消息",
+    "fields": "结构化字段",
+    "occurredAt": "发生时间",
+    "beginTime": "开始时间",
+    "endTime": "结束时间"
+  },
+  "levels": { "trace": "跟踪", "debug": "调试", "info": "信息", "warn": "警告", "error": "错误" },
+  "actions": {
+    "detail": "详情",
+    "delete": "删除",
+    "clean": "清理",
+    "export": "导出",
+    "search": "搜索",
+    "reset": "重置",
+    "cleanupStatus": "查看清理状态"
+  },
+  "detail": { "title": "系统日志详情", "empty": "无记录内容" },
+  "dialogs": {
+    "deleteOne": "确认删除此条日志？",
+    "deleteSelected": "确认删除选中的 {{count}} 条日志？",
+    "cleanMatched": "当前筛选条件匹配 {{count}} 条日志，确认清理吗？",
+    "cleanFilterSnapshot": "本次清理条件"
+  },
+  "messages": {
+    "deleteSuccess": "删除成功",
+    "deleteFailure": "删除失败",
+    "cleanAccepted": "清理任务已提交（执行编号：{{executionId}}）",
+    "cleanCompleted": "已清理 {{count}} 条日志，共 {{batches}} 批",
+    "cleanFailure": "清理失败",
+    "cleanExecutionFailed": "清理任务未完成；已清理 {{count}} 条日志，共 {{batches}} 批",
+    "cleanExecutionStatusFailure": "无法读取清理任务状态",
+    "exportFailure": "导出失败",
+    "listFailure": "加载系统日志失败",
+    "detailFailure": "加载系统日志详情失败",
+    "timeRangeRequired": "清理和导出必须选择完整的时间范围"
+  },
+  "cleanupStates": {
+    "pending": "清理任务等待执行",
+    "running": "清理任务正在执行",
+    "succeeded": "清理完成：{{count}} 条日志，{{batches}} 批",
+    "failed": "清理任务执行失败；已清理 {{count}} 条日志，共 {{batches}} 批",
+    "skipped": "清理任务已跳过；已清理 {{count}} 条日志，共 {{batches}} 批",
+    "interrupted": "清理任务已中断；已清理 {{count}} 条日志，共 {{batches}} 批"
+  },
+  "table": {
+    "actions": "操作",
+    "selectAll": "选择全部日志",
+    "selectRow": "选择日志 {{id}}",
+    "noData": "暂无数据"
+  },
+  "cancel": "取消",
+  "close": "关闭"
+}

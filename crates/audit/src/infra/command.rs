@@ -1,5 +1,6 @@
 use audit_contract::{AuditOutboxRecord, AuditStream};
-use sqlx::{AssertSqlSafe, PgPool, Postgres, Transaction, query, query_scalar};
+use sqlx::{AssertSqlSafe, Postgres, Transaction, query, query_scalar};
+use storage::ObservedPgPool;
 use storage::outbox::{append_audit_record, clear_audit_stream};
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
 
 use super::mapping;
 
-pub async fn insert_operation(pool: &PgPool, log: NewOperationLog) -> AuditResult<()> {
+pub async fn insert_operation(pool: ObservedPgPool, log: NewOperationLog) -> AuditResult<()> {
     let mut transaction = pool.begin().await.map_err(mapping::sqlx_error)?;
     insert_operation_in_transaction(&mut transaction, log, false).await?;
     transaction.commit().await.map_err(mapping::sqlx_error)
@@ -48,7 +49,7 @@ pub async fn insert_operation_in_transaction(transaction: &mut Transaction<'_, P
     Ok(())
 }
 
-pub async fn insert_login(pool: &PgPool, id: String, log: NewLoginLog) -> AuditResult<()> {
+pub async fn insert_login(pool: ObservedPgPool, id: String, log: NewLoginLog) -> AuditResult<()> {
     let mut transaction = pool.begin().await.map_err(mapping::sqlx_error)?;
     insert_login_in_transaction(&mut transaction, LoginInsertCommand::strict(id, log)).await?;
     transaction.commit().await.map_err(mapping::sqlx_error)
@@ -103,7 +104,7 @@ pub(super) async fn insert_login_in_transaction(transaction: &mut Transaction<'_
     Ok(())
 }
 
-pub async fn delete_operations(pool: &PgPool, ids: &[String]) -> AuditResult<()> {
+pub async fn delete_operations(pool: ObservedPgPool, ids: &[String]) -> AuditResult<()> {
     exact_delete(
         pool,
         ExactDelete {
@@ -115,7 +116,7 @@ pub async fn delete_operations(pool: &PgPool, ids: &[String]) -> AuditResult<()>
     .await
 }
 
-pub async fn delete_operations_with_audit(pool: &PgPool, ids: &[String], record: &AuditOutboxRecord) -> AuditResult<()> {
+pub async fn delete_operations_with_audit(pool: ObservedPgPool, ids: &[String], record: &AuditOutboxRecord) -> AuditResult<()> {
     exact_delete_with_audit(
         pool,
         ExactDelete {
@@ -128,7 +129,7 @@ pub async fn delete_operations_with_audit(pool: &PgPool, ids: &[String], record:
     .await
 }
 
-pub async fn delete_logins(pool: &PgPool, ids: &[String]) -> AuditResult<()> {
+pub async fn delete_logins(pool: ObservedPgPool, ids: &[String]) -> AuditResult<()> {
     exact_delete(
         pool,
         ExactDelete {
@@ -140,7 +141,7 @@ pub async fn delete_logins(pool: &PgPool, ids: &[String]) -> AuditResult<()> {
     .await
 }
 
-pub async fn delete_logins_with_audit(pool: &PgPool, ids: &[String], record: &AuditOutboxRecord) -> AuditResult<()> {
+pub async fn delete_logins_with_audit(pool: ObservedPgPool, ids: &[String], record: &AuditOutboxRecord) -> AuditResult<()> {
     exact_delete_with_audit(
         pool,
         ExactDelete {
@@ -153,19 +154,19 @@ pub async fn delete_logins_with_audit(pool: &PgPool, ids: &[String], record: &Au
     .await
 }
 
-pub async fn clear_operations(pool: &PgPool) -> AuditResult<()> {
+pub async fn clear_operations(pool: ObservedPgPool) -> AuditResult<()> {
     clear_stream(pool, OPERATION_LOG_CLEAR).await
 }
 
-pub async fn clear_logins(pool: &PgPool) -> AuditResult<()> {
+pub async fn clear_logins(pool: ObservedPgPool) -> AuditResult<()> {
     clear_stream(pool, LOGIN_LOG_CLEAR).await
 }
 
-pub async fn clear_operations_with_audit(pool: &PgPool, record: &AuditOutboxRecord) -> AuditResult<()> {
+pub async fn clear_operations_with_audit(pool: ObservedPgPool, record: &AuditOutboxRecord) -> AuditResult<()> {
     clear_stream_with_audit(pool, OPERATION_LOG_CLEAR, record).await
 }
 
-pub async fn clear_logins_with_audit(pool: &PgPool, record: &AuditOutboxRecord) -> AuditResult<()> {
+pub async fn clear_logins_with_audit(pool: ObservedPgPool, record: &AuditOutboxRecord) -> AuditResult<()> {
     clear_stream_with_audit(pool, LOGIN_LOG_CLEAR, record).await
 }
 
@@ -206,14 +207,14 @@ const LOGIN_LOG_CLEAR: StreamClearCommand = StreamClearCommand {
     sql: "TRUNCATE TABLE sys_logininfor",
 };
 
-async fn clear_stream(pool: &PgPool, command: StreamClearCommand) -> AuditResult<()> {
+async fn clear_stream(pool: ObservedPgPool, command: StreamClearCommand) -> AuditResult<()> {
     let mut transaction = pool.begin().await.map_err(mapping::sqlx_error)?;
     clear_audit_stream(&mut transaction, command.stream).await.map_err(storage_error)?;
     query(command.sql).execute(&mut *transaction).await.map_err(mapping::sqlx_error)?;
     transaction.commit().await.map_err(mapping::sqlx_error)
 }
 
-async fn clear_stream_with_audit(pool: &PgPool, command: StreamClearCommand, record: &AuditOutboxRecord) -> AuditResult<()> {
+async fn clear_stream_with_audit(pool: ObservedPgPool, command: StreamClearCommand, record: &AuditOutboxRecord) -> AuditResult<()> {
     if record.stream() != AuditStream::Operation {
         return Err(AuditError::Infrastructure("audit log clear requires an operation outbox event".into()));
     }
@@ -235,14 +236,14 @@ struct ExactDelete<'a> {
     ids: &'a [String],
 }
 
-async fn exact_delete(pool: &PgPool, target: ExactDelete<'_>) -> AuditResult<()> {
+async fn exact_delete(pool: ObservedPgPool, target: ExactDelete<'_>) -> AuditResult<()> {
     let mut transaction = pool.begin().await.map_err(mapping::sqlx_error)?;
     ensure_all_exist(&mut transaction, target).await?;
     delete_rows(&mut transaction, target).await?;
     transaction.commit().await.map_err(mapping::sqlx_error)
 }
 
-async fn exact_delete_with_audit(pool: &PgPool, target: ExactDelete<'_>, record: &AuditOutboxRecord) -> AuditResult<()> {
+async fn exact_delete_with_audit(pool: ObservedPgPool, target: ExactDelete<'_>, record: &AuditOutboxRecord) -> AuditResult<()> {
     if record.stream() != AuditStream::Operation {
         return Err(AuditError::Infrastructure("audit log deletion requires an operation outbox event".into()));
     }

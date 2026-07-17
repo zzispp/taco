@@ -1,9 +1,10 @@
 use async_trait::async_trait;
-use sqlx::{AssertSqlSafe, PgConnection, PgPool, Postgres, QueryBuilder, query_as, query_scalar};
+use sqlx::{AssertSqlSafe, PgConnection, Postgres, QueryBuilder, query_as, query_scalar};
+use storage::ObservedPgPool;
 
 use crate::{
     application::{ExecutionLogDetail, ExecutionLogSummary, SchedulerCursorQuery, SchedulerCursorSlice, SchedulerQueryStore, SchedulerResult},
-    domain::{ExecutionState, Job, JobListFilter, JobLogListFilter},
+    domain::{Execution, ExecutionState, Job, JobListFilter, JobLogListFilter},
 };
 
 mod cursor;
@@ -13,9 +14,9 @@ use cursor::{WindowSpec, empty_slice, push_limit, push_window, resolve_job_snaps
 use super::{
     StorageSchedulerRepository,
     export_session::StorageSchedulerExportSession,
-    mapping::{map_execution_log, map_execution_log_detail, map_job, map_sqlx_error},
-    records::{ExecutionLogDetailRecord, ExecutionLogSummaryRecord, JobRecord},
-    sql::{EXECUTION_LOG_DETAIL_COLUMNS, EXECUTION_LOG_SUMMARY_COLUMNS, JOB_COLUMNS},
+    mapping::{map_execution, map_execution_log, map_execution_log_detail, map_job, map_sqlx_error},
+    records::{ExecutionLogDetailRecord, ExecutionLogSummaryRecord, ExecutionRecord, JobRecord},
+    sql::{EXECUTION_COLUMNS, EXECUTION_LOG_DETAIL_COLUMNS, EXECUTION_LOG_SUMMARY_COLUMNS, JOB_COLUMNS},
 };
 
 #[async_trait]
@@ -39,6 +40,16 @@ impl SchedulerQueryStore for StorageSchedulerRepository {
             .fetch_one(self.pool())
             .await
             .map_err(map_sqlx_error)
+    }
+
+    async fn find_execution(&self, id: &str) -> SchedulerResult<Execution> {
+        let sql = format!("SELECT {EXECUTION_COLUMNS} FROM sys_job_execution WHERE execution_id=$1");
+        let record = query_as::<_, ExecutionRecord>(AssertSqlSafe(sql))
+            .bind(id)
+            .fetch_one(self.pool())
+            .await
+            .map_err(map_sqlx_error)?;
+        map_execution(record)
     }
 
     async fn find_execution_log(&self, id: &str) -> SchedulerResult<ExecutionLogSummary> {
@@ -129,7 +140,7 @@ pub(super) async fn page_execution_logs_on(
     slice(items, snapshot, page)
 }
 
-pub(super) async fn find_job(pool: &PgPool, id: &str) -> SchedulerResult<Job> {
+pub(super) async fn find_job(pool: ObservedPgPool, id: &str) -> SchedulerResult<Job> {
     let sql = format!("SELECT {JOB_COLUMNS} FROM sys_job WHERE job_id=$1");
     let record = query_as::<_, JobRecord>(AssertSqlSafe(sql))
         .bind(id)

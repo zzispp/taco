@@ -50,11 +50,12 @@ export function SchedulerJobRow(props: { job: SchedulerJob; controller: Schedule
 type JobCellProps = { job: SchedulerJob; controller: SchedulerController };
 
 function SelectionCell({ job, controller }: JobCellProps) {
+  const { canDelete } = schedulerJobCapabilities(job.registry_status, job.capabilities);
   return (
     <TableCell padding="checkbox">
       <Checkbox
         checked={controller.state.table.selected.includes(job.job_id)}
-        disabled={!controller.resources.canRemove}
+        disabled={!controller.resources.canRemove || !canDelete}
         onChange={() => controller.state.table.onSelectRow(job.job_id)}
       />
     </TableCell>
@@ -62,7 +63,7 @@ function SelectionCell({ job, controller }: JobCellProps) {
 }
 
 function JobStatusCell({ job, controller }: JobCellProps) {
-  const { runnable } = schedulerJobCapabilities(job.registry_status);
+  const { canDisable, runnable } = schedulerJobCapabilities(job.registry_status, job.capabilities);
   return (
     <TableCell>
       <Switch
@@ -71,6 +72,7 @@ function JobStatusCell({ job, controller }: JobCellProps) {
         disabled={
           !controller.resources.canStatus ||
           !runnable ||
+          !canDisable ||
           controller.pending.has(`status:${job.job_id}`)
         }
         onChange={() => controller.actions.updateStatus(job)}
@@ -81,7 +83,7 @@ function JobStatusCell({ job, controller }: JobCellProps) {
 
 function RegistryStatusCell({ job }: { job: SchedulerJob }) {
   const { t } = useTranslate('scheduler');
-  const { runnable } = schedulerJobCapabilities(job.registry_status);
+  const { runnable } = schedulerJobCapabilities(job.registry_status, job.capabilities);
   return (
     <TableCell>
       <Label color={runnable ? 'success' : 'warning'} variant="soft">
@@ -94,7 +96,10 @@ function RegistryStatusCell({ job }: { job: SchedulerJob }) {
 function JobActions({ job, controller }: JobCellProps) {
   const { t } = useTranslate('scheduler');
   const { t: tAdmin } = useTranslate('admin');
-  const { editable, runnable } = schedulerJobCapabilities(job.registry_status);
+  const { canDelete, editable, runnable } = schedulerJobCapabilities(
+    job.registry_status,
+    job.capabilities
+  );
   return (
     <TableCell align="right" sx={{ width: 208, minWidth: 208, whiteSpace: 'nowrap' }}>
       <Box sx={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
@@ -124,7 +129,9 @@ function JobActions({ job, controller }: JobCellProps) {
           icon="solar:trash-bin-trash-bold"
           color="error"
           disabled={
-            !controller.resources.canRemove || controller.pending.has(`delete:${job.job_id}`)
+            !controller.resources.canRemove ||
+            !canDelete ||
+            controller.pending.has(`delete:${job.job_id}`)
           }
           onClick={() => controller.state.setDeleteTarget(job)}
         />

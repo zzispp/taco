@@ -15,7 +15,7 @@ const SCHEDULER_MENUS: &[(&str, &str)] = &[
     ("1092", "system:job:log:export"),
     ("1093", "system:job:log:detail"),
 ];
-const SCHEDULER_PAGE_RELATIONS: &[(&str, &str, i64)] = &[("108", "3", 2), ("109", "3", 3)];
+const SCHEDULER_PAGE_RELATIONS: &[(&str, &str, i64)] = &[("108", "3", 2), ("109", "111", 3)];
 
 const SCHEDULER_DICT_TYPES: &[(&str, &str)] = &[("scheduler-job-group", "sys_job_group"), ("scheduler-job-status", "sys_job_status")];
 

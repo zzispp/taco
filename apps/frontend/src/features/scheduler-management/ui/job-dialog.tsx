@@ -125,6 +125,7 @@ function JobDialogFrame({
         <JobFormFields
           form={controller.form}
           paramForm={controller.paramForm}
+          policyChangeAllowed={props.job?.capabilities.can_edit_execution_policy ?? true}
           setForm={controller.setForm}
           openCron={() => controller.setCronOpen(true)}
         />

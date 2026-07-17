@@ -19,6 +19,8 @@ const EXPECTED_MENU_ICONS: &[(&str, &str)] = &[
     ("108", "icon.job"),
     ("109", "icon.job-log"),
     ("110", "icon.notice"),
+    ("111", "icon.logs"),
+    ("114", "icon.system-log"),
 ];
 
 pub(super) async fn assert_navigation_seed(pool: &PgPool) {

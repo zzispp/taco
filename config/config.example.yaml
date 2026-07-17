@@ -155,16 +155,3 @@ redis:
 uploads:
   # Required non-empty path from TACO_AVATAR_DIRECTORY; mount this path on persistent storage.
   avatar_directory: "${TACO_AVATAR_DIRECTORY}"
-
-# Required structured logging settings.
-tracing:
-  # Required tracing filter. Production uses info-level logging.
-  log_level: "info"
-  # Required rolling file-appender settings.
-  file:
-    # Required boolean. Production writes daily rolling log files.
-    enabled: true
-    # Required non-empty directory from TACO_LOG_DIRECTORY.
-    directory: "${TACO_LOG_DIRECTORY}"
-    # Required non-empty filename prefix for daily rolling files.
-    prefix: "taco.log"

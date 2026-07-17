@@ -262,6 +262,7 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
     }
 
     async fn create_config(&self, input: ConfigInput) -> SystemResult<ConfigItem> {
+        validate_runtime_config(&input)?;
         reject_sensitive_public_config(&input.config_key, input.public_read)?;
         reject_duplicate_config_key(&self.repository, &input, None).await?;
         let item = self.repository.create_config(input).await?;
@@ -272,6 +273,7 @@ impl<R: SystemRepository, C: SystemCache> SystemUseCase for SystemService<R, C> 
     async fn replace_config(&self, id: &str, input: ConfigInput) -> SystemResult<ConfigItem> {
         let current = self.get_config(id).await?;
         reject_builtin_config_identity_change(&current, &input)?;
+        validate_runtime_config(&input)?;
         reject_sensitive_public_config(&input.config_key, input.public_read)?;
         reject_duplicate_config_key(&self.repository, &input, Some(id)).await?;
         let item = self.repository.replace_config(id, input).await?;

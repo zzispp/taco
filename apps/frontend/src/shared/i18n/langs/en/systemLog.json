@@ -1,0 +1,70 @@
+{
+  "title": "System Logs",
+  "filters": {
+    "invalidDateTime": "Enter a valid date and time",
+    "invalidRange": "The start time cannot be later than the end time"
+  },
+  "fields": {
+    "id": "Log ID",
+    "keyword": "Keyword",
+    "level": "Level",
+    "target": "Target",
+    "message": "Message",
+    "fields": "Structured fields",
+    "occurredAt": "Occurred at",
+    "beginTime": "Start time",
+    "endTime": "End time"
+  },
+  "levels": {
+    "trace": "Trace",
+    "debug": "Debug",
+    "info": "Info",
+    "warn": "Warn",
+    "error": "Error"
+  },
+  "actions": {
+    "detail": "Details",
+    "delete": "Delete",
+    "clean": "Clean",
+    "export": "Export",
+    "search": "Search",
+    "reset": "Reset",
+    "cleanupStatus": "View cleanup status"
+  },
+  "detail": { "title": "System log details", "empty": "No recorded content" },
+  "dialogs": {
+    "deleteOne": "Delete this log entry?",
+    "deleteSelected": "Delete the selected {{count}} log entries?",
+    "cleanMatched": "The current filters match {{count}} log entries. Clean them?",
+    "cleanFilterSnapshot": "Cleanup filter snapshot"
+  },
+  "messages": {
+    "deleteSuccess": "Deleted",
+    "deleteFailure": "Delete failed",
+    "cleanAccepted": "Cleanup task accepted (execution: {{executionId}})",
+    "cleanCompleted": "Cleaned {{count}} log entries in {{batches}} batches",
+    "cleanFailure": "Clean failed",
+    "cleanExecutionFailed": "Cleanup task did not complete; {{count}} log entries were deleted in {{batches}} batches.",
+    "cleanExecutionStatusFailure": "Failed to load the cleanup execution status",
+    "exportFailure": "Export failed",
+    "listFailure": "Failed to load system logs",
+    "detailFailure": "Failed to load system log details",
+    "timeRangeRequired": "Cleaning and export require a complete time range"
+  },
+  "cleanupStates": {
+    "pending": "Cleanup task is waiting to run",
+    "running": "Cleanup task is running",
+    "succeeded": "Cleanup completed: {{count}} log entries in {{batches}} batches",
+    "failed": "Cleanup task failed; {{count}} log entries were deleted in {{batches}} batches",
+    "skipped": "Cleanup task was skipped; {{count}} log entries were deleted in {{batches}} batches",
+    "interrupted": "Cleanup task was interrupted; {{count}} log entries were deleted in {{batches}} batches"
+  },
+  "table": {
+    "actions": "Actions",
+    "selectAll": "Select all logs",
+    "selectRow": "Select log {{id}}",
+    "noData": "No data"
+  },
+  "cancel": "Cancel",
+  "close": "Close"
+}

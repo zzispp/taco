@@ -25,6 +25,7 @@ export const paths = {
       root: `${ROOTS.DASHBOARD}/monitor/logs`,
       operationLogs: `${ROOTS.DASHBOARD}/monitor/logs/operation-logs`,
       loginLogs: `${ROOTS.DASHBOARD}/monitor/logs/login-logs`,
+      systemLogs: `${ROOTS.DASHBOARD}/monitor/logs/system-logs`,
     },
     admin: {
       root: `${ROOTS.DASHBOARD}/admin`,

@@ -50,8 +50,6 @@ pub enum SettingsError {
     InsecureRefreshCookie,
     #[error("{0} must be greater than 0")]
     NonPositiveNumber(&'static str),
-    #[error("{0} is not a valid tracing level filter")]
-    InvalidTracingFilter(&'static str),
     #[error("{0} is not a valid URL component")]
     InvalidUrlComponent(&'static str),
 }

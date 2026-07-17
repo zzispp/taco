@@ -1,6 +1,7 @@
 mod keyset;
 
-use sqlx::{AssertSqlSafe, PgConnection, PgPool, Postgres, QueryBuilder};
+use sqlx::{AssertSqlSafe, PgConnection, Postgres, QueryBuilder};
+use storage::ObservedPgPool;
 use time::OffsetDateTime;
 
 use crate::{
@@ -26,7 +27,7 @@ const LOGIN_SNAPSHOT_SOURCE: SnapshotSource = SnapshotSource {
 };
 
 pub async fn page_operations(
-    pool: &PgPool,
+    pool: ObservedPgPool,
     filter: OperationLogFilter,
     page: AuditCursorQuery<OperationCursorBoundary>,
 ) -> AuditResult<AuditCursorSlice<OperationLogSummary>> {
@@ -58,7 +59,7 @@ pub(super) async fn page_operations_on(
     keyset::slice(items, snapshot, page)
 }
 
-pub async fn find_operation(pool: &PgPool, id: &str) -> AuditResult<Option<OperationLogDetail>> {
+pub async fn find_operation(pool: ObservedPgPool, id: &str) -> AuditResult<Option<OperationLogDetail>> {
     let sql = format!("SELECT {OPERATION_COLUMNS},request_id,operator_id,dept_id,oper_param,json_result,error_msg FROM sys_oper_log WHERE oper_id=$1");
     sqlx::query_as::<_, OperationDetailRecord>(AssertSqlSafe(sql))
         .bind(id)
@@ -69,7 +70,7 @@ pub async fn find_operation(pool: &PgPool, id: &str) -> AuditResult<Option<Opera
         .transpose()
 }
 
-pub async fn page_logins(pool: &PgPool, filter: LoginLogFilter, page: AuditCursorQuery<LoginCursorBoundary>) -> AuditResult<AuditCursorSlice<LoginLog>> {
+pub async fn page_logins(pool: ObservedPgPool, filter: LoginLogFilter, page: AuditCursorQuery<LoginCursorBoundary>) -> AuditResult<AuditCursorSlice<LoginLog>> {
     let mut connection = pool.acquire().await.map_err(mapping::sqlx_error)?;
     page_logins_on(&mut connection, filter, page).await
 }

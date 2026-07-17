@@ -1,8 +1,8 @@
 use configuration::{
     AuditOutboxSettings, AuditSettings, AuthSettings, CaptchaSettings, ClientInfoSettings, ClientIpLocationSettings, CloudflareTurnstileSettings, CorsSettings,
     DatabaseScheme, DatabaseSettings, DatabaseSslMode, HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisProtocol, RedisScheme,
-    RedisSettings, RefreshCookieSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings,
-    TracingFileSettings, TracingSettings, UploadSettings, UserSettings,
+    RedisSettings, RefreshCookieSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, UploadSettings,
+    UserSettings,
 };
 
 const TEST_SERVER_PORT: u16 = 3_000;
@@ -59,7 +59,6 @@ pub(crate) fn test_settings() -> Settings {
         redis: redis_settings(),
         scheduler: scheduler_settings(),
         uploads: UploadSettings::default(),
-        tracing: tracing_settings(),
     }
 }
 
@@ -125,16 +124,5 @@ fn redis_settings() -> RedisSettings {
         database: Some(TEST_REDIS_DATABASE),
         protocol: Some(RedisProtocol::Resp3),
         key_prefix: "taco".into(),
-    }
-}
-
-fn tracing_settings() -> TracingSettings {
-    TracingSettings {
-        log_level: "info".into(),
-        file: TracingFileSettings {
-            enabled: false,
-            directory: "logs".into(),
-            prefix: "taco.log".into(),
-        },
     }
 }

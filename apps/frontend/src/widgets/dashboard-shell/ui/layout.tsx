@@ -17,8 +17,8 @@ import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
 import { iconButtonClasses } from '@mui/material/IconButton';
 
-import { Logo } from 'src/shared/ui/logo';
 import { allLangs } from 'src/shared/i18n';
+import { SiteBrand } from 'src/shared/ui/logo';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useSettingsContext } from 'src/shared/ui/settings';
 import { MenuButton } from 'src/shared/ui/shell/menu-button';
@@ -129,10 +129,10 @@ export function DashboardLayout({
           />
 
           {isNavHorizontal && (
-            <Logo
+            <SiteBrand
               sx={{
                 display: 'none',
-                [theme.breakpoints.up(layoutQuery)]: { display: 'inline-flex' },
+                [theme.breakpoints.up(layoutQuery)]: { display: 'flex' },
               }}
             />
           )}

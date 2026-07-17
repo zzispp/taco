@@ -6,7 +6,7 @@ import { mergeClasses } from 'minimal-shared/utils';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 
-import { Logo } from 'src/shared/ui/logo';
+import { SiteBrand } from 'src/shared/ui/logo';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { layoutClasses } from 'src/shared/ui/layout';
 import { usePathname } from 'src/shared/routes/hooks';
@@ -62,7 +62,7 @@ export function NavMobile({
     >
       {slots?.topArea ?? (
         <Box sx={{ pl: 3.5, pt: 2.5, pb: 1 }}>
-          <Logo />
+          <SiteBrand />
         </Box>
       )}
 

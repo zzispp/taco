@@ -15,6 +15,7 @@ pub trait SchedulerQueryStore: Send + Sync + 'static {
     async fn page_jobs(&self, filter: JobListFilter, page: SchedulerCursorQuery) -> SchedulerResult<SchedulerCursorSlice<Job>>;
     async fn begin_export(&self) -> SchedulerResult<Box<dyn SchedulerQueryExportSession>>;
     async fn task_key_exists(&self, task_key: &str) -> SchedulerResult<bool>;
+    async fn find_execution(&self, id: &str) -> SchedulerResult<Execution>;
     async fn find_execution_log(&self, id: &str) -> SchedulerResult<ExecutionLogSummary>;
     async fn find_execution_log_detail(&self, id: &str) -> SchedulerResult<ExecutionLogDetail>;
     async fn page_execution_logs(&self, filter: JobLogListFilter, page: SchedulerCursorQuery) -> SchedulerResult<SchedulerCursorSlice<ExecutionLogSummary>>;

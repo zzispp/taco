@@ -181,7 +181,15 @@ fn large_binary_body() -> Vec<u8> {
 
 fn http_client(timeout: Duration) -> ReqwestHttpTaskClient {
     let client = reqwest::Client::builder().timeout(timeout).build().unwrap();
-    ReqwestHttpTaskClient::new(client)
+    ReqwestHttpTaskClient::new(client, observer())
+}
+
+fn observer() -> taco_tracing::InfrastructureObserver {
+    let config = taco_tracing::parse_runtime_tracing_config(
+        r#"{"log_level":"error","http":{"access_enabled":true,"capture_request_body":false,"capture_response_body":false,"capture_query_parameters":false,"capture_request_headers":false,"max_body_capture_bytes":0},"slow_operation_ms":{"postgres":500,"redis":100,"outbound_http":1000}}"#,
+    )
+    .unwrap();
+    taco_tracing::InfrastructureObserver::new(taco_tracing::RuntimeTracingState::new(config))
 }
 
 fn request(method: &str, url: String) -> OutboundHttpRequest {

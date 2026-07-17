@@ -1,0 +1,64 @@
+{
+  "title": "系統日誌",
+  "filters": {
+    "invalidDateTime": "請輸入有效的日期時間",
+    "invalidRange": "開始時間不能晚於結束時間"
+  },
+  "fields": {
+    "id": "日誌編號",
+    "keyword": "關鍵詞",
+    "level": "日誌級別",
+    "target": "目標模組",
+    "message": "日誌訊息",
+    "fields": "結構化欄位",
+    "occurredAt": "發生時間",
+    "beginTime": "開始時間",
+    "endTime": "結束時間"
+  },
+  "levels": { "trace": "追蹤", "debug": "偵錯", "info": "資訊", "warn": "警告", "error": "錯誤" },
+  "actions": {
+    "detail": "詳情",
+    "delete": "刪除",
+    "clean": "清理",
+    "export": "匯出",
+    "search": "搜尋",
+    "reset": "重設",
+    "cleanupStatus": "查看清理狀態"
+  },
+  "detail": { "title": "系統日誌詳情", "empty": "無記錄內容" },
+  "dialogs": {
+    "deleteOne": "確認刪除此日誌？",
+    "deleteSelected": "確認刪除選取的 {{count}} 筆日誌？",
+    "cleanMatched": "目前篩選條件符合 {{count}} 筆日誌，確認清理嗎？",
+    "cleanFilterSnapshot": "本次清理條件"
+  },
+  "messages": {
+    "deleteSuccess": "刪除成功",
+    "deleteFailure": "刪除失敗",
+    "cleanAccepted": "清理任務已提交（執行編號：{{executionId}}）",
+    "cleanCompleted": "已清理 {{count}} 筆日誌，共 {{batches}} 批",
+    "cleanFailure": "清理失敗",
+    "cleanExecutionFailed": "清理任務未完成；已清理 {{count}} 筆日誌，共 {{batches}} 批",
+    "cleanExecutionStatusFailure": "無法讀取清理任務狀態",
+    "exportFailure": "匯出失敗",
+    "listFailure": "載入系統日誌失敗",
+    "detailFailure": "載入系統日誌詳情失敗",
+    "timeRangeRequired": "清理及匯出必須選擇完整的時間範圍"
+  },
+  "cleanupStates": {
+    "pending": "清理任務等待執行",
+    "running": "清理任務正在執行",
+    "succeeded": "清理完成：{{count}} 筆日誌，{{batches}} 批",
+    "failed": "清理任務執行失敗；已清理 {{count}} 筆日誌，共 {{batches}} 批",
+    "skipped": "清理任務已跳過；已清理 {{count}} 筆日誌，共 {{batches}} 批",
+    "interrupted": "清理任務已中斷；已清理 {{count}} 筆日誌，共 {{batches}} 批"
+  },
+  "table": {
+    "actions": "操作",
+    "selectAll": "選擇全部日誌",
+    "selectRow": "選擇日誌 {{id}}",
+    "noData": "暫無資料"
+  },
+  "cancel": "取消",
+  "close": "關閉"
+}

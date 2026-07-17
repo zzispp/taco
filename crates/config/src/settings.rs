@@ -19,7 +19,6 @@ pub struct Settings {
     pub redis: RedisSettings,
     pub scheduler: SchedulerSettings,
     pub uploads: UploadSettings,
-    pub tracing: TracingSettings,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -205,43 +204,6 @@ impl Default for UploadSettings {
             avatar_directory: default_avatar_directory(),
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TracingSettings {
-    pub log_level: String,
-    pub file: TracingFileSettings,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TracingFileSettings {
-    pub enabled: bool,
-    pub directory: String,
-    pub prefix: String,
-}
-
-impl Default for TracingFileSettings {
-    fn default() -> Self {
-        Self {
-            enabled: default_tracing_file_enabled(),
-            directory: default_tracing_file_directory(),
-            prefix: default_tracing_file_prefix(),
-        }
-    }
-}
-
-fn default_tracing_file_enabled() -> bool {
-    false
-}
-
-fn default_tracing_file_directory() -> String {
-    "logs".to_owned()
-}
-
-fn default_tracing_file_prefix() -> String {
-    "taco.log".to_owned()
 }
 
 fn default_avatar_directory() -> String {

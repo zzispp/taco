@@ -6,8 +6,8 @@ import { varAlpha, mergeClasses } from 'minimal-shared/utils';
 import Box from '@mui/material/Box';
 import { styled } from '@mui/material/styles';
 
-import { Logo } from 'src/shared/ui/logo';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
+import { Logo, SiteBrand } from 'src/shared/ui/logo';
 import { layoutClasses } from 'src/shared/ui/layout';
 import { NavToggleButton } from 'src/shared/ui/shell/nav-toggle-button';
 import { NavSectionMini, NavSectionVertical } from 'src/shared/ui/nav-section';
@@ -42,7 +42,7 @@ export function NavVertical({
     <>
       {slots?.topArea ?? (
         <Box sx={{ pl: 3.5, pt: 2.5, pb: 1 }}>
-          <Logo />
+          <SiteBrand />
         </Box>
       )}
 

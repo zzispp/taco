@@ -8,7 +8,7 @@ use std::{
 use super::*;
 
 const CONFIG_EXAMPLE: &str = include_str!("../../../../config/config.example.yaml");
-const EXPECTED_EXAMPLE_KEY_COUNT: usize = 77;
+const EXPECTED_EXAMPLE_KEY_COUNT: usize = 71;
 const COMMON_VARIABLES: [&str; 6] = [
     "TACO_DATABASE_PASSWORD",
     "TACO_REDIS_USERNAME",
@@ -17,7 +17,7 @@ const COMMON_VARIABLES: [&str; 6] = [
     "TACO_JWT_SECRET",
     "TACO_TURNSTILE_SECRET_KEY",
 ];
-const DEPLOYMENT_VARIABLES: [&str; 9] = [
+const DEPLOYMENT_VARIABLES: [&str; 8] = [
     "TACO_DATABASE_HOST",
     "TACO_DATABASE_PORT",
     "TACO_DATABASE_USERNAME",
@@ -25,7 +25,6 @@ const DEPLOYMENT_VARIABLES: [&str; 9] = [
     "TACO_REDIS_HOST",
     "TACO_REDIS_PORT",
     "TACO_ADMIN_ORIGIN",
-    "TACO_LOG_DIRECTORY",
     "TACO_AVATAR_DIRECTORY",
 ];
 
@@ -50,7 +49,6 @@ impl ProfileEnvironment {
             ("TACO_JWT_SECRET", TEST_JWT_SECRET),
             ("TACO_TURNSTILE_SECRET_KEY", ""),
             ("TACO_ADMIN_ORIGIN", "https://admin.example.test"),
-            ("TACO_LOG_DIRECTORY", "/var/log/taco"),
             ("TACO_AVATAR_DIRECTORY", "/var/lib/taco/avatars"),
         ];
         Self {
@@ -99,8 +97,6 @@ fn local_and_remote_profiles_match_the_confirmed_differences() {
         &ProfileExpectation {
             host: "127.0.0.1",
             origin: "http://localhost:8082",
-            log_level: "debug",
-            file_logging: false,
             redis_prefix: "taco:local",
             database_ssl_mode: DatabaseSslMode::Disable,
             redis_scheme: RedisScheme::Redis,
@@ -116,8 +112,6 @@ fn local_and_remote_profiles_match_the_confirmed_differences() {
         &ProfileExpectation {
             host: "0.0.0.0",
             origin: "https://admin.example.test",
-            log_level: "debug",
-            file_logging: true,
             redis_prefix: "taco:dev",
             database_ssl_mode: DatabaseSslMode::VerifyFull,
             redis_scheme: RedisScheme::Rediss,
@@ -128,8 +122,6 @@ fn local_and_remote_profiles_match_the_confirmed_differences() {
         &ProfileExpectation {
             host: "0.0.0.0",
             origin: "https://admin.example.test",
-            log_level: "info",
-            file_logging: true,
             redis_prefix: "taco:prod",
             database_ssl_mode: DatabaseSslMode::VerifyFull,
             redis_scheme: RedisScheme::Rediss,
@@ -214,8 +206,6 @@ fn whitelist_paths(settings: &Settings) -> Vec<&str> {
 struct ProfileExpectation<'a> {
     host: &'a str,
     origin: &'a str,
-    log_level: &'a str,
-    file_logging: bool,
     redis_prefix: &'a str,
     database_ssl_mode: DatabaseSslMode,
     redis_scheme: RedisScheme,
@@ -225,9 +215,6 @@ fn assert_profile(settings: &Settings, expected: &ProfileExpectation<'_>) {
     assert_eq!(settings.server.host, expected.host);
     assert_eq!(settings.server.port, 3000);
     assert_eq!(settings.cors.allowed_origins, [expected.origin]);
-    assert_eq!(settings.tracing.log_level, expected.log_level);
-    assert_eq!(settings.tracing.file.enabled, expected.file_logging);
-    assert_eq!(settings.tracing.file.prefix, "taco.log");
     assert_eq!(settings.redis.key_prefix, expected.redis_prefix);
     assert_eq!(settings.database.ssl_mode, expected.database_ssl_mode);
     assert_eq!(settings.redis.scheme, expected.redis_scheme);

@@ -1,4 +1,5 @@
 use axum::http::Uri;
+use kernel::redaction::{REDACTED, is_sensitive_key, normalize_key, redact_sensitive_field};
 use serde_json::{Map, Value};
 use url::{
     Url,
@@ -10,16 +11,15 @@ pub(crate) const SNAPSHOT_CAPTURE_MAX_BYTES: usize = SNAPSHOT_MAX_CHARS * MAX_UT
 const MAX_UTF8_CODE_POINT_BYTES: usize = 4;
 const URL_MAX_CHARS: usize = 255;
 const REQUEST_ID_MAX_CHARS: usize = 64;
-const REDACTED: &str = "***";
 const BODY_OMITTED: &str = "[body omitted]";
 const URL_OMITTED: &str = "[URL omitted]";
 const MULTIPART_OMITTED: &str = "[multipart omitted]";
 const INVALID_JSON: &str = "[invalid JSON omitted]";
 const JSON_SERIALIZATION_OMITTED: &str = "[JSON serialization omitted]";
-pub(crate) const BODY_STREAM_ERROR: &str = "[body stream error omitted]";
-const BODY_TRUNCATED: &str = "[body truncated at 2000 characters]";
 const CONFIG_KEY_FIELD: &str = "config_key";
 const CONFIG_VALUE_FIELD: &str = "config_value";
+pub(crate) const BODY_STREAM_ERROR: &str = "[body stream error omitted]";
+const BODY_TRUNCATED: &str = "[body truncated at 2000 characters]";
 
 pub struct CapturedBody<'a> {
     pub content_type: Option<&'a str>,
@@ -96,35 +96,19 @@ fn redact_object(object: &mut Map<String, Value>) {
     }
 }
 
-fn redact_field(key: &str, value: &mut Value) {
-    if body_field(key) {
-        *value = Value::String(BODY_OMITTED.into());
-        return;
-    }
-    if url_field(key) {
-        *value = Value::String(redact_url(value).unwrap_or_else(|| URL_OMITTED.into()));
-        return;
-    }
-    if sensitive(key) {
-        *value = Value::String(REDACTED.into());
-        return;
-    }
-    redact_json(value);
-}
-
 fn redact_config_value(object: &mut Map<String, Value>) {
-    let sensitive_key = object.get(CONFIG_KEY_FIELD).and_then(Value::as_str).is_some_and(sensitive);
-    let Some(config_value) = object.get_mut(CONFIG_VALUE_FIELD) else {
+    let sensitive_key = object.get(CONFIG_KEY_FIELD).and_then(Value::as_str).is_some_and(is_sensitive_key);
+    let Some(value) = object.get_mut(CONFIG_VALUE_FIELD) else {
         return;
     };
     if sensitive_key {
-        *config_value = Value::String(REDACTED.into());
+        *value = Value::String(REDACTED.into());
         return;
     }
-    redact_embedded_json(config_value);
+    redact_embedded_config(value);
 }
 
-fn redact_embedded_json(value: &mut Value) {
+fn redact_embedded_config(value: &mut Value) {
     let Value::String(raw) = value else {
         redact_json(value);
         return;
@@ -138,7 +122,22 @@ fn redact_embedded_json(value: &mut Value) {
         return;
     };
     redact_json(&mut nested);
-    *value = Value::String(serialize_json(&nested));
+    *value = Value::String(nested.to_string());
+}
+
+fn redact_field(key: &str, value: &mut Value) {
+    if body_field(key) {
+        *value = Value::String(BODY_OMITTED.into());
+        return;
+    }
+    if url_field(key) {
+        *value = Value::String(redact_url(value).unwrap_or_else(|| URL_OMITTED.into()));
+        return;
+    }
+    if redact_sensitive_field(key, value) {
+        return;
+    }
+    redact_json(value);
 }
 
 fn serialize_json(value: &Value) -> String {
@@ -175,7 +174,7 @@ fn redact_pair_value(key: &str, value: &str) -> String {
     if url_field(key) {
         return redact_url_text(value).unwrap_or_else(|| URL_OMITTED.into());
     }
-    if sensitive(key) {
+    if is_sensitive_key(key) {
         return REDACTED.into();
     }
     value.into()
@@ -208,37 +207,12 @@ fn requires_complete_body(content_type: Option<&str>) -> bool {
     content_type.contains("json") || content_type.starts_with("multipart/")
 }
 
-fn sensitive(key: &str) -> bool {
-    let normalized = normalized_key(key);
-    [
-        "password",
-        "passwd",
-        "pwd",
-        "token",
-        "secret",
-        "captcha",
-        "verificationcode",
-        "verifycode",
-        "authcode",
-        "authorization",
-        "cookie",
-        "apikey",
-        "credential",
-    ]
-    .iter()
-    .any(|word| normalized.contains(word))
-}
-
 fn body_field(key: &str) -> bool {
-    normalized_key(key) == "body"
+    normalize_key(key) == "body"
 }
 
 fn url_field(key: &str) -> bool {
-    matches!(normalized_key(key).as_str(), "url" | "uri" | "endpoint")
-}
-
-fn normalized_key(key: &str) -> String {
-    key.chars().filter(|value| value.is_ascii_alphanumeric()).flat_map(char::to_lowercase).collect()
+    matches!(normalize_key(key).as_str(), "url" | "uri" | "endpoint")
 }
 
 pub fn truncate(value: &str, max_chars: usize) -> String {

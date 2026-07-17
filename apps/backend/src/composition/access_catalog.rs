@@ -57,6 +57,7 @@ fn collect_endpoint_specs() -> Vec<EndpointSpec> {
     specs.extend(::system::notice::endpoint_specs().iter().copied());
     specs.extend(scheduler::api::endpoint_specs().iter().copied());
     specs.extend(audit::api::endpoint_specs().iter().copied());
+    specs.extend(observability::api::endpoint_specs().iter().copied());
     specs
 }
 
@@ -103,7 +104,7 @@ mod tests {
 
     use super::{EndpointCatalog, collect_endpoint_specs};
 
-    const EXPECTED_OPERATION_ENDPOINTS: usize = 83;
+    const EXPECTED_OPERATION_ENDPOINTS: usize = 87;
 
     #[test]
     fn matcher_distinguishes_methods_on_the_same_dynamic_route() {

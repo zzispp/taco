@@ -1,6 +1,6 @@
 use kernel::pagination::CursorPage;
 use sqlx::{AssertSqlSafe, query, query_as, query_scalar};
-use storage::{Database, StorageError, StorageResult};
+use storage::{Database, ObservedPgPool, StorageError, StorageResult};
 use time::OffsetDateTime;
 
 use crate::{
@@ -151,29 +151,29 @@ impl DeptQueries {
     }
 
     pub async fn has_children(&self, id: &str) -> StorageResult<bool> {
-        exists(
-            self.database.pool(),
-            "SELECT EXISTS(SELECT 1 FROM sys_dept WHERE parent_id = $1 AND del_flag = '0')",
+        exists(ExistenceCheck {
+            pool: self.database.pool(),
+            sql: "SELECT EXISTS(SELECT 1 FROM sys_dept WHERE parent_id = $1 AND del_flag = '0')",
             id,
-        )
+        })
         .await
     }
 
     pub async fn has_users(&self, id: &str) -> StorageResult<bool> {
-        exists(
-            self.database.pool(),
-            "SELECT EXISTS(SELECT 1 FROM sys_user WHERE dept_id = $1 AND del_flag = '0')",
+        exists(ExistenceCheck {
+            pool: self.database.pool(),
+            sql: "SELECT EXISTS(SELECT 1 FROM sys_user WHERE dept_id = $1 AND del_flag = '0')",
             id,
-        )
+        })
         .await
     }
 
     pub async fn has_normal_children(&self, id: &str) -> StorageResult<bool> {
-        exists(
-            self.database.pool(),
-            "SELECT EXISTS(SELECT 1 FROM sys_dept WHERE parent_id = $1 AND del_flag = '0' AND status = '0')",
+        exists(ExistenceCheck {
+            pool: self.database.pool(),
+            sql: "SELECT EXISTS(SELECT 1 FROM sys_dept WHERE parent_id = $1 AND del_flag = '0' AND status = '0')",
             id,
-        )
+        })
         .await
     }
 
@@ -188,7 +188,7 @@ impl DeptQueries {
     }
 }
 
-pub(super) async fn ancestors(pool: &sqlx::PgPool, parent_id: &str) -> StorageResult<String> {
+pub(super) async fn ancestors(pool: ObservedPgPool, parent_id: &str) -> StorageResult<String> {
     if parent_id == "0" {
         return Ok("0".into());
     }
@@ -200,8 +200,12 @@ pub(super) async fn ancestors(pool: &sqlx::PgPool, parent_id: &str) -> StorageRe
     Ok(format!("{parent},{parent_id}"))
 }
 
-async fn exists(pool: &sqlx::PgPool, sql: &'static str, id: &str) -> StorageResult<bool> {
-    query_scalar::<_, bool>(sql).bind(id).fetch_one(pool).await.map_err(StorageError::from)
+async fn exists(check: ExistenceCheck<'_>) -> StorageResult<bool> {
+    query_scalar::<_, bool>(check.sql)
+        .bind(check.id)
+        .fetch_one(check.pool)
+        .await
+        .map_err(StorageError::from)
 }
 
 pub(super) struct ChildAncestorsUpdate<'a> {
@@ -210,7 +214,13 @@ pub(super) struct ChildAncestorsUpdate<'a> {
     pub(super) new_prefix: &'a str,
 }
 
-pub(super) async fn update_child_ancestors(pool: &sqlx::PgPool, update: ChildAncestorsUpdate<'_>) -> StorageResult<()> {
+struct ExistenceCheck<'a> {
+    pool: ObservedPgPool,
+    sql: &'static str,
+    id: &'a str,
+}
+
+pub(super) async fn update_child_ancestors(pool: ObservedPgPool, update: ChildAncestorsUpdate<'_>) -> StorageResult<()> {
     query(
         r#"
         UPDATE sys_dept

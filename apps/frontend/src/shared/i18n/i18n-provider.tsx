@@ -21,6 +21,9 @@ import { normalizeLanguage } from './language';
 import enMessages from './langs/en/messages.json';
 import cnMessages from './langs/cn/messages.json';
 import twMessages from './langs/tw/messages.json';
+import enSystemLog from './langs/en/systemLog.json';
+import cnSystemLog from './langs/cn/systemLog.json';
+import twSystemLog from './langs/tw/systemLog.json';
 import enScheduler from './langs/en/scheduler.json';
 import cnScheduler from './langs/cn/scheduler.json';
 import twScheduler from './langs/tw/scheduler.json';
@@ -43,6 +46,7 @@ i18next.use(initReactI18next).init({
       navbar: cnNavbar,
       scheduler: cnScheduler,
       audit: cnAudit,
+      systemLog: cnSystemLog,
     },
     en: {
       admin: staticAdminResources.en,
@@ -51,6 +55,7 @@ i18next.use(initReactI18next).init({
       navbar: enNavbar,
       scheduler: enScheduler,
       audit: enAudit,
+      systemLog: enSystemLog,
     },
     tw: {
       admin: staticAdminResources.tw,
@@ -59,6 +64,7 @@ i18next.use(initReactI18next).init({
       navbar: twNavbar,
       scheduler: twScheduler,
       audit: twAudit,
+      systemLog: twSystemLog,
     },
   },
 });

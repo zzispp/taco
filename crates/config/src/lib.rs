@@ -13,10 +13,9 @@ pub use error::SettingsError;
 pub use settings::{
     AuditOutboxSettings, AuditSettings, AuthSettings, AuthWhitelistRule, CaptchaSettings, ClientInfoSettings, ClientIpLocationSettings,
     CloudflareTurnstileSettings, CorsSettings, DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisSettings,
-    RefreshCookieSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, TracingFileSettings,
-    TracingSettings, UploadSettings, UserSettings,
+    RefreshCookieSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, UploadSettings, UserSettings,
 };
-pub use validation::{ValidatedCorsList, ValidatedCorsSettings, ValidatedTracingSettings};
+pub use validation::{ValidatedCorsList, ValidatedCorsSettings};
 
 #[cfg(test)]
 mod tests;

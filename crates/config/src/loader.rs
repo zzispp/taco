@@ -85,10 +85,6 @@ impl Settings {
     pub fn cloudflare_turnstile_secret_key(&self) -> String {
         self.captcha.cloudflare_turnstile.secret_key.trim().to_owned()
     }
-
-    pub fn tracing_log_level(&self) -> Result<String, SettingsError> {
-        required_config_value("tracing.log_level", &self.tracing.log_level)
-    }
 }
 
 #[cfg(test)]

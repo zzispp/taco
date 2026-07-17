@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use redis::AsyncCommands;
+use taco_tracing::{InfrastructureDependency, InfrastructureObserver};
 
 use crate::{
     application::{SystemCache, SystemError, SystemResult},
@@ -10,13 +11,24 @@ use crate::{
 pub struct RedisSystemCache {
     connection: redis::aio::ConnectionManager,
     key_prefix: String,
+    observer: InfrastructureObserver,
 }
 
 impl RedisSystemCache {
-    pub async fn connect(url: &str, key_prefix: String) -> SystemResult<Self> {
-        let client = redis::Client::open(url).map_err(redis_error)?;
-        let connection = client.get_connection_manager().await.map_err(redis_error)?;
-        Ok(Self { connection, key_prefix })
+    pub async fn connect(url: &str, key_prefix: String, observer: InfrastructureObserver) -> SystemResult<Self> {
+        let started = std::time::Instant::now();
+        let client = redis::Client::open(url);
+        observer.record(InfrastructureDependency::Redis, "system_cache_connect", started.elapsed(), client.is_ok());
+        let client = client.map_err(redis_error)?;
+        let connection = observer
+            .observe(InfrastructureDependency::Redis, "system_cache_connect", client.get_connection_manager())
+            .await
+            .map_err(redis_error)?;
+        Ok(Self {
+            connection,
+            key_prefix,
+            observer,
+        })
     }
 
     fn config_key(&self, key: &str) -> String {
@@ -40,41 +52,76 @@ impl RedisSystemCache {
 impl SystemCache for RedisSystemCache {
     async fn read_config(&self, key: &str) -> SystemResult<Option<String>> {
         let mut connection = self.connection.clone();
-        connection.get(self.config_key(key)).await.map_err(redis_error)
+        self.observer
+            .observe(
+                InfrastructureDependency::Redis,
+                "system_cache_read_config",
+                connection.get(self.config_key(key)),
+            )
+            .await
+            .map_err(redis_error)
     }
 
     async fn write_config(&self, item: &ConfigItem) -> SystemResult<()> {
         let mut connection = self.connection.clone();
-        connection.set(self.config_key(&item.config_key), &item.config_value).await.map_err(redis_error)
+        self.observer
+            .observe(
+                InfrastructureDependency::Redis,
+                "system_cache_write_config",
+                connection.set(self.config_key(&item.config_key), &item.config_value),
+            )
+            .await
+            .map_err(redis_error)
     }
 
     async fn clear_configs(&self) -> SystemResult<()> {
-        clear_keys(self.connection.clone(), self.config_pattern()).await
+        clear_keys(&self.observer, self.connection.clone(), self.config_pattern()).await
     }
 
     async fn read_dict_data(&self, dict_type: &str) -> SystemResult<Option<Vec<DictData>>> {
         let mut connection = self.connection.clone();
-        let value: Option<String> = connection.get(self.dict_key(dict_type)).await.map_err(redis_error)?;
+        let value: Option<String> = self
+            .observer
+            .observe(
+                InfrastructureDependency::Redis,
+                "system_cache_read_dict",
+                connection.get(self.dict_key(dict_type)),
+            )
+            .await
+            .map_err(redis_error)?;
         value.map(|item| serde_json::from_str(&item).map_err(json_error)).transpose()
     }
 
     async fn write_dict_data(&self, dict_type: &str, items: &[DictData]) -> SystemResult<()> {
         let mut connection = self.connection.clone();
         let value = serde_json::to_string(items).map_err(json_error)?;
-        connection.set(self.dict_key(dict_type), value).await.map_err(redis_error)
+        self.observer
+            .observe(
+                InfrastructureDependency::Redis,
+                "system_cache_write_dict",
+                connection.set(self.dict_key(dict_type), value),
+            )
+            .await
+            .map_err(redis_error)
     }
 
     async fn clear_dicts(&self) -> SystemResult<()> {
-        clear_keys(self.connection.clone(), self.dict_pattern()).await
+        clear_keys(&self.observer, self.connection.clone(), self.dict_pattern()).await
     }
 }
 
-async fn clear_keys(mut connection: redis::aio::ConnectionManager, pattern: String) -> SystemResult<()> {
-    let keys: Vec<String> = connection.keys(pattern).await.map_err(redis_error)?;
+async fn clear_keys(observer: &InfrastructureObserver, mut connection: redis::aio::ConnectionManager, pattern: String) -> SystemResult<()> {
+    let keys: Vec<String> = observer
+        .observe(InfrastructureDependency::Redis, "system_cache_list_keys", connection.keys(pattern))
+        .await
+        .map_err(redis_error)?;
     if keys.is_empty() {
         return Ok(());
     }
-    connection.del(keys).await.map_err(redis_error)
+    observer
+        .observe(InfrastructureDependency::Redis, "system_cache_delete_keys", connection.del(keys))
+        .await
+        .map_err(redis_error)
 }
 
 fn redis_error(error: redis::RedisError) -> SystemError {

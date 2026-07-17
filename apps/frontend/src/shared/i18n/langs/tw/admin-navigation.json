@@ -20,6 +20,7 @@
     "notices": "通知公告",
     "logManagement": "日誌管理",
     "operationLogs": "操作日誌",
-    "loginLogs": "登入日誌"
+    "loginLogs": "登入日誌",
+    "systemLogs": "系統日誌"
   }
 }

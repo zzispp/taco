@@ -75,7 +75,8 @@
     "jobLogManagement": "调度日志",
     "noticeManagement": "通知公告",
     "operationLogManagement": "操作日志",
-    "loginLogManagement": "登录日志"
+    "loginLogManagement": "登录日志",
+    "systemLogManagement": "系统日志"
   },
   "actions": {
     "addMenuItem": "新增菜单",

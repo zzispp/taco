@@ -1,12 +1,22 @@
 use std::{sync::Arc, time::Duration};
 
 use configuration::{SchedulerSettings, Settings};
+use observability::{
+    application::{SystemLogRetentionUseCase, SystemLogUseCase},
+    domain::{SystemLogFilter, SystemLogLevel},
+};
 use scheduler::{
     application::{
         SchedulerAuditedUseCase, SchedulerRuntimeConfig, SchedulerRuntimeHandle, SchedulerRuntimeParts, SchedulerService, SchedulerServiceParts,
         SchedulerUseCase, start_scheduler_runtime,
-        task::{ScheduledTaskMetadata, StaticTaskCatalog, SystemCacheRefreshPort, TaskExecutionContext, TaskExecutionFailure},
-        tasks::{CacheRefreshKind, HttpRequestTask, RefreshConfigCacheTask, RefreshDictCacheTask, cache_refresh_failure},
+        task::{
+            ScheduledTaskMetadata, StaticTaskCatalog, SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupLevel, SystemLogCleanupPort,
+            SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
+        },
+        tasks::{
+            CacheRefreshKind, HttpRequestTask, RefreshConfigCacheTask, RefreshDictCacheTask, SystemLogCleanupReport, SystemLogCleanupTask,
+            cache_refresh_failure,
+        },
     },
     infra::{
         MetricsSchedulerTelemetry, PostgresChangeListenerFactory, PostgresExecutionLease, PostgresLeaderLease, ReqwestHttpTaskClient,
@@ -31,11 +41,20 @@ struct SchedulerSystemCacheAdapter {
     system: Arc<dyn SystemUseCase>,
 }
 
+#[derive(Clone)]
+struct SchedulerSystemLogCleanupAdapter {
+    logs: Arc<dyn SystemLogUseCase>,
+    retention: Arc<dyn SystemLogRetentionUseCase>,
+}
+
 struct RuntimeAssembly<'a> {
     config: &'a SchedulerSettings,
     repository: Arc<StorageSchedulerRepository>,
     catalog: Arc<StaticTaskCatalog>,
     system: Arc<dyn SystemUseCase>,
+    logs: Arc<dyn SystemLogUseCase>,
+    retention: Arc<dyn SystemLogRetentionUseCase>,
+    observer: taco_tracing::InfrastructureObserver,
     pool: sqlx::PgPool,
     executor_epoch: String,
 }
@@ -57,21 +76,59 @@ impl SystemCacheRefreshPort for SchedulerSystemCacheAdapter {
     }
 }
 
-pub(super) fn build_scheduler_services(settings: &Settings, database: Database, system: Arc<dyn SystemUseCase>) -> BackendResult<SchedulerServices> {
+#[async_trait::async_trait]
+impl SystemLogCleanupPort for SchedulerSystemLogCleanupAdapter {
+    async fn cleanup_expired(&self, retention_days: u64, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
+        let report = self
+            .retention
+            .cleanup_expired(retention_days, batch_size)
+            .await
+            .map_err(system_log_cleanup_failure)?;
+        Ok(SystemLogCleanupResult {
+            deleted: report.deleted,
+            batches: report.batches,
+        })
+    }
+
+    async fn cleanup_filtered(&self, filter: SystemLogCleanupFilter, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
+        let report = self
+            .logs
+            .delete_filtered(system_log_filter(filter), batch_size)
+            .await
+            .map_err(system_log_cleanup_failure)?;
+        Ok(SystemLogCleanupResult {
+            deleted: report.deleted,
+            batches: report.batches,
+        })
+    }
+}
+
+pub(super) fn build_scheduler_services(
+    settings: &Settings,
+    database: Database,
+    system: Arc<dyn SystemUseCase>,
+    logs: Arc<dyn SystemLogUseCase>,
+    retention: Arc<dyn SystemLogRetentionUseCase>,
+    observer: taco_tracing::InfrastructureObserver,
+) -> BackendResult<SchedulerServices> {
     let config = settings.scheduler_config()?;
-    let pool = database.pool().clone();
+    let pool = database.raw_pool().clone();
     let executor_epoch = database.next_id();
     let repository = Arc::new(StorageSchedulerRepository::new(database));
     let catalog = StaticTaskCatalog::try_new([
         HttpRequestTask::descriptor(),
         RefreshConfigCacheTask::descriptor(),
         RefreshDictCacheTask::descriptor(),
+        SystemLogCleanupTask::descriptor(),
     ])?;
     let assembly = RuntimeAssembly {
         config: &config,
         repository: repository.clone(),
         catalog: catalog.clone(),
         system: system.clone(),
+        logs,
+        retention,
+        observer,
         pool,
         executor_epoch,
     };
@@ -93,7 +150,11 @@ pub(super) fn build_scheduler_services(settings: &Settings, database: Database, 
 fn runtime_parts(assembly: RuntimeAssembly<'_>) -> BackendResult<SchedulerRuntimeParts> {
     let context = TaskExecutionContext {
         system_cache: Arc::new(SchedulerSystemCacheAdapter { system: assembly.system }),
-        http_client: Arc::new(ReqwestHttpTaskClient::new(scheduler_http_client(assembly.config)?)),
+        http_client: Arc::new(ReqwestHttpTaskClient::new(scheduler_http_client(assembly.config)?, assembly.observer)),
+        system_log_cleanup: Arc::new(SchedulerSystemLogCleanupAdapter {
+            logs: assembly.logs,
+            retention: assembly.retention,
+        }),
     };
     Ok(SchedulerRuntimeParts {
         store: assembly.repository,
@@ -125,4 +186,39 @@ fn scheduler_http_client(config: &SchedulerSettings) -> BackendResult<reqwest::C
 
 fn cache_refresh_error(kind: CacheRefreshKind, error: SystemError) -> TaskExecutionFailure {
     cache_refresh_failure(kind, format!("scheduler cache refresh failed: {error}"))
+}
+
+fn system_log_cleanup_failure(error: observability::application::ObservabilityError) -> TaskExecutionFailure {
+    let diagnostic = format!("system log cleanup failed: {error}");
+    match error {
+        observability::application::ObservabilityError::PartialCleanup { deleted, batches, .. } => TaskExecutionFailure::new(
+            kernel::error::LocalizedError::new("errors.scheduler.task_system_log_cleanup_failed"),
+            diagnostic,
+        )
+        .with_detail(SystemLogCleanupReport::new(deleted, batches)),
+        other => TaskExecutionFailure::new(
+            kernel::error::LocalizedError::new("errors.scheduler.task_system_log_cleanup_failed"),
+            format!("system log cleanup failed: {other}"),
+        ),
+    }
+}
+
+fn system_log_filter(filter: SystemLogCleanupFilter) -> SystemLogFilter {
+    SystemLogFilter {
+        keyword: filter.keyword,
+        levels: filter.levels.into_iter().map(observability_level).collect(),
+        target: filter.target,
+        begin_time: Some(filter.begin_time),
+        end_time: Some(filter.end_time),
+    }
+}
+
+fn observability_level(level: SystemLogCleanupLevel) -> SystemLogLevel {
+    match level {
+        SystemLogCleanupLevel::Trace => SystemLogLevel::Trace,
+        SystemLogCleanupLevel::Debug => SystemLogLevel::Debug,
+        SystemLogCleanupLevel::Info => SystemLogLevel::Info,
+        SystemLogCleanupLevel::Warn => SystemLogLevel::Warn,
+        SystemLogCleanupLevel::Error => SystemLogLevel::Error,
+    }
 }

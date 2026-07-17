@@ -87,6 +87,23 @@ fn nested_body_and_url_fields_are_structurally_sanitized_for_requests() {
 }
 
 #[test]
+fn embedded_configuration_uses_the_audit_url_and_body_policy() {
+    let input = br#"{"config_key":"sys.provider.settings","config_value":"{\"endpoint\":\"https://user:pass@example.com/run?token=raw#fragment\",\"body\":\"raw-body\"}"}"#;
+
+    let raw_snapshot = request_snapshot(Some("application/json"), input);
+
+    let snapshot = serde_json::from_str::<serde_json::Value>(&raw_snapshot).unwrap();
+    assert_eq!(snapshot["config_key"], "sys.provider.settings");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(snapshot["config_value"].as_str().unwrap()).unwrap(),
+        serde_json::json!({"endpoint":"https://example.com/run?token=***","body":"[body omitted]"})
+    );
+    for secret in ["user", "pass", "raw", "fragment", "raw-body"] {
+        assert!(!raw_snapshot.contains(secret));
+    }
+}
+
+#[test]
 fn invalid_json_and_multipart_never_store_raw_secret_bytes() {
     assert_eq!(request_snapshot(Some("application/json"), br#"{"password":"raw""#), "[invalid JSON omitted]");
     assert_eq!(

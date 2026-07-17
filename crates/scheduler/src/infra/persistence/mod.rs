@@ -11,8 +11,7 @@ mod runtime_store_tests;
 mod sql;
 mod write_support;
 
-use sqlx::PgPool;
-use storage::Database;
+use storage::{Database, ObservedPgPool};
 
 #[derive(Clone)]
 pub struct StorageSchedulerRepository {
@@ -24,7 +23,7 @@ impl StorageSchedulerRepository {
         Self { database }
     }
 
-    pub(crate) fn pool(&self) -> &PgPool {
+    pub(crate) fn pool(&self) -> ObservedPgPool {
         self.database.pool()
     }
 }

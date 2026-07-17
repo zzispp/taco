@@ -1,0 +1,13 @@
+error: unexpected end of input, lifecycle is required
+  --> tests/trybuild/fail/missing_scheduled_task_lifecycle.rs:3:1
+   |
+ 3 | / #[scheduled_task(
+ 4 | |     task_key = "task.one",
+ 5 | |     name_key = "task.name",
+ 6 | |     group = "SYSTEM",
+...  |
+ 9 | |     params = Params,
+10 | | )]
+   | |__^
+   |
+   = note: this error originates in the attribute macro `scheduled_task` (in Nightly builds, run with -Z macro-backtrace for more info)

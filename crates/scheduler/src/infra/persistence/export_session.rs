@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{Postgres, Transaction};
+use storage::ObservedPgPool;
 
 use crate::{
     application::{ExecutionLogSummary, SchedulerCursorQuery, SchedulerCursorSlice, SchedulerQueryExportSession, SchedulerResult},
@@ -15,7 +16,7 @@ pub(super) struct StorageSchedulerExportSession {
 }
 
 impl StorageSchedulerExportSession {
-    pub(super) async fn begin(pool: &PgPool) -> SchedulerResult<Self> {
+    pub(super) async fn begin(pool: ObservedPgPool) -> SchedulerResult<Self> {
         let transaction = pool.begin_with(SNAPSHOT_BEGIN).await.map_err(map_sqlx_error)?;
         Ok(Self { transaction })
     }

@@ -6,6 +6,8 @@ publish.workspace = true
 
 [dependencies]
 audit_contract.workspace = true
+async-stream.workspace = true
+futures-util.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

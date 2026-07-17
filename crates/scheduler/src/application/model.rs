@@ -6,10 +6,13 @@ use crate::domain::{
     TaskParamFormSpec, TriggerType,
 };
 
+use super::task::TaskLifecycleCapabilities;
+
 #[derive(Clone, Debug)]
 pub struct JobView {
     pub job: Job,
     pub registry_status: RegistryStatus,
+    pub capabilities: TaskLifecycleCapabilities,
     pub param_form: Option<TaskParamFormSpec>,
 }
 

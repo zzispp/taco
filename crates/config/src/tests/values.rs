@@ -76,12 +76,6 @@ redis:
   key_prefix: "taco"
 uploads:
   avatar_directory: "storage/uploads/avatars"
-tracing:
-  log_level: "info"
-  file:
-    enabled: false
-    directory: "logs"
-    prefix: "taco.log"
 "#;
 
 fn minimal_config() -> String {

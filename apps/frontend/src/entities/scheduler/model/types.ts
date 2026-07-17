@@ -53,6 +53,12 @@ export type ImportableTask = {
   param_form: TaskParamFormSpec;
 };
 
+export type SchedulerJobLifecycleCapabilities = {
+  can_disable: boolean;
+  can_delete: boolean;
+  can_edit_execution_policy: boolean;
+};
+
 export type SchedulerJob = {
   job_id: string;
   job_name: string;
@@ -67,6 +73,7 @@ export type SchedulerJob = {
   concurrent: ConcurrentPolicy;
   status: JobStatus;
   registry_status: RegistryStatus;
+  capabilities: SchedulerJobLifecycleCapabilities;
   param_form: TaskParamFormSpec | null;
   schedule_revision: number;
   next_run_at: string | null;

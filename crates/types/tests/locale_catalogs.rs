@@ -30,6 +30,7 @@ const SCHEDULER_CONTRACT_KEYS: &[&str] = &[
     "errors.scheduler.occurrence_already_materialized",
     "errors.scheduler.params_must_be_object",
     "errors.scheduler.repeatable_mismatch",
+    "errors.scheduler.required_task_policy_locked",
     "errors.scheduler.task_already_imported",
     "errors.scheduler.task_cache_refresh_failed",
     "errors.scheduler.task_definition_changed",

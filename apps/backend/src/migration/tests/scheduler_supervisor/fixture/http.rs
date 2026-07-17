@@ -9,7 +9,9 @@ use std::{
 use async_trait::async_trait;
 use axum::{Router, extract::State, http::StatusCode, routing::get};
 use scheduler::{
-    application::task::{SystemCacheRefreshPort, TaskExecutionContext, TaskExecutionFailure},
+    application::task::{
+        SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupPort, SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
+    },
     infra::ReqwestHttpTaskClient,
 };
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
@@ -57,9 +59,18 @@ impl HttpFixture {
 pub(super) fn task_context() -> TaskExecutionContext {
     let client = reqwest::Client::builder().timeout(HTTP_TIMEOUT).build().unwrap();
     TaskExecutionContext {
-        http_client: Arc::new(ReqwestHttpTaskClient::new(client)),
+        http_client: Arc::new(ReqwestHttpTaskClient::new(client, observer())),
         system_cache: Arc::new(UnexpectedCachePort),
+        system_log_cleanup: Arc::new(UnexpectedSystemLogCleanupPort),
     }
+}
+
+fn observer() -> taco_tracing::InfrastructureObserver {
+    let config = taco_tracing::parse_runtime_tracing_config(
+        r#"{"log_level":"error","http":{"access_enabled":true,"capture_request_body":false,"capture_response_body":false,"capture_query_parameters":false,"capture_request_headers":false,"max_body_capture_bytes":0},"slow_operation_ms":{"postgres":500,"redis":100,"outbound_http":1000}}"#,
+    )
+    .unwrap();
+    taco_tracing::InfrastructureObserver::new(taco_tracing::RuntimeTracingState::new(config))
 }
 
 async fn record_http_call(State(calls): State<Arc<AtomicUsize>>) -> StatusCode {
@@ -68,6 +79,7 @@ async fn record_http_call(State(calls): State<Arc<AtomicUsize>>) -> StatusCode {
 }
 
 struct UnexpectedCachePort;
+struct UnexpectedSystemLogCleanupPort;
 
 #[async_trait]
 impl SystemCacheRefreshPort for UnexpectedCachePort {
@@ -77,5 +89,16 @@ impl SystemCacheRefreshPort for UnexpectedCachePort {
 
     async fn refresh_dict_cache(&self) -> Result<(), TaskExecutionFailure> {
         panic!("HTTP-only scheduler runtime test invoked dictionary cache refresh")
+    }
+}
+
+#[async_trait]
+impl SystemLogCleanupPort for UnexpectedSystemLogCleanupPort {
+    async fn cleanup_expired(&self, _: u64, _: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
+        panic!("HTTP-only scheduler runtime test invoked system log retention")
+    }
+
+    async fn cleanup_filtered(&self, _: SystemLogCleanupFilter, _: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
+        panic!("HTTP-only scheduler runtime test invoked system log cleanup")
     }
 }

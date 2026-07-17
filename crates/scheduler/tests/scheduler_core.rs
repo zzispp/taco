@@ -3,7 +3,7 @@ use scheduler::{
     application::{
         NEXT_TIMES_MAX_COUNT, next_times_after,
         task::{ScheduledTaskMetadata, StaticTaskCatalog, TaskCatalog, TaskParams},
-        tasks::{HttpRequestParams, HttpRequestTask, NoTaskParams, RefreshConfigCacheTask, RefreshDictCacheTask},
+        tasks::{HttpRequestParams, HttpRequestTask, NoTaskParams, RefreshConfigCacheTask, RefreshDictCacheTask, SystemLogCleanupTask},
     },
     domain::{ParamSchema, ParamWidget},
 };
@@ -41,12 +41,21 @@ fn explicit_catalog_contains_each_builtin_task_once() {
         HttpRequestTask::descriptor(),
         RefreshConfigCacheTask::descriptor(),
         RefreshDictCacheTask::descriptor(),
+        SystemLogCleanupTask::descriptor(),
     ];
     let catalog = StaticTaskCatalog::try_new(definitions.clone()).expect("builtin task keys must be unique");
     let keys = catalog.all().into_iter().map(|item| item.task_key).collect::<Vec<_>>();
     let http = catalog.get("httpClient.request").expect("HTTP task must be registered");
 
-    assert_eq!(keys, vec!["httpClient.request", "system.refreshConfigCache", "system.refreshDictCache"]);
+    assert_eq!(
+        keys,
+        vec![
+            "httpClient.request",
+            "observability.cleanupSystemLogs",
+            "system.refreshConfigCache",
+            "system.refreshDictCache"
+        ]
+    );
     assert_eq!(http.group, "SYSTEM");
     assert!(http.repeatable);
 
@@ -171,5 +180,9 @@ fn scheduler_task_i18n_keys_are_translated() {
     assert_eq!(
         translate_message(Locale::ZhCn, "scheduler.tasks.system.refresh_dict_cache.name"),
         "刷新字典缓存"
+    );
+    assert_eq!(
+        translate_message(Locale::ZhCn, "scheduler.tasks.observability.system_log_cleanup.name"),
+        "系统日志清理"
     );
 }

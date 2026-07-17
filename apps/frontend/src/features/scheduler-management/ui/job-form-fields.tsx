@@ -21,6 +21,7 @@ import { ParamFields } from './param-fields';
 type JobFormFieldsProps = {
   form: JobFormState;
   paramForm: TaskParamFormSpec;
+  policyChangeAllowed: boolean;
   setForm: Dispatch<SetStateAction<JobFormState>>;
   openCron: () => void;
 };
@@ -32,20 +33,7 @@ export function JobFormFields(props: JobFormFieldsProps) {
   return (
     <Stack spacing={2.5} sx={{ pt: 1 }}>
       <TextField label={t('taskKey')} value={props.form.task_key} disabled />
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-        <TextField
-          fullWidth
-          label={t('jobName')}
-          value={props.form.job_name}
-          onChange={(event) => write('job_name', event.target.value)}
-        />
-        <TextField
-          fullWidth
-          label={t('jobGroup')}
-          value={props.form.job_group}
-          onChange={(event) => write('job_group', event.target.value)}
-        />
-      </Stack>
+      <JobIdentityFields form={props.form} write={write} />
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
         <TextField
           fullWidth
@@ -57,7 +45,11 @@ export function JobFormFields(props: JobFormFieldsProps) {
           {t('cronBuilder')}
         </Button>
       </Stack>
-      <PolicyFields form={props.form} write={write} />
+      <PolicyFields
+        form={props.form}
+        policyChangeAllowed={props.policyChangeAllowed}
+        write={write}
+      />
       <ParamFields
         fields={props.paramForm.ui.fields}
         draft={props.form.paramDraft}
@@ -76,7 +68,35 @@ export function JobFormFields(props: JobFormFieldsProps) {
 
 type FormWriter = <K extends keyof JobFormState>(key: K, value: JobFormState[K]) => void;
 
-function PolicyFields({ form, write }: { form: JobFormState; write: FormWriter }) {
+function JobIdentityFields({ form, write }: { form: JobFormState; write: FormWriter }) {
+  const { t } = useTranslate('scheduler');
+  return (
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+      <TextField
+        fullWidth
+        label={t('jobName')}
+        value={form.job_name}
+        onChange={(event) => write('job_name', event.target.value)}
+      />
+      <TextField
+        fullWidth
+        label={t('jobGroup')}
+        value={form.job_group}
+        onChange={(event) => write('job_group', event.target.value)}
+      />
+    </Stack>
+  );
+}
+
+function PolicyFields({
+  form,
+  policyChangeAllowed,
+  write,
+}: {
+  form: JobFormState;
+  policyChangeAllowed: boolean;
+  write: FormWriter;
+}) {
   const { t } = useTranslate('scheduler');
   return (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -85,6 +105,7 @@ function PolicyFields({ form, write }: { form: JobFormState; write: FormWriter }
         fullWidth
         label={t('misfirePolicy')}
         value={form.misfire_policy}
+        disabled={!policyChangeAllowed}
         onChange={(event) =>
           write('misfire_policy', event.target.value as JobFormState['misfire_policy'])
         }
@@ -100,6 +121,7 @@ function PolicyFields({ form, write }: { form: JobFormState; write: FormWriter }
         fullWidth
         label={t('concurrent')}
         value={form.concurrent}
+        disabled={!policyChangeAllowed}
         onChange={(event) => write('concurrent', event.target.value as JobFormState['concurrent'])}
       >
         {Object.values(CONCURRENT_POLICY).map((value) => (

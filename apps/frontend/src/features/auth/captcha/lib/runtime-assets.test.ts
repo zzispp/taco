@@ -7,16 +7,17 @@ import { it, expect, describe } from 'vitest';
 import { CAP_RUNTIME_ASSETS } from './runtime-assets';
 
 const PUBLIC_ROOT = fileURLToPath(new URL('../../../../../public/', import.meta.url));
-const EXPECTED_WIDGET_BYTE_LENGTH = 43_688;
-const EXPECTED_WIDGET_SHA256 = 'e3b4b80c9ad27c48cd7fb67e363670b1fd930b950a3c59d6a6a01857c17e6409';
+const EXPECTED_WIDGET_BYTE_LENGTH = 43_727;
+const EXPECTED_WIDGET_SHA256 = 'd0f028d0a10ecccc8c072cc183baf9a14ea27179be5309a94388bc7c3c1851f2';
 const EXPECTED_WASM_BYTE_LENGTH = 22_608;
 const EXPECTED_WASM_SHA256 = 'e4f3c00246a775193661f9277ca1288cd310a6514de166ecc2176ccd26fb06a9';
 const EXPECTED_PAKO_BYTE_LENGTH = 21_479;
 const EXPECTED_PAKO_SHA256 = 'fa226c8e1e3556993260e6a5c1fe94e225da59b3418a06811fdc51d308f8bb43';
 const UPSTREAM_WASM_URL =
   'https://cdn.jsdelivr.net/npm/@cap.js/wasm@0.0.7/browser/cap_wasm_bg.wasm';
-const UPSTREAM_PAKO_URL =
-  'https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako_inflate.min.js';
+const UPSTREAM_PAKO_URL = 'https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako_inflate.min.js';
+const CAP_UNMOUNT_GUARD = 'if(!this.#d)return[];';
+const CAP_WORKER_POOL_GUARD = 'for(;a<i&&this.#d&&this.#p;){';
 
 describe('CAP runtime assets', () => {
   it('pins the reviewed same-origin widget build', () => {
@@ -54,6 +55,13 @@ describe('CAP runtime assets', () => {
 
     expect(widget).toContain(localPakoDefault);
     expect(widget).not.toContain(UPSTREAM_PAKO_URL);
+  });
+
+  it('stops the solve lifecycle after the widget disconnects', () => {
+    const widget = readFileSync(publicAssetPath(CAP_RUNTIME_ASSETS.widgetScriptUrl), 'utf8');
+
+    expect(widget).toContain(CAP_UNMOUNT_GUARD);
+    expect(widget).toContain(CAP_WORKER_POOL_GUARD);
   });
 });
 

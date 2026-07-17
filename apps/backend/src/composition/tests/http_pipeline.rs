@@ -62,6 +62,7 @@ async fn global_timeout_cancels_slow_authentication_without_auditing() {
             settings: &settings,
             audit: audit_state(Arc::new(recorder.clone()), vec![operation_endpoint(SLOW_AUTH_PATH)]),
             metrics: &metrics,
+            http_logs: None,
         },
     )
     .unwrap();
@@ -87,6 +88,7 @@ async fn authorized_handler_timeout_is_written_to_the_operation_outbox() {
             settings: &settings,
             audit: audit_state(Arc::new(recorder.clone()), vec![operation_endpoint(AUTHORIZED_TIMEOUT_PATH)]),
             metrics: &metrics,
+            http_logs: None,
         },
     )
     .unwrap();
@@ -118,6 +120,7 @@ async fn metrics_cover_success_and_timeout_responses() {
             settings: &settings,
             audit: audit_state(Arc::new(MemoryRecorder::default()), Vec::new()),
             metrics: &metrics,
+            http_logs: None,
         },
     )
     .unwrap();
@@ -160,6 +163,7 @@ async fn browser_security_headers_are_global_with_route_specific_cache_and_csp()
             settings: &settings,
             audit: audit_state(Arc::new(MemoryRecorder::default()), Vec::new()),
             metrics: &metrics,
+            http_logs: None,
         },
     )
     .unwrap();

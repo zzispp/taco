@@ -6,7 +6,8 @@ use utoipa::OpenApi;
         crate::system::health
     ),
     nest(
-        (path = "/api", api = audit::api::AuditApiDoc)
+        (path = "/api", api = audit::api::AuditApiDoc),
+        (path = "/api", api = observability::api::SystemLogApiDoc)
     ),
     tags(
         (name = "system", description = "System endpoints")
@@ -35,6 +36,15 @@ mod tests {
         "/api/system/operation-logs/clean",
         "/api/system/operation-logs/export",
         "/api/system/operation-logs/{id}",
+    ];
+    const SYSTEM_LOG_PATHS: [&str; 7] = [
+        "/api/system/system-logs",
+        "/api/system/system-logs/batch",
+        "/api/system/system-logs/clean",
+        "/api/system/system-logs/clean/count",
+        "/api/system/system-logs/clean/executions/{execution_id}",
+        "/api/system/system-logs/export",
+        "/api/system/system-logs/{id}",
     ];
     const HTTP_METHODS: [&str; 5] = ["delete", "get", "patch", "post", "put"];
     const XLSX_CONTENT_TYPE: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -119,6 +129,30 @@ mod tests {
         }
     }
 
+    #[test]
+    fn system_log_contract_has_every_management_route_and_xlsx_export() {
+        let document = document();
+        let paths = system_log_paths(&document);
+
+        assert_eq!(paths.keys().copied().collect::<BTreeSet<_>>(), BTreeSet::from(SYSTEM_LOG_PATHS));
+        assert_eq!(operation_count(&paths), 8);
+        assert_bearer_security(&document, &paths);
+        assert!(
+            paths["/api/system/system-logs/export"]["post"]["responses"]["200"]["content"]
+                .get(XLSX_CONTENT_TYPE)
+                .is_some()
+        );
+        for schema in [
+            "SystemLogSummaryResponse",
+            "SystemLogDetailResponse",
+            "SystemLogCleanupCountResponse",
+            "SystemLogCleanupAcceptedResponse",
+            "SystemLogCleanupExecutionResponse",
+        ] {
+            assert!(document.pointer(&format!("/components/schemas/{schema}")).is_some(), "missing schema {schema}");
+        }
+    }
+
     fn document() -> Value {
         serde_json::to_value(ApiDoc::openapi()).unwrap()
     }
@@ -131,6 +165,15 @@ mod tests {
             .filter_map(|(path, item)| {
                 (path.starts_with("/api/system/operation-logs") || path.starts_with("/api/system/login-logs")).then_some((path.as_str(), item))
             })
+            .collect()
+    }
+
+    fn system_log_paths(document: &Value) -> std::collections::BTreeMap<&str, &Value> {
+        document["paths"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .filter_map(|(path, item)| path.starts_with("/api/system/system-logs").then_some((path.as_str(), item)))
             .collect()
     }
 

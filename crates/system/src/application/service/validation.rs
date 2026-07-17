@@ -1,4 +1,4 @@
-use constants::system_config::CAPTCHA_CONFIG_KEY;
+use constants::system_config::{CAPTCHA_CONFIG_KEY, TRACING_CONFIG_KEY};
 use kernel::error::LocalizedError;
 use kernel::pagination::CursorPageRequest;
 
@@ -154,9 +154,20 @@ pub(super) fn reject_builtin_config_identity_change(current: &ConfigItem, input:
 }
 
 pub(super) fn reject_sensitive_public_config(key: &str, public_read: bool) -> SystemResult<()> {
-    if key == CAPTCHA_CONFIG_KEY && public_read {
-        return Err(SystemError::Conflict(localized("errors.system.captcha_private_public")));
+    if public_read && (key == CAPTCHA_CONFIG_KEY || key == TRACING_CONFIG_KEY) {
+        return Err(SystemError::Conflict(localized("errors.system.sensitive_config_private")));
     }
+    Ok(())
+}
+
+pub(super) fn validate_runtime_config(input: &ConfigInput) -> SystemResult<()> {
+    if input.config_key != TRACING_CONFIG_KEY {
+        return Ok(());
+    }
+    taco_tracing::parse_runtime_tracing_config(&input.config_value).map_err(|error| {
+        taco_tracing::error_with_fields!("invalid observability tracing runtime config", &error, key = TRACING_CONFIG_KEY);
+        SystemError::InvalidInput(localized("errors.system.invalid_observability_tracing_config"))
+    })?;
     Ok(())
 }
 

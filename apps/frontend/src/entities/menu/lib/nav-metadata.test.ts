@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import type { TranslateFn } from 'src/shared/i18n';
 
 import { isValidElement } from 'react';
@@ -8,11 +9,27 @@ import { paths } from 'src/shared/routes/paths';
 import { NAV_ICONS, NAV_ICON_OPTIONS, translatedMenuItem } from './nav-metadata';
 
 const AUDIT_MENU_ICON_TOKENS = ['icon.logs', 'icon.operation-log', 'icon.login-log'] as const;
+const LOG_DIRECTORY_ICON_TOKENS = ['icon.logs', 'icon.job-log', 'icon.system-log'] as const;
 
 describe('audit menu icon metadata', () => {
   it.each(AUDIT_MENU_ICON_TOKENS)('registers %s as a selectable rendered icon', (token) => {
     expect(NAV_ICON_OPTIONS).toContain(token);
     expect(isValidElement(NAV_ICONS[token])).toBe(true);
+  });
+});
+
+describe('log directory icon metadata', () => {
+  it.each(LOG_DIRECTORY_ICON_TOKENS)('registers %s as a selectable rendered icon', (token) => {
+    expect(NAV_ICON_OPTIONS).toContain(token);
+    expect(isValidElement(NAV_ICONS[token])).toBe(true);
+  });
+
+  it('uses a different icon for each log directory', () => {
+    const icons = LOG_DIRECTORY_ICON_TOKENS.map(
+      (token) => (NAV_ICONS[token] as ReactElement<{ icon: string }>).props.icon
+    );
+
+    expect(new Set(icons).size).toBe(LOG_DIRECTORY_ICON_TOKENS.length);
   });
 });
 

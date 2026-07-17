@@ -14,12 +14,14 @@ pub use readiness::prepare_runtime_schema;
 
 const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../migrations");
 const MIGRATION_TABLE_NAME: &str = "_sqlx_migrations";
+const MANAGED_FUNCTIONS: &[&str] = &["system_log_search_ngrams(TEXT)"];
 
 const MANAGED_TABLES: &[&str] = &[
     "audit_outbox",
     "sys_user_session",
     "sys_logininfor",
     "sys_oper_log",
+    "sys_system_log",
     "sys_notice_read",
     "sys_notice",
     "sys_job_execution",
@@ -27,6 +29,7 @@ const MANAGED_TABLES: &[&str] = &[
     "sys_user_post",
     "sys_role_dept",
     "sys_role_menu",
+    "sys_log_menu_hierarchy_role_grant",
     "sys_user_role",
     "sys_config",
     "sys_dict_data",
@@ -241,6 +244,11 @@ async fn reset_database(pool: &PgPool) -> BackendResult<()> {
     let mut tx = pool.begin().await?;
     for table in MANAGED_TABLES {
         query(AssertSqlSafe(format!("DROP TABLE IF EXISTS {table} CASCADE"))).execute(&mut *tx).await?;
+    }
+    for function in MANAGED_FUNCTIONS {
+        query(AssertSqlSafe(format!("DROP FUNCTION IF EXISTS {function} CASCADE")))
+            .execute(&mut *tx)
+            .await?;
     }
     query("DROP TABLE IF EXISTS _sqlx_migrations").execute(&mut *tx).await?;
     tx.commit().await?;

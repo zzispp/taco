@@ -5,6 +5,13 @@
     "loading": "加載中..."
   },
   "auth": {
+    "section": {
+      "defaultTitle": "統一管理您的後台系統",
+      "signInTitle": "繼續使用 {{siteName}} 工作區",
+      "signUpTitle": "建立您的 {{siteName}} 工作區",
+      "subtitle": "{{siteName}} 集中管理認證、RBAC、API 權限和選單治理。",
+      "illustrationAlt": "控制台插圖"
+    },
     "signIn": {
       "documentTitle": "登入",
       "title": "登入您的帳號",

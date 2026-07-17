@@ -6,6 +6,6 @@ pub use request::{
     UpdateJobStatusRequest,
 };
 pub use response::{
-    CronNextTimesResponse, ExecutionDetailResponse, ExecutionLogDetailResponse, ExecutionLogResponse, ImportableTaskResponse, JobResponse, ParamFieldResponse,
-    ParamUiResponse, RunJobResponse, RuntimeErrorResponse, TaskParamFormResponse,
+    CronNextTimesResponse, ExecutionDetailResponse, ExecutionLogDetailResponse, ExecutionLogResponse, ImportableTaskResponse, JobCapabilitiesResponse,
+    JobResponse, ParamFieldResponse, ParamUiResponse, RunJobResponse, RuntimeErrorResponse, TaskParamFormResponse,
 };

@@ -40,6 +40,7 @@ export const NAV_ICON_OPTIONS = [
   'icon.logs',
   'icon.operation-log',
   'icon.login-log',
+  'icon.system-log',
 ];
 
 export const NAV_ICONS: NavIconMap = {
@@ -60,11 +61,12 @@ export const NAV_ICONS: NavIconMap = {
   'icon.monitor': iconify('solar:monitor-bold'),
   'icon.online': iconify('solar:monitor-bold'),
   'icon.job': iconify('solar:calendar-date-bold'),
-  'icon.job-log': iconify('solar:bill-list-bold-duotone'),
+  'icon.job-log': iconify('solar:calendar-date-bold'),
   'icon.login-log': iconify('solar:user-id-bold'),
-  'icon.logs': iconify('solar:bill-list-bold-duotone'),
+  'icon.logs': iconify('solar:notes-bold-duotone'),
   'icon.notice': iconify('solar:bell-bing-bold-duotone'),
   'icon.operation-log': iconify('solar:file-text-bold'),
+  'icon.system-log': iconify('solar:monitor-bold'),
   'icon.post': icon('ic-job'),
   'icon.user': icon('ic-user'),
 };

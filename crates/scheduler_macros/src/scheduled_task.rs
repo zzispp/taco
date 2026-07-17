@@ -16,6 +16,7 @@ fn expand_item(args: ScheduledTaskArgs, item: ItemStruct) -> proc_macro2::TokenS
     let group_key = args.group_key;
     let description_key = args.description_key;
     let repeatable = args.repeatable.unwrap_or_else(|| syn::parse_quote!(false));
+    let lifecycle = args.lifecycle;
     let params = args.params;
     let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
 
@@ -31,11 +32,13 @@ fn expand_item(args: ScheduledTaskArgs, item: ItemStruct) -> proc_macro2::TokenS
                     group_key: #group_key,
                     description_key: #description_key,
                     repeatable: #repeatable,
+                    lifecycle: #lifecycle,
                     params: scheduler::application::task::ParamDefinition {
                         schema_version: <#params as scheduler::application::task::TaskParams>::SCHEMA_VERSION,
                         form: <#params as scheduler::application::task::TaskParams>::form,
                         default_params: <#params as scheduler::application::task::TaskParams>::default_params,
                         validate: <#params as scheduler::application::task::TaskParams>::validate,
+                        validate_persisted: <#params as scheduler::application::task::TaskParams>::validate_persisted,
                         render_invoke_target: <#params as scheduler::application::task::TaskParams>::render_invoke_target,
                     },
                     factory: || std::sync::Arc::new(<#ident #ty_generics as Default>::default()),
@@ -52,6 +55,7 @@ struct ScheduledTaskArgs {
     group_key: Expr,
     description_key: Expr,
     repeatable: Option<Expr>,
+    lifecycle: Expr,
     params: Type,
 }
 
@@ -68,6 +72,7 @@ impl Parse for ScheduledTaskArgs {
                 "group_key" => set_once(&mut args.group_key, input.parse()?, &key)?,
                 "description_key" => set_once(&mut args.description_key, input.parse()?, &key)?,
                 "repeatable" => set_once(&mut args.repeatable, input.parse()?, &key)?,
+                "lifecycle" => set_once(&mut args.lifecycle, input.parse()?, &key)?,
                 "params" => set_once(&mut args.params, input.parse()?, &key)?,
                 other => return Err(syn::Error::new(key.span(), format!("unsupported scheduled_task argument: {other}"))),
             }
@@ -88,6 +93,7 @@ struct PartialScheduledTaskArgs {
     group_key: Option<Expr>,
     description_key: Option<Expr>,
     repeatable: Option<Expr>,
+    lifecycle: Option<Expr>,
     params: Option<Type>,
 }
 
@@ -100,6 +106,7 @@ impl PartialScheduledTaskArgs {
             group_key: required(input, self.group_key, "group_key")?,
             description_key: required(input, self.description_key, "description_key")?,
             repeatable: self.repeatable,
+            lifecycle: required(input, self.lifecycle, "lifecycle")?,
             params: required(input, self.params, "params")?,
         })
     }
@@ -127,6 +134,7 @@ mod tests {
         group = "SYSTEM",
         group_key = "group.system",
         description_key = "task.description",
+        lifecycle = scheduler::application::task::TaskLifecyclePolicy::Administrable,
         params = Params,
     "#;
 
@@ -148,5 +156,11 @@ mod tests {
         assert!(syn::parse_str::<ScheduledTaskArgs>(&REQUIRED.replace("task.name\",", "task.name\" ")).is_err());
         assert!(syn::parse_str::<ScheduledTaskArgs>(&format!("{REQUIRED} task_key = \"duplicate\", ")).is_err());
         assert!(syn::parse_str::<ScheduledTaskArgs>(&format!("{REQUIRED} unknown = \"value\", ")).is_err());
+        assert!(
+            syn::parse_str::<ScheduledTaskArgs>(
+                &REQUIRED.replace("        lifecycle = scheduler::application::task::TaskLifecyclePolicy::Administrable,\n", "")
+            )
+            .is_err()
+        );
     }
 }

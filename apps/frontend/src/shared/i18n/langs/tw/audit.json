@@ -29,7 +29,7 @@
     "os": "作業系統",
     "message": "提示訊息",
     "eventType": "事件類型",
-    "loginTime": "存取時間",
+    "loginTime": "登入時間",
     "beginTime": "開始時間",
     "endTime": "結束時間"
   },

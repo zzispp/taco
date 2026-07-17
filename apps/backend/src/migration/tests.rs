@@ -6,10 +6,12 @@ mod audit_repository;
 mod bootstrap_admin;
 mod data_integrity;
 mod export_snapshots;
+mod log_menu_hierarchy;
 mod notice_repository;
 mod notice_rollback;
 mod overview_menu;
 mod performance_indexes;
+mod postgres_observer;
 mod scheduler_assertions;
 mod scheduler_conflicts;
 mod scheduler_execution_detail;
@@ -20,7 +22,11 @@ mod scheduler_schema;
 mod scheduler_supervisor;
 mod seed_assertions;
 mod support;
+mod system_log_repository;
+mod system_log_search_plan;
+mod system_logs;
 mod system_monitor_menu;
+mod tracing_config_listener;
 mod user_password_contract;
 mod user_sessions;
 use seed_assertions::assert_seed_data_exists;
@@ -28,7 +34,7 @@ use support::{TestDatabase, managed_table_exists, rollback_from};
 
 use super::{down, ensure_runtime_schema_ready, fresh, prepare_runtime_schema, refresh, reset, status, up};
 
-const MIGRATION_TOTAL: usize = 22;
+const MIGRATION_TOTAL: usize = 27;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 #[tokio::test]

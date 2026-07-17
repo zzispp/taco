@@ -20,6 +20,7 @@
     "notices": "Notices",
     "logManagement": "Log Management",
     "operationLogs": "Operation Logs",
-    "loginLogs": "Login Logs"
+    "loginLogs": "Login Logs",
+    "systemLogs": "System Logs"
   }
 }

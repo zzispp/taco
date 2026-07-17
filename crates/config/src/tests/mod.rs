@@ -32,7 +32,6 @@ pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
         redis: redis_settings(),
         scheduler: scheduler_settings(),
         uploads: UploadSettings::default(),
-        tracing: tracing_settings(),
     }
 }
 
@@ -53,13 +52,6 @@ pub(super) fn settings_with_jwt(jwt: JwtSettings) -> Settings {
 pub(super) fn settings_with_redis(redis: RedisSettings) -> Settings {
     Settings {
         redis,
-        ..settings_with_database(database_parts())
-    }
-}
-
-pub(super) fn settings_with_tracing(tracing: TracingSettings) -> Settings {
-    Settings {
-        tracing,
         ..settings_with_database(database_parts())
     }
 }
@@ -185,12 +177,5 @@ pub(super) fn scheduler_settings() -> SchedulerSettings {
         runtime: SchedulerRuntimeSettings {
             reconcile_interval_ms: TEST_SCHEDULER_RECONCILE_INTERVAL_MS,
         },
-    }
-}
-
-pub(super) fn tracing_settings() -> TracingSettings {
-    TracingSettings {
-        log_level: "info".into(),
-        file: TracingFileSettings::default(),
     }
 }

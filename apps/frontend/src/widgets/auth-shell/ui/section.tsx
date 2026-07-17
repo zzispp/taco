@@ -7,6 +7,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 
 import { CONFIG } from 'src/shared/config';
+import { useTranslate } from 'src/shared/i18n';
 import { useSiteDisplay } from 'src/shared/config/site-display-context';
 
 // ----------------------------------------------------------------------
@@ -30,11 +31,10 @@ export function AuthSplitSection({
   subtitle,
   ...other
 }: AuthSplitSectionProps) {
+  const { t } = useTranslate('messages');
   const { siteName } = useSiteDisplay();
-  const resolvedTitle = title ?? authSectionTitle(variant, siteName);
-  const resolvedSubtitle =
-    subtitle ??
-    `${siteName} centralizes authentication, RBAC, API permissions, and menu governance.`;
+  const resolvedTitle = title ?? authSectionTitle({ variant, siteName, t });
+  const resolvedSubtitle = subtitle ?? t('auth.section.subtitle', { siteName });
 
   return (
     <Box
@@ -79,7 +79,7 @@ export function AuthSplitSection({
 
       <Box
         component="img"
-        alt="Dashboard illustration"
+        alt={t('auth.section.illustrationAlt')}
         src={imgUrl}
         sx={{ width: 1, aspectRatio: '4/3', objectFit: 'cover' }}
       />
@@ -87,14 +87,20 @@ export function AuthSplitSection({
   );
 }
 
-function authSectionTitle(variant: AuthSectionVariant, siteName: string) {
+type AuthSectionTitleOptions = {
+  siteName: string;
+  t: ReturnType<typeof useTranslate>['t'];
+  variant: AuthSectionVariant;
+};
+
+function authSectionTitle({ variant, siteName, t }: AuthSectionTitleOptions) {
   if (variant === 'sign-in') {
-    return `Resume your ${siteName} workspace`;
+    return t('auth.section.signInTitle', { siteName });
   }
 
   if (variant === 'sign-up') {
-    return `Create your ${siteName} workspace`;
+    return t('auth.section.signUpTitle', { siteName });
   }
 
-  return 'Operate one backend control plane';
+  return t('auth.section.defaultTitle');
 }

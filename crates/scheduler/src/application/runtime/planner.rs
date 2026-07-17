@@ -182,7 +182,7 @@ fn ensure_runtime_job(parts: &SchedulerRuntimeParts, job: &Job) -> Result<(), Re
     if definition.params.schema_version != job.params_schema_version {
         return Err(deterministic_input(RuntimeErrorCode::InvalidParams, "errors.scheduler.invalid_params"));
     }
-    (definition.params.validate)(&job.task_params).map_err(|error| ReconcileFailure::deterministic(RuntimeErrorCode::InvalidParams, error))
+    (definition.params.validate_persisted)(&job.task_params).map_err(|error| ReconcileFailure::deterministic(RuntimeErrorCode::InvalidParams, error))
 }
 
 fn deterministic_input(code: RuntimeErrorCode, key: &'static str) -> ReconcileFailure {

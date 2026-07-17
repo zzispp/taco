@@ -12,6 +12,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { usePendingMutation } from 'src/shared/api/use-pending-mutation';
 
 import { usePermissionChecker } from 'src/entities/session';
 import {
@@ -27,7 +28,6 @@ import {
 } from 'src/entities/audit-log';
 
 import { auditLogCapabilities } from './permissions';
-import { useAuditMutation } from './use-audit-mutation';
 import { resetAuditTableSort, resetAuditMutationCursor } from './table-actions';
 import {
   deleteOperationLog,
@@ -47,7 +47,7 @@ const OPERATION_EXPORT_FILTERS_REQUIRED_ERROR =
 export function useOperationLogController() {
   const state = useOperationLogState();
   const resources = useOperationLogResources(state);
-  const mutation = useAuditMutation();
+  const mutation = usePendingMutation();
   const actions = useOperationLogActions({ state, resources, mutation });
   return { state, resources, actions, pending: mutation.pending };
 }
@@ -122,7 +122,7 @@ function useOperationLogResources(state: ReturnType<typeof useOperationLogState>
 type OperationActionOptions = Readonly<{
   state: ReturnType<typeof useOperationLogState>;
   resources: ReturnType<typeof useOperationLogResources>;
-  mutation: ReturnType<typeof useAuditMutation>;
+  mutation: ReturnType<typeof usePendingMutation>;
 }>;
 
 function useOperationLogActions(options: OperationActionOptions) {

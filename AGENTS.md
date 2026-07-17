@@ -14,6 +14,7 @@ This is a Rust and pnpm monorepo.
 Current backend business crates:
 
 - `crates/audit`: operation and login audit bounded context
+- `crates/observability`: system-log bounded context
 - `crates/user`: user bounded context
 - `crates/rbac`: RBAC bounded context
 - `crates/system`: system administration bounded context
@@ -56,7 +57,7 @@ If a requested change does not fit the current boundaries, refactor the boundary
 The backend must remain DDD + Clean Architecture.
 
 - `apps/backend` is composition root only: bootstrap, wiring, router assembly, startup, migration commands.
-- Business logic belongs in the owning bounded context crate: `crates/audit`, `crates/user`, `crates/rbac`, `crates/system`, `crates/scheduler`, or `crates/captcha`.
+- Business logic belongs in the owning bounded context crate: `crates/audit`, `crates/observability`, `crates/user`, `crates/rbac`, `crates/system`, `crates/scheduler`, or `crates/captcha`.
 - Inside a bounded context, keep responsibilities separated across `domain`, `application`, `infra`, and `api`.
 - Generic crates such as `audit_contract`, `client_info`, `config`, `storage`, `types`, `constants`, `kernel`, and `tracing` must not absorb bounded-context business rules.
 - Do not move domain decisions into transport DTOs, config loaders, persistence helpers, or HTTP entrypoints.

@@ -35,8 +35,12 @@ pub(super) struct UserServices {
     pub session_cleanup_runtime: OnlineSessionCleanupRuntimeHandle,
 }
 
-pub(super) async fn build_system_services(settings: &Settings, database: Database) -> BackendResult<SystemServices> {
-    let cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+pub(super) async fn build_system_services(
+    settings: &Settings,
+    database: Database,
+    observer: taco_tracing::InfrastructureObserver,
+) -> BackendResult<SystemServices> {
+    let cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
     let service = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database.clone()), cache));
     let use_case: Arc<dyn SystemUseCase> = service.clone();
     let audited: Arc<dyn SystemAuditedUseCase> = service;
@@ -51,7 +55,12 @@ pub(super) async fn build_system_services(settings: &Settings, database: Databas
     })
 }
 
-pub(super) async fn build_user_services(settings: &Settings, database: Database, system: Arc<dyn SystemUseCase>) -> BackendResult<UserServices> {
+pub(super) async fn build_user_services(
+    settings: &Settings,
+    database: Database,
+    system: Arc<dyn SystemUseCase>,
+    observer: taco_tracing::InfrastructureObserver,
+) -> BackendResult<UserServices> {
     let runtime_config = RuntimeUserConfig::new(system);
     let client_info = settings.client_info_config()?;
     let location_resolver: Arc<dyn IpLocationResolver> = Arc::new(PconlineIpLocationResolver::new(
@@ -59,13 +68,14 @@ pub(super) async fn build_user_services(settings: &Settings, database: Database,
         IpLocationClientConfig {
             request_timeout: Duration::from_millis(client_info.ip_location.request_timeout_ms),
         },
+        observer.clone(),
     )?);
     let online_sessions = Arc::new(StorageOnlineSessionStore::new(database.clone()));
     let session_cleanup_runtime = start_online_session_cleanup_runtime(OnlineSessionCleanupRuntimeParts {
         cleanup: online_sessions.clone(),
         config: online_session_cleanup_config(settings)?,
     })?;
-    let login_failures = RedisLoginFailureStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+    let login_failures = RedisLoginFailureStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
     let use_case = UserService::with_password_policy(StorageUserRepository::new(database), Argon2PasswordHasher, runtime_config.clone())
         .with_login_security(login_failures, runtime_config.clone());
     Ok(UserServices {

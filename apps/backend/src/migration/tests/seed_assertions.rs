@@ -5,17 +5,19 @@ use super::scheduler_assertions::assert_scheduler_seed;
 mod audit_logs;
 mod navigation;
 mod notice;
+mod system_logs;
 
 use audit_logs::assert_audit_log_seed;
 use navigation::assert_navigation_seed;
 use notice::assert_notice_seed;
+use system_logs::assert_system_log_seed;
 
 const EXPECTED_ROLE_COUNT: i64 = 2;
-const EXPECTED_MENU_COUNT: i64 = 76;
+const EXPECTED_MENU_COUNT: i64 = 80;
 const EXPECTED_DEPT_COUNT: i64 = 10;
 const EXPECTED_POST_COUNT: i64 = 4;
 const EXPECTED_DICT_TYPE_COUNT: i64 = 10;
-const EXPECTED_CONFIG_COUNT: i64 = 11;
+const EXPECTED_CONFIG_COUNT: i64 = 12;
 const EXPECTED_PUBLIC_CONFIG_COUNT: i64 = 5;
 const EXPECTED_CAPTCHA_DIFFICULTY: i64 = 4;
 const EXPECTED_REFRESH_TTL_SECONDS: i64 = 604_800;
@@ -40,6 +42,7 @@ pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_notice_seed(pool).await;
     assert_scheduler_seed(pool).await;
     assert_audit_log_seed(pool).await;
+    assert_system_log_seed(pool).await;
 }
 
 async fn assert_seed_config_values(pool: &PgPool) {

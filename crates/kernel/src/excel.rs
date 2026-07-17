@@ -20,6 +20,11 @@ pub fn write_xlsx<S: AsRef<str>>(sheet_name: &str, headers: &[S], rows: &[Vec<St
     writer.finish_to_buffer()
 }
 
+pub fn finish_xlsx_workbook(workbook: Workbook) -> ExcelResult<TemporaryXlsxFile> {
+    let temporary_file = NamedTempFile::new().map_err(excel_temporary_file_error)?;
+    save_workbook_to_temporary_file(workbook, temporary_file)
+}
+
 /// A completed XLSX artifact backed by a securely created temporary file.
 pub struct TemporaryXlsxFile {
     temporary_file: NamedTempFile,
@@ -90,8 +95,7 @@ impl StreamingXlsxWriter {
 
     /// Finalizes the workbook into a temporary artifact suitable for streaming.
     pub fn finish(self) -> ExcelResult<TemporaryXlsxFile> {
-        let temporary_file = NamedTempFile::new().map_err(excel_temporary_file_error)?;
-        save_workbook_to_temporary_file(self.workbook, temporary_file)
+        finish_xlsx_workbook(self.workbook)
     }
 
     fn finish_to_buffer(mut self) -> ExcelResult<Vec<u8>> {
@@ -210,6 +214,15 @@ mod tests {
 
         assert_eq!(rows, vec![vec!["name"], vec!["alice"], vec!["bob"]]);
         assert_eq!(artifact.content_length(), bytes.len() as u64);
+    }
+
+    #[test]
+    fn supports_the_maximum_excel_cell_text_length() {
+        let value = "x".repeat(32_767);
+        let bytes = write_xlsx("system_logs", &["fields"], &[vec![value.clone()]]).unwrap();
+        let rows = read_xlsx(&bytes).unwrap();
+
+        assert_eq!(rows[1][0], value);
     }
 
     #[test]

@@ -8,9 +8,9 @@ These browser assets are pinned and served by the frontend so CAPTCHA solving do
 - License: `Apache-2.0`
 - npm integrity: `sha512-j640dNNNIF8IWmwqmSx0ihgU8sz/6Jm9mHveeDWUk8aXVqFm+2TSsp5bawtMtgf0aa7rFkmT9p76jrqO1uSEpQ==`
 - Upstream `cap.min.js` SHA-256: `296eb54ccfa39ba072fa68e81cb1013cb4d68cde2cfe22da0501543b2e7a2f9e`
-- Vendored `cap.min.js` SHA-256: `e3b4b80c9ad27c48cd7fb67e363670b1fd930b950a3c59d6a6a01857c17e6409`
+- Vendored `cap.min.js` SHA-256: `d0f028d0a10ecccc8c072cc183baf9a14ea27179be5309a94388bc7c3c1851f2`
 
-The vendored script has two deliberate changes: its default WASM and pako fallback URLs point to the same-origin assets listed below instead of jsDelivr. No solver logic is changed.
+The vendored script has three deliberate changes: its default WASM and pako fallback URLs point to the same-origin assets listed below instead of jsDelivr, and its solve loop exits when the custom element is disconnected. The teardown guard prevents a route transition from dereferencing the terminated worker pool. Reapply the reviewed lifecycle patch with `node apps/frontend/scripts/patch-cap-widget.mjs` after restoring the reviewed upstream source.
 
 ## WASM
 

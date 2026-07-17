@@ -20,6 +20,7 @@ const HTTP_SUCCESS_STATUS_END: u16 = 300;
     group_key = "scheduler.task_groups.system",
     description_key = "scheduler.tasks.http.request.description",
     repeatable = true,
+    lifecycle = scheduler::application::task::TaskLifecyclePolicy::Administrable,
     params = HttpRequestParams,
 )]
 #[derive(Default)]
@@ -76,7 +77,8 @@ mod tests {
 
     use crate::application::task::{
         HttpTaskClient, OutboundHttpFailure, OutboundHttpHeader, OutboundHttpRequest, OutboundHttpResponse, OutboundHttpResponseHead, ScheduledTask,
-        SystemCacheRefreshPort, TaskExecutionContext, TaskExecutionFailure, TaskInvocation,
+        SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupPort, SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
+        TaskInvocation,
     };
 
     use super::{HttpFailureCode, HttpRequestTask};
@@ -167,6 +169,7 @@ mod tests {
                 TaskExecutionContext {
                     http_client: Arc::new(StubHttpClient { result }),
                     system_cache: Arc::new(UnexpectedCachePort),
+                    system_log_cleanup: Arc::new(UnexpectedSystemLogCleanupPort),
                 },
                 invocation(),
             )
@@ -257,6 +260,7 @@ mod tests {
     }
 
     struct UnexpectedCachePort;
+    struct UnexpectedSystemLogCleanupPort;
 
     #[async_trait]
     impl SystemCacheRefreshPort for UnexpectedCachePort {
@@ -266,6 +270,17 @@ mod tests {
 
         async fn refresh_dict_cache(&self) -> Result<(), TaskExecutionFailure> {
             panic!("HTTP task test invoked dictionary cache refresh")
+        }
+    }
+
+    #[async_trait]
+    impl SystemLogCleanupPort for UnexpectedSystemLogCleanupPort {
+        async fn cleanup_expired(&self, _: u64, _: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
+            panic!("HTTP task test invoked system log retention")
+        }
+
+        async fn cleanup_filtered(&self, _: SystemLogCleanupFilter, _: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
+            panic!("HTTP task test invoked system log cleanup")
         }
     }
 }

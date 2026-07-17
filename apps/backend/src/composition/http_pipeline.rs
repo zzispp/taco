@@ -24,12 +24,17 @@ pub(super) struct RuntimeLayerParts<'a> {
     pub settings: &'a Settings,
     pub audit: OperationAuditState,
     pub metrics: &'a taco_tracing::MetricsHandle,
+    pub http_logs: Option<taco_tracing::HttpLogCaptureState>,
 }
 
 pub(super) fn apply_runtime_layers(app: Router, parts: RuntimeLayerParts<'_>) -> BackendResult<Router> {
     let app = app.layer(middleware::from_fn(types::http::locale_middleware));
     let app = with_timeout(app, parts.settings)?;
     let app = app.layer(middleware::from_fn_with_state(parts.audit, operation_audit_middleware));
+    let app = match parts.http_logs {
+        Some(state) => app.layer(middleware::from_fn_with_state(state, taco_tracing::http_log_middleware)),
+        None => app,
+    };
     let app = apply_metrics_layer(app, parts.metrics);
     apply_http_layers(app, parts.settings)
 }

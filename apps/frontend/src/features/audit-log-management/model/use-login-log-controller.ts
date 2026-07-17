@@ -12,6 +12,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { usePendingMutation } from 'src/shared/api/use-pending-mutation';
 
 import { usePermissionChecker } from 'src/entities/session';
 import {
@@ -25,7 +26,6 @@ import {
   DEFAULT_LOGIN_LOG_FILTERS,
 } from 'src/entities/audit-log';
 
-import { useAuditMutation } from './use-audit-mutation';
 import { auditLogCapabilities, loginLogSelectionActions } from './permissions';
 import { resetAuditTableSort, resetAuditMutationCursor } from './table-actions';
 import {
@@ -47,7 +47,7 @@ const LOGIN_EXPORT_FILTERS_REQUIRED_ERROR = 'Valid login-log filters are require
 export function useLoginLogController() {
   const state = useLoginLogState();
   const resources = useLoginLogResources(state);
-  const mutation = useAuditMutation();
+  const mutation = usePendingMutation();
   const actions = useLoginLogActions({ state, resources, mutation });
   return { state, resources, actions, pending: mutation.pending };
 }
@@ -124,7 +124,7 @@ function useLoginLogResources(state: ReturnType<typeof useLoginLogState>) {
 type LoginActionOptions = Readonly<{
   state: ReturnType<typeof useLoginLogState>;
   resources: ReturnType<typeof useLoginLogResources>;
-  mutation: ReturnType<typeof useAuditMutation>;
+  mutation: ReturnType<typeof usePendingMutation>;
 }>;
 
 function useLoginLogActions(options: LoginActionOptions) {

@@ -6,16 +6,19 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 
 import { INVALID_LOCAL_DATE_TIME_DRAFT } from 'src/shared/lib/local-date-time-filter';
 
-const FILTER_DATE_TIME_WIDTH = 190;
-const LOCAL_DATE_TIME_DRAFT_FORMAT = 'YYYY-MM-DDTHH:mm';
-const LOCAL_DATE_TIME_DISPLAY_FORMAT = 'YYYY-MM-DD HH:mm';
+const FILTER_DATE_TIME_WIDTH = 220;
+const LOCAL_DATE_TIME_DRAFT_FORMAT = 'YYYY-MM-DDTHH:mm:ss.SSS';
+const LOCAL_DATE_TIME_DISPLAY_FORMAT = 'YYYY-MM-DD HH:mm:ss';
+const DATE_TIME_VIEWS = ['year', 'month', 'day', 'hours', 'minutes', 'seconds'] as const;
 
 export function FilterDateTimePicker({ label, value, onChange }: FilterDateTimePickerProps) {
   return (
     <DateTimePicker
       label={label}
       format={LOCAL_DATE_TIME_DISPLAY_FORMAT}
+      timeSteps={{ minutes: 1, seconds: 1 }}
       value={value ? dayjs(value) : null}
+      views={DATE_TIME_VIEWS}
       slotProps={{
         textField: {
           size: 'small',

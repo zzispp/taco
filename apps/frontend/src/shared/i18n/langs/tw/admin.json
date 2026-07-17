@@ -75,7 +75,8 @@
     "jobLogManagement": "調度日誌",
     "noticeManagement": "通知公告",
     "operationLogManagement": "操作日誌",
-    "loginLogManagement": "登入日誌"
+    "loginLogManagement": "登入日誌",
+    "systemLogManagement": "系統日誌"
   },
   "actions": {
     "addMenuItem": "新增菜單",

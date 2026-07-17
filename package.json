@@ -2,6 +2,12 @@
   "name": "taco-monorepo",
   "private": true,
   "packageManager": "pnpm@10.33.4",
+  "pnpm": {
+    "overrides": {
+      "@babel/core": "7.29.7",
+      "postcss": "8.5.16"
+    }
+  },
   "scripts": {
     "dev:frontend": "pnpm --filter frontend dev",
     "build:frontend": "pnpm --filter frontend build",

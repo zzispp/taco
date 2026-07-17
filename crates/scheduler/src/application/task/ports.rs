@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 
 use super::TaskExecutionFailure;
 
@@ -73,6 +74,60 @@ pub trait HttpTaskClient: Send + Sync + 'static {
 pub trait SystemCacheRefreshPort: Send + Sync + 'static {
     async fn refresh_config_cache(&self) -> Result<(), TaskExecutionFailure>;
     async fn refresh_dict_cache(&self) -> Result<(), TaskExecutionFailure>;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SystemLogCleanupResult {
+    pub deleted: u64,
+    pub batches: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SystemLogCleanupLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl SystemLogCleanupLevel {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Trace => "trace",
+            Self::Debug => "debug",
+            Self::Info => "info",
+            Self::Warn => "warn",
+            Self::Error => "error",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "trace" => Some(Self::Trace),
+            "debug" => Some(Self::Debug),
+            "info" => Some(Self::Info),
+            "warn" => Some(Self::Warn),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SystemLogCleanupFilter {
+    pub keyword: Option<String>,
+    pub levels: Vec<SystemLogCleanupLevel>,
+    pub target: Option<String>,
+    pub begin_time: OffsetDateTime,
+    pub end_time: OffsetDateTime,
+}
+
+/// Executes complete system-log cleanup cycles for scheduler invocations.
+#[async_trait]
+pub trait SystemLogCleanupPort: Send + Sync + 'static {
+    async fn cleanup_expired(&self, retention_days: u64, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure>;
+    async fn cleanup_filtered(&self, filter: SystemLogCleanupFilter, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure>;
 }
 
 #[cfg(test)]

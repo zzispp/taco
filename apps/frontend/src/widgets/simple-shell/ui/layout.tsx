@@ -14,7 +14,7 @@ import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import Alert from '@mui/material/Alert';
 
-import { Logo } from 'src/shared/ui/logo';
+import { SiteBrand } from 'src/shared/ui/logo';
 import { paths } from 'src/shared/routes/paths';
 import { RouterLink } from 'src/shared/routes/components';
 import { SettingsButton } from 'src/shared/ui/shell/settings-button';
@@ -51,7 +51,7 @@ export function SimpleLayout({
           This is an info Alert.
         </Alert>
       ),
-      leftArea: <Logo />,
+      leftArea: <SiteBrand />,
       rightArea: (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 } }}>
           {/** @slot Help link */}

@@ -1,5 +1,5 @@
 use sqlx::{AssertSqlSafe, Postgres, QueryBuilder, query, query_scalar};
-use storage::{StorageError, StorageResult};
+use storage::{ObservedPgPool, StorageError, StorageResult};
 use types::user::UserId;
 
 use crate::application::ReplaceUserRecord;
@@ -117,17 +117,17 @@ pub async fn replace_roles(tx: &mut UserTx<'_>, user_id: &str, role_ids: Vec<Str
     .await
 }
 
-pub async fn ensure_dept_exists(pool: &sqlx::PgPool, dept_id: Option<&str>) -> StorageResult<()> {
+pub async fn ensure_dept_exists(pool: ObservedPgPool, dept_id: Option<&str>) -> StorageResult<()> {
     match dept_id {
         Some(id) => ensure_ids_exist(pool, ReferenceTable::dept(), &[id.into()]).await,
         None => Ok(()),
     }
 }
 
-pub async fn ensure_ids_exist(pool: &sqlx::PgPool, reference: ReferenceTable, ids: &[String]) -> StorageResult<()> {
+pub async fn ensure_ids_exist(pool: ObservedPgPool, reference: ReferenceTable, ids: &[String]) -> StorageResult<()> {
     for id in ids {
         let sql = format!("SELECT EXISTS(SELECT 1 FROM {} WHERE {} = $1)", reference.table, reference.column);
-        if !query_scalar::<_, bool>(AssertSqlSafe(sql)).bind(id).fetch_one(pool).await? {
+        if !query_scalar::<_, bool>(AssertSqlSafe(sql)).bind(id).fetch_one(pool.clone()).await? {
             return Err(StorageError::Conflict(format!("{}.{} does not exist: {id}", reference.table, reference.column)));
         }
     }

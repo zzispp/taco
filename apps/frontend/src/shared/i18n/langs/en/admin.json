@@ -75,7 +75,8 @@
     "jobLogManagement": "Job Logs",
     "noticeManagement": "Notices",
     "operationLogManagement": "Operation Logs",
-    "loginLogManagement": "Login Logs"
+    "loginLogManagement": "Login Logs",
+    "systemLogManagement": "System Logs"
   },
   "actions": {
     "addMenuItem": "Add menu item",

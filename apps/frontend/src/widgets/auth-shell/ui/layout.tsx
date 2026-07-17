@@ -12,13 +12,11 @@ import type {
 import { merge } from 'es-toolkit';
 
 import Box from '@mui/material/Box';
-import Link from '@mui/material/Link';
-import Alert from '@mui/material/Alert';
 
-import { Logo } from 'src/shared/ui/logo';
-import { paths } from 'src/shared/routes/paths';
-import { RouterLink } from 'src/shared/routes/components';
+import { allLangs } from 'src/shared/i18n';
+import { SiteBrand } from 'src/shared/ui/logo';
 import { SettingsButton } from 'src/shared/ui/shell/settings-button';
+import { LanguagePopover } from 'src/shared/ui/shell/language-popover';
 import { MainSection, LayoutSection, HeaderSection } from 'src/shared/ui/layout';
 
 import { AuthSplitSection } from './section';
@@ -51,28 +49,10 @@ export function AuthSplitLayout({
     };
 
     const headerSlots: HeaderSectionProps['slots'] = {
-      topArea: (
-        <Alert severity="info" sx={{ display: 'none', borderRadius: 0 }}>
-          This is an info Alert.
-        </Alert>
-      ),
-      leftArea: (
-        <>
-          {/** @slot Logo */}
-          <Logo />
-        </>
-      ),
+      leftArea: <SiteBrand />,
       rightArea: (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 } }}>
-          {/** @slot Help link */}
-          <Link
-            href={paths.home}
-            component={RouterLink}
-            color="inherit"
-            sx={{ typography: 'subtitle2' }}
-          >
-            Back to home
-          </Link>
+          <LanguagePopover data={allLangs} />
 
           {/** @slot Settings button */}
           <SettingsButton />

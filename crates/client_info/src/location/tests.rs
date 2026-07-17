@@ -53,6 +53,7 @@ fn zero_http_timeout_is_rejected_explicitly() {
         IpLocationClientConfig {
             request_timeout: Duration::ZERO,
         },
+        observer(),
     );
 
     assert!(matches!(
@@ -84,6 +85,15 @@ fn resolver(enabled: bool, endpoint: &str, timeout_ms: u64) -> PconlineIpLocatio
             request_timeout: Duration::from_millis(timeout_ms),
         },
         endpoint.into(),
+        observer(),
     )
     .unwrap()
+}
+
+fn observer() -> taco_tracing::InfrastructureObserver {
+    let config = taco_tracing::parse_runtime_tracing_config(
+        r#"{"log_level":"error","http":{"access_enabled":true,"capture_request_body":false,"capture_response_body":false,"capture_query_parameters":false,"capture_request_headers":false,"max_body_capture_bytes":0},"slow_operation_ms":{"postgres":500,"redis":100,"outbound_http":1000}}"#,
+    )
+    .unwrap();
+    taco_tracing::InfrastructureObserver::new(taco_tracing::RuntimeTracingState::new(config))
 }

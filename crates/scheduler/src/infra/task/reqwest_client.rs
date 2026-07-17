@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use reqwest::{Method, RequestBuilder, Response};
+use taco_tracing::{InfrastructureDependency, InfrastructureObserver};
 
 use crate::application::task::{
     HttpFailureCode, HttpTaskClient, OutboundHttpFailure, OutboundHttpHeader, OutboundHttpRequest, OutboundHttpResponse, OutboundHttpResponseHead,
@@ -10,11 +11,12 @@ use crate::application::task::{
 #[derive(Clone)]
 pub struct ReqwestHttpTaskClient {
     client: reqwest::Client,
+    observer: InfrastructureObserver,
 }
 
 impl ReqwestHttpTaskClient {
-    pub fn new(client: reqwest::Client) -> Self {
-        Self { client }
+    pub fn new(client: reqwest::Client, observer: InfrastructureObserver) -> Self {
+        Self { client, observer }
     }
 }
 
@@ -22,21 +24,29 @@ impl ReqwestHttpTaskClient {
 impl HttpTaskClient for ReqwestHttpTaskClient {
     async fn send(&self, request: OutboundHttpRequest) -> Result<OutboundHttpResponse, OutboundHttpFailure> {
         let started = Instant::now();
-        let method = parse_method(&request.method, started)?;
-        let builder = build_request(&self.client, method, request);
-        let response = builder.send().await.map_err(|error| request_failure(error, started))?;
-        read_response(response, started).await
+        let result = send_request(&self.client, request, started).await;
+        self.observer.record(
+            InfrastructureDependency::OutboundHttp,
+            "scheduler_http_request",
+            started.elapsed(),
+            result.is_ok(),
+        );
+        result
     }
 }
 
+async fn send_request(client: &reqwest::Client, request: OutboundHttpRequest, started: Instant) -> Result<OutboundHttpResponse, OutboundHttpFailure> {
+    let method = parse_method(&request.method, started)?;
+    let builder = build_request(client, method, request);
+    let response = builder.send().await.map_err(|error| request_failure(error, started))?;
+    read_response(response, started).await
+}
+
 fn parse_method(method: &str, started: Instant) -> Result<Method, OutboundHttpFailure> {
-    Method::from_bytes(method.as_bytes()).map_err(|error| {
-        taco_tracing::error_with_fields!("scheduled HTTP request method is invalid", &error,);
-        OutboundHttpFailure {
-            code: HttpFailureCode::RequestBuild,
-            duration: started.elapsed(),
-            response: None,
-        }
+    Method::from_bytes(method.as_bytes()).map_err(|_| OutboundHttpFailure {
+        code: HttpFailureCode::RequestBuild,
+        duration: started.elapsed(),
+        response: None,
     })
 }
 
@@ -81,8 +91,6 @@ fn response_head(response: &Response) -> OutboundHttpResponseHead {
 
 fn request_failure(error: reqwest::Error, started: Instant) -> OutboundHttpFailure {
     let code = classify_request_failure(&error);
-    let error = error.without_url();
-    taco_tracing::error_with_fields!("scheduled HTTP request failed", &error, failure_code = code.code());
     OutboundHttpFailure {
         code,
         duration: started.elapsed(),
@@ -92,13 +100,6 @@ fn request_failure(error: reqwest::Error, started: Instant) -> OutboundHttpFailu
 
 fn response_body_failure(error: reqwest::Error, started: Instant, response: OutboundHttpResponseHead) -> OutboundHttpFailure {
     let timeout = error.is_timeout();
-    let error = error.without_url();
-    taco_tracing::error_with_fields!(
-        "scheduled HTTP response body read failed",
-        &error,
-        status = response.status,
-        failure_code = HttpFailureCode::ResponseBody.code()
-    );
     if timeout {
         return OutboundHttpFailure {
             code: HttpFailureCode::Timeout,

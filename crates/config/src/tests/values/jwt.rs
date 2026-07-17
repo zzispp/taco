@@ -77,7 +77,6 @@ fn repository_config_example_has_the_full_interpolated_schema() {
                 "TACO_TURNSTILE_SECRET_KEY" | "TACO_REDIS_USERNAME" | "TACO_REDIS_PASSWORD" | "TACO_REDIS_DATABASE" => "",
                 "TACO_ADMIN_ORIGIN" => "https://admin.example.test",
                 "TACO_AVATAR_DIRECTORY" => "storage/uploads/avatars",
-                "TACO_LOG_DIRECTORY" => "logs",
                 _ => return Ok(None),
             };
             Ok(Some(value.into()))

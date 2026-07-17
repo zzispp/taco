@@ -86,10 +86,3 @@ redis:
 
 uploads:
   avatar_directory: "storage/uploads/avatars"
-
-tracing:
-  log_level: "debug"
-  file:
-    enabled: false
-    directory: "logs"
-    prefix: "taco.log"

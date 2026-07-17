@@ -18,6 +18,7 @@ pub struct JobResponse {
     pub concurrent: String,
     pub status: String,
     pub registry_status: String,
+    pub capabilities: JobCapabilitiesResponse,
     pub param_form: Option<TaskParamFormResponse>,
     pub schedule_revision: i64,
     pub next_run_at: Option<String>,
@@ -27,6 +28,13 @@ pub struct JobResponse {
     pub update_by: String,
     pub update_time: Option<String>,
     pub remark: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct JobCapabilitiesResponse {
+    pub can_disable: bool,
+    pub can_delete: bool,
+    pub can_edit_execution_policy: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

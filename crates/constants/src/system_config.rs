@@ -7,3 +7,5 @@ pub const PASSWORD_POLICY_KEY: &str = "sys.user.passwordPolicy";
 pub const AVATAR_CONFIG_KEY: &str = "sys.upload.avatarConfig";
 pub const EXPORT_BATCH_CONFIG_KEY: &str = "sys.export.batchConfig";
 pub const SITE_DISPLAY_CONFIG_KEY: &str = "sys.site.displayConfig";
+pub const TRACING_CONFIG_KEY: &str = "sys.observability.tracingConfig";
+pub const SYSTEM_CONFIG_CHANGED_CHANNEL: &str = "system_config_changed";

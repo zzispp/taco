@@ -16,9 +16,13 @@ pub(super) struct RbacServices {
     pub cache_refresher: Arc<dyn RbacCacheRefreshUseCase>,
 }
 
-pub(super) async fn build_rbac_services(settings: &Settings, database: Database) -> BackendResult<RbacServices> {
+pub(super) async fn build_rbac_services(
+    settings: &Settings,
+    database: Database,
+    observer: taco_tracing::InfrastructureObserver,
+) -> BackendResult<RbacServices> {
     let repository = StorageRbacRepository::new(database);
-    let cache = RedisRbacCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+    let cache = RedisRbacCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
     let service = build_rbac_service(repository, cache).await?;
 
     Ok(RbacServices {
@@ -29,9 +33,9 @@ pub(super) async fn build_rbac_services(settings: &Settings, database: Database)
     })
 }
 
-pub async fn rebuild_rbac_cache(settings: &Settings, database: Database) -> BackendResult<()> {
+pub async fn rebuild_rbac_cache(settings: &Settings, database: Database, observer: taco_tracing::InfrastructureObserver) -> BackendResult<()> {
     let repository = StorageRbacRepository::new(database);
-    let cache = RedisRbacCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone()).await?;
+    let cache = RedisRbacCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
     let service = build_rbac_service(repository, cache).await?;
     service.rebuild_cache().await?;
     Ok(())

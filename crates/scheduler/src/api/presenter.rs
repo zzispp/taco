@@ -6,7 +6,10 @@ use crate::{
     domain::{LocalizedMessage, RuntimeErrorState, TaskParamFormSpec},
 };
 
-use super::dto::{ExecutionLogResponse, ImportableTaskResponse, JobResponse, ParamFieldResponse, ParamUiResponse, RuntimeErrorResponse, TaskParamFormResponse};
+use super::dto::{
+    ExecutionLogResponse, ImportableTaskResponse, JobCapabilitiesResponse, JobResponse, ParamFieldResponse, ParamUiResponse, RuntimeErrorResponse,
+    TaskParamFormResponse,
+};
 use super::presentation::{concurrent_policy, execution_outcome, job_status, registry_status, runtime_error, trigger_type};
 
 pub fn job_response(view: JobView, locale: Locale) -> SchedulerResult<JobResponse> {
@@ -27,6 +30,11 @@ pub fn job_response(view: JobView, locale: Locale) -> SchedulerResult<JobRespons
         concurrent: concurrent_policy(job.concurrent).wire_value.into(),
         status: job_status(job.status).wire_value.into(),
         registry_status: registry_status(view.registry_status).wire_value.into(),
+        capabilities: JobCapabilitiesResponse {
+            can_disable: view.capabilities.can_disable,
+            can_delete: view.capabilities.can_delete,
+            can_edit_execution_policy: view.capabilities.can_edit_execution_policy,
+        },
         param_form: view.param_form.map(|form| param_form_response(form, locale)),
         schedule_revision: job.schedule_revision,
         next_run_at: job.next_run_at.map(rfc3339).transpose()?,
@@ -123,7 +131,7 @@ mod tests {
     use types::http::Locale;
 
     use crate::{
-        application::{ExecutionLogSummary, JobView},
+        application::{ExecutionLogSummary, JobView, task::TaskLifecycleCapabilities},
         domain::{
             ConcurrentPolicy, ExecutionOutcome, Job, JobStatus, LocalizedMessage, MisfirePolicy, RegistryStatus, RuntimeErrorCode, RuntimeErrorState,
             TriggerType,
@@ -157,10 +165,12 @@ mod tests {
             occurred_at: fixed_time("2026-07-10T08:30:00Z"),
         });
 
-        let response = job_response(view, Locale::En).unwrap().runtime_error.unwrap();
+        let response = job_response(view, Locale::En).unwrap();
 
-        assert_eq!(response.code, "invalid_cron");
-        assert_eq!(response.occurred_at, "2026-07-10T08:30:00.000Z");
+        assert_eq!(response.runtime_error.unwrap().code, "invalid_cron");
+        assert!(response.capabilities.can_disable);
+        assert!(response.capabilities.can_delete);
+        assert!(response.capabilities.can_edit_execution_policy);
     }
 
     fn execution_summary() -> ExecutionLogSummary {
@@ -208,6 +218,7 @@ mod tests {
                 remark: None,
             },
             registry_status: RegistryStatus::Ok,
+            capabilities: TaskLifecycleCapabilities::ADMINISTRABLE,
             param_form: None,
         }
     }

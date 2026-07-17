@@ -1,5 +1,8 @@
+use std::time::Instant;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use taco_tracing::{InfrastructureDependency, InfrastructureObserver};
 
 use crate::application::{CaptchaError, CaptchaResult};
 
@@ -29,6 +32,7 @@ pub trait CloudflareTurnstileVerifier: Send + Sync + 'static {
 pub struct ReqwestTurnstileVerifier {
     client: reqwest::Client,
     endpoint: String,
+    observer: InfrastructureObserver,
 }
 
 impl CloudflareTurnstileVerifyRequest {
@@ -50,21 +54,16 @@ impl CloudflareTurnstileVerifyResponse {
     }
 }
 
-impl Default for ReqwestTurnstileVerifier {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ReqwestTurnstileVerifier {
-    pub fn new() -> Self {
-        Self::with_endpoint(SITEVERIFY_URL.into())
+    pub fn new(observer: InfrastructureObserver) -> Self {
+        Self::with_endpoint(SITEVERIFY_URL.into(), observer)
     }
 
-    pub fn with_endpoint(endpoint: String) -> Self {
+    pub fn with_endpoint(endpoint: String, observer: InfrastructureObserver) -> Self {
         Self {
             client: reqwest::Client::new(),
             endpoint,
+            observer,
         }
     }
 }
@@ -72,13 +71,25 @@ impl ReqwestTurnstileVerifier {
 #[async_trait]
 impl CloudflareTurnstileVerifier for ReqwestTurnstileVerifier {
     async fn verify(&self, request: CloudflareTurnstileVerifyRequest) -> CaptchaResult<CloudflareTurnstileVerifyResponse> {
-        let response = self.client.post(&self.endpoint).json(&request).send().await.map_err(reqwest_error)?;
-        let status = response.status();
-        if !status.is_success() {
-            return Err(CaptchaError::Infrastructure(format!("cloudflare turnstile siteverify returned HTTP {status}")));
-        }
-        response.json().await.map_err(reqwest_error)
+        let started = Instant::now();
+        let result = request_verification(&self.client, &self.endpoint, request).await;
+        self.observer
+            .record(InfrastructureDependency::OutboundHttp, "turnstile_verify", started.elapsed(), result.is_ok());
+        result
     }
+}
+
+async fn request_verification(
+    client: &reqwest::Client,
+    endpoint: &str,
+    request: CloudflareTurnstileVerifyRequest,
+) -> CaptchaResult<CloudflareTurnstileVerifyResponse> {
+    let response = client.post(endpoint).json(&request).send().await.map_err(reqwest_error)?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(CaptchaError::Infrastructure(format!("cloudflare turnstile siteverify returned HTTP {status}")));
+    }
+    response.json().await.map_err(reqwest_error)
 }
 
 fn reqwest_error(error: reqwest::Error) -> CaptchaError {

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{Postgres, Transaction};
+use storage::ObservedPgPool;
 
 use crate::{
     application::{AuditCursorQuery, AuditCursorSlice, AuditExportSession, AuditResult, LoginCursorBoundary, OperationCursorBoundary},
@@ -15,7 +16,7 @@ pub(super) struct StorageAuditExportSession {
 }
 
 impl StorageAuditExportSession {
-    pub(super) async fn begin(pool: &PgPool) -> AuditResult<Self> {
+    pub(super) async fn begin(pool: ObservedPgPool) -> AuditResult<Self> {
         let transaction = pool.begin_with(SNAPSHOT_BEGIN).await.map_err(mapping::sqlx_error)?;
         Ok(Self { transaction })
     }

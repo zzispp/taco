@@ -7,12 +7,13 @@ use serde_json::Value;
 
 use crate::domain::{ExecutionDetail, TaskParamFormSpec};
 
-use super::{HttpTaskClient, SystemCacheRefreshPort};
+use super::{HttpTaskClient, SystemCacheRefreshPort, SystemLogCleanupPort};
 
 #[derive(Clone)]
 pub struct TaskExecutionContext {
     pub http_client: Arc<dyn HttpTaskClient>,
     pub system_cache: Arc<dyn SystemCacheRefreshPort>,
+    pub system_log_cleanup: Arc<dyn SystemLogCleanupPort>,
 }
 
 #[derive(Clone, Debug)]
@@ -99,6 +100,7 @@ pub struct ParamDefinition {
     pub form: fn() -> TaskParamFormSpec,
     pub default_params: fn() -> Value,
     pub validate: fn(&Value) -> crate::application::SchedulerResult<()>,
+    pub validate_persisted: fn(&Value) -> crate::application::SchedulerResult<()>,
     pub render_invoke_target: fn(&str, &Value) -> crate::application::SchedulerResult<String>,
 }
 
@@ -110,8 +112,57 @@ pub struct ScheduledTaskDefinition {
     pub group_key: &'static str,
     pub description_key: &'static str,
     pub repeatable: bool,
+    pub lifecycle: TaskLifecyclePolicy,
     pub params: ParamDefinition,
     pub factory: fn() -> Arc<dyn ScheduledTask>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TaskLifecyclePolicy {
+    Administrable,
+    RequiredEnabled,
+}
+
+impl TaskLifecyclePolicy {
+    pub const fn capabilities(self) -> TaskLifecycleCapabilities {
+        match self {
+            Self::Administrable => TaskLifecycleCapabilities::ADMINISTRABLE,
+            Self::RequiredEnabled => TaskLifecycleCapabilities::REQUIRED_ENABLED,
+        }
+    }
+
+    pub const fn can_disable(self) -> bool {
+        self.capabilities().can_disable
+    }
+
+    pub const fn can_delete(self) -> bool {
+        self.capabilities().can_delete
+    }
+
+    pub const fn can_edit_execution_policy(self) -> bool {
+        self.capabilities().can_edit_execution_policy
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TaskLifecycleCapabilities {
+    pub can_disable: bool,
+    pub can_delete: bool,
+    pub can_edit_execution_policy: bool,
+}
+
+impl TaskLifecycleCapabilities {
+    pub const ADMINISTRABLE: Self = Self {
+        can_disable: true,
+        can_delete: true,
+        can_edit_execution_policy: true,
+    };
+
+    pub const REQUIRED_ENABLED: Self = Self {
+        can_disable: false,
+        can_delete: false,
+        can_edit_execution_policy: false,
+    };
 }
 
 pub trait ScheduledTaskMetadata {
@@ -123,5 +174,8 @@ pub trait TaskParams: Send + Sync + 'static {
     fn form() -> TaskParamFormSpec;
     fn default_params() -> Value;
     fn validate(value: &Value) -> crate::application::SchedulerResult<()>;
+    fn validate_persisted(value: &Value) -> crate::application::SchedulerResult<()> {
+        Self::validate(value)
+    }
     fn render_invoke_target(task_key: &str, value: &Value) -> crate::application::SchedulerResult<String>;
 }

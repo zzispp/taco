@@ -29,6 +29,13 @@ vi.mock('src/shared/i18n/use-locales', () => ({
 }));
 
 describe('login log table contracts', () => {
+  it('keeps the login-time column immediately before row actions', () => {
+    const columns = LOGIN_LOG_HEAD.map(({ id }) => id);
+
+    expect(columns).toContain('login_time');
+    expect(columns.indexOf('login_time')).toBe(columns.indexOf('actions') - 1);
+  });
+
   it('renders 11 columns without selection and 12 with selection', () => {
     const base = renderToStaticMarkup(
       createElement(TableNoData, { colSpan: LOGIN_LOG_HEAD.length, notFound: false })

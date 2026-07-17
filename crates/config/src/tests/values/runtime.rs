@@ -1,23 +1,6 @@
 use super::*;
 
 #[test]
-fn tracing_config_validates_log_level_and_file_settings() {
-    let settings = settings_with_tracing(TracingSettings {
-        log_level: "debug".into(),
-        file: TracingFileSettings {
-            enabled: true,
-            directory: " logs ".into(),
-            prefix: " app.log ".into(),
-        },
-    });
-
-    let tracing = settings.tracing_config().unwrap();
-
-    assert_eq!(tracing.log_level, "debug");
-    assert!(tracing.file.enabled);
-}
-
-#[test]
 fn http_config_rejects_zero_timeout() {
     let settings = settings_with_http(HttpSettings {
         request_timeout_ms: 0,
@@ -119,13 +102,6 @@ fn runtime_policy_fields_are_required_in_yaml() {
         (source.replacen("  request_timeout_ms: 30000\n", "", 1), "http"),
         (source.replace("  compression_enabled: true\n", ""), "http"),
         (source.replace("  enabled: true\n", ""), "metrics"),
-        (
-            source.replace("  file:\n    enabled: false\n    directory: \"logs\"\n    prefix: \"taco.log\"\n", ""),
-            "tracing",
-        ),
-        (source.replace("    enabled: false\n", ""), "tracing.file"),
-        (source.replace("    directory: \"logs\"\n", ""), "tracing.file"),
-        (source.replace("    prefix: \"taco.log\"\n", ""), "tracing.file"),
     ];
 
     for (missing, expected_path) in cases {

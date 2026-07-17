@@ -26,6 +26,7 @@ const ITEM_KEY_BY_CODE: Record<string, string> = {
   '111': 'nav.logManagement',
   '112': 'nav.operationLogs',
   '113': 'nav.loginLogs',
+  '114': 'nav.systemLogs',
 };
 
 const ITEM_KEY_BY_PATH: Record<string, string> = {
@@ -47,6 +48,7 @@ const ITEM_KEY_BY_PATH: Record<string, string> = {
   [paths.dashboard.monitorLogs.root]: 'nav.logManagement',
   [paths.dashboard.monitorLogs.operationLogs]: 'nav.operationLogs',
   [paths.dashboard.monitorLogs.loginLogs]: 'nav.loginLogs',
+  [paths.dashboard.monitorLogs.systemLogs]: 'nav.systemLogs',
 };
 
 export function systemMenuSectionTranslationKey(code?: string) {

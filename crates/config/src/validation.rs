@@ -1,13 +1,5 @@
-use crate::{CorsSettings, HttpSettings, RefreshCookieSettings, Settings, SettingsError, TracingFileSettings};
-use std::str::FromStr;
-use tracing::level_filters::LevelFilter;
+use crate::{CorsSettings, HttpSettings, RefreshCookieSettings, Settings, SettingsError};
 use url::{Host, Url};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ValidatedTracingSettings {
-    pub log_level: String,
-    pub file: TracingFileSettings,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatedCorsSettings {
@@ -26,21 +18,6 @@ pub enum ValidatedCorsList {
 }
 
 impl Settings {
-    pub fn tracing_config(&self) -> Result<ValidatedTracingSettings, SettingsError> {
-        let log_level = self.tracing_log_level()?;
-        LevelFilter::from_str(&log_level).map_err(|_| SettingsError::InvalidTracingFilter("tracing.log_level"))?;
-
-        if self.tracing.file.enabled {
-            crate::loader::required_config_value("tracing.file.directory", &self.tracing.file.directory)?;
-            crate::loader::required_config_value("tracing.file.prefix", &self.tracing.file.prefix)?;
-        }
-
-        Ok(ValidatedTracingSettings {
-            log_level,
-            file: self.tracing.file.clone(),
-        })
-    }
-
     pub fn http_config(&self) -> Result<HttpSettings, SettingsError> {
         if self.http.request_timeout_ms == 0 {
             return Err(SettingsError::NonPositiveNumber("http.request_timeout_ms"));
@@ -113,7 +90,6 @@ impl Settings {
         self.client_info_config()?;
         self.refresh_cookie_config()?;
         self.validated_cors()?;
-        self.tracing_config()?;
         Ok(())
     }
 }

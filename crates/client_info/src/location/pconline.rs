@@ -1,10 +1,12 @@
 use std::{
     fmt::Display,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    time::Instant,
 };
 
 use async_trait::async_trait;
 use serde::Deserialize;
+use taco_tracing::{InfrastructureDependency, InfrastructureObserver};
 
 use crate::{ClientInfoError, ClientInfoResult};
 
@@ -23,6 +25,7 @@ pub struct PconlineIpLocationResolver {
     settings: SharedSettings,
     client: reqwest::Client,
     endpoint: String,
+    observer: InfrastructureObserver,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -69,38 +72,52 @@ impl Display for IpAddressClass {
 }
 
 impl PconlineIpLocationResolver {
-    pub fn new(settings: SharedSettings, config: IpLocationClientConfig) -> ClientInfoResult<Self> {
+    pub fn new(settings: SharedSettings, config: IpLocationClientConfig, observer: InfrastructureObserver) -> ClientInfoResult<Self> {
         let client = build_client(config)?;
         Ok(Self {
             settings,
             client,
             endpoint: PCONLINE_IP_URL.into(),
+            observer,
         })
     }
 
     #[cfg(test)]
-    pub(super) fn with_endpoint(settings: SharedSettings, config: IpLocationClientConfig, endpoint: String) -> ClientInfoResult<Self> {
+    pub(super) fn with_endpoint(
+        settings: SharedSettings,
+        config: IpLocationClientConfig,
+        endpoint: String,
+        observer: InfrastructureObserver,
+    ) -> ClientInfoResult<Self> {
         Ok(Self {
             settings,
             client: build_client(config)?,
             endpoint,
+            observer,
         })
     }
 
     async fn lookup(&self, ip_address: &str) -> ClientInfoResult<ProviderLocation> {
-        let response = self
-            .client
-            .get(&self.endpoint)
-            .query(&[("ip", ip_address), ("json", "true")])
-            .header(reqwest::header::ACCEPT_CHARSET, GBK_ENCODING)
-            .send()
-            .await
-            .map_err(provider_error)?
-            .error_for_status()
-            .map_err(provider_error)?
-            .bytes()
-            .await
-            .map_err(provider_error)?;
+        let started = Instant::now();
+        let response = async {
+            let response = self
+                .client
+                .get(&self.endpoint)
+                .query(&[("ip", ip_address), ("json", "true")])
+                .header(reqwest::header::ACCEPT_CHARSET, GBK_ENCODING)
+                .send()
+                .await?
+                .error_for_status()?;
+            response.bytes().await
+        }
+        .await;
+        self.observer.record(
+            InfrastructureDependency::OutboundHttp,
+            "ip_location_lookup",
+            started.elapsed(),
+            response.is_ok(),
+        );
+        let response = response.map_err(provider_error)?;
         taco_tracing::info_with_fields!("ip location provider response received", ip_address = ip_address, bytes = response.len());
         parse_pconline_response(&response)
     }

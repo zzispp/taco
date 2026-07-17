@@ -37,6 +37,7 @@ pub fn cache_refresh_failure(kind: CacheRefreshKind, diagnostic: impl Into<Strin
     group_key = "scheduler.task_groups.system",
     description_key = "scheduler.tasks.system.refresh_config_cache.description",
     repeatable = false,
+    lifecycle = scheduler::application::task::TaskLifecyclePolicy::Administrable,
     params = NoTaskParams,
 )]
 #[derive(Default)]
@@ -57,6 +58,7 @@ impl ScheduledTask for RefreshConfigCacheTask {
     group_key = "scheduler.task_groups.system",
     description_key = "scheduler.tasks.system.refresh_dict_cache.description",
     repeatable = false,
+    lifecycle = scheduler::application::task::TaskLifecyclePolicy::Administrable,
     params = NoTaskParams,
 )]
 #[derive(Default)]

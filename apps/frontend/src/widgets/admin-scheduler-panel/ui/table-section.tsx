@@ -10,6 +10,8 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
 import { TableNoData, CursorPagination } from 'src/shared/ui/table';
 
+import { selectableSchedulerJobIds } from 'src/features/scheduler-management';
+
 import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { SchedulerJobRow } from './job-row';
@@ -30,6 +32,7 @@ export function SchedulerTableSection({ controller }: { controller: SchedulerCon
   const { t } = useTranslate('scheduler');
   const { state, resources } = controller;
   const head = HEAD.map((cell) => ({ ...cell, label: t(cell.label) }));
+  const deletableJobIds = selectableSchedulerJobIds(resources.jobs.items, resources.canRemove);
   if (resources.jobs.error)
     return <Alert severity="error">{getErrorMessage(resources.jobs.error)}</Alert>;
   return (
@@ -38,14 +41,9 @@ export function SchedulerTableSection({ controller }: { controller: SchedulerCon
         <Table sx={{ minWidth: 1300 }}>
           <ManagementTableHead
             head={head}
-            rowCount={resources.jobs.items.length}
+            rowCount={deletableJobIds.length}
             numSelected={state.table.selected.length}
-            onSelectAllRows={(checked) =>
-              state.table.onSelectAllRows(
-                checked,
-                resources.jobs.items.map((job) => job.job_id)
-              )
-            }
+            onSelectAllRows={(checked) => state.table.onSelectAllRows(checked, deletableJobIds)}
           />
           <TableBody>
             {resources.jobs.isLoading ? (

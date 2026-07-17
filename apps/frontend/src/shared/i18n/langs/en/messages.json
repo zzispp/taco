@@ -5,6 +5,13 @@
     "loading": "Loading..."
   },
   "auth": {
+    "section": {
+      "defaultTitle": "Operate one backend control plane",
+      "signInTitle": "Resume your {{siteName}} workspace",
+      "signUpTitle": "Create your {{siteName}} workspace",
+      "subtitle": "{{siteName}} centralizes authentication, RBAC, API permissions, and menu governance.",
+      "illustrationAlt": "Dashboard illustration"
+    },
     "signIn": {
       "documentTitle": "Sign in",
       "title": "Sign in to your account",

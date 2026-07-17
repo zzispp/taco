@@ -1,4 +1,5 @@
-const LOCAL_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+const LOCAL_DATE_TIME_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/;
 const MONTH_INDEX_OFFSET = 1;
 const DATE_PART = {
   YEAR: 1,
@@ -6,6 +7,8 @@ const DATE_PART = {
   DAY: 3,
   HOUR: 4,
   MINUTE: 5,
+  SECOND: 6,
+  MILLISECOND: 7,
 } as const;
 
 export const INVALID_LOCAL_DATE_TIME_DRAFT = 'invalid';
@@ -123,18 +126,8 @@ function parseLocalDateTime(value: string) {
   const parts = dateParts(match);
   const parsed = new Date(0);
   parsed.setFullYear(parts.year, parts.month - MONTH_INDEX_OFFSET, parts.day);
-  parsed.setHours(parts.hour, parts.minute, 0, 0);
+  parsed.setHours(parts.hour, parts.minute, parts.second, parts.millisecond);
   return dateMatches(parsed, parts) ? parsed : null;
-}
-
-function dateParts(match: RegExpExecArray) {
-  return {
-    year: Number(match[DATE_PART.YEAR]),
-    month: Number(match[DATE_PART.MONTH]),
-    day: Number(match[DATE_PART.DAY]),
-    hour: Number(match[DATE_PART.HOUR]),
-    minute: Number(match[DATE_PART.MINUTE]),
-  };
 }
 
 function dateMatches(parsed: Date, parts: ReturnType<typeof dateParts>) {
@@ -144,6 +137,20 @@ function dateMatches(parsed: Date, parts: ReturnType<typeof dateParts>) {
     parsed.getMonth() === parts.month - MONTH_INDEX_OFFSET &&
     parsed.getDate() === parts.day &&
     parsed.getHours() === parts.hour &&
-    parsed.getMinutes() === parts.minute
+    parsed.getMinutes() === parts.minute &&
+    parsed.getSeconds() === parts.second &&
+    parsed.getMilliseconds() === parts.millisecond
   );
+}
+
+function dateParts(match: RegExpExecArray) {
+  return {
+    year: Number(match[DATE_PART.YEAR]),
+    month: Number(match[DATE_PART.MONTH]),
+    day: Number(match[DATE_PART.DAY]),
+    hour: Number(match[DATE_PART.HOUR]),
+    minute: Number(match[DATE_PART.MINUTE]),
+    second: Number(match[DATE_PART.SECOND] ?? 0),
+    millisecond: Number((match[DATE_PART.MILLISECOND] ?? '').padEnd(3, '0') || 0),
+  };
 }

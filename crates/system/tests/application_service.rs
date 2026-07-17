@@ -84,7 +84,7 @@ async fn captcha_config_cannot_be_public() {
 
     let result = service.create_config(public_config_input("sys.account.captchaConfig", "{}")).await;
 
-    assert!(matches!(result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.captcha_private_public"));
+    assert!(matches!(result, Err(SystemError::Conflict(message)) if message.key() == "errors.system.sensitive_config_private"));
 }
 
 #[tokio::test]
