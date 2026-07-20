@@ -42,6 +42,40 @@ fn accepts_data_directory_with_reset_and_strips_it_from_command_positionals() {
 }
 
 #[test]
+fn recognizes_explicit_installation_recovery_commands() {
+    let reconfigure = vec![
+        "installation".into(),
+        "reconfigure".into(),
+        "--connections".into(),
+        "/operator/connections.json".into(),
+    ];
+    let recover = vec!["installation".into(), "recover".into(), "--profile".into(), "/operator/profile.json".into()];
+
+    assert_eq!(
+        command_from_args(reconfigure).unwrap(),
+        BackendCommand::Installation(InstallationCommand::Reconfigure {
+            connections_path: "/operator/connections.json".into(),
+        })
+    );
+    assert_eq!(
+        command_from_args(recover).unwrap(),
+        BackendCommand::Installation(InstallationCommand::Recover {
+            profile_path: "/operator/profile.json".into(),
+        })
+    );
+}
+
+#[test]
+fn recognizes_profile_template_without_bootstrap_configuration() {
+    let args = vec!["installation".into(), "profile".into(), "template".into()];
+
+    assert_eq!(
+        command_from_args(args).unwrap(),
+        BackendCommand::Installation(InstallationCommand::ProfileTemplate)
+    );
+}
+
+#[test]
 fn rejects_reverse_migration_commands() {
     for command in ["down", "fresh", "refresh", "reset"] {
         let args = vec!["migration".into(), command.into()];

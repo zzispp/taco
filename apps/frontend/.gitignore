@@ -1,7 +1,7 @@
 # Logs
 logs
-!src/app/dashboard/monitor/logs/
-!src/app/dashboard/monitor/logs/**
+!src/app/\[locale\]/(application)/dashboard/monitor/logs/
+!src/app/\[locale\]/(application)/dashboard/monitor/logs/**
 *.log
 npm-debug.log*
 yarn-debug.log*

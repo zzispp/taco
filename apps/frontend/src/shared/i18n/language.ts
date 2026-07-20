@@ -1,20 +1,10 @@
 import type { LangCode } from './locales-config';
 
+import { getCurrentLang } from './locales-config';
+
 const DEFAULT_QUALITY = 1;
 const MIN_QUALITY = 0;
 const MAX_QUALITY = 1;
-
-const BACKEND_LOCALE_BY_LANGUAGE: Readonly<Record<LangCode, string>> = Object.freeze({
-  cn: 'zh-CN',
-  en: 'en',
-  tw: 'zh-TW',
-});
-
-const DOCUMENT_LANGUAGE_BY_LANGUAGE: Readonly<Record<LangCode, string>> = Object.freeze({
-  cn: 'zh-CN',
-  en: 'en',
-  tw: 'zh-TW',
-});
 
 type LanguagePreference = Readonly<{
   language: LangCode;
@@ -34,12 +24,12 @@ export function normalizeLanguage(value?: string | null): LangCode | undefined {
 
 export function toBackendAcceptLanguage(value?: string | null): string | undefined {
   const language = normalizeLanguage(value);
-  return language ? BACKEND_LOCALE_BY_LANGUAGE[language] : undefined;
+  return language ? languageOption(language).backendLanguage : undefined;
 }
 
 export function toDocumentLanguage(value?: string | null): string | undefined {
   const language = normalizeLanguage(value);
-  return language ? DOCUMENT_LANGUAGE_BY_LANGUAGE[language] : undefined;
+  return language ? languageOption(language).documentLanguage : undefined;
 }
 
 export function updateDocumentLanguage(element: { lang: string }, value?: string | null) {
@@ -95,4 +85,12 @@ function isSimplifiedChinese(language: string): boolean {
     language.startsWith('zh-cn') ||
     language.startsWith('zh-hans')
   );
+}
+
+function languageOption(language: LangCode) {
+  const option = getCurrentLang(language);
+  if (option.value !== language) {
+    throw new Error(`Locale contract is missing language: ${language}`);
+  }
+  return option;
 }

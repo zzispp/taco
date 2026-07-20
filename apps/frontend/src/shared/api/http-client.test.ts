@@ -4,6 +4,7 @@ import axios, {
   normalizeApiError,
   normalizeApiErrorAsync,
   type NormalizedApiError,
+  acceptLanguageForPathname,
 } from './http-client';
 
 type ApiErrorData = {
@@ -39,6 +40,13 @@ function expectNormalizedError(error: NormalizedApiError, expected: ExpectedNorm
 describe('API error normalization', () => {
   it('uses relative same-origin browser requests instead of a configured API origin', () => {
     expect(axios.defaults.baseURL).toBeUndefined();
+  });
+
+  it('derives Accept-Language from the locale route rather than browser storage', () => {
+    expect(acceptLanguageForPathname('/en/auth/sign-in/')).toBe('en');
+    expect(acceptLanguageForPathname('/cn/dashboard/')).toBe('zh-CN');
+    expect(acceptLanguageForPathname('/tw/setup/')).toBe('zh-TW');
+    expect(acceptLanguageForPathname('/auth/sign-in/')).toBeUndefined();
   });
 
   it('preserves status, code, and localized details for notice error handling', () => {

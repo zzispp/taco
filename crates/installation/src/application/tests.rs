@@ -28,6 +28,7 @@ async fn final_install_revalidates_connections_before_migration_and_persists_onc
         vec![
             Call::ValidateOwner,
             Call::PostgresTest,
+            Call::DetectExistingInstallation,
             Call::RedisTest,
             Call::ResetData,
             Call::Migrate,
@@ -48,6 +49,17 @@ async fn final_install_revalidates_connections_before_migration_and_persists_onc
 }
 
 #[tokio::test]
+async fn existing_installation_stops_before_redis_or_data_reset() {
+    let (service, port) = service_with(Some(FailureStage::ExistingInstallation));
+
+    let result = service.install(installation_input(AdvancedSetupOverrides::default())).await;
+
+    assert_eq!(result, Err(SetupError::ExistingInstallationDetected));
+    assert_eq!(port.calls(), vec![Call::ValidateOwner, Call::PostgresTest, Call::DetectExistingInstallation]);
+    assert_eq!(port.written_installation(), None);
+}
+
+#[tokio::test]
 async fn invalid_installation_owner_stops_before_connection_tests_and_data_reset() {
     let (service, port) = service_with(Some(FailureStage::OwnerValidation));
 
@@ -65,7 +77,16 @@ async fn failed_data_reset_skips_migration_and_state_persistence() {
     let result = service.install(installation_input(AdvancedSetupOverrides::default())).await;
 
     assert_eq!(result, Err(SetupError::InstallationDataResetFailed));
-    assert_eq!(port.calls(), vec![Call::ValidateOwner, Call::PostgresTest, Call::RedisTest, Call::ResetData]);
+    assert_eq!(
+        port.calls(),
+        vec![
+            Call::ValidateOwner,
+            Call::PostgresTest,
+            Call::DetectExistingInstallation,
+            Call::RedisTest,
+            Call::ResetData
+        ]
+    );
     assert_eq!(port.written_installation(), None);
 }
 
@@ -78,7 +99,14 @@ async fn failed_migration_keeps_setup_state_unwritten() {
     assert_eq!(result, Err(SetupError::MigrationFailed));
     assert_eq!(
         port.calls(),
-        vec![Call::ValidateOwner, Call::PostgresTest, Call::RedisTest, Call::ResetData, Call::Migrate]
+        vec![
+            Call::ValidateOwner,
+            Call::PostgresTest,
+            Call::DetectExistingInstallation,
+            Call::RedisTest,
+            Call::ResetData,
+            Call::Migrate
+        ]
     );
     assert_eq!(port.written_installation(), None);
 }

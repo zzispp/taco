@@ -1,6 +1,9 @@
 use axum::Router;
 
 #[cfg(any(test, feature = "embedded-frontend"))]
+use crate::embedded_frontend_contract::{DEFAULT_LOCALE_ROOT_PATH, SUPPORTED_LOCALES};
+
+#[cfg(any(test, feature = "embedded-frontend"))]
 use std::borrow::Cow;
 
 #[cfg(feature = "embedded-frontend")]
@@ -61,11 +64,24 @@ fn response_for_path(assets: &impl FrontendAssets, request_path: &str) -> Respon
     if is_api_path(request_path) {
         return empty_response(StatusCode::NOT_FOUND);
     }
+    if request_path == "/" {
+        return root_redirect_response();
+    }
 
     match resolved_asset(assets, request_path) {
         Some(asset) => asset_response(StatusCode::OK, &asset.path, asset.data),
-        None => not_found_response(assets),
+        None => not_found_response(assets, request_path),
     }
+}
+
+#[cfg(any(test, feature = "embedded-frontend"))]
+fn root_redirect_response() -> Response {
+    let mut response = empty_response(StatusCode::TEMPORARY_REDIRECT);
+    let headers = response.headers_mut();
+    headers.insert(header::LOCATION, HeaderValue::from_static(DEFAULT_LOCALE_ROOT_PATH));
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    apply_security_headers(headers);
+    response
 }
 
 #[cfg(any(test, feature = "embedded-frontend"))]
@@ -113,13 +129,22 @@ fn valid_relative_path(path: &str) -> bool {
 }
 
 #[cfg(any(test, feature = "embedded-frontend"))]
-fn not_found_response(assets: &impl FrontendAssets) -> Response {
-    const NOT_FOUND_DOCUMENT: &str = "404.html";
+fn not_found_response(assets: &impl FrontendAssets, request_path: &str) -> Response {
+    let document = localized_not_found_document(request_path);
 
-    match assets.get(NOT_FOUND_DOCUMENT) {
-        Some(data) => asset_response(StatusCode::NOT_FOUND, NOT_FOUND_DOCUMENT, data),
+    match assets.get(&document) {
+        Some(data) => asset_response(StatusCode::NOT_FOUND, &document, data),
         None => empty_response(StatusCode::NOT_FOUND),
     }
+}
+
+#[cfg(any(test, feature = "embedded-frontend"))]
+fn localized_not_found_document(request_path: &str) -> String {
+    let requested_locale = request_path.trim_start_matches('/').split('/').next();
+    let locale = requested_locale
+        .filter(|locale| SUPPORTED_LOCALES.contains(locale))
+        .unwrap_or_else(|| DEFAULT_LOCALE_ROOT_PATH.trim_matches('/'));
+    format!("{locale}/error/404/index.html")
 }
 
 #[cfg(any(test, feature = "embedded-frontend"))]

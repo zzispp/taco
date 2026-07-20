@@ -10,9 +10,9 @@ use tokio::sync::Mutex;
 use crate::domain::{PostgresConnection, RedisConnection};
 
 use super::{
-    InitialInstallationDataResetter, InitialInstallationMigrator, InstallationOwnerProvisioner, InstallationOwnerValidator, InstallationStateWriteFailure,
-    InstallationStateWriter, JwtSecretGenerator, OwnerProvisioningFailure, PostgresConnectionTester, RedisConnectionTester, SetupError, SetupInstallationInput,
-    SetupInstallationInputParts, ShutdownSignal, installation_profile, valid_jwt_secret,
+    ExistingInstallationDetector, InitialInstallationDataResetter, InitialInstallationMigrator, InstallationOwnerProvisioner, InstallationOwnerValidator,
+    InstallationStateWriteFailure, InstallationStateWriter, JwtSecretGenerator, OwnerProvisioningFailure, PostgresConnectionTester, RedisConnectionTester,
+    SetupError, SetupInstallationInput, SetupInstallationInputParts, ShutdownSignal, installation_profile, valid_jwt_secret,
 };
 
 #[async_trait]
@@ -37,6 +37,7 @@ pub struct SetupDependencies {
     pub installation_owner_validator: Arc<dyn InstallationOwnerValidator>,
     pub postgres_tester: Arc<dyn PostgresConnectionTester>,
     pub redis_tester: Arc<dyn RedisConnectionTester>,
+    pub existing_installation_detector: Arc<dyn ExistingInstallationDetector>,
     pub data_resetter: Arc<dyn InitialInstallationDataResetter>,
     pub migrator: Arc<dyn InitialInstallationMigrator>,
     pub owner_provisioner: Arc<dyn InstallationOwnerProvisioner>,
@@ -63,6 +64,7 @@ impl SetupService {
         } = input.into_parts();
         self.validate_installation_owner(&administrator)?;
         self.test_postgres(postgres.clone()).await?;
+        self.ensure_target_is_fresh(&postgres).await?;
         self.test_redis(redis.clone()).await?;
         self.reset_initial_data(&postgres, &redis).await?;
         self.run_migration(&postgres).await?;
@@ -95,6 +97,19 @@ impl SetupService {
             .reset_initial_data(postgres, redis)
             .await
             .map_err(|_| SetupError::InstallationDataResetFailed)
+    }
+
+    async fn ensure_target_is_fresh(&self, postgres: &PostgresConnection) -> Result<(), SetupError> {
+        let contains_installation = self
+            .dependencies
+            .existing_installation_detector
+            .has_existing_installation(postgres)
+            .await
+            .map_err(|_| SetupError::ExistingInstallationDetectionFailed)?;
+        if contains_installation {
+            return Err(SetupError::ExistingInstallationDetected);
+        }
+        Ok(())
     }
 
     async fn provision_owner(&self, postgres: &PostgresConnection, administrator: &crate::domain::InitialAdministrator) -> Result<(), SetupError> {

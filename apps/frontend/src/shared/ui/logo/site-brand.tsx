@@ -11,9 +11,11 @@ import { Logo } from './logo';
 
 const SITE_NAME_MAX_WIDTH = { xs: '40vw', sm: 360 } as const;
 
-export type SiteBrandProps = Omit<BoxProps, 'children'>;
+export type SiteBrandProps = Omit<BoxProps, 'children'> & {
+  logoHref?: string;
+};
 
-export function SiteBrand({ sx, ...other }: SiteBrandProps) {
+export function SiteBrand({ sx, logoHref, ...other }: SiteBrandProps) {
   const { siteName } = useSiteDisplay();
 
   return (
@@ -24,7 +26,7 @@ export function SiteBrand({ sx, ...other }: SiteBrandProps) {
       ]}
       {...other}
     >
-      <Logo />
+      <Logo href={logoHref} />
       <Typography
         noWrap
         component="span"

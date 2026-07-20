@@ -42,5 +42,5 @@ target
 # local task record
 .codex-tasks
 storage/
-docs/
 .local/
+apps/frontend/next-env.d.ts

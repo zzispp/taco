@@ -3,6 +3,7 @@ FROM node:22-bookworm-slim AS frontend-build
 WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY locale-contract.json ./locale-contract.json
 COPY apps/frontend/package.json ./apps/frontend/package.json
 
 RUN corepack enable && pnpm install --frozen-lockfile
@@ -10,8 +11,7 @@ RUN corepack enable && pnpm install --frozen-lockfile
 COPY apps/frontend ./apps/frontend
 
 RUN pnpm --filter frontend build:embedded \
-    && test -f apps/frontend/out/index.html \
-    && test -f apps/frontend/out/404.html
+    && node -e "const fs = require('node:fs'); const { locales } = require('./locale-contract.json'); for (const { code } of locales) { fs.accessSync('apps/frontend/out/' + code + '/index.html'); fs.accessSync('apps/frontend/out/' + code + '/error/404/index.html'); } fs.accessSync('apps/frontend/out/404.html');"
 
 FROM rust:1.94-bookworm AS backend-build
 

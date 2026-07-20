@@ -168,8 +168,8 @@ mod tests {
         let document = app.clone().oneshot(Request::get("/").body(Body::empty()).unwrap()).await.unwrap();
         let api = app.oneshot(Request::get("/api/missing").body(Body::empty()).unwrap()).await.unwrap();
 
-        assert_eq!(document.status(), StatusCode::OK);
-        assert_eq!(document.headers()[axum::http::header::CONTENT_TYPE], "text/html; charset=utf-8");
+        assert_eq!(document.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(document.headers()[axum::http::header::LOCATION], "/cn/");
         assert_eq!(api.status(), StatusCode::NOT_FOUND);
         assert!(!api.headers().contains_key(axum::http::header::CONTENT_TYPE));
     }

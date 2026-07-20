@@ -14,6 +14,10 @@ pub enum SetupError {
     PostgresConnectionFailed,
     #[error("Redis connection test failed")]
     RedisConnectionFailed,
+    #[error("the selected PostgreSQL database already contains a Taco installation")]
+    ExistingInstallationDetected,
+    #[error("failed to inspect the selected PostgreSQL database for an existing Taco installation")]
+    ExistingInstallationDetectionFailed,
     #[error("installation data reset failed")]
     InstallationDataResetFailed,
     #[error("initial database migration failed")]
@@ -40,6 +44,8 @@ impl SetupError {
             Self::AlreadyInstalled | Self::InstallationStateAlreadyExists => "errors.installation.already_installed",
             Self::PostgresConnectionFailed => "errors.installation.postgres_connection_failed",
             Self::RedisConnectionFailed => "errors.installation.redis_connection_failed",
+            Self::ExistingInstallationDetected => "errors.installation.existing_installation_detected",
+            Self::ExistingInstallationDetectionFailed => "errors.installation.existing_installation_detection_failed",
             Self::InstallationDataResetFailed => "errors.installation.data_reset_failed",
             Self::MigrationFailed => "errors.installation.migration_failed",
             Self::InstallationOwnerProvisioningFailed => "errors.installation.owner_provisioning_failed",

@@ -5,10 +5,10 @@ use configuration::PersistedInstallation;
 
 use crate::{
     application::{
-        InitialInstallationDataResetter, InitialInstallationMigrator, InstallationOwnerProvisioner, InstallationOwnerValidationFailure,
-        InstallationOwnerValidator, InstallationStateWriteFailure, InstallationStateWriter, JwtSecretGenerator, OwnerProvisioningFailure,
-        PostgresConnectionTester, RedisConnectionTester, SetupDependencies, SetupInstallationInput, SetupInstallationInputParts, SetupPortFailure,
-        SetupService, ShutdownSignal,
+        ExistingInstallationDetector, InitialInstallationDataResetter, InitialInstallationMigrator, InstallationOwnerProvisioner,
+        InstallationOwnerValidationFailure, InstallationOwnerValidator, InstallationStateWriteFailure, InstallationStateWriter, JwtSecretGenerator,
+        OwnerProvisioningFailure, PostgresConnectionTester, RedisConnectionTester, SetupDependencies, SetupInstallationInput, SetupInstallationInputParts,
+        SetupPortFailure, SetupService, ShutdownSignal,
     },
     domain::{
         AdvancedSetupOverrides, InitialAdministrator, InitialAdministratorInput, PostgresConnection, PostgresConnectionInput, RedisConnection,
@@ -22,6 +22,7 @@ pub(super) const TEST_JWT_SECRET: &str = "0123456789abcdef0123456789abcdef";
 pub(super) enum Call {
     ValidateOwner,
     PostgresTest,
+    DetectExistingInstallation,
     RedisTest,
     ResetData,
     Migrate,
@@ -34,6 +35,7 @@ pub(super) enum Call {
 #[derive(Clone, Copy)]
 pub(super) enum FailureStage {
     OwnerValidation,
+    ExistingInstallation,
     Migration,
     DataReset,
     OwnerProvisioning,
@@ -81,6 +83,14 @@ impl RedisConnectionTester for TestPort {
     async fn test_redis_connection(&self, _: &RedisConnection) -> Result<(), SetupPortFailure> {
         self.record(Call::RedisTest);
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ExistingInstallationDetector for TestPort {
+    async fn has_existing_installation(&self, _: &PostgresConnection) -> Result<bool, SetupPortFailure> {
+        self.record(Call::DetectExistingInstallation);
+        Ok(matches!(self.failure, Some(FailureStage::ExistingInstallation)))
     }
 }
 
@@ -160,6 +170,7 @@ pub(super) fn service_with(failure: Option<FailureStage>) -> (SetupService, Arc<
         installation_owner_validator: port.clone(),
         postgres_tester: port.clone(),
         redis_tester: port.clone(),
+        existing_installation_detector: port.clone(),
         data_resetter: port.clone(),
         migrator: port.clone(),
         owner_provisioner: port.clone(),

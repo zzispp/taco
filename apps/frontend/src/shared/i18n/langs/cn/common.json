@@ -32,5 +32,10 @@
     "batchItems": "第 {{batch}} 批 · {{count}} 条",
     "previous": "上一批",
     "next": "下一批"
+  },
+  "error404": {
+    "title": "抱歉，页面未找到！",
+    "description": "找不到您访问的页面。请检查输入的网址是否正确。",
+    "home": "返回首页"
   }
 }

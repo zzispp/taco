@@ -19,6 +19,8 @@ const DEFAULT_DEVELOPMENT_BACKEND_URL = 'http://localhost:3000';
 const isStaticExport = process.env.TACO_STATIC_EXPORT === STATIC_EXPORT_ENV_VALUE;
 const LOCAL_FRONTEND_ORIGIN = 'http://localhost:8082';
 const LOOPBACK_HOST_PATTERN = '127\\.0\\.0\\.1';
+const API_PATH_PREFIX = '/api';
+const UPLOADS_PATH_PREFIX = '/uploads';
 const WASM_EVAL_SOURCE = "'wasm-unsafe-eval'";
 
 const contentSecurityPolicy = [
@@ -94,8 +96,12 @@ function developmentServerConfig(): Partial<NextConfig> {
     async rewrites() {
       return [
         {
-          source: '/api/:path*',
-          destination: `${developmentBackendUrl()}/api/:path*`,
+          source: `${API_PATH_PREFIX}/:path*`,
+          destination: `${developmentBackendUrl()}${API_PATH_PREFIX}/:path*`,
+        },
+        {
+          source: `${UPLOADS_PATH_PREFIX}/:path*`,
+          destination: `${developmentBackendUrl()}${UPLOADS_PATH_PREFIX}/:path*`,
         },
       ];
     },

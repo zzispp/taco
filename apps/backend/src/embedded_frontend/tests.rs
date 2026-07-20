@@ -32,22 +32,39 @@ impl FrontendAssets for FixtureAssets {
 }
 
 #[tokio::test]
-async fn serves_root_and_exported_route_directory_documents() {
-    let assets = FixtureAssets::new(&[("index.html", b"home"), ("dashboard/index.html", b"dashboard"), ("404.html", b"not found")]);
+async fn root_redirects_to_the_default_locale_before_serving_exported_routes() {
+    let assets = FixtureAssets::new(&[
+        ("cn/index.html", b"home"),
+        ("cn/dashboard/index.html", b"dashboard"),
+        ("404.html", b"not found"),
+    ]);
 
     let root = response_for_path(&assets, "/");
-    let route = response_for_path(&assets, "/dashboard");
-    let trailing_route = response_for_path(&assets, "/dashboard/");
+    let route = response_for_path(&assets, "/cn/dashboard");
+    let trailing_route = response_for_path(&assets, "/cn/dashboard/");
 
-    assert_eq!(root.status(), StatusCode::OK);
-    assert_eq!(to_bytes(root.into_body(), usize::MAX).await.unwrap().as_ref(), b"home");
+    assert_eq!(root.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(root.headers()[header::LOCATION], "/cn/");
+    assert_eq!(root.headers()[header::CACHE_CONTROL], "no-cache");
+    assert_security_headers(root.headers());
     assert_eq!(to_bytes(route.into_body(), usize::MAX).await.unwrap().as_ref(), b"dashboard");
     assert_eq!(to_bytes(trailing_route.into_body(), usize::MAX).await.unwrap().as_ref(), b"dashboard");
 }
 
 #[tokio::test]
+async fn unprefixed_and_unsupported_locale_routes_return_not_found() {
+    let assets = FixtureAssets::new(&[("cn/auth/sign-in/index.html", b"sign in"), ("cn/error/404/index.html", b"not found")]);
+
+    let unprefixed = response_for_path(&assets, "/auth/sign-in/");
+    let unsupported_locale = response_for_path(&assets, "/fr/auth/sign-in/");
+
+    assert_eq!(unprefixed.status(), StatusCode::NOT_FOUND);
+    assert_eq!(unsupported_locale.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn unknown_frontend_paths_return_exported_not_found_document() {
-    let assets = FixtureAssets::new(&[("index.html", b"home"), ("404.html", b"not found")]);
+    let assets = FixtureAssets::new(&[("cn/error/404/index.html", b"not found")]);
 
     let response = response_for_path(&assets, "/missing");
 
@@ -56,6 +73,23 @@ async fn unknown_frontend_paths_return_exported_not_found_document() {
     assert_eq!(response.headers()[header::CACHE_CONTROL], "no-cache");
     assert_security_headers(response.headers());
     assert_eq!(to_bytes(response.into_body(), usize::MAX).await.unwrap().as_ref(), b"not found");
+}
+
+#[tokio::test]
+async fn unknown_localized_paths_return_the_matching_locale_not_found_document() {
+    let assets = FixtureAssets::new(&[
+        ("cn/error/404/index.html", b"cn not found"),
+        ("en/error/404/index.html", b"en not found"),
+        ("tw/error/404/index.html", b"tw not found"),
+    ]);
+
+    let english = response_for_path(&assets, "/en/missing");
+    let traditional_chinese = response_for_path(&assets, "/tw/missing");
+
+    assert_eq!(english.status(), StatusCode::NOT_FOUND);
+    assert_eq!(to_bytes(english.into_body(), usize::MAX).await.unwrap().as_ref(), b"en not found");
+    assert_eq!(traditional_chinese.status(), StatusCode::NOT_FOUND);
+    assert_eq!(to_bytes(traditional_chinese.into_body(), usize::MAX).await.unwrap().as_ref(), b"tw not found");
 }
 
 #[tokio::test]

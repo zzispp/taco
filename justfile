@@ -1,4 +1,4 @@
-test_timeout_seconds := "120"
+test_timeout_seconds := "60"
 
 list:
     just --list

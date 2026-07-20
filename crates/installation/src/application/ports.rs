@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use configuration::PersistedInstallation;
+use configuration::{InstallationProfile, PersistedInstallation};
+use thiserror::Error;
 
 use crate::domain::{InitialAdministrator, PostgresConnection, RedisConnection};
 
@@ -25,6 +26,28 @@ pub trait PostgresConnectionTester: Send + Sync + 'static {
 #[async_trait]
 pub trait RedisConnectionTester: Send + Sync + 'static {
     async fn test_redis_connection(&self, connection: &RedisConnection) -> Result<(), SetupPortFailure>;
+}
+
+/// Checks whether a PostgreSQL target already contains a Taco installation.
+/// This guard runs before setup can erase any operator-selected data.
+#[async_trait]
+pub trait ExistingInstallationDetector: Send + Sync + 'static {
+    async fn has_existing_installation(&self, connection: &PostgresConnection) -> Result<bool, SetupPortFailure>;
+}
+
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum ExistingInstallationVerificationFailure {
+    #[error("existing Taco schema is not ready")]
+    SchemaNotReady,
+    #[error("existing Taco installation owner is missing")]
+    InstallationOwnerMissing,
+    #[error("existing Taco Redis connection cannot be verified")]
+    RedisConnectionFailed,
+}
+
+#[async_trait]
+pub trait ExistingInstallationVerifier: Send + Sync + 'static {
+    async fn verify_existing_installation(&self, profile: &InstallationProfile) -> Result<(), ExistingInstallationVerificationFailure>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

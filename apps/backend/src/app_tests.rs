@@ -104,8 +104,8 @@ mod tests {
         let document = app.clone().oneshot(Request::builder().uri("/").body(Body::empty()).unwrap()).await.unwrap();
         let api = app.oneshot(Request::builder().uri("/api/missing").body(Body::empty()).unwrap()).await.unwrap();
 
-        assert_eq!(document.status(), StatusCode::OK);
-        assert_eq!(document.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
+        assert_eq!(document.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(document.headers()[header::LOCATION], "/cn/");
         assert_eq!(document.headers()[header::CACHE_CONTROL], "no-cache");
         assert_eq!(api.status(), StatusCode::NOT_FOUND);
         assert_eq!(api.headers()[header::CACHE_CONTROL], "no-store");

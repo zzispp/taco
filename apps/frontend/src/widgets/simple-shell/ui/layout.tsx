@@ -27,6 +27,7 @@ import { SimpleCompactContent } from './content';
 type LayoutBaseProps = Pick<LayoutSectionProps, 'sx' | 'children' | 'cssVars'>;
 
 export type SimpleLayoutProps = LayoutBaseProps & {
+  homeHref?: string;
   layoutQuery?: Breakpoint;
   slotProps?: {
     header?: HeaderSectionProps;
@@ -40,6 +41,7 @@ export function SimpleLayout({
   cssVars,
   children,
   slotProps,
+  homeHref = paths.home,
   layoutQuery = 'md',
 }: SimpleLayoutProps) {
   const renderHeader = () => {
@@ -51,12 +53,12 @@ export function SimpleLayout({
           This is an info Alert.
         </Alert>
       ),
-      leftArea: <SiteBrand />,
+      leftArea: <SiteBrand logoHref={homeHref} />,
       rightArea: (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 } }}>
           {/** @slot Help link */}
           <Link
-            href={paths.home}
+            href={homeHref}
             component={RouterLink}
             color="inherit"
             sx={{ typography: 'subtitle2' }}

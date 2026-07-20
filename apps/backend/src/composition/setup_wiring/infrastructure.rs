@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use configuration::{BootstrapInputs, ConfigEncryptionKey, DataDirectory, InstallationStateRead, InstallationStateStore, PersistedInstallation};
 use installation::{
     application::{
-        InitialInstallationDataResetter, InitialInstallationMigrator, InstallationOwnerProvisioner, InstallationOwnerValidationFailure,
-        InstallationOwnerValidator, InstallationStateWriteFailure, InstallationStateWriter, OwnerProvisioningFailure, PostgresConnectionTester,
-        RedisConnectionTester, SetupPortFailure, postgres_connection_settings, redis_connection_settings,
+        ExistingInstallationDetector, InitialInstallationDataResetter, InitialInstallationMigrator, InstallationOwnerProvisioner,
+        InstallationOwnerValidationFailure, InstallationOwnerValidator, InstallationStateWriteFailure, InstallationStateWriter, OwnerProvisioningFailure,
+        PostgresConnectionTester, RedisConnectionTester, SetupPortFailure, postgres_connection_settings, redis_connection_settings,
     },
     domain::{InitialAdministrator, PostgresConnection, RedisConnection},
 };
@@ -18,6 +18,7 @@ use user::{
 use crate::migration;
 
 const POSTGRES_CONNECTION_STAGE: &str = "postgres_connection";
+const EXISTING_INSTALLATION_STAGE: &str = "existing_installation_detection";
 const REDIS_CONNECTION_STAGE: &str = "redis_connection";
 const POSTGRES_RESET_STAGE: &str = "postgres_reset";
 const REDIS_RESET_STAGE: &str = "redis_reset";
@@ -69,6 +70,19 @@ impl PostgresConnectionTester for SetupInfrastructure {
             .await
             .map(|_| ())
             .map_err(|error| setup_port_failure(POSTGRES_CONNECTION_STAGE, &error))
+    }
+}
+
+#[async_trait]
+impl ExistingInstallationDetector for SetupInfrastructure {
+    async fn has_existing_installation(&self, connection: &PostgresConnection) -> Result<bool, SetupPortFailure> {
+        let database = self.database(connection).await?;
+        query_scalar::<_, bool>(
+            "SELECT to_regclass('public.sys_installation_owner') IS NOT NULL OR (to_regclass('public._sqlx_migrations') IS NOT NULL AND to_regclass('public.sys_user') IS NOT NULL)",
+        )
+            .fetch_one(database.raw_pool())
+            .await
+            .map_err(|error| setup_port_failure(EXISTING_INSTALLATION_STAGE, &error))
     }
 }
 

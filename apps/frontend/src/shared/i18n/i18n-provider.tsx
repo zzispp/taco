@@ -2,9 +2,8 @@
 
 import type { LangCode } from './locales-config';
 
-import i18next from 'i18next';
-import { useRef, useEffect } from 'react';
-import { getStorage } from 'minimal-shared/utils';
+import { useEffect } from 'react';
+import { type i18n, createInstance } from 'i18next';
 import { initReactI18next, I18nextProvider as Provider } from 'react-i18next';
 
 import { I18N_NAMESPACES } from './types';
@@ -20,6 +19,7 @@ import twCommon from './langs/tw/common.json';
 import enNavbar from './langs/en/navbar.json';
 import cnNavbar from './langs/cn/navbar.json';
 import twNavbar from './langs/tw/navbar.json';
+import { i18nOptions } from './locales-config';
 import enMessages from './langs/en/messages.json';
 import cnMessages from './langs/cn/messages.json';
 import twMessages from './langs/tw/messages.json';
@@ -29,88 +29,68 @@ import twSystemLog from './langs/tw/systemLog.json';
 import enScheduler from './langs/en/scheduler.json';
 import cnScheduler from './langs/cn/scheduler.json';
 import twScheduler from './langs/tw/scheduler.json';
+import { updateDocumentLanguage } from './language';
 import { staticAdminResources } from './admin-static-resources';
-import { normalizeLanguage, updateDocumentLanguage } from './language';
-import { i18nOptions, fallbackLng, storageConfig } from './locales-config';
 
 // ----------------------------------------------------------------------
 
-/**
- * Initialize i18next
- */
-i18next.use(initReactI18next).init({
-  ...i18nOptions(fallbackLng),
-  ns: I18N_NAMESPACES,
-  resources: {
-    cn: {
-      admin: staticAdminResources.cn,
-      common: cnCommon,
-      messages: cnMessages,
-      navbar: cnNavbar,
-      scheduler: cnScheduler,
-      setup: cnSetup,
-      audit: cnAudit,
-      systemLog: cnSystemLog,
-    },
-    en: {
-      admin: staticAdminResources.en,
-      common: enCommon,
-      messages: enMessages,
-      navbar: enNavbar,
-      scheduler: enScheduler,
-      setup: enSetup,
-      audit: enAudit,
-      systemLog: enSystemLog,
-    },
-    tw: {
-      admin: staticAdminResources.tw,
-      common: twCommon,
-      messages: twMessages,
-      navbar: twNavbar,
-      scheduler: twScheduler,
-      setup: twSetup,
-      audit: twAudit,
-      systemLog: twSystemLog,
-    },
+const resources = {
+  cn: {
+    admin: staticAdminResources.cn,
+    common: cnCommon,
+    messages: cnMessages,
+    navbar: cnNavbar,
+    scheduler: cnScheduler,
+    setup: cnSetup,
+    audit: cnAudit,
+    systemLog: cnSystemLog,
   },
+  en: {
+    admin: staticAdminResources.en,
+    common: enCommon,
+    messages: enMessages,
+    navbar: enNavbar,
+    scheduler: enScheduler,
+    setup: enSetup,
+    audit: enAudit,
+    systemLog: enSystemLog,
+  },
+  tw: {
+    admin: staticAdminResources.tw,
+    common: twCommon,
+    messages: twMessages,
+    navbar: twNavbar,
+    scheduler: twScheduler,
+    setup: twSetup,
+    audit: twAudit,
+    systemLog: twSystemLog,
+  },
+};
+
+const I18N_INSTANCES: Readonly<Record<LangCode, i18n>> = Object.freeze({
+  cn: createI18n('cn'),
+  en: createI18n('en'),
+  tw: createI18n('tw'),
 });
 
 // ----------------------------------------------------------------------
 
 type I18nProviderProps = {
-  lang?: LangCode;
+  lang: LangCode;
   children: React.ReactNode;
 };
 
 export function I18nProvider({ lang, children }: I18nProviderProps) {
-  const mounted = useRef(false);
-  const initialLang = lang ?? fallbackLng;
-
-  if (!mounted.current && i18next.language !== initialLang) {
-    i18next.changeLanguage(initialLang);
-  }
-
   useEffect(() => {
-    mounted.current = true;
-
-    const storedLang = normalizeLanguage(getStorage(storageConfig.localStorage.key));
-    const nextLang = storedLang ?? lang ?? fallbackLng;
-
-    if (i18next.language !== nextLang) {
-      i18next.changeLanguage(nextLang);
-    }
+    updateDocumentLanguage(document.documentElement, lang);
   }, [lang]);
 
-  useEffect(() => {
-    const handleLanguageChange = (language: string) =>
-      updateDocumentLanguage(document.documentElement, language);
+  return <Provider i18n={I18N_INSTANCES[lang]}>{children}</Provider>;
+}
 
-    handleLanguageChange(i18next.resolvedLanguage ?? i18next.language);
-    i18next.on('languageChanged', handleLanguageChange);
-    return () => {
-      i18next.off('languageChanged', handleLanguageChange);
-    };
-  }, []);
-
-  return <Provider i18n={i18next}>{children}</Provider>;
+function createI18n(lang: LangCode) {
+  const instance = createInstance();
+  instance.use(initReactI18next);
+  void instance.init({ ...i18nOptions(lang), initAsync: false, ns: I18N_NAMESPACES, resources });
+  return instance;
 }

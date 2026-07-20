@@ -3,21 +3,22 @@
 import type { Namespace } from 'i18next';
 import type { LangCode } from './locales-config';
 
-import dayjs from 'dayjs';
 import { useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useRouter as useNextRouter } from 'next/navigation';
 
-import { toast } from 'src/shared/ui/snackbar';
+import { usePathname } from 'src/shared/routes/hooks';
 import { useSettingsContext } from 'src/shared/ui/settings';
+import { localizePath, requireLangCode, localeFromPathname } from 'src/shared/routes/locale-path';
 
-import { fallbackLng, storageConfig, getCurrentLang } from './locales-config';
+import { fallbackLng, getCurrentLang } from './locales-config';
 
 // ----------------------------------------------------------------------
 
 export function useTranslate(namespace?: Namespace) {
   const { t, i18n } = useTranslation(namespace);
   const currentLang = getCurrentLang(i18n.resolvedLanguage);
-  const changeLang = useLanguageChanger(i18n);
+  const changeLang = useLanguageChanger();
 
   return {
     t,
@@ -28,47 +29,19 @@ export function useTranslate(namespace?: Namespace) {
   };
 }
 
-function useLanguageChanger(i18n: ReturnType<typeof useTranslation>['i18n']) {
-  const settings = useSettingsContext();
-  const { t: tMessages } = useTranslation('messages');
-
-  const updateDirection = useCallback(
-    (lang: LangCode) => {
-      settings.setState({ direction: i18n.dir(lang) });
-    },
-    [i18n, settings]
-  );
-
-  const updateDayjsLocale = useCallback((lang: LangCode) => {
-    const updatedLang = getCurrentLang(lang);
-    dayjs.locale(updatedLang.adapterLocale);
-  }, []);
-
-  const persistLanguage = useCallback((lang: LangCode) => {
-    localStorage.setItem(storageConfig.localStorage.key, lang);
-  }, []);
+function useLanguageChanger() {
+  const pathname = usePathname();
+  const router = useNextRouter();
 
   return useCallback(
-    async (lang: LangCode) => {
-      try {
-        const changeLangPromise = i18n.changeLanguage(lang);
+    (lang: LangCode) => {
+      const locale = requireLangCode(localeFromPathname(pathname));
+      if (lang === locale) return;
 
-        toast.promise(changeLangPromise, {
-          loading: tMessages('languageSwitch.loading'),
-          success: () => tMessages('languageSwitch.success'),
-          error: () => tMessages('languageSwitch.error'),
-        });
-
-        await changeLangPromise;
-
-        persistLanguage(lang);
-        updateDirection(lang);
-        updateDayjsLocale(lang);
-      } catch (error) {
-        console.error(error);
-      }
+      const currentPath = `${pathname}${window.location.search}${window.location.hash}`;
+      router.replace(localizePath(lang, currentPath));
     },
-    [i18n, persistLanguage, tMessages, updateDayjsLocale, updateDirection]
+    [pathname, router]
   );
 }
 
@@ -78,7 +51,7 @@ export function useLocaleDirectionSync() {
   const { i18n, currentLang } = useTranslate();
   const { state, setState } = useSettingsContext();
 
-  const handleSync = useCallback(async () => {
+  const handleSync = useCallback(() => {
     const selectedLang = currentLang.value;
     const i18nDir = i18n.dir(selectedLang);
 
@@ -88,10 +61,6 @@ export function useLocaleDirectionSync() {
 
     if (state.direction !== i18nDir) {
       setState({ direction: i18nDir });
-    }
-
-    if (i18n.resolvedLanguage !== selectedLang) {
-      await i18n.changeLanguage(selectedLang);
     }
   }, [currentLang.value, i18n, setState, state.direction]);
 

@@ -26,6 +26,9 @@ pub(super) enum SecretCommand {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum InstallationCommand {
     Reset,
+    ProfileTemplate,
+    Reconfigure { connections_path: String },
+    Recover { profile_path: String },
 }
 
 pub(super) fn command_from_args(args: Vec<String>) -> BackendResult<BackendCommand> {
@@ -40,6 +43,18 @@ pub(super) fn command_from_args(args: Vec<String>) -> BackendResult<BackendComma
         [installation, reset, confirmation] if installation == "installation" && reset == "reset" && confirmation == "--confirm-reset" => {
             reject_disallowed_reset_options(&parsed)?;
             Ok(BackendCommand::Installation(InstallationCommand::Reset))
+        }
+        [installation, profile, template] if installation == "installation" && profile == "profile" && template == "template" => {
+            reject_bootstrap_options(&parsed, "installation profile template")?;
+            Ok(BackendCommand::Installation(InstallationCommand::ProfileTemplate))
+        }
+        [installation, reconfigure, option, path] if installation == "installation" && reconfigure == "reconfigure" && option == "--connections" => {
+            Ok(BackendCommand::Installation(InstallationCommand::Reconfigure {
+                connections_path: path.clone(),
+            }))
+        }
+        [installation, recover, option, path] if installation == "installation" && recover == "recover" && option == "--profile" => {
+            Ok(BackendCommand::Installation(InstallationCommand::Recover { profile_path: path.clone() }))
         }
         _ => Err(format!("unsupported taco command: {}", parsed.positionals.join(" ")).into()),
     }

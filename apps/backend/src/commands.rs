@@ -9,6 +9,7 @@ use crate::{
     migration, startup,
 };
 
+mod installation_recovery_command;
 mod migration_command;
 mod parser;
 
@@ -21,6 +22,11 @@ pub async fn run() -> BackendResult<()> {
         BackendCommand::Migration(command) => run_migration(installed_settings(args)?, command).await,
         BackendCommand::Secrets(SecretCommand::Generate) => write_generated_secret(),
         BackendCommand::Installation(InstallationCommand::Reset) => reset_installation_state(args),
+        BackendCommand::Installation(InstallationCommand::ProfileTemplate) => write_installation_profile_template(),
+        BackendCommand::Installation(InstallationCommand::Reconfigure { connections_path }) => {
+            installation_recovery_command::reconfigure(args, &connections_path).await
+        }
+        BackendCommand::Installation(InstallationCommand::Recover { profile_path }) => installation_recovery_command::recover(args, &profile_path).await,
     }
 }
 
@@ -47,6 +53,12 @@ fn write_generated_secret() -> BackendResult<()> {
 fn reset_installation_state(args: Vec<String>) -> BackendResult<()> {
     let data_dir = DataDirectory::load_from_args(args)?;
     InstallationStateStore::new(data_dir).remove()?;
+    Ok(())
+}
+
+fn write_installation_profile_template() -> BackendResult<()> {
+    serde_json::to_writer_pretty(std::io::stdout().lock(), &configuration::InstallationProfile::default())?;
+    writeln!(std::io::stdout().lock())?;
     Ok(())
 }
 

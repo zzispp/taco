@@ -179,6 +179,25 @@ async fn invalid_initial_owner_has_a_stable_validation_response() {
 }
 
 #[tokio::test]
+async fn existing_taco_schema_returns_a_localized_conflict_before_reset() {
+    let setup = Arc::new(RecordingSetup::failing(SetupError::ExistingInstallationDetected));
+    let response = setup_router_with_state(setup)
+        .oneshot(json_request(SETUP_INSTALL_PATH, installation_payload()))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        response_json(response).await,
+        json!({
+            "code": "conflict",
+            "message": "资源冲突",
+            "details": "所选 PostgreSQL 数据库已包含 Taco 安装，不能再次安装"
+        })
+    );
+}
+
+#[tokio::test]
 async fn failed_data_reset_has_a_localized_infrastructure_error() {
     let setup = Arc::new(RecordingSetup::failing(SetupError::InstallationDataResetFailed));
     let response = setup_router_with_state(setup)

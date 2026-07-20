@@ -33,4 +33,8 @@ describe('navigation branch state', () => {
   it('does not activate the directory for an unrelated route with a similar prefix', () => {
     expect(isNavBranchActive('/dashboard/monitor/logs-archive', logDirectory)).toBe(false);
   });
+
+  it('compares localized route paths against locale-neutral navigation items', () => {
+    expect(isNavBranchActive('/en/dashboard/monitor/logs/login-logs/', logDirectory)).toBe(true);
+  });
 });

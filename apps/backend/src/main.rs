@@ -4,6 +4,8 @@ mod commands;
 mod composition;
 mod docs;
 pub mod embedded_frontend;
+#[cfg(any(test, feature = "embedded-frontend"))]
+mod embedded_frontend_contract;
 mod http_config;
 mod installation_mode;
 mod migration;

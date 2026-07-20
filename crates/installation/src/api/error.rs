@@ -51,7 +51,7 @@ fn localized_details(error: &SetupError) -> LocalizedError {
 fn error_kind(error: &SetupError) -> ApiErrorKind {
     match error {
         SetupError::InvalidInput(_) | SetupError::InstallationOwnerInvalid => ApiErrorKind::InvalidInput,
-        SetupError::AlreadyInstalled | SetupError::InstallationStateAlreadyExists => ApiErrorKind::Conflict,
+        SetupError::AlreadyInstalled | SetupError::InstallationStateAlreadyExists | SetupError::ExistingInstallationDetected => ApiErrorKind::Conflict,
         _ => ApiErrorKind::Infrastructure,
     }
 }
@@ -59,7 +59,7 @@ fn error_kind(error: &SetupError) -> ApiErrorKind {
 fn status_code(error: &SetupError) -> StatusCode {
     match error {
         SetupError::InvalidInput(_) | SetupError::InstallationOwnerInvalid => StatusCode::BAD_REQUEST,
-        SetupError::AlreadyInstalled | SetupError::InstallationStateAlreadyExists => StatusCode::CONFLICT,
+        SetupError::AlreadyInstalled | SetupError::InstallationStateAlreadyExists | SetupError::ExistingInstallationDetected => StatusCode::CONFLICT,
         SetupError::PostgresConnectionFailed | SetupError::RedisConnectionFailed => StatusCode::UNPROCESSABLE_ENTITY,
         SetupError::JwtGenerationFailed | SetupError::InvalidGeneratedJwt => StatusCode::INTERNAL_SERVER_ERROR,
         _ => StatusCode::SERVICE_UNAVAILABLE,

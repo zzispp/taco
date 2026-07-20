@@ -1,0 +1,20 @@
+{
+  "defaultLocale": "cn",
+  "locales": [
+    {
+      "code": "cn",
+      "documentLanguage": "zh-CN",
+      "backendLanguage": "zh-CN"
+    },
+    {
+      "code": "en",
+      "documentLanguage": "en",
+      "backendLanguage": "en"
+    },
+    {
+      "code": "tw",
+      "documentLanguage": "zh-TW",
+      "backendLanguage": "zh-TW"
+    }
+  ]
+}

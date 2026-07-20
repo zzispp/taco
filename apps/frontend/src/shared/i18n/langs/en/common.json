@@ -32,5 +32,10 @@
     "batchItems": "Batch {{batch}} · {{count}} items",
     "previous": "Previous batch",
     "next": "Next batch"
+  },
+  "error404": {
+    "title": "Sorry, page not found!",
+    "description": "We couldn't find the page you're looking for. Check the URL and try again.",
+    "home": "Go to home"
   }
 }

@@ -3,6 +3,10 @@ import { useMemo, useCallback } from 'react';
 import { isEqualPath } from 'minimal-shared/utils';
 import { useRouter as useNextRouter } from 'next/navigation';
 
+import { localizePath } from 'src/shared/routes/locale-path';
+
+import { useLocale } from './use-locale';
+
 // ----------------------------------------------------------------------
 
 /**
@@ -11,31 +15,36 @@ import { useRouter as useNextRouter } from 'next/navigation';
 
 export function useRouter() {
   const nextRouter = useNextRouter();
+  const locale = useLocale();
+
+  const localizeHref = useCallback((href: string) => localizePath(locale, href), [locale]);
 
   const push: ReturnType<typeof useNextRouter>['push'] = useCallback(
     (href, options) => {
+      const localizedHref = localizeHref(href);
       if (
         typeof window !== 'undefined' &&
-        !isEqualPath(href, window.location.href, { deep: false })
+        !isEqualPath(localizedHref, window.location.href, { deep: false })
       ) {
         NProgress.start();
       }
-      nextRouter.push(href, options);
+      nextRouter.push(localizedHref, options);
     },
-    [nextRouter]
+    [localizeHref, nextRouter]
   );
 
   const replace: ReturnType<typeof useNextRouter>['replace'] = useCallback(
     (href, options) => {
+      const localizedHref = localizeHref(href);
       if (
         typeof window !== 'undefined' &&
-        !isEqualPath(href, window.location.href, { deep: false })
+        !isEqualPath(localizedHref, window.location.href, { deep: false })
       ) {
         NProgress.start();
       }
-      nextRouter.replace(href, options);
+      nextRouter.replace(localizedHref, options);
     },
-    [nextRouter]
+    [localizeHref, nextRouter]
   );
 
   const router = useMemo(

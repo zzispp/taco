@@ -32,5 +32,10 @@
     "batchItems": "第 {{batch}} 批 · {{count}} 筆",
     "previous": "上一批",
     "next": "下一批"
+  },
+  "error404": {
+    "title": "抱歉，找不到頁面！",
+    "description": "找不到您要瀏覽的頁面。請確認網址是否正確。",
+    "home": "返回首頁"
   }
 }

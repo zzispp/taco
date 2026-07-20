@@ -188,14 +188,15 @@ When adding or changing backend error keys:
 
 - Frontend i18n infrastructure belongs in `apps/frontend/src/shared/i18n`.
 - Frontend HTTP language/error handling belongs in `apps/frontend/src/shared/api`.
+- `locale-contract.json` is the single static contract for the default locale, supported URL locales, HTML language tags, and backend wire locales. Frontend code, embedded-backend build logic, and release packaging must consume this file rather than duplicate these values.
 - Do not create top-level `locales`, `i18n`, `global-config`, or other parallel language folders outside the FSD `shared` layer.
 - Language resources must stay under `apps/frontend/src/shared/i18n/langs/{cn,en,tw}/`.
 - Each supported language must provide the same namespace files: `common.json`, `messages.json`, `admin.json`, and `navbar.json`.
 - Add UI copy to the namespace and slice that already owns the feature. Do not hardcode visible user-facing text in components when the surrounding feature uses i18n.
 - `tw` resources should be Traditional Chinese equivalents of the existing Simplified Chinese copy unless the feature explicitly requires different wording.
 - Frontend language normalization must map `zh-TW`, `zh-HK`, `zh-Hant`, and `tw` to `tw`; `zh-CN`, `zh-Hans`, `zh`, and `cn` to `cn`; and `en-*` to `en`.
-- If `localStorage.i18nextLng` exists, the API client must send `Accept-Language` mapped as `cn -> zh-CN`, `en -> en`, `tw -> zh-TW`.
-- If `localStorage.i18nextLng` does not exist, the API client must not override the browser's default `Accept-Language`.
+- URL locale is the sole frontend language source. `/cn`, `/en`, and `/tw` are independently addressable sites; language switching must preserve the current internal path through Next client navigation.
+- The API client must derive `Accept-Language` from the leading URL locale, mapped as `cn -> zh-CN`, `en -> en`, `tw -> zh-TW`. It must not read or write `localStorage.i18nextLng`, and must not set the header for a path without a supported locale prefix.
 - API error normalization must prefer backend localized details: `data.details ?? data.message ?? axios message`.
 - Normalized frontend errors must preserve `status`, `code`, and `details` for auth guards, forms, and toast logic.
 - Auth/session rejection must not compare localized or English error text. Use `status === 401` or `code === 'unauthorized'`.
@@ -231,7 +232,7 @@ Rust uses edition 2024 and `rustfmt.toml` with `max_width = 160`; keep crate nam
 
 ## Testing Guidelines
 
-No JavaScript test runner is configured yet; rely on linting and Next.js builds for frontend validation.
+Frontend unit tests use Vitest. Run `pnpm --filter frontend test` for frontend behavior changes, in addition to linting and static export builds where routes or rendering change.
 
 Rust tests should be colocated with the crate they validate using normal `#[cfg(test)]` modules or integration tests when a public API boundary is required.
 

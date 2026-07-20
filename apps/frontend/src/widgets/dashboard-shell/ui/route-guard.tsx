@@ -11,6 +11,7 @@ import Typography from '@mui/material/Typography';
 import { paths } from 'src/shared/routes/paths';
 import { usePathname } from 'src/shared/routes/hooks';
 import { LoadingScreen } from 'src/shared/ui/loading-screen';
+import { stripLocalePrefix } from 'src/shared/routes/locale-path';
 import { varBounce, MotionContainer } from 'src/shared/ui/animate';
 import { ForbiddenIllustration } from 'src/shared/assets/illustrations';
 
@@ -93,7 +94,7 @@ function isDashboardPath(pathname: string) {
 }
 
 function normalizePath(path: string) {
-  const [pathname] = path.split(PATH_SUFFIX_PATTERN);
+  const [pathname] = stripLocalePrefix(path).split(PATH_SUFFIX_PATTERN);
   const normalized = pathname.replace(TRAILING_SLASH_PATTERN, '');
   return normalized || '/';
 }

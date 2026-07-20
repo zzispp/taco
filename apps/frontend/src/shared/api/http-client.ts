@@ -2,8 +2,8 @@ import type { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
 import axios, { AxiosHeaders } from 'axios';
 
-import { storageConfig } from 'src/shared/i18n/locales-config';
 import { toBackendAcceptLanguage } from 'src/shared/i18n/language';
+import { localeFromPathname } from 'src/shared/routes/locale-path';
 
 import { isAuthSessionRejected, normalizeApiErrorAsync } from './http-client/error-normalization';
 import {
@@ -70,7 +70,7 @@ export const fetcher = async <T = unknown>(
 };
 
 function applyAcceptLanguageHeader(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-  const acceptLanguage = storedAcceptLanguage();
+  const acceptLanguage = currentRouteAcceptLanguage();
 
   if (!acceptLanguage) {
     return config;
@@ -83,10 +83,14 @@ function applyAcceptLanguageHeader(config: InternalAxiosRequestConfig): Internal
   return config;
 }
 
-function storedAcceptLanguage(): string | undefined {
+function currentRouteAcceptLanguage(): string | undefined {
   if (typeof window === 'undefined') {
     return undefined;
   }
 
-  return toBackendAcceptLanguage(localStorage.getItem(storageConfig.localStorage.key));
+  return acceptLanguageForPathname(window.location.pathname);
+}
+
+export function acceptLanguageForPathname(pathname: string): string | undefined {
+  return toBackendAcceptLanguage(localeFromPathname(pathname));
 }

@@ -41,12 +41,16 @@ describe('Next security headers', () => {
     ]);
   });
 
-  it('proxies browser API requests to the development backend without exposing an API origin', async () => {
+  it('proxies browser API requests and uploaded assets to the development backend', async () => {
     expect(nextConfig.skipTrailingSlashRedirect).toBe(true);
     await expect(nextConfig.rewrites?.()).resolves.toEqual([
       {
         source: '/api/:path*',
         destination: 'http://localhost:3000/api/:path*',
+      },
+      {
+        source: '/uploads/:path*',
+        destination: 'http://localhost:3000/uploads/:path*',
       },
     ]);
   });

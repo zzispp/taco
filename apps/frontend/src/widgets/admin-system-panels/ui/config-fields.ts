@@ -11,7 +11,13 @@ export function configFields(t: TranslateFn) {
       ellipsis: true,
       disabled: builtInFieldDisabled,
     },
-    { key: 'config_value' as const, label: t('fields.configValue'), width: 360, ellipsis: true },
+    {
+      key: 'config_value' as const,
+      label: t('fields.configValue'),
+      type: 'textarea' as const,
+      width: 360,
+      ellipsis: true,
+    },
     {
       key: 'config_type' as const,
       label: t('fields.configType'),

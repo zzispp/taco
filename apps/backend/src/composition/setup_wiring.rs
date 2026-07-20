@@ -52,6 +52,7 @@ pub(crate) fn build_setup_use_case(bootstrap: &BootstrapInputs, shutdown: SetupS
         installation_owner_validator: infrastructure.clone(),
         postgres_tester: infrastructure.clone(),
         redis_tester: infrastructure.clone(),
+        existing_installation_detector: infrastructure.clone(),
         data_resetter: infrastructure.clone(),
         migrator: infrastructure.clone(),
         owner_provisioner: infrastructure.clone(),
