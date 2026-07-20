@@ -1,6 +1,6 @@
 use sqlx::{AssertSqlSafe, PgPool, query, query_as, query_scalar};
 
-use super::{TestDatabase, managed_table_exists, rollback_from, up};
+use super::{TestDatabase, managed_table_exists, migrate_through, rollback_from, up};
 
 const SYSTEM_LOG_MIGRATION_VERSION: i64 = 20260716000001;
 const INDEXES: &[&str] = &[
@@ -35,7 +35,7 @@ async fn system_log_migration_creates_partitioned_searchable_schema_and_seeds() 
 #[tokio::test]
 async fn system_log_migration_down_removes_owned_schema_and_seeds() {
     let database = TestDatabase::create().await;
-    up(database.pool(), None).await.unwrap();
+    migrate_through(database.pool(), SYSTEM_LOG_MIGRATION_VERSION).await;
 
     rollback_from(database.pool(), SYSTEM_LOG_MIGRATION_VERSION).await;
 
@@ -170,14 +170,6 @@ async fn assert_menus_and_permissions(pool: &PgPool) {
             ("1141".into(), "system:systemlog:remove".into()),
             ("1142".into(), "system:systemlog:export".into()),
         ]
-    );
-    assert_eq!(
-        count(
-            pool,
-            "SELECT COUNT(*) FROM sys_role_menu WHERE role_id='2' AND menu_id IN ('114','1140','1141','1142')"
-        )
-        .await,
-        4
     );
 }
 

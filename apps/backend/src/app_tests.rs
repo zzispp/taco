@@ -78,4 +78,37 @@ mod tests {
         let text = String::from_utf8(body.to_vec()).unwrap();
         assert!(text.contains("http_requests_total"));
     }
+
+    #[tokio::test]
+    async fn normal_public_routes_report_installed_and_ready() {
+        let settings = test_settings();
+        let metrics = None;
+        let app = composition::build_public_router(&settings, metrics).unwrap();
+
+        let status = app
+            .clone()
+            .oneshot(Request::builder().uri("/api/setup/status").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let ready = app.oneshot(Request::builder().uri("/ready").body(Body::empty()).unwrap()).await.unwrap();
+
+        assert_eq!(status.status(), StatusCode::OK);
+        assert_eq!(ready.status(), StatusCode::OK);
+    }
+
+    #[cfg(feature = "embedded-frontend")]
+    #[tokio::test]
+    async fn normal_public_routes_serve_embedded_frontend_without_serving_unknown_api_paths() {
+        let app = composition::build_public_router(&test_settings(), None).unwrap();
+
+        let document = app.clone().oneshot(Request::builder().uri("/").body(Body::empty()).unwrap()).await.unwrap();
+        let api = app.oneshot(Request::builder().uri("/api/missing").body(Body::empty()).unwrap()).await.unwrap();
+
+        assert_eq!(document.status(), StatusCode::OK);
+        assert_eq!(document.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
+        assert_eq!(document.headers()[header::CACHE_CONTROL], "no-cache");
+        assert_eq!(api.status(), StatusCode::NOT_FOUND);
+        assert_eq!(api.headers()[header::CACHE_CONTROL], "no-store");
+        assert!(!api.headers().contains_key(header::CONTENT_TYPE));
+    }
 }

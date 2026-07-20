@@ -12,7 +12,7 @@ use navigation::assert_navigation_seed;
 use notice::assert_notice_seed;
 use system_logs::assert_system_log_seed;
 
-const EXPECTED_ROLE_COUNT: i64 = 2;
+const EXPECTED_ROLE_COUNT: i64 = 0;
 const EXPECTED_MENU_COUNT: i64 = 80;
 const EXPECTED_DEPT_COUNT: i64 = 10;
 const EXPECTED_POST_COUNT: i64 = 4;
@@ -35,6 +35,7 @@ pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_eq!(table_count(pool, "sys_user").await, 0);
     assert_eq!(table_count(pool, "sys_user_role").await, 0);
     assert_eq!(table_count(pool, "sys_user_post").await, 0);
+    assert_legacy_rbac_seed_removed(pool).await;
     assert_eq!(public_config_count(pool).await, EXPECTED_PUBLIC_CONFIG_COUNT);
     assert_seed_config_values(pool).await;
     assert_seed_config_remarks(pool).await;
@@ -45,12 +46,30 @@ pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_system_log_seed(pool).await;
 }
 
+async fn assert_legacy_rbac_seed_removed(pool: &PgPool) {
+    let legacy_role_count: i64 = query_scalar("SELECT COUNT(*) FROM sys_role WHERE role_key = ANY($1)")
+        .bind(["admin", "common"])
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(legacy_role_count, 0);
+
+    for (name, sql) in [
+        ("sys_user_role", "SELECT COUNT(*) FROM sys_user_role"),
+        ("sys_role_menu", "SELECT COUNT(*) FROM sys_role_menu"),
+        ("sys_role_dept", "SELECT COUNT(*) FROM sys_role_dept"),
+        ("sys_log_menu_hierarchy_role_grant", "SELECT COUNT(*) FROM sys_log_menu_hierarchy_role_grant"),
+    ] {
+        let count: i64 = query_scalar(sql).fetch_one(pool).await.unwrap();
+        assert_eq!(count, 0, "legacy role association remains in {name}");
+    }
+}
+
 async fn assert_seed_config_values(pool: &PgPool) {
     let captcha = captcha_config(pool).await;
     assert_eq!(captcha["provider"], "cap");
     assert_eq!(captcha["providers"]["cap"]["challenge_difficulty"], EXPECTED_CAPTCHA_DIFFICULTY);
-    assert_eq!(captcha["providers"]["cloudflare_turnstile"]["site_key"], "");
-    assert_eq!(captcha["providers"]["cloudflare_turnstile"].get("secret_key"), None);
+    assert!(captcha["providers"].get("cloudflare_turnstile").is_none());
     assert_eq!(token_config(pool).await["refresh_token_ttl_seconds"], EXPECTED_REFRESH_TTL_SECONDS);
     assert_eq!(ip_location_config(pool).await["enabled"], true);
     assert_eq!(login_lock_config(pool).await["max_retry_count"], 5);
@@ -81,13 +100,11 @@ async fn assert_seed_config_remarks(pool: &PgPool) {
     )
     .await;
     assert_config_value_and_remark_exclude(pool, "sys.account.captchaConfig", "secret_key").await;
-    assert_config_remark_contains(
-        pool,
-        "sys.account.captchaConfig",
-        &["enabled", "provider", "providers.cap", "providers.cloudflare_turnstile"],
-    )
-    .await;
+    assert_config_value_and_remark_exclude(pool, "sys.account.captchaConfig", "cloudflare_turnstile").await;
+    assert_config_value_and_remark_exclude(pool, "sys.account.captchaConfig", "Turnstile").await;
+    assert_config_remark_contains(pool, "sys.account.captchaConfig", &["enabled", "provider", "providers.cap"]).await;
     assert_config_remark_contains(pool, "sys.auth.tokenConfig", &["access_token_ttl_seconds", "refresh_token_ttl_seconds"]).await;
+    assert_config_value_and_remark_exclude(pool, "sys.auth.tokenConfig", "config.yaml").await;
     assert_config_remark_contains(
         pool,
         "sys.client.ipLocationConfig",
@@ -96,6 +113,7 @@ async fn assert_seed_config_remarks(pool: &PgPool) {
     .await;
     assert_config_remark_contains(pool, "sys.auth.loginLockConfig", &["max_retry_count", "lock_minutes"]).await;
     assert_config_remark_contains(pool, "sys.upload.avatarConfig", &["max_bytes"]).await;
+    assert_config_value_and_remark_exclude(pool, "sys.upload.avatarConfig", "config.yaml").await;
     assert_config_remark_contains(pool, "sys.export.batchConfig", &["page_size"]).await;
     assert_config_remark_contains(pool, "sys.site.displayConfig", &["site_name", "logo_url", "footer_text"]).await;
 }

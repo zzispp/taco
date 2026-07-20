@@ -14,7 +14,7 @@ use rbac::domain::DataScopeFilter;
 use types::rbac::NavResponse;
 
 use crate::{
-    api::{ApiState, ApiStateParts, AuthHttpConfig, RefreshCookieConfig},
+    api::{ApiState, ApiStateParts},
     application::{AccountVerifier, AppError, AppResult, SystemConfigProvider, UserService},
     test_support::{MemoryLoginFailureStore, MemoryOnlineSessionStore, MemoryUserRepository, TestLoginLockConfigProvider, TestPasswordHasher, stored_user},
 };
@@ -159,7 +159,6 @@ fn test_app_from_input(input: TestAppInput) -> TestApp {
         ip_location_resolver: Arc::new(TestIpLocationResolver),
         operation_audit: operation_events.clone(),
         security_audit: events.clone(),
-        auth_http: test_auth_http_config(),
     });
     let router = Router::new()
         .nest("/api", create_router(state))
@@ -174,16 +173,6 @@ fn test_app_from_input(input: TestAppInput) -> TestApp {
         repository,
         events,
         operation_events,
-    }
-}
-
-fn test_auth_http_config() -> AuthHttpConfig {
-    AuthHttpConfig {
-        refresh_cookie: RefreshCookieConfig {
-            secure: true,
-            path: "/api/auth".into(),
-        },
-        trusted_origins: vec!["http://localhost:8082".into()],
     }
 }
 

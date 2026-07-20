@@ -22,11 +22,6 @@ node_modules
 # process environment files (unsupported; ignored to prevent secret commits)
 .env
 .env.*
-/config/*.yaml
-!/config/config.example.yaml
-!/config/config.local.yaml
-!/config/config.dev.yaml
-!/config/config.prod.yaml
 
 # frontend build output
 .next
@@ -47,3 +42,5 @@ target
 # local task record
 .codex-tasks
 storage/
+docs/
+.local/

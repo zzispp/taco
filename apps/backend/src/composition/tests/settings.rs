@@ -1,8 +1,7 @@
 use configuration::{
-    AuditOutboxSettings, AuditSettings, AuthSettings, CaptchaSettings, ClientInfoSettings, ClientIpLocationSettings, CloudflareTurnstileSettings, CorsSettings,
-    DatabaseScheme, DatabaseSettings, DatabaseSslMode, HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisProtocol, RedisScheme,
-    RedisSettings, RefreshCookieSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, UploadSettings,
-    UserSettings,
+    AuditOutboxSettings, AuditSettings, ClientInfoSettings, ClientIpLocationSettings, DatabaseScheme, DatabaseSettings, DatabaseSslMode, HttpSettings,
+    JwtSettings, MetricsSettings, OnlineSessionSettings, RedisProtocol, RedisScheme, RedisSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings,
+    SchedulerSettings, ServerSettings, Settings, UploadSettings, UserSettings,
 };
 
 const TEST_SERVER_PORT: u16 = 3_000;
@@ -30,25 +29,12 @@ pub(crate) fn test_settings() -> Settings {
         jwt: JwtSettings {
             secret: TEST_JWT_SECRET.into(),
         },
-        captcha: CaptchaSettings {
-            cloudflare_turnstile: CloudflareTurnstileSettings {
-                secret_key: "test-turnstile-secret".into(),
-            },
-        },
-        auth: AuthSettings {
-            whitelist: vec![],
-            refresh_cookie: RefreshCookieSettings {
-                secure: true,
-                path: "/api/auth".into(),
-            },
-        },
         user: UserSettings {
             online_sessions: OnlineSessionSettings {
                 cleanup_interval_ms: 60_000,
                 cleanup_batch_size: 1_000,
             },
         },
-        cors: cors_settings(),
         http: HttpSettings {
             request_timeout_ms: TEST_HTTP_TIMEOUT_MS,
             compression_enabled: true,
@@ -58,7 +44,9 @@ pub(crate) fn test_settings() -> Settings {
         client_info: client_info_settings(),
         redis: redis_settings(),
         scheduler: scheduler_settings(),
-        uploads: UploadSettings::default(),
+        uploads: UploadSettings {
+            avatar_directory: "test-storage/uploads/avatars".into(),
+        },
     }
 }
 
@@ -92,7 +80,6 @@ fn scheduler_settings() -> SchedulerSettings {
 
 fn database_settings() -> DatabaseSettings {
     DatabaseSettings {
-        auto_migrate: false,
         scheme: DatabaseScheme::Postgres,
         ssl_mode: DatabaseSslMode::Disable,
         host: "localhost".into(),
@@ -100,17 +87,6 @@ fn database_settings() -> DatabaseSettings {
         username: "postgres".into(),
         password: "postgres".into(),
         name: "postgres".into(),
-    }
-}
-
-fn cors_settings() -> CorsSettings {
-    CorsSettings {
-        allowed_origins: vec!["https://admin.example.test".into()],
-        allowed_methods: vec!["*".into()],
-        allowed_headers: vec!["*".into()],
-        exposed_headers: vec!["*".into()],
-        allow_credentials: false,
-        max_age_seconds: None,
     }
 }
 

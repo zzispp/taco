@@ -1,0 +1,15 @@
+.git
+.codex-tasks
+
+node_modules
+**/node_modules
+target
+
+apps/frontend/.next
+apps/frontend/out
+
+storage
+logs
+
+.env
+.env.*

@@ -1,5 +1,5 @@
 use crate::{
-    application::{AdminBootstrapUseCase, AppError, AppResult, UserService, UserUseCase},
+    application::{AppError, AppResult, UserService, UserUseCase},
     domain::Credentials,
     test_support::{
         MemoryLoginFailureStore, MemoryUserRepository, TestLoginLockConfigProvider, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user,
@@ -12,7 +12,8 @@ use rbac::domain::{DataScope, DataScopeFilter};
 mod admin;
 mod audited;
 mod auth;
-mod bootstrap;
+mod installation_owner;
+mod owner_protection;
 mod profile;
 mod support;
 

@@ -33,6 +33,7 @@ import {
   createEmailSchema,
   createUsernameSchema,
   createPasswordSchema,
+  passwordContainsUsername,
 } from 'src/entities/session';
 
 import { signUp } from 'src/features/auth';
@@ -281,14 +282,4 @@ function PasswordField({
       }}
     />
   );
-}
-
-function passwordContainsUsername(
-  password: string,
-  username: string,
-  policy: ReturnType<typeof passwordPolicyFromPublicConfigs>
-) {
-  if (!policy?.forbid_username_contains) return false;
-  const normalizedUsername = username.trim().toLowerCase();
-  return !!normalizedUsername && password.toLowerCase().includes(normalizedUsername);
 }

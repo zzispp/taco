@@ -9,7 +9,7 @@ use crate::{
 use super::localization::{localized, localized_param};
 
 pub(super) fn data_scope_filter(user: &CurrentUser, snapshot: &PermissionSnapshot) -> RbacResult<DataScopeFilter> {
-    if user.admin {
+    if user.is_installation_owner {
         return Ok(scope_filter(user, DataScope::All, HashSet::new()));
     }
     let mut selected = DataScope::SelfOnly;

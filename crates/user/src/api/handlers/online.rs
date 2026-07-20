@@ -31,7 +31,7 @@ struct OnlineScopeGuard<'a> {
 #[require_perms("system:online:list")]
 pub async fn list_online_sessions(request: ListOnlineSessionsRequest) -> ApiResult<ApiJson<OnlineSessionsResponse>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
-    let scope = (!current_user.admin).then_some(data_scope);
+    let scope = (!current_user.is_installation_owner).then_some(data_scope);
     let sessions = state.tokens.online_sessions(online_session_page_request(query, scope)?).await?;
     Ok(ok(crate::api::dto::online_sessions_response(sessions)?))
 }
@@ -64,7 +64,7 @@ impl<'a> OnlineScopeGuard<'a> {
     }
 
     async fn filter(&self, sessions: Vec<OnlineSession>) -> ApiResult<Vec<OnlineSession>> {
-        if self.current_user.admin {
+        if self.current_user.is_installation_owner {
             return Ok(sessions);
         }
         self.state

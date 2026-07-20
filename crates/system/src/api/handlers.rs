@@ -99,7 +99,7 @@ pub async fn public_configs(
 pub async fn list_depts(request: ListDeptsRequest) -> ApiResult<ApiJson<CursorPage<Dept>>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = dept_list_filter(query)?;
-    let page = if current_user.admin {
+    let page = if current_user.is_installation_owner {
         state.system.page_depts(filter).await?
     } else {
         state.system.page_depts_scoped(filter, data_scope).await?
@@ -128,7 +128,7 @@ pub async fn get_dept(request: DeptPathRequest) -> ApiResult<ApiJson<Dept>> {
 #[require_perms("system:dept:list")]
 pub async fn dept_tree_select(request: DeptTreeRequest) -> ApiResult<ApiJson<Vec<TreeSelectNode>>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
-    let scope = (!current_user.admin).then_some(data_scope);
+    let scope = (!current_user.is_installation_owner).then_some(data_scope);
     Ok(ok(state.system.dept_tree(dept_tree_filter(query)?, scope).await?))
 }
 
@@ -208,7 +208,7 @@ impl<'a> DeptScopeGuard<'a> {
     }
 
     async fn ensure_many(&self, ids: Vec<String>) -> ApiResult<()> {
-        if self.current_user.admin {
+        if self.current_user.is_installation_owner {
             return Ok(());
         }
         self.state.system.ensure_dept_ids_scoped(ids, self.data_scope.clone()).await?;

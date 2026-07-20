@@ -1,6 +1,6 @@
 use crate::domain::{NewUser, ReplaceUser, User, UserId};
 
-use super::{StoredUser, VALID_PASSWORD, admin_role, role_summary, user_id};
+use super::{StoredUser, VALID_PASSWORD, business_role, role_summary, user_id};
 
 impl StoredUser {
     pub(crate) fn with_id(mut self, id: UserId) -> Self {
@@ -89,10 +89,11 @@ pub(crate) fn stored_user(id: u64, username: &str, password_hash: &str) -> Store
             sex: "2".into(),
             avatar: None,
             status: "0".into(),
+            is_installation_owner: false,
             auth_source: "local".into(),
             email_verified: false,
             remark: None,
-            roles: vec![admin_role()],
+            roles: vec![business_role()],
             role_ids: vec!["1".into()],
             post_ids: vec!["1".into()],
             permissions: vec!["system:user:list".into()],

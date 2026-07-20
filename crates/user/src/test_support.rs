@@ -35,6 +35,7 @@ struct RepositoryState {
     audits: Vec<audit_contract::AuditOutboxRecord>,
     audit_failure: Option<String>,
     auth_lookup_failure: Option<String>,
+    installation_owner: Option<UserId>,
 }
 
 #[derive(Clone)]
@@ -57,6 +58,14 @@ impl MemoryUserRepository {
         let repository = Self::default();
         repository.state.lock().unwrap().users = users;
         repository
+    }
+
+    pub(crate) fn mark_installation_owner(&self, id: UserId) {
+        set_installation_owner(&mut self.state.lock().unwrap(), id);
+    }
+
+    pub(crate) fn installation_owner_id(&self) -> Option<UserId> {
+        self.state.lock().unwrap().installation_owner.clone()
     }
 
     pub(crate) fn created_records(&self) -> Vec<ReplaceUserRecord> {
@@ -102,9 +111,9 @@ impl MemoryUserRepository {
 }
 
 mod audited_repository;
-mod bootstrap_repository;
 mod filters;
 mod fixtures;
+mod installation_owner_repository;
 mod login_security;
 mod online_session_store;
 mod repository;
@@ -152,6 +161,13 @@ fn find_stored_user_mut<'a>(state: &'a mut RepositoryState, id: &UserId) -> AppR
     state.users.iter_mut().find(|stored| stored.user.id == *id).ok_or(AppError::NotFound)
 }
 
+fn set_installation_owner(state: &mut RepositoryState, id: UserId) {
+    for stored in &mut state.users {
+        stored.user.is_installation_owner = stored.user.id == id;
+    }
+    state.installation_owner = Some(id);
+}
+
 fn replace_stored_user(state: &mut RepositoryState, id: &UserId, record: &ReplaceUserRecord) -> AppResult<User> {
     let stored = find_stored_user_mut(state, id)?;
     stored.user = user_from_record(id.clone(), record);
@@ -172,6 +188,7 @@ fn user_from_record(id: UserId, record: &ReplaceUserRecord) -> User {
         sex: record.sex.clone(),
         avatar: None,
         status: record.status.clone(),
+        is_installation_owner: false,
         auth_source: "local".into(),
         email_verified: false,
         remark: record.remark.clone(),
@@ -187,15 +204,15 @@ pub(crate) fn user_id(id: u64) -> UserId {
     UserId(format!("018f0000-0000-7000-8000-{id:012}"))
 }
 
-fn admin_role() -> RoleSummary {
+fn business_role() -> RoleSummary {
     role_summary("1")
 }
 
 fn role_summary(id: &str) -> RoleSummary {
     let (role_name, role_key) = if id == "1" {
-        ("超级管理员", "admin")
+        ("业务管理员", "business-admin")
     } else {
-        ("普通角色", "common")
+        ("业务角色", "business-role")
     };
     RoleSummary {
         role_id: id.into(),

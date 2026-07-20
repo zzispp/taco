@@ -44,7 +44,6 @@ const SCHEDULER_INDEXES: &[&str] = &[
 pub(super) async fn assert_scheduler_seed(pool: &PgPool) {
     assert_eq!(scheduler_menus(pool).await, owned_pairs(SCHEDULER_MENUS));
     assert_eq!(scheduler_page_relations(pool).await, owned_triples_with_order(SCHEDULER_PAGE_RELATIONS));
-    assert_eq!(scheduler_role_bindings(pool).await, 0);
     assert_eq!(scheduler_dict_types(pool).await, owned_pairs(SCHEDULER_DICT_TYPES));
     assert_eq!(scheduler_dict_data(pool).await, owned_triples(SCHEDULER_DICT_DATA));
     assert_eq!(scheduler_indexes(pool).await, owned_strings(SCHEDULER_INDEXES));
@@ -60,13 +59,6 @@ async fn scheduler_page_relations(pool: &PgPool) -> Vec<(String, String, i64)> {
 async fn scheduler_menus(pool: &PgPool) -> Vec<(String, String)> {
     query_as("SELECT menu_id, perms FROM sys_menu WHERE menu_id IN ('108','109','1080','1081','1082','1083','1084','1085','1086','1090','1091','1092','1093') ORDER BY menu_id")
         .fetch_all(pool)
-        .await
-        .unwrap()
-}
-
-async fn scheduler_role_bindings(pool: &PgPool) -> i64 {
-    query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE role_id = '2' AND menu_id IN ('108','109','1080','1081','1082','1083','1084','1085','1086','1090','1091','1092','1093')")
-        .fetch_one(pool)
         .await
         .unwrap()
 }

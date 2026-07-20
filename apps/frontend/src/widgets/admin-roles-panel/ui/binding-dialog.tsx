@@ -62,7 +62,7 @@ export function RoleBindingDialog({
     <Dialog fullWidth maxWidth="md" open={!!role} onClose={onClose}>
       <DialogTitle>
         {t(type === 'menus' ? 'dialogs.roleMenuPermissions' : 'dialogs.roleDataScope', {
-          name: role ? translatedRoleName(role, t) : '',
+          name: role ? translatedRoleName(role) : '',
         })}
       </DialogTitle>
       <DialogContent>

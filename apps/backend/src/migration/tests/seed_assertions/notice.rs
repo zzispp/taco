@@ -25,7 +25,6 @@ const NOTICE_INDEXES: &[(&str, &str)] = &[
 
 pub(super) async fn assert_notice_seed(pool: &PgPool) {
     assert_notice_permissions(pool).await;
-    assert_notice_role_bindings(pool).await;
     assert_notice_dict_types(pool).await;
     assert_notice_dict_data(pool).await;
     assert_notice_schema(pool).await;
@@ -49,17 +48,6 @@ async fn assert_notice_permissions(pool: &PgPool) {
         .await
         .unwrap();
     assert_eq!(menu_count, 1);
-}
-
-async fn assert_notice_role_bindings(pool: &PgPool) {
-    for (menu_id, _, _, _) in NOTICE_PERMISSIONS {
-        let count: i64 = query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE role_id='2' AND menu_id=$1")
-            .bind(menu_id)
-            .fetch_one(pool)
-            .await
-            .unwrap();
-        assert_eq!(count, 1, "role 2 missing notice menu {menu_id}");
-    }
 }
 
 async fn assert_notice_dict_types(pool: &PgPool) {

@@ -164,7 +164,7 @@ impl<'a> UserScopeGuard<'a> {
     }
 
     async fn ensure_many(&self, ids: Vec<UserId>) -> ApiResult<()> {
-        if self.current_user.admin {
+        if self.current_user.is_installation_owner {
             return Ok(());
         }
         self.state

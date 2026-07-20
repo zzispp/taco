@@ -11,8 +11,6 @@ import { useRef, useMemo, useEffect, createElement } from 'react';
 import Box from '@mui/material/Box';
 import { useTheme } from '@mui/material/styles';
 
-import { CONFIG } from 'src/shared/config';
-
 import { captchaEndpoints } from '../api/endpoints';
 import { CAP_RUNTIME_ASSETS } from '../lib/runtime-assets';
 
@@ -84,8 +82,7 @@ export function CapCaptcha({ resetKey, onTokenChange, labels }: CapCaptchaProps)
 }
 
 function captchaApiEndpoint() {
-  const baseUrl = CONFIG.serverUrl.replace(/\/$/, '');
-  return `${baseUrl}${captchaEndpoints.apiEndpoint}`;
+  return captchaEndpoints.apiEndpoint;
 }
 
 function capWidgetStyle(theme: Theme) {

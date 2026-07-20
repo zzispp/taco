@@ -12,9 +12,17 @@ describe('session permission checking', () => {
     expect(hasSessionPermission(sessionUser(), REQUESTED_PERMISSION)).toBe(false);
   });
 
+  it('rejects the legacy wildcard permission for business users', () => {
+    const wildcardOnly = sessionUser({ permissions: ['*:*:*'] });
+    const explicitPermission = sessionUser({ permissions: ['*:*:*', REQUESTED_PERMISSION] });
+
+    expect(hasSessionPermission(wildcardOnly, REQUESTED_PERMISSION)).toBe(false);
+    expect(hasSessionPermission(explicitPermission, REQUESTED_PERMISSION)).toBe(true);
+    expect(hasSessionPermission(explicitPermission, '*:*:*')).toBe(false);
+  });
+
   it.each([
-    ['wildcard permission', sessionUser({ permissions: ['*:*:*'] })],
-    ['super admin role', sessionUser({ roles: [{ role_key: 'admin' }] as SessionUser['roles'] })],
+    ['installation owner marker', sessionUser({ is_installation_owner: true })],
     ['explicit permission', sessionUser({ permissions: [REQUESTED_PERMISSION] })],
   ])('allows a %s', (_, user) => {
     expect(hasSessionPermission(user, REQUESTED_PERMISSION)).toBe(true);
@@ -33,6 +41,7 @@ function sessionUser(overrides: Partial<SessionUser> = {}): SessionUser {
     avatar: null,
     status: '0',
     is_active: true,
+    is_installation_owner: false,
     auth_source: 'local',
     email_verified: true,
     remark: null,

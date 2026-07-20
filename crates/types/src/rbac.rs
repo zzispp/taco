@@ -155,6 +155,7 @@ pub struct NavItemResponse {
 pub struct PermissionSnapshot {
     pub roles: Vec<RolePermissionSnapshot>,
     pub menus: Vec<RoleMenuSnapshot>,
+    pub installation_owner_menus: Vec<NavSectionResponse>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]

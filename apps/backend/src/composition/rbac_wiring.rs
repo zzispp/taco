@@ -33,14 +33,6 @@ pub(super) async fn build_rbac_services(
     })
 }
 
-pub async fn rebuild_rbac_cache(settings: &Settings, database: Database, observer: taco_tracing::InfrastructureObserver) -> BackendResult<()> {
-    let repository = StorageRbacRepository::new(database);
-    let cache = RedisRbacCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
-    let service = build_rbac_service(repository, cache).await?;
-    service.rebuild_cache().await?;
-    Ok(())
-}
-
 async fn build_rbac_service(
     repository: StorageRbacRepository,
     cache: RedisRbacCache,

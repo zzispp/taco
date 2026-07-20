@@ -10,6 +10,7 @@ use super::{SessionTokens, TEST_PUBLIC_IP, VALID_PASSWORD};
 
 const TEST_REQUEST_ID: &str = "019f5a5c-0823-7c22-acf1-add778ee83bf";
 const TEST_ORIGIN: &str = "http://localhost:8082";
+const TEST_HOST: &str = "localhost:8082";
 
 pub(crate) struct LocalizedJsonRequest<'a> {
     pub(crate) method: Method,
@@ -51,6 +52,7 @@ pub(crate) fn refresh_cookie_request(method: Method, uri: &str, refresh_token: &
         .uri(uri)
         .header(header::COOKIE, format!("refresh_token={refresh_token}"))
         .header(header::ORIGIN, TEST_ORIGIN)
+        .header(header::HOST, TEST_HOST)
         .header("x-forwarded-for", TEST_PUBLIC_IP)
         .header("x-request-id", TEST_REQUEST_ID)
         .body(Body::empty())

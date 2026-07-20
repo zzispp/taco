@@ -25,4 +25,12 @@ describe('default password policy', () => {
     );
     expect(schema.safeParse('87654321').success).toBe(true);
   });
+
+  it('trims passwords and counts Unicode characters instead of UTF-16 code units', () => {
+    const schema = createPasswordSchema(messages);
+
+    expect(schema.parse('  87654321  ')).toBe('87654321');
+    expect(schema.safeParse('😀'.repeat(4)).success).toBe(false);
+    expect(schema.safeParse('😀'.repeat(8)).success).toBe(true);
+  });
 });

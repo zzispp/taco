@@ -29,6 +29,8 @@ pub trait RbacRepository: Send + Sync + 'static {
     async fn role_options(&self) -> RbacResult<Vec<RoleOption>>;
     async fn page_role_users(&self, filter: RoleUserListFilter, scope: Option<DataScopeFilter>) -> RbacResult<CursorPage<RoleUser>>;
     async fn scoped_user_ids(&self, user_ids: &[String], scope: DataScopeFilter) -> RbacResult<Vec<String>>;
+    async fn has_installation_owner(&self, user_ids: &[String]) -> RbacResult<bool>;
+    async fn role_has_installation_owner(&self, role_id: &str) -> RbacResult<bool>;
     async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()>;
     async fn delete_role_user(&self, role_id: &str, user_id: &str) -> RbacResult<()>;
     async fn delete_role_users(&self, role_id: &str, user_ids: &[String]) -> RbacResult<()>;
@@ -53,7 +55,7 @@ pub trait RbacRepository: Send + Sync + 'static {
 pub trait RbacCache: Send + Sync + 'static {
     async fn write_snapshot(&self, snapshot: &PermissionSnapshot) -> RbacResult<()>;
     async fn read_snapshot(&self) -> RbacResult<PermissionSnapshot>;
-    async fn read_nav(&self, role_keys: &[String], admin: bool) -> RbacResult<NavResponse>;
+    async fn read_nav(&self, role_keys: &[String], is_installation_owner: bool) -> RbacResult<NavResponse>;
 }
 
 #[async_trait]
@@ -143,7 +145,7 @@ pub struct ApiCheckRequest {
     pub path: String,
     pub role_keys: Vec<String>,
     pub permissions: Vec<String>,
-    pub admin: bool,
+    pub is_installation_owner: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

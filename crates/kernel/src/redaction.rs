@@ -23,7 +23,8 @@ const SENSITIVE_KEYWORDS: [&str; 10] = [
 ];
 const SENSITIVE_SUFFIXES: [&str; 3] = ["cookie", "apikey", "credential"];
 
-static URL_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"https?://[^\s\"'<>]+"#).expect("URL redaction pattern must compile"));
+static URL_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?:https?|postgres(?:ql)?|redis|rediss)://[^\s\"'<>]+"#).expect("URL redaction pattern must compile"));
 static SENSITIVE_VALUE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?ix)
@@ -137,5 +138,18 @@ mod tests {
             redact_sensitive_text("failed https://login-user:credential-pass@example.com/run?token=query-token-value#url-fragment password=top-secret-value");
 
         assert_eq!(redacted, "failed https://example.com/run?token=*** password=***");
+    }
+
+    #[test]
+    fn redacts_database_and_redis_connection_urls() {
+        let redacted = redact_sensitive_text(
+            "postgres://db-user:db-password@postgres.internal/taco?token=db-token redis://cache-user:cache-password@redis.internal/0?password=query-password",
+        );
+
+        for secret in ["db-user", "db-password", "db-token", "cache-user", "cache-password", "query-password"] {
+            assert!(!redacted.contains(secret), "redaction leaked {secret}");
+        }
+        assert!(redacted.contains("postgres://postgres.internal/taco?token=***"));
+        assert!(redacted.contains("redis://redis.internal/0?password=***"));
     }
 }

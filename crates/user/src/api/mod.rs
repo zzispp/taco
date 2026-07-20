@@ -10,7 +10,6 @@ mod state;
 mod tokens;
 mod user_list_filter;
 
-pub use auth_cookie::{AuthHttpConfig, RefreshCookieConfig};
 pub use dto::{
     AuthSessionResponse, AvatarResponse, ChangePasswordPayload, CreateUserPayload, ListUsersQuery, MeResponse, OnlineSessionResponse, OnlineSessionsQuery,
     OnlineSessionsResponse, ProfilePayload, ProfileResponse, ReplaceUserPayload, SignInPayload, SignUpPayload, TokenPairResponse, UserResponse,

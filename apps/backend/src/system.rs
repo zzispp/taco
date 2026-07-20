@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{Json, Router, extract::State, routing::get};
+use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -39,6 +39,11 @@ pub struct HealthResponse {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct ReadyResponse {
+    status: &'static str,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 struct SystemLogWriterHealthResponse {
     healthy: bool,
     dropped_events: u64,
@@ -53,7 +58,7 @@ struct SystemLogWriteFailureResponse {
 }
 
 pub fn create_router(health_state: HealthState) -> Router {
-    Router::new().route("/health", get(health)).with_state(health_state)
+    Router::new().route("/health", get(health)).route("/ready", get(ready)).with_state(health_state)
 }
 
 #[utoipa::path(
@@ -73,6 +78,16 @@ pub async fn health(State(health_state): State<HealthState>) -> Json<HealthRespo
         tracing_config_listener_last_failure: listener.last_failure,
         system_log_writer,
     })
+}
+
+#[utoipa::path(
+    get,
+    path = "/ready",
+    tag = "system",
+    responses((status = OK, description = "Runtime dependencies are ready", body = ReadyResponse))
+)]
+pub async fn ready() -> (StatusCode, Json<ReadyResponse>) {
+    (StatusCode::OK, Json(ReadyResponse { status: "ready" }))
 }
 
 fn system_log_writer_health(runtime: &Arc<taco_tracing::SystemLogRuntime>) -> SystemLogWriterHealthResponse {
@@ -99,7 +114,7 @@ mod tests {
     use async_trait::async_trait;
     use serde_json::Map;
 
-    use super::{HealthState, health};
+    use super::{HealthState, health, ready};
 
     #[tokio::test]
     async fn health_exposes_safe_writer_failure_state() {
@@ -127,6 +142,14 @@ mod tests {
         assert_eq!(response.status, "degraded");
         assert!(!writer.healthy);
         assert_eq!(writer.latest_write_failure.as_ref().map(|failure| failure.reason), Some("connection"));
+    }
+
+    #[tokio::test]
+    async fn normal_runtime_reports_ready() {
+        let (status, response) = ready().await;
+
+        assert_eq!(status, axum::http::StatusCode::OK);
+        assert_eq!(response.0.status, "ready");
     }
 
     struct FailingSink;

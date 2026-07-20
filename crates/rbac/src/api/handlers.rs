@@ -84,7 +84,7 @@ pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = role_export_filter(query)?;
     let batch_size = state.export_config.export_batch_config().await?.page_size;
-    let scope = (!current_user.admin).then_some(data_scope);
+    let scope = (!current_user.is_installation_owner).then_some(data_scope);
     let mut export = RoleXlsxExport::new(current_locale())?;
     state
         .rbac_admin
@@ -104,7 +104,7 @@ pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
 pub async fn list_roles(request: ListRolesRequest) -> ApiResult<ApiJson<CursorPage<Role>>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = role_list_filter(query)?;
-    let page = if current_user.admin {
+    let page = if current_user.is_installation_owner {
         state.rbac_admin.page_roles(filter).await?
     } else {
         state.rbac_admin.page_roles_scoped(filter, data_scope).await?

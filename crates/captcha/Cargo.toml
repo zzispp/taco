@@ -14,7 +14,6 @@ taco_tracing.workspace = true
 kernel.workspace = true
 rand_core.workspace = true
 redis.workspace = true
-reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

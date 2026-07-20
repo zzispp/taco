@@ -24,7 +24,7 @@
 - Backend code must use the internal `taco_tracing` crate for logging. Do not call `println!`, `eprintln!`, `dbg!`, `log::*`, `tracing::*`, or `tracing_subscriber::*` directly from backend modules.
 - Initialize tracing exactly once in the backend composition root after schema readiness and loading `sys.observability.tracingConfig` from PostgreSQL.
 - Tracing runtime behavior must be driven solely by the persisted observability parameter. Invalid logging configuration must fail startup or parameter updates explicitly; do not fall back to environment variables or a hardcoded default.
-- Add operationally mutable logging controls to the observability runtime parameter schema and seed migration, not the typed YAML configuration model.
+- Add operationally mutable logging controls to the observability runtime parameter schema and seed migration, not the immutable encrypted installation profile.
 
 ## Rust Style Rules
 

@@ -15,14 +15,9 @@ pub(super) fn permission_query() -> &'static str {
     r#"
     SELECT r.role_key, r.status, r.data_scope, m.perms
     FROM sys_role r
-    CROSS JOIN sys_menu m
-    WHERE r.role_key = 'admin' AND r.del_flag = '0'
-    UNION
-    SELECT r.role_key, r.status, r.data_scope, m.perms
-    FROM sys_role r
     LEFT JOIN sys_role_menu rm ON rm.role_id = r.role_id
     LEFT JOIN sys_menu m ON m.menu_id = rm.menu_id
-    WHERE r.role_key <> 'admin' AND r.del_flag = '0'
+    WHERE r.del_flag = '0'
     "#
 }
 

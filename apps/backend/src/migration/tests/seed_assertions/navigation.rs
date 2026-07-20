@@ -5,9 +5,7 @@ const EXPECTED_ONLINE_MENU_COUNT: i64 = 1;
 const EXPECTED_ONLINE_QUERY_PERMISSION_COUNT: i64 = 1;
 const EXPECTED_ONLINE_FORCE_LOGOUT_PERMISSION_COUNT: i64 = 1;
 const EXPECTED_OVERVIEW_MENU_COUNT: i64 = 1;
-const EXPECTED_OVERVIEW_ROLE_BINDING_COUNT: i64 = 1;
 const EXPECTED_SYSTEM_MONITOR_MENU_COUNT: i64 = 1;
-const EXPECTED_SYSTEM_MONITOR_ROLE_BINDING_COUNT: i64 = 1;
 const EXPECTED_MENU_ICONS: &[(&str, &str)] = &[
     ("3", "icon.monitor"),
     ("4", "icon.dashboard"),
@@ -41,12 +39,6 @@ async fn assert_overview_menu_exists(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(count, EXPECTED_OVERVIEW_MENU_COUNT);
-
-    let binding_count: i64 = query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE role_id='2' AND menu_id='4'")
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert_eq!(binding_count, EXPECTED_OVERVIEW_ROLE_BINDING_COUNT);
 }
 
 async fn assert_dashboard_menu_exists(pool: &PgPool) {
@@ -67,12 +59,6 @@ async fn assert_system_monitor_menu_exists(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(menu_count, EXPECTED_SYSTEM_MONITOR_MENU_COUNT);
-
-    let binding_count: i64 = query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE role_id='2' AND menu_id='3'")
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert_eq!(binding_count, EXPECTED_SYSTEM_MONITOR_ROLE_BINDING_COUNT);
 }
 
 async fn assert_online_menu_exists(pool: &PgPool) {

@@ -5,7 +5,7 @@ use super::*;
 use crate::{
     application::{AuditedPasswordChange, UserImportInput, UserImportRow, UserService, UserUseCase},
     domain::UserId,
-    test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user},
+    test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user, user_id},
 };
 
 #[tokio::test]
@@ -90,6 +90,7 @@ async fn audited_user_import_commits_the_batch_and_one_record_together() {
 
     assert_eq!(report.success_count, 2);
     assert_eq!(repository.created_records().len(), 2);
+    assert!(repository.created_records().iter().all(|record| record.role_ids.is_empty()));
     assert_eq!(repository.created_records()[0].password_hash.as_deref(), Some("hashed:secret123"));
     assert_eq!(
         repository.audit_records().into_iter().map(|record| record.id).collect::<Vec<_>>(),
@@ -164,6 +165,25 @@ async fn audited_user_import_propagates_repository_lookup_failures() {
         .await;
 
     assert!(matches!(result, Err(AppError::Infrastructure(message)) if message == "user lookup unavailable"));
+}
+
+#[tokio::test]
+async fn audited_user_import_cannot_replace_the_installation_owner() {
+    let repository = MemoryUserRepository::with_user(stored_user(1, "owner", "hashed:secret123"));
+    repository.mark_installation_owner(user_id(1));
+    let service = UserService::new(repository, TestPasswordHasher);
+
+    let result = service
+        .import_users_with_audit(
+            UserImportInput {
+                rows: vec![import_row("owner")],
+                update_support: true,
+            },
+            audit("import-owner"),
+        )
+        .await;
+
+    assert!(matches!(result, Err(AppError::Forbidden(error)) if error.key() == "errors.user.installation_owner_protected"));
 }
 
 fn import_row(username: &str) -> UserImportRow {

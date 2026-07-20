@@ -1,7 +1,7 @@
 use audit_contract::{AuditStatus, LoginEventType};
 use axum::{
     body::Body,
-    http::{Method, Request, StatusCode, header},
+    http::{HeaderValue, Method, Request, StatusCode, header},
 };
 use tower::ServiceExt;
 
@@ -17,6 +17,7 @@ async fn refresh_rejects_untrusted_origin_without_renewing_session() {
         .uri("/api/auth/refresh")
         .header(header::COOKIE, format!("refresh_token={}", tokens.refresh_token))
         .header(header::ORIGIN, "https://attacker.example")
+        .header(header::HOST, "localhost:8082")
         .body(Body::empty())
         .unwrap();
 
@@ -27,6 +28,27 @@ async fn refresh_rejects_untrusted_origin_without_renewing_session() {
     let events = app.events.events();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].event_type, LoginEventType::RefreshFailure);
+}
+
+#[tokio::test]
+async fn refresh_accepts_forwarded_same_origin_and_issues_a_secure_cookie() {
+    let app = test_app();
+    let tokens = sign_in(app.router.clone()).await;
+    let mut request = refresh_cookie_request(Method::POST, "/api/auth/refresh", &tokens.refresh_token);
+    let headers = request.headers_mut();
+    headers.insert(header::ORIGIN, HeaderValue::from_static("https://console.example.test"));
+    headers.insert("x-forwarded-host", HeaderValue::from_static("console.example.test"));
+    headers.insert("x-forwarded-proto", HeaderValue::from_static("https"));
+
+    let response = app.router.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers().get(header::SET_COOKIE).unwrap().to_str().unwrap();
+    assert!(cookie.contains("Secure"));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("SameSite=Strict"));
+    assert!(cookie.contains("Path=/api/auth"));
+    assert!(!cookie.contains("Domain="));
 }
 
 #[tokio::test]

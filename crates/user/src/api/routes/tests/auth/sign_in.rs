@@ -1,7 +1,7 @@
 use audit_contract::{AuditStatus, LoginEventType};
 use axum::{
     Router,
-    http::{Method, StatusCode, header},
+    http::{HeaderValue, Method, StatusCode, header},
 };
 use serde_json::json;
 use tower::ServiceExt;
@@ -33,7 +33,7 @@ async fn sign_in_accepts_email_identifier_and_returns_access_token() {
 }
 
 #[tokio::test]
-async fn sign_in_sets_strict_http_only_refresh_cookie_without_exposing_refresh_token() {
+async fn sign_in_sets_host_only_strict_http_only_refresh_cookie_without_exposing_refresh_token() {
     let app = test_router();
 
     let response = app
@@ -52,14 +52,38 @@ async fn sign_in_sets_strict_http_only_refresh_cookie_without_exposing_refresh_t
     let cookie = response.headers().get(header::SET_COOKIE).unwrap().to_str().unwrap();
     assert!(cookie.starts_with("refresh_token="));
     assert!(cookie.contains("HttpOnly"));
-    assert!(cookie.contains("Secure"));
     assert!(cookie.contains("SameSite=Strict"));
     assert!(cookie.contains("Path=/api/auth"));
     assert!(cookie.contains("Max-Age=604800"));
     assert!(!cookie.contains("Domain="));
+    assert!(!cookie.contains("Secure"));
     let body = json_body(response).await;
     assert!(body.get("refresh_token").is_none());
     assert_non_empty_string(&body["access_token"]);
+}
+
+#[tokio::test]
+async fn sign_in_sets_secure_refresh_cookie_for_forwarded_https() {
+    let app = test_router();
+    let mut request = json_request(
+        Method::POST,
+        "/api/auth/sign-in",
+        json!({
+            "identifier": "alice",
+            "password": VALID_PASSWORD
+        }),
+    );
+    request.headers_mut().insert("x-forwarded-proto", HeaderValue::from_static("https"));
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers().get(header::SET_COOKIE).unwrap().to_str().unwrap();
+    assert!(cookie.contains("Secure"));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("SameSite=Strict"));
+    assert!(cookie.contains("Path=/api/auth"));
+    assert!(!cookie.contains("Domain="));
 }
 
 #[tokio::test]

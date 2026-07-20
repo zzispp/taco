@@ -6,29 +6,9 @@ use crate::BackendResult;
 
 use super::{MANAGED_TABLES, migrator};
 
-const MIGRATION_UP_COMMAND: &str = "cargo run -p backend -- --config <path> migration up";
-const MIGRATION_REFRESH_COMMAND: &str = "cargo run -p backend -- --config <path> migration refresh";
+const MIGRATION_UP_COMMAND: &str = "taco --data-dir <path> --config-encryption-key <key> migration up";
 const MIGRATIONS_TABLE: &str = "_sqlx_migrations";
 const PUBLIC_SCHEMA: &str = "public";
-
-pub async fn prepare_runtime_schema(pool: &PgPool, auto_migrate: bool) -> BackendResult<()> {
-    if let Some(version) = dirty_migration_version(pool).await? {
-        return Err(dirty_schema_error(version).into());
-    }
-
-    let migrator = migrator().await?;
-    validate_applied_migration_sources(pool, &migrator).await?;
-
-    let pending_versions = pending_migration_versions(pool, &migrator).await?;
-    log_pending_state(&pending_versions, auto_migrate);
-
-    if auto_migrate && !pending_versions.is_empty() {
-        migrator.run(pool).await?;
-        taco_tracing::info_with_fields!("database auto migration completed", applied = pending_versions.join(","));
-    }
-
-    ensure_runtime_schema_ready(pool).await
-}
 
 pub async fn ensure_runtime_schema_ready(pool: &PgPool) -> BackendResult<()> {
     if let Some(version) = dirty_migration_version(pool).await? {
@@ -50,7 +30,7 @@ pub async fn ensure_runtime_schema_ready(pool: &PgPool) -> BackendResult<()> {
     }
 
     let tables = missing_tables.join(", ");
-    Err(format!("database schema is incomplete: missing managed tables [{tables}]. Run `{MIGRATION_REFRESH_COMMAND}` before starting backend.").into())
+    Err(format!("database schema is incomplete: missing managed tables [{tables}]; repair the PostgreSQL schema before starting Taco.").into())
 }
 
 async fn validate_applied_migration_sources(pool: &PgPool, migrator: &Migrator) -> BackendResult<()> {
@@ -125,19 +105,6 @@ async fn managed_table_exists(pool: &PgPool, table: &str) -> BackendResult<bool>
         .map_err(Into::into)
 }
 
-fn log_pending_state(pending_versions: &[String], auto_migrate: bool) {
-    if pending_versions.is_empty() {
-        taco_tracing::info_with_fields!("database schema already up to date", auto_migrate = auto_migrate);
-        return;
-    }
-
-    taco_tracing::info_with_fields!(
-        "database pending migrations detected",
-        auto_migrate = auto_migrate,
-        versions = pending_versions.join(",")
-    );
-}
-
 fn dirty_schema_error(version: i64) -> String {
-    format!("database schema is dirty at migration {version}. Run `{MIGRATION_REFRESH_COMMAND}` or repair the migration state before starting backend.")
+    format!("database schema is dirty at migration {version}; repair the migration state before starting Taco.")
 }

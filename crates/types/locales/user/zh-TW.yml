@@ -1,8 +1,8 @@
 _version: 1
 errors.user.invalid_credentials: "使用者名稱或密碼不正確"
 errors.user.duplicate_field: "%{field}已存在"
-errors.user.bootstrap_admin_exists: "系統管理員已存在"
-errors.user.bootstrap_admin_role_missing: "缺少可用的系統管理員角色"
+errors.user.installation_owner_exists: "安裝超級管理員已存在"
+errors.user.installation_owner_protected: "安裝超級管理員不能透過使用者管理修改"
 errors.user.new_password_same_as_old: "新密碼不能與舊密碼相同"
 errors.user.import_empty: "匯入使用者資料不能為空"
 errors.user.import_failed: "使用者匯入失敗：%{errors}"

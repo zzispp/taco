@@ -1,5 +1,3 @@
-import { CONFIG } from 'src/shared/config';
-
 const ABSOLUTE_URL_PATTERN = /^(https?:|data:|blob:)/i;
 
 export function resolveServerAssetUrl(value?: string | null) {
@@ -12,7 +10,7 @@ export function resolveServerAssetUrl(value?: string | null) {
   }
 
   if (value.startsWith('/')) {
-    return `${CONFIG.serverUrl}${value}`;
+    return value;
   }
 
   return value;

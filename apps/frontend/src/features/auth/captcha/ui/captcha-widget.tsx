@@ -1,14 +1,13 @@
 'use client';
 
-import type { CaptchaConfig, CaptchaLabels, TurnstilePublicConfig } from '../model/types';
+import type { CaptchaConfig, CaptchaLabels } from '../model/types';
 
 import Alert from '@mui/material/Alert';
 
 import { useTranslate } from 'src/shared/i18n';
 
 import { CapCaptcha } from './cap-captcha';
-import { CloudflareTurnstile } from './cloudflare-turnstile';
-import { CAPTCHA_PROVIDER_CAP, CAPTCHA_PROVIDER_CLOUDFLARE_TURNSTILE } from '../model/types';
+import { CAPTCHA_PROVIDER_CAP } from '../model/types';
 
 type CaptchaWidgetProps = {
   config?: CaptchaConfig;
@@ -28,17 +27,6 @@ export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: Captc
     return <CapCaptcha resetKey={resetKey} onTokenChange={onTokenChange} labels={captchaLabels} />;
   }
 
-  if (config.provider === CAPTCHA_PROVIDER_CLOUDFLARE_TURNSTILE) {
-    return (
-      <CloudflareTurnstile
-        config={turnstileConfig(config)}
-        resetKey={resetKey}
-        onTokenChange={onTokenChange}
-        siteKeyRequiredMessage={t('auth.captcha.turnstileSiteKeyRequired')}
-      />
-    );
-  }
-
   return (
     <Alert severity="error">
       {t('auth.captcha.unsupportedProvider', { provider: config.provider })}
@@ -48,10 +36,6 @@ export function CaptchaWidget({ config, resetKey, onTokenChange, labels }: Captc
 
 export function isCaptchaReady(config: CaptchaConfig | undefined, token: string | null) {
   return !config?.enabled || !!token;
-}
-
-function turnstileConfig(config: CaptchaConfig): TurnstilePublicConfig {
-  return config.public_config as TurnstilePublicConfig;
 }
 
 function defaultLabels(t: ReturnType<typeof useTranslate>['t']): CaptchaLabels {

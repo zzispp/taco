@@ -54,7 +54,7 @@ type DeleteRoleUsersRequest = (
 #[require_perms("system:role:list")]
 pub async fn role_users(request: RoleUsersRequest) -> ApiResult<ApiJson<CursorPage<RoleUser>>> {
     let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestQuery(query)) = request;
-    let scope = (!current_user.admin).then_some(data_scope);
+    let scope = (!current_user.is_installation_owner).then_some(data_scope);
     Ok(ok(state.rbac_admin.page_role_users(role_user_filter(id, query), scope).await?))
 }
 
@@ -112,7 +112,7 @@ impl<'a> RoleUserScopeGuard<'a> {
     }
 
     async fn ensure_many(&self, user_ids: Vec<String>) -> ApiResult<()> {
-        if self.current_user.admin {
+        if self.current_user.is_installation_owner {
             return Ok(());
         }
         let user_ids = clean_user_ids(user_ids);

@@ -44,13 +44,6 @@ async fn assert_menus(pool: &PgPool) {
                 .await
                 .unwrap();
         assert_eq!(count, 1, "missing audit menu {id}");
-
-        let binding: i64 = query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE role_id='2' AND menu_id=$1")
-            .bind(id)
-            .fetch_one(pool)
-            .await
-            .unwrap();
-        assert_eq!(binding, 1, "role 2 missing audit menu {id}");
     }
 }
 

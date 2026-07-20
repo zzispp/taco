@@ -1,6 +1,6 @@
 use sqlx::{query, query_scalar};
 
-use super::{TestDatabase, managed_table_exists, rollback_from, up};
+use super::{TestDatabase, managed_table_exists, migrate_through, rollback_from};
 
 const CUSTOM_DICT_CODE: &str = "notice-type-custom";
 const NOTICE_MIGRATION_VERSION: i64 = 20260713000001;
@@ -8,7 +8,7 @@ const NOTICE_MIGRATION_VERSION: i64 = 20260713000001;
 #[tokio::test]
 async fn notice_down_removes_custom_notice_dict_data() {
     let database = TestDatabase::create().await;
-    up(database.pool(), None).await.unwrap();
+    migrate_through(database.pool(), NOTICE_MIGRATION_VERSION).await;
     insert_custom_notice_dict_data(database.pool()).await;
 
     rollback_from(database.pool(), NOTICE_MIGRATION_VERSION).await;

@@ -15,7 +15,7 @@ impl Settings {
 }
 
 impl DatabaseSettings {
-    fn url(&self) -> Result<String, SettingsError> {
+    pub fn url(&self) -> Result<String, SettingsError> {
         validate_port("database.port", self.port)?;
         let host = required("database.host", &self.host)?;
         let username = required("database.username", &self.username)?;
@@ -41,7 +41,7 @@ impl DatabaseSettings {
 }
 
 impl RedisSettings {
-    fn url(&self) -> Result<String, SettingsError> {
+    pub fn url(&self) -> Result<String, SettingsError> {
         validate_port("redis.port", self.port)?;
         let host = required("redis.host", &self.host)?;
         validate_optional("redis.username", self.username.as_deref())?;

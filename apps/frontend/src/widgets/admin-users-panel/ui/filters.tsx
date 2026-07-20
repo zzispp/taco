@@ -125,7 +125,7 @@ function MultiSelectFilterFields({ filters, write, roles, posts, t }: MultiSelec
   const postOptions = posts.map((post) => ({ id: post.post_id, label: post.post_name }));
   const roleOptions = roles.map((role) => ({
     id: role.role_id,
-    label: translatedRoleName(role, t),
+    label: translatedRoleName(role),
   }));
 
   return (

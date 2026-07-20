@@ -2,7 +2,6 @@ import type { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
 import axios, { AxiosHeaders } from 'axios';
 
-import { CONFIG } from 'src/shared/config';
 import { storageConfig } from 'src/shared/i18n/locales-config';
 import { toBackendAcceptLanguage } from 'src/shared/i18n/language';
 
@@ -29,7 +28,6 @@ export {
 // ----------------------------------------------------------------------
 
 const axiosInstance = axios.create({
-  baseURL: CONFIG.serverUrl,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

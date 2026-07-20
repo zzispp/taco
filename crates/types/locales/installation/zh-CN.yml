@@ -1,0 +1,13 @@
+_version: 1
+errors.installation.invalid_input: "安装参数无效"
+errors.installation.initial_administrator_invalid: "初始管理员信息无效"
+errors.installation.field_must_be_positive: "%{field}必须大于零"
+errors.installation.already_installed: "安装已完成"
+errors.installation.postgres_connection_failed: "PostgreSQL 连接测试失败"
+errors.installation.redis_connection_failed: "Redis 连接测试失败"
+errors.installation.data_reset_failed: "安装数据重置失败"
+errors.installation.migration_failed: "初始数据库迁移失败"
+errors.installation.owner_provisioning_failed: "安装超级管理员创建失败"
+errors.installation.jwt_generation_failed: "JWT 签名密钥生成失败"
+errors.installation.state_persistence_failed: "安装状态持久化失败"
+errors.installation.shutdown_failed: "安装已完成，但无法启动优雅退出"

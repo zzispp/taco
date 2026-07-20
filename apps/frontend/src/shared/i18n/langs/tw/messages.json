@@ -56,8 +56,7 @@
       "verifying": "驗證中...",
       "solved": "已通過驗證",
       "error": "驗證出錯，請重試。",
-      "unsupportedProvider": "不支援的驗證碼提供方：{{provider}}",
-      "turnstileSiteKeyRequired": "Cloudflare Turnstile site_key 不能為空"
+      "unsupportedProvider": "不支援的驗證碼提供方：{{provider}}"
     },
     "validation": {
       "usernameLength": "使用者名稱長度必須在 {{min}} 到 {{max}} 個字符之間",

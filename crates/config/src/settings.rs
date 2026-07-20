@@ -1,17 +1,13 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::{DatabaseScheme, DatabaseSslMode, RedisProtocol, RedisScheme};
+use crate::{DatabaseScheme, DatabaseSslMode, RedisProtocol, RedisScheme, SettingsError};
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settings {
     pub server: ServerSettings,
     pub database: DatabaseSettings,
     pub jwt: JwtSettings,
-    pub captcha: CaptchaSettings,
-    pub auth: AuthSettings,
     pub user: UserSettings,
-    pub cors: CorsSettings,
     pub http: HttpSettings,
     pub metrics: MetricsSettings,
     pub audit: AuditSettings,
@@ -21,17 +17,15 @@ pub struct Settings {
     pub uploads: UploadSettings,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServerSettings {
     pub host: String,
     pub port: u16,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DatabaseSettings {
-    pub auto_migrate: bool,
     pub scheme: DatabaseScheme,
     pub ssl_mode: DatabaseSslMode,
     pub host: String,
@@ -41,38 +35,19 @@ pub struct DatabaseSettings {
     pub name: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct JwtSettings {
     pub secret: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CaptchaSettings {
-    pub cloudflare_turnstile: CloudflareTurnstileSettings,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CloudflareTurnstileSettings {
-    pub secret_key: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AuthSettings {
-    pub whitelist: Vec<AuthWhitelistRule>,
-    pub refresh_cookie: RefreshCookieSettings,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct UserSettings {
     pub online_sessions: OnlineSessionSettings,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OnlineSessionSettings {
     /// Interval between independent expired-session cleanup cycles.
@@ -81,51 +56,26 @@ pub struct OnlineSessionSettings {
     pub cleanup_batch_size: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RefreshCookieSettings {
-    pub secure: bool,
-    pub path: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AuthWhitelistRule {
-    pub methods: Vec<String>,
-    pub path_pattern: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CorsSettings {
-    pub allowed_origins: Vec<String>,
-    pub allowed_methods: Vec<String>,
-    pub allowed_headers: Vec<String>,
-    pub exposed_headers: Vec<String>,
-    pub allow_credentials: bool,
-    pub max_age_seconds: Option<u64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HttpSettings {
     pub request_timeout_ms: u64,
     pub compression_enabled: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct MetricsSettings {
     pub enabled: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AuditSettings {
     pub outbox: AuditOutboxSettings,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AuditOutboxSettings {
     /// Number of independent consumers that claim durable audit messages.
@@ -146,40 +96,40 @@ pub struct AuditOutboxSettings {
     pub processed_retention_days: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientInfoSettings {
     pub ip_location: ClientIpLocationSettings,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientIpLocationSettings {
     pub request_timeout_ms: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SchedulerSettings {
     pub http_client: SchedulerHttpClientSettings,
     pub runtime: SchedulerRuntimeSettings,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SchedulerHttpClientSettings {
     /// Total timeout for one scheduled HTTP request.
     pub request_timeout_ms: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SchedulerRuntimeSettings {
     /// Interval for leader health checks, notification recovery, and retries.
     pub reconcile_interval_ms: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RedisSettings {
     pub scheme: RedisScheme,
@@ -192,20 +142,15 @@ pub struct RedisSettings {
     pub key_prefix: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UploadSettings {
     pub avatar_directory: String,
 }
 
-impl Default for UploadSettings {
-    fn default() -> Self {
-        Self {
-            avatar_directory: default_avatar_directory(),
-        }
+pub(crate) fn required_config_value(key: &'static str, value: &str) -> Result<String, SettingsError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(SettingsError::BlankConfigValue(key));
     }
-}
-
-fn default_avatar_directory() -> String {
-    "storage/uploads/avatars".to_owned()
+    Ok(trimmed.to_owned())
 }

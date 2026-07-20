@@ -4,6 +4,9 @@ use crate::domain::{DataScope, PermissionSnapshot};
 #[derive(Clone, Default)]
 pub(super) struct MemoryRepository {
     users: Vec<TestUser>,
+    role_ids: Vec<String>,
+    installation_owner_user_ids: Vec<String>,
+    installation_owner_role_ids: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -31,6 +34,21 @@ impl MemoryRepository {
             user_id: user_id.into(),
             dept_id: Some(dept_id.into()),
         });
+        self
+    }
+
+    pub(super) fn with_installation_owner_user(mut self, user_id: &str) -> Self {
+        self.installation_owner_user_ids.push(user_id.into());
+        self
+    }
+
+    pub(super) fn with_installation_owner_role(mut self, role_id: &str) -> Self {
+        self.installation_owner_role_ids.push(role_id.into());
+        self
+    }
+
+    pub(super) fn with_role(mut self, role_id: &str) -> Self {
+        self.role_ids.push(role_id.into());
         self
     }
 }
@@ -63,13 +81,13 @@ pub(super) fn auth_me_config() -> AuthorizationConfig {
     .unwrap()
 }
 
-pub(super) fn request(permissions: Vec<&str>, admin: bool) -> ApiCheckRequest {
+pub(super) fn request(permissions: Vec<&str>, is_installation_owner: bool) -> ApiCheckRequest {
     ApiCheckRequest {
         method: "GET".into(),
         path: "/api/system/users".into(),
-        role_keys: vec!["common".into()],
+        role_keys: vec!["business-role".into()],
         permissions: permissions.into_iter().map(String::from).collect(),
-        admin,
+        is_installation_owner,
     }
 }
 
@@ -77,25 +95,29 @@ pub(super) fn auth_me_request() -> ApiCheckRequest {
     ApiCheckRequest {
         method: "GET".into(),
         path: "/api/auth/me".into(),
-        role_keys: vec!["common".into()],
+        role_keys: vec!["business-role".into()],
         permissions: vec![],
-        admin: false,
+        is_installation_owner: false,
     }
 }
 
-pub(super) fn current_user(role_keys: Vec<&str>, admin: bool) -> CurrentUser {
+pub(super) fn current_user(role_keys: Vec<&str>, is_installation_owner: bool) -> CurrentUser {
     CurrentUser {
         id: "2".into(),
         username: "taco".into(),
         role_keys: role_keys.into_iter().map(String::from).collect(),
         permissions: vec![],
         dept_id: Some("103".into()),
-        admin,
+        is_installation_owner,
     }
 }
 
 pub(super) fn snapshot(roles: Vec<RolePermissionSnapshot>) -> PermissionSnapshot {
-    PermissionSnapshot { roles, menus: vec![] }
+    PermissionSnapshot {
+        roles,
+        menus: vec![],
+        installation_owner_menus: vec![],
+    }
 }
 
 pub(super) fn role_scope(role_key: &str, data_scope: &str, dept_ids: Vec<&str>) -> RolePermissionSnapshot {
@@ -128,7 +150,7 @@ impl RbacCache for MemoryCache {
         Ok(self.snapshot.clone())
     }
 
-    async fn read_nav(&self, _role_keys: &[String], _admin: bool) -> RbacResult<NavResponse> {
+    async fn read_nav(&self, _role_keys: &[String], _is_installation_owner: bool) -> RbacResult<NavResponse> {
         Ok(NavResponse { nav_items: vec![] })
     }
 }
@@ -159,8 +181,8 @@ impl RbacRepository for MemoryRepository {
         Ok(())
     }
 
-    async fn find_role(&self, _role_id: &str) -> RbacResult<Option<Role>> {
-        Ok(None)
+    async fn find_role(&self, role_id: &str) -> RbacResult<Option<Role>> {
+        Ok(self.role_ids.iter().any(|id| id == role_id).then(|| role(role_id)))
     }
 
     async fn role_name_exists(&self, _name: &str, _current_id: Option<&str>) -> RbacResult<bool> {
@@ -202,6 +224,14 @@ impl RbacRepository for MemoryRepository {
             .filter(|user| user_ids.contains(&user.user_id) && test_user_scope_matches(user, &scope))
             .map(|user| user.user_id.clone())
             .collect())
+    }
+
+    async fn has_installation_owner(&self, user_ids: &[String]) -> RbacResult<bool> {
+        Ok(user_ids.iter().any(|user_id| self.installation_owner_user_ids.contains(user_id)))
+    }
+
+    async fn role_has_installation_owner(&self, role_id: &str) -> RbacResult<bool> {
+        Ok(self.installation_owner_role_ids.iter().any(|id| id == role_id))
     }
 
     async fn replace_role_users(&self, _role_id: &str, _input: RoleUserBindingInput) -> RbacResult<()> {
@@ -279,6 +309,22 @@ impl RbacRepository for MemoryRepository {
 
 fn empty_page<T>() -> CursorPage<T> {
     CursorPage::new(vec![], None, None)
+}
+
+fn role(role_id: &str) -> Role {
+    Role {
+        role_id: role_id.into(),
+        role_name: "business role".into(),
+        role_key: "business-role".into(),
+        role_sort: 1,
+        data_scope: "1".into(),
+        menu_check_strictly: true,
+        dept_check_strictly: true,
+        status: "0".into(),
+        system: false,
+        remark: None,
+        create_time: String::new(),
+    }
 }
 
 fn test_user_scope_matches(user: &TestUser, scope: &DataScopeFilter) -> bool {

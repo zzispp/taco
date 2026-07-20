@@ -13,25 +13,26 @@ use kernel::pagination::CursorPage;
 use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfile};
 use rbac::domain::DataScopeFilter;
 
-const IMPORTED_USER_ROLE_ID: &str = "2";
 const IMPORT_ACCOUNT_CREATED_KEY: &str = "messages.user.import_account_created";
 const IMPORT_ACCOUNT_UPDATED_KEY: &str = "messages.user.import_account_updated";
 const DATA_SCOPE_FORBIDDEN_KEY: &str = "errors.user.data_scope_forbidden";
+const INSTALLATION_OWNER_PROTECTED_KEY: &str = "errors.user.installation_owner_protected";
 
 use self::validation::{
-    sanitize_credentials, sanitize_filter, sanitize_new_user, sanitize_profile_update, sanitize_replace_user, validate_credentials, validate_new_user,
-    validate_page, validate_profile_update, validate_replace_user,
+    sanitize_and_validate_new_user, sanitize_credentials, sanitize_filter, sanitize_profile_update, sanitize_replace_user, validate_credentials, validate_page,
+    validate_profile_update, validate_replace_user,
 };
 
 mod audited;
 mod authentication;
-mod bootstrap;
 mod commands;
 mod imports;
+mod installation_owner;
 mod security;
 mod use_case;
 mod validation;
 
+pub(crate) use installation_owner::validate_initial_installation_owner;
 pub use security::UnconfiguredLoginSecurity;
 
 pub struct UserService<R, H, P = StaticPasswordPolicyProvider, F = UnconfiguredLoginSecurity, C = UnconfiguredLoginSecurity> {

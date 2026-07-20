@@ -17,7 +17,7 @@ use user::{
     },
 };
 
-use super::{rebuild_system_cache, runtime_config::RuntimeUserConfig, token_settings};
+use super::{runtime_config::RuntimeUserConfig, token_settings};
 use crate::BackendResult;
 
 pub(super) struct SystemServices {
@@ -92,4 +92,10 @@ fn online_session_cleanup_config(settings: &Settings) -> BackendResult<OnlineSes
         interval: Duration::from_millis(config.cleanup_interval_ms),
         batch_size: config.cleanup_batch_size,
     })
+}
+
+async fn rebuild_system_cache(system: &Arc<dyn SystemUseCase>) -> BackendResult<()> {
+    system.refresh_config_cache().await?;
+    system.refresh_dict_cache().await?;
+    Ok(())
 }

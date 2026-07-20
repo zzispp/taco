@@ -173,6 +173,27 @@ impl RoleQueries {
         user_pages::page(&self.database, filter, scope).await
     }
 
+    pub async fn has_installation_owner(&self, user_ids: &[String]) -> StorageResult<bool> {
+        if user_ids.is_empty() {
+            return Ok(false);
+        }
+        query_scalar("SELECT EXISTS(SELECT 1 FROM sys_installation_owner WHERE owner_user_id = ANY($1))")
+            .bind(user_ids)
+            .fetch_one(self.database.pool())
+            .await
+            .map_err(StorageError::from)
+    }
+
+    pub async fn has_installation_owner_in_role(&self, role_id: &str) -> StorageResult<bool> {
+        query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM sys_installation_owner owner JOIN sys_user_role user_role ON user_role.user_id = owner.owner_user_id WHERE user_role.role_id = $1)",
+        )
+        .bind(role_id)
+        .fetch_one(self.database.pool())
+        .await
+        .map_err(StorageError::from)
+    }
+
     pub async fn replace_menus(&self, role_id: &str, input: RoleMenuBindingInput) -> StorageResult<()> {
         let menu_ids = normalize_menu_ids(self.database.pool(), &input.menu_ids).await?;
         replace_menu_ids(self.database.pool(), role_id, menu_ids).await

@@ -56,8 +56,7 @@
       "verifying": "Verifying...",
       "solved": "You are human",
       "error": "Error. Try again.",
-      "unsupportedProvider": "Unsupported captcha provider: {{provider}}",
-      "turnstileSiteKeyRequired": "Cloudflare Turnstile site_key is required"
+      "unsupportedProvider": "Unsupported captcha provider: {{provider}}"
     },
     "validation": {
       "usernameLength": "Username must be between {{min}} and {{max}} characters",

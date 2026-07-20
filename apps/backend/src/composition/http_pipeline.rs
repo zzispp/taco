@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use audit::api::{OperationAuditState, operation_audit_middleware};
 use axum::{
     Router,
@@ -9,6 +11,7 @@ use axum::{
 use configuration::Settings;
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
+    timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 
@@ -19,6 +22,7 @@ const DOCS_PATH: &str = "/docs";
 const PERMISSIONS_POLICY: &str = "permissions-policy";
 const PERMISSIONS_POLICY_VALUE: &str = "camera=(), microphone=(), geolocation=()";
 const DOCS_CONTENT_SECURITY_POLICY: &str = "frame-ancestors 'none'; object-src 'none'; base-uri 'none'";
+const SETUP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) struct RuntimeLayerParts<'a> {
     pub settings: &'a Settings,
@@ -59,13 +63,24 @@ pub(super) fn with_timeout(app: Router, settings: &Settings) -> BackendResult<Ro
 }
 
 pub(crate) fn apply_http_layers(app: Router, settings: &Settings) -> BackendResult<Router> {
-    Ok(app
-        .layer(http_config::compression_layer(settings)?)
-        .layer(http_config::cors_layer(settings)?)
-        .layer(PropagateRequestIdLayer::x_request_id())
+    let app = app.layer(http_config::compression_layer(settings)?);
+    Ok(apply_response_layers(app))
+}
+
+pub(crate) fn apply_setup_layers(app: Router) -> Router {
+    apply_setup_layers_with_timeout(app, SETUP_REQUEST_TIMEOUT)
+}
+
+pub(super) fn apply_setup_layers_with_timeout(app: Router, timeout: Duration) -> Router {
+    let app = app.layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, timeout));
+    apply_response_layers(app)
+}
+
+fn apply_response_layers(app: Router) -> Router {
+    app.layer(PropagateRequestIdLayer::x_request_id())
         .layer(TraceLayer::new_for_http())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
-        .layer(middleware::from_fn(browser_security_headers)))
+        .layer(middleware::from_fn(browser_security_headers))
 }
 
 async fn browser_security_headers(request: Request, next: Next) -> Response {
@@ -85,4 +100,16 @@ async fn browser_security_headers(request: Request, next: Next) -> Response {
         headers.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static(DOCS_CONTENT_SECURITY_POLICY));
     }
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::SETUP_REQUEST_TIMEOUT;
+
+    #[test]
+    fn setup_request_timeout_is_thirty_seconds() {
+        assert_eq!(SETUP_REQUEST_TIMEOUT, Duration::from_secs(30));
+    }
 }

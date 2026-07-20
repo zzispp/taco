@@ -1,7 +1,10 @@
 use std::net::SocketAddr;
 
 use crate::{
-    api::dto::{AuthSessionResponse, TokenPairResponse},
+    api::{
+        auth_cookie::{cleared_refresh_cookie, issued_refresh_cookie, refresh_token_from_headers, require_same_origin},
+        dto::{AuthSessionResponse, TokenPairResponse},
+    },
     application::AppError,
     domain::User,
 };
@@ -49,7 +52,7 @@ pub async fn sign_up(
         user: &user,
     })
     .await?;
-    auth_session_response(&state, user, tokens)
+    auth_session_response(&headers, user, tokens)
 }
 
 pub async fn sign_in(
@@ -93,17 +96,17 @@ pub async fn sign_in(
             return login_failure(&events, canonical_username, error).await;
         }
     };
-    auth_session_response(&state, user, tokens)
+    auth_session_response(&headers, user, tokens)
 }
 
 pub async fn logout((State(state), ConnectInfo(peer), original_uri, headers): LogoutRequest) -> ApiResult<CookieApiJson<()>> {
     let client = client_info::ClientInfo::from_headers(&headers, peer);
     let events = AuthEventPublisher::new(state.security_audit.as_ref(), event_context(&client, &headers, original_uri.0.path().into()));
-    if let Err(error) = state.auth_http.require_trusted_origin(&headers) {
+    if let Err(error) = require_same_origin(&headers) {
         events.logout_failure(String::new(), &error).await?;
         return Err(error.into());
     }
-    let refresh_token = match state.auth_http.refresh_token(&headers) {
+    let refresh_token = match refresh_token_from_headers(&headers) {
         Ok(token) => token,
         Err(error) => {
             events.logout_failure(String::new(), &error).await?;
@@ -118,17 +121,17 @@ pub async fn logout((State(state), ConnectInfo(peer), original_uri, headers): Lo
         }
     };
     events.logout_success(session.user_name, session.user_id).await?;
-    cookie_response((), state.auth_http.cleared_cookie()?)
+    cookie_response((), cleared_refresh_cookie(&headers)?)
 }
 
 pub async fn refresh((State(state), ConnectInfo(peer), original_uri, headers): RefreshRequest) -> ApiResult<CookieApiJson<TokenPairResponse>> {
     let client = client_info::ClientInfo::from_headers(&headers, peer);
     let events = AuthEventPublisher::new(state.security_audit.as_ref(), event_context(&client, &headers, original_uri.0.path().into()));
-    if let Err(error) = state.auth_http.require_trusted_origin(&headers) {
+    if let Err(error) = require_same_origin(&headers) {
         events.refresh_failure(String::new(), &error).await?;
         return Err(error.into());
     }
-    let refresh_token = match state.auth_http.refresh_token(&headers) {
+    let refresh_token = match refresh_token_from_headers(&headers) {
         Ok(token) => token,
         Err(error) => {
             events.refresh_failure(String::new(), &error).await?;
@@ -150,12 +153,12 @@ pub async fn refresh((State(state), ConnectInfo(peer), original_uri, headers): R
         }
     };
     events.refresh_success(&user).await?;
-    let cookie = state.auth_http.issued_cookie(&tokens.refresh_token, tokens.refresh_token_ttl_seconds)?;
+    let cookie = issued_refresh_cookie(&headers, &tokens.refresh_token, tokens.refresh_token_ttl_seconds)?;
     cookie_response(tokens.into(), cookie)
 }
 
-fn auth_session_response(state: &ApiState, user: User, tokens: TokenPair) -> ApiResult<CookieApiJson<AuthSessionResponse>> {
-    let cookie = state.auth_http.issued_cookie(&tokens.refresh_token, tokens.refresh_token_ttl_seconds)?;
+fn auth_session_response(headers: &HeaderMap, user: User, tokens: TokenPair) -> ApiResult<CookieApiJson<AuthSessionResponse>> {
+    let cookie = issued_refresh_cookie(headers, &tokens.refresh_token, tokens.refresh_token_ttl_seconds)?;
     cookie_response(AuthSessionResponse::new(user.into(), tokens), cookie)
 }
 

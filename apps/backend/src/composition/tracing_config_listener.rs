@@ -202,10 +202,6 @@ async fn read_observed_runtime_tracing_config(pool: &PgPool, observer: &Infrastr
     Ok(parse_runtime_tracing_config(&value)?)
 }
 
-pub(super) async fn read_persisted_tracing_config(pool: &PgPool) -> BackendResult<RuntimeTracingConfig> {
-    read_runtime_tracing_config(pool).await
-}
-
 #[cfg(test)]
 pub(crate) async fn test_listener(pool: &PgPool) -> Result<PgListener, sqlx::Error> {
     connect_listener(pool).await

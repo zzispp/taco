@@ -3,11 +3,9 @@ import type { I18nNamespace } from './types';
 import type { LangCode } from './locales-config';
 
 import { cache } from 'react';
-import { headers } from 'next/headers';
 import { createInstance } from 'i18next';
 import { initReactI18next } from 'react-i18next/initReactI18next';
 
-import { resolveAcceptedLanguage } from './language';
 import { formatDashboardDocumentTitle } from './document-title-format';
 import { defaultNS, i18nOptions, fallbackLng, i18nResourceLoader } from './locales-config';
 
@@ -16,14 +14,12 @@ import { defaultNS, i18nOptions, fallbackLng, i18nResourceLoader } from './local
 /**
  * Internationalization configuration for Next.js server-side.
  *
- * Server-side language detection uses the request Accept-Language header.
- * User-selected language persistence is handled on the client via localStorage.
+ * Static exports have no request-time language context. The client restores its
+ * persisted choice after hydration, while build-time metadata uses the stable
+ * fallback locale.
  */
-
-export async function detectLanguage() {
-  const headerStore = await headers();
-  const headerLang = headerStore.get('accept-language') ?? undefined;
-  return resolveAcceptedLanguage(headerLang) ?? fallbackLng;
+export function detectLanguage(): LangCode {
+  return fallbackLng;
 }
 
 // ----------------------------------------------------------------------
@@ -45,7 +41,7 @@ type Options = Record<string, unknown> & {
 
 export const getServerTranslations = cache(
   async (namespace: I18nNamespace = defaultNS, options: Options = {}) => {
-    const lang = await detectLanguage();
+    const lang = detectLanguage();
     const i18nextInstance = await initServerI18next(lang, namespace);
 
     return {

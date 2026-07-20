@@ -1,6 +1,6 @@
 mod audited;
-mod bootstrap_port;
 mod filter_sql;
+mod installation_owner_port;
 mod mapping;
 mod queries;
 mod record;
@@ -91,6 +91,10 @@ impl UserRepository for StorageUserRepository {
 
     async fn find_authorization_by_id(&self, id: UserId) -> AppResult<Option<AuthorizationUser>> {
         self.queries.find_authorization_by_id(id).await.map_err(storage_error)
+    }
+
+    async fn is_installation_owner(&self, id: &UserId) -> AppResult<bool> {
+        self.queries.is_installation_owner(id).await.map_err(storage_error)
     }
 
     async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()> {

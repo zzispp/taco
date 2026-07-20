@@ -1,8 +1,8 @@
 _version: 1
 errors.user.invalid_credentials: "用户名或密码不正确"
 errors.user.duplicate_field: "%{field}已存在"
-errors.user.bootstrap_admin_exists: "系统管理员已存在"
-errors.user.bootstrap_admin_role_missing: "缺少可用的系统管理员角色"
+errors.user.installation_owner_exists: "安装超级管理员已存在"
+errors.user.installation_owner_protected: "安装超级管理员不能通过用户管理修改"
 errors.user.new_password_same_as_old: "新密码不能与旧密码相同"
 errors.user.import_empty: "导入用户数据不能为空"
 errors.user.import_failed: "用户导入失败：%{errors}"

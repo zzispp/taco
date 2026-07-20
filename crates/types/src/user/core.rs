@@ -19,6 +19,7 @@ pub struct User {
     pub sex: String,
     pub avatar: Option<String>,
     pub status: String,
+    pub is_installation_owner: bool,
     pub auth_source: String,
     pub email_verified: bool,
     pub remark: Option<String>,

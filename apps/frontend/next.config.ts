@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
 
 import { assertNoEnvironmentFiles } from './src/shared/config/environment-files';
-import { DEFAULT_SERVER_URL } from './src/shared/config/server-url';
 
 // ----------------------------------------------------------------------
 
@@ -15,36 +14,25 @@ assertNoEnvironmentFiles([WORKSPACE_ROOT, FRONTEND_ROOT]);
 
 // ----------------------------------------------------------------------
 
-/**
- * Static Exports in Next.js
- *
- * 1. Set `isStaticExport = true` in `next.config.{mjs|ts}`.
- * 2. This allows `generateStaticParams()` to pre-render dynamic routes at build time.
- *
- * For more details, see:
- * https://nextjs.org/docs/app/building-your-application/deploying/static-exports
- *
- * NOTE: Remove all "generateStaticParams()" functions if not using static exports.
- */
-const isStaticExport = false;
+const STATIC_EXPORT_ENV_VALUE = 'true';
+const DEFAULT_DEVELOPMENT_BACKEND_URL = 'http://localhost:3000';
+const isStaticExport = process.env.TACO_STATIC_EXPORT === STATIC_EXPORT_ENV_VALUE;
 const LOCAL_FRONTEND_ORIGIN = 'http://localhost:8082';
 const LOOPBACK_HOST_PATTERN = '127\\.0\\.0\\.1';
-const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
 const WASM_EVAL_SOURCE = "'wasm-unsafe-eval'";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
-  `connect-src 'self' ${backendOrigin()} ${TURNSTILE_ORIGIN}`,
+  "connect-src 'self'",
   "font-src 'self' data:",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  `frame-src ${TURNSTILE_ORIGIN}`,
   "img-src 'self' blob: data: https:",
   "manifest-src 'self'",
   "media-src 'self' blob:",
   "object-src 'none'",
-  `script-src 'self' 'unsafe-inline' ${WASM_EVAL_SOURCE}${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${TURNSTILE_ORIGIN}`,
+  `script-src 'self' 'unsafe-inline' ${WASM_EVAL_SOURCE}${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
 ].join('; ');
@@ -61,23 +49,9 @@ export const NEXT_SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   output: isStaticExport ? 'export' : undefined,
-  env: {
-    BUILD_STATIC_EXPORT: JSON.stringify(isStaticExport),
-  },
-  async headers() {
-    return [{ source: '/:path*', headers: NEXT_SECURITY_HEADERS }];
-  },
-  async redirects() {
-    return [
-      {
-        source: '/:path*',
-        has: [{ type: 'host', value: LOOPBACK_HOST_PATTERN }],
-        destination: `${LOCAL_FRONTEND_ORIGIN}/:path*`,
-        permanent: false,
-      },
-    ];
-  },
+  ...developmentServerConfig(),
   // Without --turbopack (next dev)
   webpack(config) {
     config.module.rules.push({
@@ -98,8 +72,48 @@ const nextConfig: NextConfig = {
   },
 };
 
-function backendOrigin() {
-  return new URL(process.env.NEXT_PUBLIC_SERVER_URL ?? DEFAULT_SERVER_URL).origin;
+function developmentServerConfig(): Partial<NextConfig> {
+  if (isStaticExport) {
+    return {};
+  }
+
+  return {
+    async headers() {
+      return [{ source: '/:path*', headers: NEXT_SECURITY_HEADERS }];
+    },
+    async redirects() {
+      return [
+        {
+          source: '/:path*',
+          has: [{ type: 'host', value: LOOPBACK_HOST_PATTERN }],
+          destination: `${LOCAL_FRONTEND_ORIGIN}/:path*`,
+          permanent: false,
+        },
+      ];
+    },
+    async rewrites() {
+      return [
+        {
+          source: '/api/:path*',
+          destination: `${developmentBackendUrl()}/api/:path*`,
+        },
+      ];
+    },
+  };
+}
+
+function developmentBackendUrl(): string {
+  const configuredUrl = process.env.TACO_DEV_BACKEND_URL ?? DEFAULT_DEVELOPMENT_BACKEND_URL;
+  const parsedUrl = new URL(configuredUrl);
+
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new Error('TACO_DEV_BACKEND_URL must use http or https');
+  }
+  if (parsedUrl.pathname !== '/' || parsedUrl.search || parsedUrl.hash) {
+    throw new Error('TACO_DEV_BACKEND_URL must be an origin without a path, query, or fragment');
+  }
+
+  return parsedUrl.origin;
 }
 
 export default nextConfig;

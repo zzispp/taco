@@ -25,6 +25,7 @@ async fn logout_deletes_session_and_publishes_success() {
     assert!(cleared_cookie.contains("Max-Age=0"));
     assert!(cleared_cookie.contains("HttpOnly"));
     assert!(cleared_cookie.contains("SameSite=Strict"));
+    assert!(!cleared_cookie.contains("Secure"));
     assert!(app.sessions.sessions().is_empty());
     let events = app.events.events();
     assert_eq!(events.len(), 1);
@@ -43,6 +44,7 @@ async fn logout_rejects_untrusted_origin_without_deleting_session() {
         .uri("/api/auth/logout")
         .header(header::COOKIE, format!("refresh_token={}", tokens.refresh_token))
         .header(header::ORIGIN, "https://attacker.example")
+        .header(header::HOST, "localhost:8082")
         .body(Body::empty())
         .unwrap();
 

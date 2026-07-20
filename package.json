@@ -12,8 +12,8 @@
     "dev:frontend": "pnpm --filter frontend dev",
     "build:frontend": "pnpm --filter frontend build",
     "lint:frontend": "pnpm --filter frontend lint",
-    "dev:backend": "just run-local",
+    "dev:backend": "just run-backend",
     "check:backend": "cargo check -p backend",
-    "build:backend": "cargo build -p backend"
+    "build:backend": "cargo build -p backend --bin taco"
   }
 }

@@ -10,6 +10,12 @@ const BACKEND_LOCALE_BY_LANGUAGE: Readonly<Record<LangCode, string>> = Object.fr
   tw: 'zh-TW',
 });
 
+const DOCUMENT_LANGUAGE_BY_LANGUAGE: Readonly<Record<LangCode, string>> = Object.freeze({
+  cn: 'zh-CN',
+  en: 'en',
+  tw: 'zh-TW',
+});
+
 type LanguagePreference = Readonly<{
   language: LangCode;
   quality: number;
@@ -29,6 +35,16 @@ export function normalizeLanguage(value?: string | null): LangCode | undefined {
 export function toBackendAcceptLanguage(value?: string | null): string | undefined {
   const language = normalizeLanguage(value);
   return language ? BACKEND_LOCALE_BY_LANGUAGE[language] : undefined;
+}
+
+export function toDocumentLanguage(value?: string | null): string | undefined {
+  const language = normalizeLanguage(value);
+  return language ? DOCUMENT_LANGUAGE_BY_LANGUAGE[language] : undefined;
+}
+
+export function updateDocumentLanguage(element: { lang: string }, value?: string | null) {
+  const language = toDocumentLanguage(value);
+  if (language) element.lang = language;
 }
 
 export function resolveAcceptedLanguage(header?: string | null): LangCode | undefined {

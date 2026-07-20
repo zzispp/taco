@@ -3,19 +3,10 @@ import 'src/global.css';
 import type { Metadata, Viewport } from 'next';
 
 import InitColorSchemeScript from '@mui/material/InitColorSchemeScript';
-import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 
 import { CONFIG } from 'src/shared/config';
-import { Snackbar } from 'src/shared/ui/snackbar';
-import { LocalizationProvider } from 'src/shared/i18n';
-import { detectLanguage } from 'src/shared/i18n/server';
-import { ProgressBar } from 'src/shared/ui/progress-bar';
-import { I18nProvider } from 'src/shared/i18n/i18n-provider';
-import { MotionLazy } from 'src/shared/ui/animate/motion-lazy';
-import { SettingsDrawer, defaultSettings } from 'src/shared/ui/settings';
-import { themeConfig, ThemeProvider, primary as primaryColor } from 'src/shared/theme';
-
-import { AuthProvider, AppSettingsProvider } from 'src/app/providers';
+import { primary as primaryColor } from 'src/shared/theme';
+import { themeConfig } from 'src/shared/theme/theme-config';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -39,57 +30,16 @@ type RootLayoutProps = {
   children: React.ReactNode;
 };
 
-async function getAppConfig() {
-  if (CONFIG.isStaticExport) {
-    return {
-      lang: 'en',
-      i18nLang: undefined,
-      dir: defaultSettings.direction,
-    };
-  } else {
-    const lang = await detectLanguage();
-
-    return {
-      lang,
-      i18nLang: lang,
-      dir: defaultSettings.direction,
-    };
-  }
-}
-
-export default async function RootLayout({ children }: RootLayoutProps) {
-  const appConfig = await getAppConfig();
-
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang={appConfig.lang} dir={appConfig.dir} suppressHydrationWarning>
+    <html lang="zh-CN" dir="ltr" suppressHydrationWarning>
       <body>
         <InitColorSchemeScript
           modeStorageKey={themeConfig.modeStorageKey}
           attribute={themeConfig.cssVariables.colorSchemeSelector}
           defaultMode={themeConfig.defaultMode}
         />
-
-        <I18nProvider lang={appConfig.i18nLang}>
-          <AuthProvider>
-            <AppSettingsProvider>
-              <LocalizationProvider>
-                <AppRouterCacheProvider options={{ key: 'css' }}>
-                  <ThemeProvider
-                    modeStorageKey={themeConfig.modeStorageKey}
-                    defaultMode={themeConfig.defaultMode}
-                  >
-                    <MotionLazy>
-                      <Snackbar />
-                      <ProgressBar />
-                      <SettingsDrawer />
-                      {children}
-                    </MotionLazy>
-                  </ThemeProvider>
-                </AppRouterCacheProvider>
-              </LocalizationProvider>
-            </AppSettingsProvider>
-          </AuthProvider>
-        </I18nProvider>
+        {children}
       </body>
     </html>
   );

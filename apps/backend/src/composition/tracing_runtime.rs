@@ -16,7 +16,7 @@ use taco_tracing::{
 use crate::BackendResult;
 
 pub(crate) use super::tracing_config_listener::{TracingConfigListenerHealth, TracingConfigListenerRuntime};
-use super::tracing_config_listener::{establish_tracing_config_subscription, read_persisted_tracing_config, start_tracing_config_listener};
+use super::tracing_config_listener::{establish_tracing_config_subscription, start_tracing_config_listener};
 
 pub(super) struct ObservabilityServices {
     pub(super) logs: Arc<dyn SystemLogUseCase>,
@@ -71,11 +71,6 @@ impl storage::PostgresOperationObserver for TracingPostgresObserver {
 
 pub(super) fn observability_export_config(system: Arc<dyn SystemUseCase>) -> Arc<dyn ExportConfigProvider<Error = ObservabilityError>> {
     Arc::new(RuntimeObservabilityConfig::new(system))
-}
-
-pub(crate) async fn runtime_infrastructure_observer(pool: &sqlx::PgPool) -> BackendResult<InfrastructureObserver> {
-    let config = read_persisted_tracing_config(pool).await?;
-    Ok(InfrastructureObserver::new(RuntimeTracingState::new(config)))
 }
 
 #[derive(Clone)]

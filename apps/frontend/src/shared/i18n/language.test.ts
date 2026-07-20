@@ -1,6 +1,12 @@
 import { it, expect, describe } from 'vitest';
 
-import { normalizeLanguage, resolveAcceptedLanguage, toBackendAcceptLanguage } from './language';
+import {
+  normalizeLanguage,
+  toDocumentLanguage,
+  updateDocumentLanguage,
+  resolveAcceptedLanguage,
+  toBackendAcceptLanguage,
+} from './language';
 
 describe('language normalization', () => {
   it.each([
@@ -23,6 +29,23 @@ describe('language normalization', () => {
     expect(toBackendAcceptLanguage('en-US')).toBe('en');
     expect(toBackendAcceptLanguage('tw')).toBe('zh-TW');
     expect(toBackendAcceptLanguage('fr')).toBeUndefined();
+  });
+
+  it('maps supported language codes to document language tags', () => {
+    expect(toDocumentLanguage('cn')).toBe('zh-CN');
+    expect(toDocumentLanguage('en-US')).toBe('en');
+    expect(toDocumentLanguage('zh-Hant')).toBe('zh-TW');
+    expect(toDocumentLanguage('fr')).toBeUndefined();
+  });
+
+  it('updates the document language only for supported locales', () => {
+    const documentElement = { lang: 'zh-CN' };
+
+    updateDocumentLanguage(documentElement, 'en-US');
+    expect(documentElement.lang).toBe('en');
+
+    updateDocumentLanguage(documentElement, 'fr-FR');
+    expect(documentElement.lang).toBe('en');
   });
 });
 

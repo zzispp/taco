@@ -27,6 +27,12 @@ pub(super) fn validate_new_user(input: &NewUser, policy: &PasswordPolicy) -> App
     reject_blank("status", &input.status)
 }
 
+pub(super) fn sanitize_and_validate_new_user(input: NewUser, policy: &PasswordPolicy) -> AppResult<NewUser> {
+    let input = sanitize_new_user(input);
+    validate_new_user(&input, policy)?;
+    Ok(input)
+}
+
 pub(super) fn validate_replace_user(input: &ReplaceUser, policy: &PasswordPolicy) -> AppResult<()> {
     validate_username(&input.username)?;
     if let Some(password) = &input.password {

@@ -121,7 +121,7 @@ pub async fn export_users(request: ExportUsersRequest) -> ApiResult<Response> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = export_user_filter(&query)?;
     let batch_size = state.export_config.export_batch_config().await?.page_size;
-    let scope = (!current_user.admin).then_some(data_scope);
+    let scope = (!current_user.is_installation_owner).then_some(data_scope);
     let mut export = UserXlsxExport::new(current_locale())?;
     state.users.export_users(UserExportRequest { filter, scope, batch_size }, &mut export).await?;
     Ok(xlsx_file_attachment("users.xlsx", export.finish()?))
@@ -159,7 +159,7 @@ pub async fn user_import_template() -> ApiResult<Response> {
 pub async fn list_users(request: ListUsersRequest) -> ApiResult<ApiJson<UsersPageResponse>> {
     let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
     let filter = list_user_filter(query)?;
-    let page = if current_user.admin {
+    let page = if current_user.is_installation_owner {
         state.users.list_users(filter).await?
     } else {
         state.users.list_users_scoped(filter, data_scope).await?

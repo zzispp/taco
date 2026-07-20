@@ -11,13 +11,15 @@ import { I18N_NAMESPACES } from './types';
 import enAudit from './langs/en/audit.json';
 import cnAudit from './langs/cn/audit.json';
 import twAudit from './langs/tw/audit.json';
+import enSetup from './langs/en/setup.json';
+import cnSetup from './langs/cn/setup.json';
+import twSetup from './langs/tw/setup.json';
 import enCommon from './langs/en/common.json';
 import cnCommon from './langs/cn/common.json';
 import twCommon from './langs/tw/common.json';
 import enNavbar from './langs/en/navbar.json';
 import cnNavbar from './langs/cn/navbar.json';
 import twNavbar from './langs/tw/navbar.json';
-import { normalizeLanguage } from './language';
 import enMessages from './langs/en/messages.json';
 import cnMessages from './langs/cn/messages.json';
 import twMessages from './langs/tw/messages.json';
@@ -28,6 +30,7 @@ import enScheduler from './langs/en/scheduler.json';
 import cnScheduler from './langs/cn/scheduler.json';
 import twScheduler from './langs/tw/scheduler.json';
 import { staticAdminResources } from './admin-static-resources';
+import { normalizeLanguage, updateDocumentLanguage } from './language';
 import { i18nOptions, fallbackLng, storageConfig } from './locales-config';
 
 // ----------------------------------------------------------------------
@@ -45,6 +48,7 @@ i18next.use(initReactI18next).init({
       messages: cnMessages,
       navbar: cnNavbar,
       scheduler: cnScheduler,
+      setup: cnSetup,
       audit: cnAudit,
       systemLog: cnSystemLog,
     },
@@ -54,6 +58,7 @@ i18next.use(initReactI18next).init({
       messages: enMessages,
       navbar: enNavbar,
       scheduler: enScheduler,
+      setup: enSetup,
       audit: enAudit,
       systemLog: enSystemLog,
     },
@@ -63,6 +68,7 @@ i18next.use(initReactI18next).init({
       messages: twMessages,
       navbar: twNavbar,
       scheduler: twScheduler,
+      setup: twSetup,
       audit: twAudit,
       systemLog: twSystemLog,
     },
@@ -94,6 +100,17 @@ export function I18nProvider({ lang, children }: I18nProviderProps) {
       i18next.changeLanguage(nextLang);
     }
   }, [lang]);
+
+  useEffect(() => {
+    const handleLanguageChange = (language: string) =>
+      updateDocumentLanguage(document.documentElement, language);
+
+    handleLanguageChange(i18next.resolvedLanguage ?? i18next.language);
+    i18next.on('languageChanged', handleLanguageChange);
+    return () => {
+      i18next.off('languageChanged', handleLanguageChange);
+    };
+  }, []);
 
   return <Provider i18n={i18next}>{children}</Provider>;
 }

@@ -26,7 +26,7 @@ async fn sign_up_accepts_public_payload_and_sets_backend_fields() {
     assert!(cookie.contains("HttpOnly"));
     let body = response_json(response).await;
 
-    assert_eq!(body["user"]["role_ids"], json!(["2"]));
+    assert_eq!(body["user"]["role_ids"], json!([]));
     assert_eq!(body["user"]["status"], "0");
     assert_eq!(body["user"]["is_active"], true);
     assert_eq!(body["user"]["auth_source"], "local");

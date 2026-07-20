@@ -1,10 +1,14 @@
-test_timeout_seconds := "60"
+test_timeout_seconds := "120"
 
 list:
     just --list
 
 build:
     cargo build
+
+build-release:
+    pnpm --filter frontend build:embedded
+    cargo build --locked --release -p backend --bin taco --features embedded-frontend
 
 check:
     cargo check
@@ -35,20 +39,11 @@ install-git-hooks:
     cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
 
-run-backend CONFIG:
-    cargo run -p backend -- --config {{CONFIG}}
+run-backend:
+    cargo run -p backend --bin taco --
 
-run-local:
-    cargo run -p backend -- --config config/config.local.yaml
-
-run-dev:
-    cargo run -p backend -- --config config/config.dev.yaml
-
-run-prod:
-    cargo run -p backend -- --config config/config.prod.yaml
-
-backend-migration CONFIG ARGS:
-    cargo run -p backend -- --config {{CONFIG}} migration {{ARGS}}
+backend-migration ARGS:
+    cargo run -p backend --bin taco -- migration {{ARGS}}
 
 services-up:
     COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose up -d

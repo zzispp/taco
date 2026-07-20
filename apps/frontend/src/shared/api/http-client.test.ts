@@ -1,6 +1,10 @@
 import { it, expect, describe } from 'vitest';
 
-import { normalizeApiError, normalizeApiErrorAsync, type NormalizedApiError } from './http-client';
+import axios, {
+  normalizeApiError,
+  normalizeApiErrorAsync,
+  type NormalizedApiError,
+} from './http-client';
 
 type ApiErrorData = {
   code: string;
@@ -33,6 +37,10 @@ function expectNormalizedError(error: NormalizedApiError, expected: ExpectedNorm
 }
 
 describe('API error normalization', () => {
+  it('uses relative same-origin browser requests instead of a configured API origin', () => {
+    expect(axios.defaults.baseURL).toBeUndefined();
+  });
+
   it('preserves status, code, and localized details for notice error handling', () => {
     const normalized = normalizeApiError(
       axiosErrorFixture(400, {

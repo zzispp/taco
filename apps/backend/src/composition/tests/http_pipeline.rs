@@ -21,7 +21,7 @@ use axum::{
 };
 use tower::ServiceExt;
 
-use super::super::http_pipeline::{RuntimeLayerParts, apply_runtime_layers};
+use super::super::http_pipeline::{RuntimeLayerParts, apply_runtime_layers, apply_setup_layers_with_timeout};
 
 const TEST_TIMEOUT_MS: u64 = 5;
 const SLOW_DELAY_MS: u64 = 30;
@@ -150,6 +150,15 @@ async fn metrics_cover_success_and_timeout_responses() {
 }
 
 #[tokio::test]
+async fn setup_pipeline_uses_a_request_timeout() {
+    let app = apply_setup_layers_with_timeout(Router::new().route(TIMEOUT_PATH, post(slow_handler)), Duration::from_millis(TEST_TIMEOUT_MS));
+
+    let response = app.oneshot(request(TIMEOUT_PATH)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+}
+
+#[tokio::test]
 async fn browser_security_headers_are_global_with_route_specific_cache_and_csp() {
     let settings = super::test_settings();
     let metrics = None;
@@ -168,7 +177,18 @@ async fn browser_security_headers_are_global_with_route_specific_cache_and_csp()
     )
     .unwrap();
 
-    let api = app.clone().oneshot(request(SUCCESS_PATH)).await.unwrap();
+    let api = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(SUCCESS_PATH)
+                .header(header::ORIGIN, "https://other.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let static_asset = app.clone().oneshot(request(STATIC_PATH)).await.unwrap();
     let docs = app.oneshot(request(DOCS_PATH)).await.unwrap();
 
@@ -185,6 +205,7 @@ async fn browser_security_headers_are_global_with_route_specific_cache_and_csp()
         );
     }
     assert_eq!(api.headers().get(header::CACHE_CONTROL), Some(&HeaderValue::from_static("no-store")));
+    assert_eq!(api.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN), None);
     assert_eq!(static_asset.headers().get(header::CACHE_CONTROL), None);
     assert_eq!(docs.headers().get(header::CACHE_CONTROL), None);
     assert_eq!(api.headers().get(header::CONTENT_SECURITY_POLICY), None);

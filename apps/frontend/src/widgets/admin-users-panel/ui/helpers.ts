@@ -70,7 +70,7 @@ export function displayRoles(ids: string[], roles: RoleOption[], t: TranslateFn)
     ids
       .map((id) => roles.find((role) => role.role_id === id))
       .filter(Boolean)
-      .map((role) => translatedRoleName(role as RoleOption, t))
+      .map((role) => translatedRoleName(role as RoleOption))
       .join(', ') || '-'
   );
 }

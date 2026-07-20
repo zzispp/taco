@@ -65,6 +65,7 @@ pub struct AuthorizationUser {
     pub username: String,
     pub dept_id: Option<String>,
     pub status: String,
+    pub is_installation_owner: bool,
     pub role_keys: Vec<String>,
     pub permissions: Vec<String>,
 }
@@ -76,6 +77,7 @@ impl AuthorizationUser {
             username: user.username,
             dept_id: user.dept_id,
             status: user.status,
+            is_installation_owner: user.is_installation_owner,
             role_keys: user.roles.into_iter().map(|role| role.role_key).collect(),
             permissions: user.permissions,
         }
@@ -160,6 +162,7 @@ pub trait UserRepository: Send + Sync + 'static {
     async fn find_auth_by_email(&self, email: &str) -> AppResult<Option<UserAuthRecord>>;
     async fn find_auth_by_id(&self, id: UserId) -> AppResult<Option<UserAuthRecord>>;
     async fn find_authorization_by_id(&self, id: UserId) -> AppResult<Option<AuthorizationUser>>;
+    async fn is_installation_owner(&self, id: &UserId) -> AppResult<bool>;
     async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()>;
     async fn list(&self, filter: UserListFilter) -> AppResult<CursorPage<User>>;
     async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<CursorPage<User>>;

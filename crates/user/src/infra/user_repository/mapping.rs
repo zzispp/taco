@@ -1,4 +1,3 @@
-use constants::system::{ALL_PERMISSION, SUPER_ADMIN_ROLE_KEY};
 use kernel::error::LocalizedError;
 use storage::StorageError;
 use types::{
@@ -22,20 +21,20 @@ pub fn user_auth_record(record: (User, String)) -> UserAuthRecord {
 }
 
 pub fn authorization_user(record: AuthorizationUserRecord) -> AuthorizationUser {
-    let admin = record.role_keys.iter().any(|role| role == SUPER_ADMIN_ROLE_KEY);
     AuthorizationUser {
         id: UserId(record.user_id),
         username: record.user_name,
         dept_id: record.dept_id,
         status: record.status,
+        is_installation_owner: record.is_installation_owner,
         role_keys: record.role_keys,
-        permissions: if admin { vec![ALL_PERMISSION.into()] } else { record.permissions },
+        permissions: record.permissions,
     }
 }
 
 pub fn user(record: UserRecord, relations: UserRelations) -> Result<User, StorageError> {
     let roles = relations.roles;
-    let permissions = user_permissions(&roles, relations.permissions);
+    let permissions = relations.permissions;
     let create_time = types::http::format_utc_rfc3339_millis(record.create_time).map_err(|error| StorageError::Database(error.to_string()))?;
     Ok(User {
         id: UserId(record.user_id),
@@ -47,6 +46,7 @@ pub fn user(record: UserRecord, relations: UserRelations) -> Result<User, Storag
         sex: record.sex,
         avatar: record.avatar,
         status: record.status,
+        is_installation_owner: record.is_installation_owner,
         auth_source: record.auth_source,
         email_verified: record.email_verified,
         remark: record.remark,
@@ -56,14 +56,6 @@ pub fn user(record: UserRecord, relations: UserRelations) -> Result<User, Storag
         permissions,
         create_time,
     })
-}
-
-fn user_permissions(roles: &[RoleSummary], permissions: Vec<String>) -> Vec<String> {
-    if roles.iter().any(|role| role.role_key == SUPER_ADMIN_ROLE_KEY) {
-        return vec![ALL_PERMISSION.into()];
-    }
-
-    permissions
 }
 
 pub fn storage_error(error: StorageError) -> AppError {
@@ -98,38 +90,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fixed_user_id_with_common_role_keeps_explicit_permissions() {
-        let user = user(user_record("1"), relations(vec![common_role()], vec!["system:user:list"])).unwrap();
+    fn every_role_keeps_only_explicit_permissions() {
+        let user = user(user_record("2"), relations(vec![role("1", "business-admin")], vec!["system:user:list"])).unwrap();
 
         assert_eq!(user.permissions, vec!["system:user:list"]);
     }
 
     #[test]
-    fn admin_role_gets_taco_wildcard_permission() {
-        let user = user(user_record("2"), relations(vec![admin_role()], vec!["system:user:list"])).unwrap();
-
-        assert_eq!(user.permissions, vec![constants::system::ALL_PERMISSION]);
-    }
-
-    #[test]
-    fn fixed_user_id_authorization_keeps_explicit_permissions() {
-        let user = authorization_user(authorization_record("1", vec!["common"], vec!["system:user:list"]));
+    fn authorization_projection_preserves_explicit_permissions_and_owner_marker() {
+        let user = authorization_user(authorization_record("1", true, vec!["business-admin"], vec!["system:user:list"]));
 
         assert_eq!(user.permissions, vec!["system:user:list"]);
-    }
-
-    #[test]
-    fn admin_role_authorization_gets_wildcard_permission() {
-        let user = authorization_user(authorization_record("2", vec![SUPER_ADMIN_ROLE_KEY], vec!["system:user:list"]));
-
-        assert_eq!(user.permissions, vec![ALL_PERMISSION]);
-    }
-
-    #[test]
-    fn common_role_keeps_explicit_permissions() {
-        let user = user(user_record("2"), relations(vec![common_role()], vec!["system:user:list"])).unwrap();
-
-        assert_eq!(user.permissions, vec!["system:user:list"]);
+        assert!(user.is_installation_owner);
     }
 
     #[test]
@@ -175,6 +147,7 @@ mod tests {
             avatar: None,
             password: "hash".into(),
             status: "0".into(),
+            is_installation_owner: false,
             auth_source: "local".into(),
             email_verified: true,
             remark: None,
@@ -191,23 +164,16 @@ mod tests {
         }
     }
 
-    fn authorization_record(user_id: &str, role_keys: Vec<&str>, permissions: Vec<&str>) -> AuthorizationUserRecord {
+    fn authorization_record(user_id: &str, is_installation_owner: bool, role_keys: Vec<&str>, permissions: Vec<&str>) -> AuthorizationUserRecord {
         AuthorizationUserRecord {
             user_id: user_id.into(),
             user_name: "fixture-user".into(),
             dept_id: None,
             status: "0".into(),
+            is_installation_owner,
             role_keys: role_keys.into_iter().map(String::from).collect(),
             permissions: permissions.into_iter().map(String::from).collect(),
         }
-    }
-
-    fn admin_role() -> RoleSummary {
-        role("1", constants::system::SUPER_ADMIN_ROLE_KEY)
-    }
-
-    fn common_role() -> RoleSummary {
-        role("2", "common")
     }
 
     fn role(role_id: &str, role_key: &str) -> RoleSummary {

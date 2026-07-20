@@ -13,6 +13,7 @@ pub struct UserRecord {
     pub avatar: Option<String>,
     pub password: String,
     pub status: String,
+    pub is_installation_owner: bool,
     pub auth_source: String,
     pub email_verified: bool,
     pub remark: Option<String>,
@@ -39,6 +40,7 @@ pub struct AuthorizationUserRecord {
     pub user_name: String,
     pub dept_id: Option<String>,
     pub status: String,
+    pub is_installation_owner: bool,
     pub role_keys: Vec<String>,
     pub permissions: Vec<String>,
 }

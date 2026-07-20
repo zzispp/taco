@@ -8,7 +8,7 @@ async fn profile_returns_user_groups() {
     let profile = service.profile(user_id(1)).await.unwrap();
 
     assert_eq!(profile.user.username, "alice");
-    assert_eq!(profile.role_group, "超级管理员");
+    assert_eq!(profile.role_group, "业务管理员");
     assert_eq!(profile.dept_name.as_deref(), Some("部门103"));
 }
 

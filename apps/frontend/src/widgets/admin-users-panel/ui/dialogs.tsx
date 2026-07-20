@@ -104,7 +104,7 @@ function UserAccessFields({ form, roles, posts, setForm }: UserDialogProps) {
   const { t } = useTranslate('admin');
   const roleOptions = roles.map((role) => ({
     id: role.role_id,
-    label: translatedRoleName(role, t),
+    label: translatedRoleName(role),
   }));
   const postOptions = posts.map((post) => ({ id: post.post_id, label: post.post_name }));
   return (
@@ -167,7 +167,7 @@ export function RoleAssignDialog({
   const { t } = useTranslate('admin');
   const roleOptions = roles.map((role) => ({
     id: role.role_id,
-    label: translatedRoleName(role, t),
+    label: translatedRoleName(role),
   }));
   return (
     <ManagementDialog

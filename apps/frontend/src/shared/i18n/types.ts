@@ -6,6 +6,7 @@ export const I18N_NAMESPACES = [
   'admin',
   'navbar',
   'scheduler',
+  'setup',
   'audit',
   'systemLog',
 ] as const;

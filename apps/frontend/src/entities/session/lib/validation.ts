@@ -53,16 +53,7 @@ export function createBasicPasswordSchema(messages: SessionValidationMessages) {
   return z
     .string()
     .transform(trimCredential)
-    .pipe(
-      z
-        .string()
-        .min(PASSWORD_MIN_LENGTH, {
-          error: () => messages.passwordLength(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH),
-        })
-        .max(PASSWORD_MAX_LENGTH, {
-          error: () => messages.passwordLength(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH),
-        })
-    );
+    .pipe(createPasswordLengthSchema(messages, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH));
 }
 
 export function createPasswordSchema(
@@ -75,14 +66,7 @@ export function createPasswordSchema(
     .string()
     .transform(trimCredential)
     .pipe(
-      z
-        .string()
-        .min(activePolicy.min_length, {
-          error: () => messages.passwordLength(activePolicy.min_length, activePolicy.max_length),
-        })
-        .max(activePolicy.max_length, {
-          error: () => messages.passwordLength(activePolicy.min_length, activePolicy.max_length),
-        })
+      createPasswordLengthSchema(messages, activePolicy.min_length, activePolicy.max_length)
         .refine((value) => !activePolicy.require_letter || hasLetter(value), {
           error: messages.passwordLetterRequired,
         })
@@ -92,7 +76,7 @@ export function createPasswordSchema(
         .refine((value) => !activePolicy.require_symbol || hasSymbol(value), {
           error: messages.passwordSymbolRequired,
         })
-        .refine((value) => !containsUsername(value, username, activePolicy), {
+        .refine((value) => !passwordContainsUsername(value, username, activePolicy), {
           error: messages.passwordContainsUsername,
         })
     );
@@ -142,6 +126,21 @@ function defaultPasswordPolicy(): PasswordPolicy {
   };
 }
 
+function createPasswordLengthSchema(
+  messages: SessionValidationMessages,
+  minimum: number,
+  maximum: number
+) {
+  return z.string().refine((value) => isUnicodeLengthWithin(value, minimum, maximum), {
+    error: () => messages.passwordLength(minimum, maximum),
+  });
+}
+
+function isUnicodeLengthWithin(value: string, minimum: number, maximum: number) {
+  const length = Array.from(value).length;
+  return length >= minimum && length <= maximum;
+}
+
 function hasLetter(value: string) {
   return /[A-Za-z]/.test(value);
 }
@@ -154,8 +153,12 @@ function hasSymbol(value: string) {
   return /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(value);
 }
 
-function containsUsername(value: string, username: string | undefined, policy: PasswordPolicy) {
-  if (!policy.forbid_username_contains) {
+export function passwordContainsUsername(
+  value: string,
+  username: string | undefined,
+  policy?: PasswordPolicy
+) {
+  if (!policy?.forbid_username_contains) {
     return false;
   }
   const normalizedUsername = username?.trim().toLowerCase();

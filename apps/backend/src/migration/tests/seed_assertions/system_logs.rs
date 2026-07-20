@@ -1,4 +1,4 @@
-use sqlx::{PgPool, query_as, query_scalar};
+use sqlx::{PgPool, query_as};
 
 const LOG_PAGE_RELATIONS: &[(&str, i64)] = &[("112", 1), ("113", 2), ("109", 3), ("114", 4)];
 
@@ -20,11 +20,6 @@ async fn assert_runtime_config(pool: &PgPool) {
 }
 
 async fn assert_menus(pool: &PgPool) {
-    let bindings: i64 = query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE role_id='2' AND menu_id IN ('114','1140','1141','1142')")
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert_eq!(bindings, 4);
     assert_log_page_relations(pool).await;
 }
 

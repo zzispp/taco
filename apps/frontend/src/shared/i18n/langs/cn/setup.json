@@ -1,0 +1,95 @@
+{
+  "documentTitle": "安装 Taco",
+  "brand": "Taco 安装向导",
+  "status": {
+    "probeFailedTitle": "无法检查安装状态",
+    "defaultsFailedTitle": "无法加载安装默认配置",
+    "connectionSucceeded": "连接测试成功",
+    "restartWaitingTitle": "安装已提交，正在等待 Taco 重启",
+    "restartWaitingDescription": "Taco 正在切换到正常运行模式。此页面会持续检查状态。",
+    "restartUnavailable": "尚未能连接到重启后的 Taco。请检查部署进程，然后重试。"
+  },
+  "actions": {
+    "back": "上一步",
+    "next": "下一步",
+    "retry": "重试",
+    "testConnection": "测试连接",
+    "testingConnection": "测试中…",
+    "install": "开始安装",
+    "installing": "正在安装…",
+    "openAdvanced": "展开高级设置",
+    "closeAdvanced": "收起高级设置"
+  },
+  "steps": {
+    "postgres": {
+      "title": "PostgreSQL",
+      "description": "输入 Taco 主数据库的连接信息。",
+      "host": "主机",
+      "port": "端口",
+      "username": "用户名",
+      "password": "密码",
+      "database": "数据库名",
+      "useTls": "使用 TLS 验证连接"
+    },
+    "redis": {
+      "title": "Redis",
+      "description": "输入 Taco 专用 Redis 实例的连接信息；用户名、密码和数据库编号可以留空。安装会清空该实例的所有逻辑数据库。",
+      "host": "主机",
+      "port": "端口",
+      "username": "用户名（可选）",
+      "password": "密码（可选）",
+      "database": "数据库编号（可选）",
+      "useTls": "使用 TLS 验证连接"
+    },
+    "administrator": {
+      "title": "初始超级管理员",
+      "description": "此账户是安装超级管理员，独立于业务角色权限。密码至少 8 个字符且不能包含用户名。",
+      "username": "用户名",
+      "email": "邮箱地址",
+      "password": "密码",
+      "passwordConfirmation": "确认密码"
+    },
+    "confirmation": {
+      "title": "安装预览",
+      "description": "请确认 PostgreSQL、Redis、初始超级管理员与高级设置。开始安装后，Taco 会重建所选 PostgreSQL 的 public schema，并对所选 Taco 专用 Redis 实例执行 FLUSHALL，清空该实例的全部逻辑数据库；随后迁移数据库、保存加密配置并重启。",
+      "postgres": "PostgreSQL",
+      "redis": "Redis",
+      "administrator": "初始超级管理员",
+      "advanced": "高级设置",
+      "notConfigured": "未设置",
+      "passwordConfigured": "密码已设置",
+      "passwordNotConfigured": "密码未设置",
+      "enabled": "已开启",
+      "disabled": "未开启",
+      "noAdvancedOverrides": "未配置高级覆盖项"
+    }
+  },
+  "advanced": {
+    "title": "高级设置",
+    "description": "可选。仅在需要为本次安装提交高级覆盖项时展开并填写。预览页只显示实际提交的覆盖项。",
+    "httpRequestTimeout": "HTTP 请求超时（毫秒）",
+    "compressionEnabled": "启用 HTTP 压缩",
+    "metricsEnabled": "启用指标端点",
+    "onlineSessionCleanupInterval": "在线会话清理间隔（毫秒）",
+    "onlineSessionCleanupBatchSize": "在线会话清理批量大小",
+    "auditOutboxWorkerCount": "审计 Outbox 工作线程数",
+    "auditOutboxClaimBatchSize": "审计 Outbox 认领批量大小",
+    "auditOutboxPollInterval": "审计 Outbox 轮询间隔（毫秒）",
+    "auditOutboxLeaseDuration": "审计 Outbox 租约时长（毫秒）",
+    "auditOutboxRetryDelay": "审计 Outbox 重试延迟（毫秒）",
+    "auditOutboxCleanupInterval": "审计 Outbox 清理间隔（毫秒）",
+    "auditOutboxCleanupBatchSize": "审计 Outbox 清理批量大小",
+    "auditOutboxProcessedRetentionDays": "审计 Outbox 已处理记录保留天数",
+    "clientIpLocationTimeout": "客户端 IP 定位超时（毫秒）",
+    "schedulerHttpTimeout": "调度器 HTTP 超时（毫秒）",
+    "schedulerReconcileInterval": "调度器协调间隔（毫秒）",
+    "redisKeyPrefix": "Redis 键前缀"
+  },
+  "validation": {
+    "required": "此字段不能为空",
+    "port": "端口必须是 1 到 65535 之间的整数",
+    "redisDatabase": "Redis 数据库编号必须是非负整数",
+    "passwordConfirmation": "两次输入的密码不一致",
+    "positive": "此字段必须是大于零的整数"
+  }
+}

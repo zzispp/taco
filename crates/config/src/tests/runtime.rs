@@ -35,37 +35,114 @@ fn client_info_http_timeout_must_be_positive() {
 }
 
 #[test]
-fn refresh_cookie_config_normalizes_path() {
-    let mut settings = settings_with_database(database_parts());
-    settings.auth.refresh_cookie = RefreshCookieSettings {
-        secure: true,
-        path: "  /api/auth  ".into(),
-    };
-
-    assert_eq!(
-        settings.refresh_cookie_config().unwrap(),
-        RefreshCookieSettings {
-            secure: true,
-            path: "/api/auth".into(),
-        }
-    );
-}
-
-#[test]
-fn refresh_cookie_config_rejects_relative_path() {
-    let mut relative_path = settings_with_database(database_parts());
-    relative_path.auth.refresh_cookie.path = "api/auth".into();
+fn http_config_rejects_zero_timeout() {
+    let settings = settings_with_http(HttpSettings {
+        request_timeout_ms: 0,
+        compression_enabled: true,
+    });
 
     assert!(matches!(
-        relative_path.refresh_cookie_config(),
-        Err(SettingsError::InvalidCookiePath("auth.refresh_cookie.path"))
+        settings.http_config(),
+        Err(SettingsError::NonPositiveNumber("http.request_timeout_ms"))
     ));
 }
 
 #[test]
-fn refresh_cookie_config_rejects_insecure_transport() {
-    let mut settings = settings_with_database(database_parts());
-    settings.auth.refresh_cookie.secure = false;
+fn scheduler_config_rejects_non_positive_runtime_values() {
+    let mut request_timeout = valid_settings();
+    request_timeout.scheduler.http_client.request_timeout_ms = 0;
+    let mut reconcile_interval = valid_settings();
+    reconcile_interval.scheduler.runtime.reconcile_interval_ms = 0;
 
-    assert!(matches!(settings.refresh_cookie_config(), Err(SettingsError::InsecureRefreshCookie)));
+    assert!(matches!(
+        request_timeout.scheduler_config(),
+        Err(SettingsError::NonPositiveNumber("scheduler.http_client.request_timeout_ms"))
+    ));
+    assert!(matches!(
+        reconcile_interval.scheduler_config(),
+        Err(SettingsError::NonPositiveNumber("scheduler.runtime.reconcile_interval_ms"))
+    ));
+}
+
+#[test]
+fn online_session_cleanup_config_requires_positive_values() {
+    let mut interval = valid_settings();
+    interval.user.online_sessions.cleanup_interval_ms = 0;
+    let mut batch = valid_settings();
+    batch.user.online_sessions.cleanup_batch_size = 0;
+
+    assert!(matches!(
+        interval.online_session_config(),
+        Err(SettingsError::NonPositiveNumber("user.online_sessions.cleanup_interval_ms"))
+    ));
+    assert!(matches!(
+        batch.online_session_config(),
+        Err(SettingsError::NonPositiveNumber("user.online_sessions.cleanup_batch_size"))
+    ));
+}
+
+#[test]
+fn full_settings_validation_rejects_blank_connection_and_derived_storage_values() {
+    let cases = [
+        settings_with_database(DatabaseSettings {
+            host: " ".into(),
+            ..database_parts()
+        }),
+        settings_with_database(DatabaseSettings {
+            username: " ".into(),
+            ..database_parts()
+        }),
+        settings_with_database(DatabaseSettings {
+            password: " ".into(),
+            ..database_parts()
+        }),
+        settings_with_database(DatabaseSettings {
+            name: " ".into(),
+            ..database_parts()
+        }),
+        Settings {
+            redis: RedisSettings {
+                host: " ".into(),
+                ..redis_settings()
+            },
+            ..valid_settings()
+        },
+        Settings {
+            redis: RedisSettings {
+                key_prefix: " ".into(),
+                ..redis_settings()
+            },
+            ..valid_settings()
+        },
+        Settings {
+            uploads: UploadSettings { avatar_directory: " ".into() },
+            ..valid_settings()
+        },
+    ];
+    let keys = [
+        "database.host",
+        "database.username",
+        "database.password",
+        "database.name",
+        "redis.host",
+        "redis.key_prefix",
+        "uploads.avatar_directory",
+    ];
+
+    for (settings, key) in cases.into_iter().zip(keys) {
+        assert!(matches!(settings.validate(), Err(SettingsError::BlankConfigValue(actual)) if actual == key));
+    }
+}
+
+#[test]
+fn listener_and_connection_ports_must_be_positive() {
+    let mut server = valid_settings();
+    server.server.port = 0;
+    let database = settings_with_database(DatabaseSettings { port: 0, ..database_parts() });
+    let mut redis = valid_settings();
+    redis.redis.port = 0;
+
+    assert!(matches!(server.validate(), Err(SettingsError::NonPositiveNumber("server.port"))));
+    assert!(matches!(database.validate(), Err(SettingsError::NonPositiveNumber("database.port"))));
+    assert!(matches!(redis.validate(), Err(SettingsError::NonPositiveNumber("redis.port"))));
 }

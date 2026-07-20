@@ -9,8 +9,12 @@ where
     C: LoginLockConfigProvider,
 {
     pub(super) async fn prepare_new_user(&self, input: NewUser) -> AppResult<ReplaceUserRecord> {
-        let input = sanitize_new_user(input);
-        validate_new_user(&input, &self.password_policy.password_policy().await?)?;
+        let policy = self.password_policy.password_policy().await?;
+        self.prepare_new_user_with_policy(input, policy).await
+    }
+
+    pub(super) async fn prepare_new_user_with_policy(&self, input: NewUser, policy: PasswordPolicy) -> AppResult<ReplaceUserRecord> {
+        let input = sanitize_and_validate_new_user(input, &policy)?;
         self.ensure_unique_user(UniqueUserCheck {
             username: &input.username,
             email: &input.email,
@@ -33,6 +37,20 @@ where
         })
         .await?;
         self.replace_user_record(input)
+    }
+
+    pub(super) async fn reject_installation_owner_mutation(&self, id: &UserId) -> AppResult<()> {
+        if self.repository.is_installation_owner(id).await? {
+            return Err(AppError::Forbidden(kernel::error::LocalizedError::new(INSTALLATION_OWNER_PROTECTED_KEY)));
+        }
+        Ok(())
+    }
+
+    pub(super) async fn reject_installation_owner_mutations(&self, ids: &[UserId]) -> AppResult<()> {
+        for id in ids {
+            self.reject_installation_owner_mutation(id).await?;
+        }
+        Ok(())
     }
 
     pub(super) async fn prepare_profile_update(&self, id: &UserId, profile: ProfileUpdate) -> AppResult<ProfileUpdate> {

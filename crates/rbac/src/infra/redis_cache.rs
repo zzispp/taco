@@ -64,16 +64,25 @@ impl RbacCache for RedisRbacCache {
         serde_json::from_str(&value).map_err(json_error)
     }
 
-    async fn read_nav(&self, role_keys: &[String], admin: bool) -> RbacResult<NavResponse> {
+    async fn read_nav(&self, role_keys: &[String], is_installation_owner: bool) -> RbacResult<NavResponse> {
         let snapshot = self.read_snapshot().await?;
-        let sections = snapshot
-            .menus
-            .into_iter()
-            .filter(|menu| admin || role_keys.contains(&menu.role_key))
-            .flat_map(|menu| menu.sections);
-        Ok(NavResponse {
-            nav_items: merge_sections(sections),
-        })
+        Ok(nav_response(snapshot, role_keys, is_installation_owner))
+    }
+}
+
+fn nav_response(snapshot: PermissionSnapshot, role_keys: &[String], is_installation_owner: bool) -> NavResponse {
+    if is_installation_owner {
+        return NavResponse {
+            nav_items: snapshot.installation_owner_menus,
+        };
+    }
+    let sections = snapshot
+        .menus
+        .into_iter()
+        .filter(|menu| role_keys.contains(&menu.role_key))
+        .flat_map(|menu| menu.sections);
+    NavResponse {
+        nav_items: merge_sections(sections),
     }
 }
 
@@ -141,7 +150,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn merge_sections_deduplicates_admin_role_nav_groups() {
+    fn merge_sections_deduplicates_business_role_nav_groups() {
         let sections = vec![
             section("system_management", vec![item("100", "用户管理")]),
             section("system_management", vec![item("100", "用户管理"), item("101", "角色管理")]),
@@ -152,6 +161,23 @@ mod tests {
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].code, "system_management");
         assert_eq!(merged[0].items.iter().map(|item| item.code.as_str()).collect::<Vec<_>>(), vec!["100", "101"]);
+    }
+
+    #[test]
+    fn installation_owner_navigation_ignores_assignable_role_keys() {
+        let snapshot = PermissionSnapshot {
+            roles: vec![],
+            menus: vec![types::rbac::RoleMenuSnapshot {
+                role_key: "business-admin".into(),
+                sections: vec![section("business", vec![item("100", "Business")])],
+            }],
+            installation_owner_menus: vec![section("owner", vec![item("101", "Owner")])],
+        };
+
+        let navigation = nav_response(snapshot, &["business-admin".into()], true);
+
+        assert_eq!(navigation.nav_items[0].code, "owner");
+        assert_eq!(navigation.nav_items[0].items[0].code, "101");
     }
 
     fn section(code: &str, items: Vec<NavItemResponse>) -> NavSectionResponse {

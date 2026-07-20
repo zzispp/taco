@@ -7,7 +7,8 @@ This is a Rust and pnpm monorepo.
 - `apps/backend` is the backend composition root and runtime entry.
 - `apps/frontend` is the Next.js admin frontend.
 - Rust workspace members live in `apps/backend` and `crates/*`.
-- Runtime YAML configuration lives in `config/`.
+- Immutable runtime infrastructure configuration lives in the encrypted
+  installation state under the operator-provided data directory.
 - SQLx migrations live in `migrations/`.
 - Static assets belong under each app's `public/` directory.
 
@@ -71,7 +72,7 @@ Backend placement rule:
 
 ## Constants, Runtime Parameters, And Configuration Boundaries
 
-Constants and runtime parameters must have a single clear owner. Do not duplicate the same semantic value across crates, modules, `config.yaml`, and `sys_config`.
+Constants and runtime parameters must have a single clear owner. Do not duplicate the same semantic value across crates, modules, the encrypted installation profile, and `sys_config`.
 
 Constant ownership rules:
 
@@ -84,8 +85,8 @@ Constant ownership rules:
 Runtime parameter rules:
 
 - Parameters that may be changed during operations without a code release belong in `sys_config`.
-- Startup infrastructure configuration belongs in `config.yaml` or environment variables.
-- A semantic value must not have two active runtime sources. Do not read the same behavior from both `config.yaml` and `sys_config`.
+- Startup infrastructure configuration belongs in the encrypted installation profile created by the setup wizard. Only the data directory, configuration-encryption key, and optional listener address are bootstrap CLI/environment inputs.
+- A semantic value must not have two active runtime sources. Do not read the same behavior from both the installation profile and `sys_config`.
 - Before changing any constant, runtime parameter, business threshold, limit, or policy value, locate all read sites and state the parameter's semantic meaning in one line.
 
 Parsing and validation ownership:
@@ -248,4 +249,4 @@ Pull requests should describe the change, list validation commands run, link rel
 
 Do not commit secrets or local credentials.
 
-Keep runtime configuration in `config/` or environment variables, and document any new required setting in the relevant app or crate README.
+Keep immutable runtime infrastructure configuration in the encrypted installation state and operationally mutable parameters in `sys_config`. Document any new bootstrap input or installation field in the relevant app or crate README.

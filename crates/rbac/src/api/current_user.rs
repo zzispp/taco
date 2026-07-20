@@ -5,5 +5,5 @@ pub struct CurrentUser {
     pub role_keys: Vec<String>,
     pub permissions: Vec<String>,
     pub dept_id: Option<String>,
-    pub admin: bool,
+    pub is_installation_owner: bool,
 }

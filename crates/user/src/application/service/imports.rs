@@ -65,7 +65,7 @@ where
                 sex: default_if_blank(row.sex, "2"),
                 status: default_if_blank(row.status, "0"),
                 remark: None,
-                role_ids: vec![IMPORTED_USER_ROLE_ID.into()],
+                role_ids: Vec::new(),
                 post_ids: vec![],
             })
             .await?;
@@ -73,6 +73,7 @@ where
     }
 
     async fn prepare_import_update(&self, row: UserImportRow, existing: User) -> AppResult<(UserImportWrite, UserImportMessage)> {
+        self.reject_installation_owner_mutation(&existing.id).await?;
         let username = row.username.trim().to_owned();
         let record = self
             .prepare_replacement(

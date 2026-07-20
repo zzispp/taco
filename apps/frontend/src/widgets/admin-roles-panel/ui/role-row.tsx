@@ -56,7 +56,7 @@ export function RoleRow({
           />
         </TableCell>
       )}
-      <TableCell>{translatedRoleName(row, t)}</TableCell>
+      <TableCell>{translatedRoleName(row)}</TableCell>
       <TableCell sx={{ fontFamily: 'monospace' }}>{row.role_key}</TableCell>
       <TableCell>{row.role_sort}</TableCell>
       <TableCell>{dataScopeLabel(row.data_scope, t)}</TableCell>

@@ -81,10 +81,16 @@ pub fn menu(record: MenuRecord) -> Menu {
     }
 }
 
-pub fn permission_snapshot(permission_rows: Vec<RolePermissionRecord>, dept_rows: Vec<RoleDeptRecord>, menu_rows: Vec<RoleMenuRecord>) -> PermissionSnapshot {
+pub fn permission_snapshot(
+    permission_rows: Vec<RolePermissionRecord>,
+    dept_rows: Vec<RoleDeptRecord>,
+    menu_rows: Vec<RoleMenuRecord>,
+    installation_owner_menu_rows: Vec<RoleMenuRecord>,
+) -> PermissionSnapshot {
     PermissionSnapshot {
         roles: role_permissions(permission_rows, dept_rows),
         menus: role_menus(menu_rows),
+        installation_owner_menus: nav_sections(installation_owner_menu_rows),
     }
 }
 

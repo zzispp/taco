@@ -162,7 +162,7 @@ pub(super) fn new_sign_up_user(payload: SignUpPayload) -> NewUser {
         sex: "2".into(),
         status: "0".into(),
         remark: None,
-        role_ids: vec!["2".into()],
+        role_ids: Vec::new(),
         post_ids: vec![],
     }
 }

@@ -1,13 +1,14 @@
 use serde_json::{Value, json};
 use sqlx::{PgPool, query, query_as, query_scalar};
 
-use super::{MIGRATION_TOTAL, TestDatabase, down, fresh, managed_table_exists, up};
+use super::{TestDatabase, down, managed_table_exists, migrate_through, up};
 
 const MIGRATIONS_BEFORE_DETAIL: u32 = 12;
-const MIGRATIONS_FROM_DETAIL: u32 = MIGRATION_TOTAL as u32 - MIGRATIONS_BEFORE_DETAIL;
+const DETAIL_MIGRATION_VERSION: i64 = 20260710000001;
 const DETAIL_MENU_ID: &str = "1093";
 const DETAIL_PERMISSION: &str = "system:job:log:detail";
 const PERMISSION_CONFLICT_MENU_ID: &str = "scheduler-detail-permission-conflict";
+const DETAIL_DOWN_ROLE_ID: &str = "scheduler-detail-down";
 const DETAIL_COLUMN_COUNT: i64 = 3;
 
 #[tokio::test]
@@ -71,14 +72,16 @@ async fn execution_detail_permission_conflict_rolls_back_the_whole_migration() {
 #[tokio::test]
 async fn execution_detail_down_removes_owned_schema_menu_and_bindings() {
     let database = TestDatabase::create().await;
-    fresh(database.pool()).await.unwrap();
-    query("INSERT INTO sys_role_menu (role_id, menu_id) VALUES ('2', $1)")
+    migrate_through(database.pool(), DETAIL_MIGRATION_VERSION).await;
+    insert_detail_down_role(database.pool()).await;
+    query("INSERT INTO sys_role_menu (role_id, menu_id) VALUES ($1, $2)")
+        .bind(DETAIL_DOWN_ROLE_ID)
         .bind(DETAIL_MENU_ID)
         .execute(database.pool())
         .await
         .unwrap();
 
-    down(database.pool(), Some(MIGRATIONS_FROM_DETAIL)).await.unwrap();
+    down(database.pool(), Some(1)).await.unwrap();
 
     assert_eq!(detail_column_count(database.pool()).await, 0);
     assert_eq!(detail_menu_count(database.pool()).await, 0);
@@ -87,6 +90,14 @@ async fn execution_detail_down_removes_owned_schema_menu_and_bindings() {
     assert_eq!(menu_count(database.pool(), "1092").await, 1);
 
     database.drop().await;
+}
+
+async fn insert_detail_down_role(pool: &PgPool) {
+    query("INSERT INTO sys_role (role_id,role_name,role_key,role_sort,status,create_time) VALUES ($1,$1,$1,1,'0',CURRENT_TIMESTAMP)")
+        .bind(DETAIL_DOWN_ROLE_ID)
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 async fn assert_legacy_detail_is_null(pool: &PgPool) {

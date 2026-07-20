@@ -98,6 +98,14 @@ impl RbacRepository for StorageRbacRepository {
         self.roles.scoped_user_ids(user_ids, scope).await.map_err(storage_error)
     }
 
+    async fn has_installation_owner(&self, user_ids: &[String]) -> RbacResult<bool> {
+        self.roles.has_installation_owner(user_ids).await.map_err(storage_error)
+    }
+
+    async fn role_has_installation_owner(&self, role_id: &str) -> RbacResult<bool> {
+        self.roles.has_installation_owner_in_role(role_id).await.map_err(storage_error)
+    }
+
     async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()> {
         self.roles.replace_users(role_id, input).await.map_err(storage_error)
     }
@@ -170,6 +178,7 @@ impl RbacRepository for StorageRbacRepository {
         let permissions = self.roles.permission_rows().await.map_err(storage_error)?;
         let depts = self.roles.dept_rows().await.map_err(storage_error)?;
         let menus = self.menus.role_menu_rows().await.map_err(storage_error)?;
-        Ok(permission_snapshot(permissions, depts, menus))
+        let installation_owner_menus = self.menus.installation_owner_menu_rows().await.map_err(storage_error)?;
+        Ok(permission_snapshot(permissions, depts, menus, installation_owner_menus))
     }
 }

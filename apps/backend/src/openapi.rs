@@ -3,7 +3,8 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        crate::system::health
+        crate::system::health,
+        crate::system::ready
     ),
     nest(
         (path = "/api", api = audit::api::AuditApiDoc),

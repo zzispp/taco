@@ -204,7 +204,7 @@ fn nested_log_directory_preserves_leaf_routes_in_navbar() {
 
 fn row(input: TestRoleMenuRecord<'_>) -> RoleMenuRecord {
     RoleMenuRecord {
-        role_key: "common".into(),
+        role_key: "business-role".into(),
         menu_id: input.menu_id.into(),
         menu_name: input.menu_name.into(),
         parent_id: input.parent_id.into(),

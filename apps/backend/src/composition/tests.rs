@@ -43,7 +43,7 @@ fn endpoint_catalog_covers_cross_context_and_captcha_public_routes() {
 #[test]
 fn authorization_config_is_derived_from_endpoint_permission_specs() {
     let catalog = EndpointCatalog::build().unwrap();
-    let authorization = authorization_config(&test_settings(), &catalog).unwrap();
+    let authorization = authorization_config(&catalog).unwrap();
 
     let detail = authorization
         .route_permissions()
@@ -65,17 +65,31 @@ fn authorization_config_is_derived_from_endpoint_permission_specs() {
 }
 
 #[test]
-fn endpoint_derived_whitelist_contains_only_public_endpoints() {
+fn auth_whitelist_contains_fixed_routes_and_public_endpoint_specs() {
     let catalog = EndpointCatalog::build().unwrap();
-    let rules = auth_whitelist(&test_settings(), &catalog);
+    let rules = auth_whitelist(&catalog);
 
-    let avatar_rule = rules.iter().find(|rule| rule.path_pattern == "/uploads/avatars/{*file}");
+    for path in [
+        "/health",
+        "/ready",
+        "/metrics",
+        "/uploads/avatars/{*file}",
+        installation::api::SETUP_STATUS_PATH,
+    ] {
+        assert_eq!(rule_methods(&rules, path), Some(vec!["GET".to_owned()]));
+    }
+
     let logout_rule = rules.iter().find(|rule| rule.path_pattern == "/api/auth/logout");
     let me_rule = rules.iter().find(|rule| rule.path_pattern == "/api/auth/me");
+    let docs_rule = rules.iter().find(|rule| rule.path_pattern == "/docs");
 
-    assert_eq!(avatar_rule.map(|rule| rule.methods.clone()), Some(vec!["GET".to_owned()]));
     assert_eq!(logout_rule.map(|rule| rule.methods.clone()), Some(vec!["POST".to_owned()]));
     assert_eq!(me_rule, None);
+    assert_eq!(docs_rule, None);
+}
+
+fn rule_methods(rules: &[rbac::application::AuthWhitelistRule], path: &str) -> Option<Vec<String>> {
+    rules.iter().find(|rule| rule.path_pattern == path).map(|rule| rule.methods.clone())
 }
 
 fn assert_permission_rules_match_registered_handlers(rules: &[rbac::application::RoutePermissionRule]) {

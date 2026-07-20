@@ -22,6 +22,8 @@ pub(super) fn sanitize_role(input: RoleInput) -> RbacResult<RoleInput> {
 }
 
 pub(super) fn sanitize_menu(input: MenuInput) -> RbacResult<MenuInput> {
+    let perms = trim_optional(input.perms);
+    reject_reserved_wildcard_permission(perms.as_deref())?;
     Ok(MenuInput {
         menu_name: required("menu_name", input.menu_name)?,
         parent_id: required("parent_id", input.parent_id)?,
@@ -35,10 +37,17 @@ pub(super) fn sanitize_menu(input: MenuInput) -> RbacResult<MenuInput> {
         menu_type: required("menu_type", input.menu_type)?,
         visible: required("visible", input.visible)?,
         status: required("status", input.status)?,
-        perms: trim_optional(input.perms),
+        perms,
         icon: required("icon", input.icon)?,
         remark: trim_optional(input.remark),
     })
+}
+
+fn reject_reserved_wildcard_permission(perms: Option<&str>) -> RbacResult<()> {
+    if perms == Some(constants::system::RESERVED_WILDCARD_PERMISSION) {
+        return Err(RbacError::InvalidInput(localized("errors.rbac.wildcard_permission_reserved")));
+    }
+    Ok(())
 }
 
 pub(super) fn sanitize_role_data_scope(input: RoleDataScopeInput) -> RbacResult<RoleDataScopeInput> {
@@ -115,6 +124,20 @@ pub(super) fn reject_unscoped_user_ids(requested: &[String], scoped: &[String]) 
         return Ok(());
     }
     Err(RbacError::Forbidden)
+}
+
+pub(super) async fn reject_installation_owner_role_mutation<R: RbacRepository>(
+    repository: &R,
+    role_id: &str,
+    user_ids: &[String],
+    replaces_all_role_users: bool,
+) -> RbacResult<()> {
+    let targets_owner = repository.has_installation_owner(user_ids).await?;
+    let removes_existing_owner = replaces_all_role_users && repository.role_has_installation_owner(role_id).await?;
+    if targets_owner || removes_existing_owner {
+        return Err(RbacError::Conflict(localized("errors.rbac.installation_owner_protected")));
+    }
+    Ok(())
 }
 
 pub(super) fn validate_page(page: &CursorPageRequest) -> RbacResult<()> {

@@ -4,7 +4,7 @@ use kernel::pagination::CursorPage;
 use super::*;
 use crate::{
     application::{AuthWhitelistRule, PermissionRequirement},
-    domain::{DataScope, RolePermissionSnapshot},
+    domain::{DataScope, MenuInput, RolePermissionSnapshot},
 };
 
 mod support;
@@ -43,17 +43,45 @@ async fn authorize_api_accepts_any_declared_permission() {
 }
 
 #[tokio::test]
-async fn authorize_api_allows_taco_wildcard_permission() {
+async fn authorize_api_rejects_reserved_wildcard_permission_for_business_roles() {
     let service = test_service(snapshot(vec![]));
-    let result = service.authorize_api(&config(), request(vec![constants::system::ALL_PERMISSION], false)).await;
+    let result = service
+        .authorize_api(&config(), request(vec![constants::system::RESERVED_WILDCARD_PERMISSION], false))
+        .await;
+    assert!(matches!(result, Err(RbacError::Forbidden)));
+}
+
+#[tokio::test]
+async fn authorize_api_allows_installation_owner_without_permission() {
+    let service = test_service(snapshot(vec![]));
+    let result = service.authorize_api(&config(), request(vec![], true)).await;
     assert!(result.is_ok());
 }
 
 #[tokio::test]
-async fn authorize_api_allows_admin_without_permission() {
-    let service = test_service(snapshot(vec![]));
-    let result = service.authorize_api(&config(), request(vec![], true)).await;
-    assert!(result.is_ok());
+async fn menu_creation_rejects_the_reserved_wildcard_permission() {
+    let service = test_admin_service(MemoryRepository::default());
+    let result = service
+        .create_menu(MenuInput {
+            menu_name: "all permissions".into(),
+            parent_id: "0".into(),
+            order_num: 1,
+            path: "permissions".into(),
+            component: None,
+            query: None,
+            route_name: "all-permissions".into(),
+            is_frame: false,
+            is_cache: false,
+            menu_type: "F".into(),
+            visible: "0".into(),
+            status: "0".into(),
+            perms: Some(format!("  {}  ", constants::system::RESERVED_WILDCARD_PERMISSION)),
+            icon: "shield".into(),
+            remark: None,
+        })
+        .await;
+
+    assert!(matches!(result, Err(RbacError::InvalidInput(error)) if error.key() == "errors.rbac.wildcard_permission_reserved"));
 }
 
 #[tokio::test]
@@ -64,9 +92,9 @@ async fn authorize_api_allows_whitelisted_me_without_permission() {
 }
 
 #[tokio::test]
-async fn data_scope_uses_admin_all_scope() {
-    let service = test_service(snapshot(vec![role_scope("common", "5", vec!["103"])]));
-    let filter = service.data_scope_filter(&current_user(vec!["common"], true)).await.unwrap();
+async fn data_scope_uses_installation_owner_all_scope() {
+    let service = test_service(snapshot(vec![role_scope("business-admin", "5", vec!["103"])]));
+    let filter = service.data_scope_filter(&current_user(vec!["business-admin"], true)).await.unwrap();
     assert_eq!(filter.data_scope, DataScope::All);
 }
 
@@ -146,6 +174,35 @@ async fn ensure_user_ids_scoped_allows_visible_role_user() {
     let result = service.ensure_user_ids_scoped(vec!["2".into()], self_scope("2", "104")).await;
 
     assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn role_bindings_cannot_target_the_installation_owner() {
+    let repository = MemoryRepository::default().with_role("role-1").with_installation_owner_user("owner-1");
+    let service = test_admin_service(repository);
+
+    let result = service
+        .replace_role_users(
+            "role-1",
+            crate::domain::RoleUserBindingInput {
+                user_ids: vec!["owner-1".into()],
+            },
+        )
+        .await;
+
+    assert!(matches!(result, Err(RbacError::Conflict(error)) if error.key() == "errors.rbac.installation_owner_protected"));
+}
+
+#[tokio::test]
+async fn role_binding_replacement_cannot_remove_an_existing_installation_owner_binding() {
+    let repository = MemoryRepository::default().with_role("role-1").with_installation_owner_role("role-1");
+    let service = test_admin_service(repository);
+
+    let result = service
+        .replace_role_users("role-1", crate::domain::RoleUserBindingInput { user_ids: Vec::new() })
+        .await;
+
+    assert!(matches!(result, Err(RbacError::Conflict(error)) if error.key() == "errors.rbac.installation_owner_protected"));
 }
 
 fn self_scope(user_id: &str, dept_id: &str) -> DataScopeFilter {

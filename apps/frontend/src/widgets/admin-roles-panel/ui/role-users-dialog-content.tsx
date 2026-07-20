@@ -66,7 +66,7 @@ export function RoleUsersDialogContent({
   return (
     <Dialog fullWidth maxWidth="md" open={!!role} onClose={onClose}>
       <DialogTitle>
-        {t('dialogs.authorizedUsers', { name: role ? translatedRoleName(role, t) : '' })}
+        {t('dialogs.authorizedUsers', { name: role ? translatedRoleName(role) : '' })}
       </DialogTitle>
       <DialogContent>
         <RoleUserAllocationTabs

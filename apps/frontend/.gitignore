@@ -20,6 +20,9 @@ coverage
 .swc
 _static
 out
+!out/
+out/*
+!out/.gitkeep
 dist
 build
 

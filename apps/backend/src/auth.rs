@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use audit_contract::{ActorSnapshot, EndpointAccess, OperationAuditContext};
 use axum::{
-    extract::{Request, State},
+    extract::{OriginalUri, Request, State},
     http::{HeaderMap, header::AUTHORIZATION},
     middleware::Next,
     response::Response,
 };
-use constants::system::SUPER_ADMIN_ROLE_KEY;
 use rbac::{
     api::{CurrentUser, RbacApiError},
     application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacUseCase},
@@ -56,7 +55,7 @@ impl AuthState {
 
 pub async fn auth_middleware(State(state): State<AuthState>, mut request: Request, next: Next) -> Result<Response, RbacApiError> {
     let method = request.method().as_str().to_owned();
-    let path = request.uri().path().to_owned();
+    let path = authorization_path(&request).to_owned();
     let access = state.endpoints.access(&method, &path);
     if allows_unauthenticated(access) || (access.is_none() && state.rbac.is_whitelisted(&state.authorization, &method, &path)?) {
         return Ok(next.run(request).await);
@@ -74,6 +73,14 @@ pub async fn auth_middleware(State(state): State<AuthState>, mut request: Reques
         request.extensions_mut().insert(data_scope);
     }
     Ok(next.run(request).await)
+}
+
+fn authorization_path(request: &Request) -> &str {
+    request
+        .extensions()
+        .get::<OriginalUri>()
+        .map(|uri| uri.0.path())
+        .unwrap_or_else(|| request.uri().path())
 }
 
 fn allows_unauthenticated(access: Option<EndpointAccess>) -> bool {
@@ -135,19 +142,18 @@ fn user_check_request(method: &str, path: &str, current_user: &CurrentUser) -> A
         path: path.into(),
         role_keys: current_user.role_keys.clone(),
         permissions: current_user.permissions.clone(),
-        admin: current_user.admin,
+        is_installation_owner: current_user.is_installation_owner,
     }
 }
 
 fn current_user(user: AuthorizationUser) -> CurrentUser {
-    let admin = user.role_keys.iter().any(|role_key| role_key == SUPER_ADMIN_ROLE_KEY);
     CurrentUser {
         id: user.id.0,
         username: user.username,
         role_keys: user.role_keys,
         permissions: user.permissions,
         dept_id: user.dept_id,
-        admin,
+        is_installation_owner: user.is_installation_owner,
     }
 }
 
@@ -177,11 +183,29 @@ fn user_error(error: AppError) -> RbacError {
 #[cfg(test)]
 mod tests {
     use audit_contract::EndpointAccess;
-    use constants::system::SUPER_ADMIN_ROLE_KEY;
+    use axum::{
+        body::Body,
+        extract::{OriginalUri, Request},
+        http::Uri,
+    };
     use types::user::UserId;
     use user::application::AuthorizationUser;
 
-    use super::{accepts_authenticated_actor, allows_unauthenticated, current_user, requires_data_scope};
+    use crate::composition::access_catalog::EndpointCatalog;
+
+    use super::{accepts_authenticated_actor, allows_unauthenticated, authorization_path, current_user, requires_data_scope};
+
+    #[test]
+    fn nested_api_routes_resolve_public_access_against_the_external_uri() {
+        let mut request = Request::builder().uri("/app/configs?keys=sys.index.skinName").body(Body::empty()).unwrap();
+        request
+            .extensions_mut()
+            .insert(OriginalUri("/api/app/configs?keys=sys.index.skinName".parse::<Uri>().unwrap()));
+
+        let access = EndpointCatalog::build().unwrap().access("GET", authorization_path(&request));
+
+        assert_eq!(access, Some(EndpointAccess::Public));
+    }
 
     #[test]
     fn self_authenticated_routes_require_a_token_without_permission_authorization() {
@@ -208,17 +232,18 @@ mod tests {
     }
 
     #[test]
-    fn current_user_uses_the_shared_super_admin_role_key() {
-        assert!(current_user(user_with_role(SUPER_ADMIN_ROLE_KEY)).admin);
-        assert!(!current_user(user_with_role("administrator")).admin);
+    fn current_user_uses_the_installation_owner_marker() {
+        assert!(current_user(user(true, "business-admin")).is_installation_owner);
+        assert!(!current_user(user(false, "admin")).is_installation_owner);
     }
 
-    fn user_with_role(role_key: &str) -> AuthorizationUser {
+    fn user(is_installation_owner: bool, role_key: &str) -> AuthorizationUser {
         AuthorizationUser {
             id: UserId("test-user".into()),
             username: "tester".into(),
             dept_id: None,
             status: "0".into(),
+            is_installation_owner,
             role_keys: vec![role_key.into()],
             permissions: Vec::new(),
         }

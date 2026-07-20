@@ -89,14 +89,17 @@ impl UserRepository for MemoryUserRepository {
     }
 
     async fn find_authorization_by_id(&self, id: UserId) -> AppResult<Option<AuthorizationUser>> {
-        Ok(self
-            .state
-            .lock()
-            .unwrap()
-            .users
-            .iter()
-            .find(|stored| stored.user.id == id)
-            .map(|stored| AuthorizationUser::from_user(stored.user.clone())))
+        let state = self.state.lock().unwrap();
+        let owner_id = state.installation_owner.as_ref();
+        Ok(state.users.iter().find(|stored| stored.user.id == id).map(|stored| {
+            let mut user = AuthorizationUser::from_user(stored.user.clone());
+            user.is_installation_owner = owner_id == Some(&stored.user.id);
+            user
+        }))
+    }
+
+    async fn is_installation_owner(&self, id: &UserId) -> AppResult<bool> {
+        Ok(self.state.lock().unwrap().installation_owner.as_ref() == Some(id))
     }
 
     async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()> {
@@ -217,8 +220,8 @@ impl UserRepository for MemoryUserRepository {
         Ok(UserFormOptions {
             roles: vec![types::rbac::RoleOption {
                 role_id: "1".into(),
-                role_name: "超级管理员".into(),
-                role_key: "admin".into(),
+                role_name: "业务管理员".into(),
+                role_key: "business-admin".into(),
                 status: "0".into(),
             }],
             posts: vec![Post {

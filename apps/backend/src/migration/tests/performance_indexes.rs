@@ -1,6 +1,6 @@
 use sqlx::{PgPool, query_scalar};
 
-use super::{TestDatabase, rollback_from, up};
+use super::{TestDatabase, migrate_through, rollback_from};
 
 const PERFORMANCE_INDEX_MIGRATION: i64 = 20260715000003;
 
@@ -20,7 +20,7 @@ const INDEX_SPECS: &[IndexSpec] = &[
 #[tokio::test]
 async fn performance_indexes_match_read_paths_and_rollback() {
     let database = TestDatabase::create().await;
-    up(database.pool(), None).await.unwrap();
+    migrate_through(database.pool(), PERFORMANCE_INDEX_MIGRATION).await;
 
     assert_index_contracts(database.pool()).await;
     rollback_from(database.pool(), PERFORMANCE_INDEX_MIGRATION).await;

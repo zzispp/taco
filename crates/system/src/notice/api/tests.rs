@@ -7,7 +7,7 @@ use axum::{
     http::{Method, Request, StatusCode, header},
     middleware,
 };
-use constants::system::{ALL_PERMISSION, STATUS_NORMAL};
+use constants::system::{RESERVED_WILDCARD_PERMISSION, STATUS_NORMAL};
 use rbac::api::CurrentUser;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -24,12 +24,12 @@ const ADD_PERMISSION: &str = "system:notice:add";
 const LIST_PERMISSION: &str = "system:notice:list";
 
 #[tokio::test]
-async fn closed_notice_requires_admin_wildcard_or_query_permission() {
+async fn closed_notice_requires_installation_owner_or_query_permission() {
     let cases = [
         (false, Vec::new(), StatusCode::NOT_FOUND),
         (false, vec![ADD_PERMISSION], StatusCode::NOT_FOUND),
         (false, vec![QUERY_PERMISSION], StatusCode::OK),
-        (false, vec![ALL_PERMISSION], StatusCode::OK),
+        (false, vec![RESERVED_WILDCARD_PERMISSION], StatusCode::NOT_FOUND),
         (true, Vec::new(), StatusCode::OK),
     ];
 
@@ -148,14 +148,14 @@ fn operation_audit_context() -> OperationAuditContext {
     context
 }
 
-fn current_user(admin: bool, permissions: &[&str]) -> CurrentUser {
+fn current_user(is_installation_owner: bool, permissions: &[&str]) -> CurrentUser {
     CurrentUser {
         id: "user-1".into(),
         username: "alice".into(),
         role_keys: Vec::new(),
         permissions: permissions.iter().map(|permission| (*permission).into()).collect(),
         dept_id: None,
-        admin,
+        is_installation_owner,
     }
 }
 

@@ -1,20 +1,15 @@
 use std::{
-    ffi::OsString,
-    path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use configuration::{DatabaseSettings, Settings};
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions, query, query_scalar};
 use url::Url;
 
-use super::down;
+use super::{down, status, up};
 
-const TEST_CONFIG_ENV: &str = "TACO_TEST_CONFIG";
-const CONFIG_ARG: &str = "--config";
+const TEST_DATABASE_URL_ENV: &str = "TACO_TEST_DATABASE_URL";
 const ADMIN_DATABASE_NAME: &str = "postgres";
-const TEST_BINARY_NAME: &str = "backend-migration-tests";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -22,26 +17,22 @@ pub(super) struct TestDatabase {
     admin_pool: PgPool,
     pool: PgPool,
     database_url: Url,
-    database_settings: DatabaseSettings,
     name: String,
 }
 
 impl TestDatabase {
     pub(super) async fn create() -> Self {
-        let (mut database_settings, configured_url) = configured_database();
+        let configured_url = configured_database();
         let admin_url = database_url_for(&configured_url, ADMIN_DATABASE_NAME);
         let admin_pool = PgPoolOptions::new().max_connections(1).connect(admin_url.as_str()).await.unwrap();
         let name = test_database_name();
         query(AssertSqlSafe(format!(r#"CREATE DATABASE "{name}""#))).execute(&admin_pool).await.unwrap();
         let database_url = database_url_for(&configured_url, &name);
         let pool = PgPoolOptions::new().max_connections(5).connect(database_url.as_str()).await.unwrap();
-        database_settings.name = name.clone();
-
         Self {
             admin_pool,
             pool,
             database_url,
-            database_settings,
             name,
         }
     }
@@ -52,10 +43,6 @@ impl TestDatabase {
 
     pub(super) fn database_url(&self) -> String {
         self.database_url.to_string()
-    }
-
-    pub(super) fn database_settings(&self) -> DatabaseSettings {
-        self.database_settings.clone()
     }
 
     pub(super) async fn drop(self) {
@@ -73,29 +60,15 @@ impl TestDatabase {
     }
 }
 
-fn configured_database() -> (DatabaseSettings, Url) {
-    let config_path = test_config_path();
-    let settings = Settings::load_from_args([OsString::from(TEST_BINARY_NAME), OsString::from(CONFIG_ARG), config_path])
-        .unwrap_or_else(|error| panic!("failed to load test configuration from {TEST_CONFIG_ENV}: {error}"));
-    let database_url = settings
-        .database_url()
-        .unwrap_or_else(|error| panic!("failed to read database connection from {TEST_CONFIG_ENV}: {error}"));
-    let parsed = Url::parse(&database_url).unwrap_or_else(|error| panic!("database connection in {TEST_CONFIG_ENV} is not a valid URL: {error}"));
+fn configured_database() -> Url {
+    let database_url = std::env::var(TEST_DATABASE_URL_ENV)
+        .unwrap_or_else(|_| panic!("{TEST_DATABASE_URL_ENV} must contain a PostgreSQL URL for migration integration tests"));
+    let parsed = Url::parse(&database_url).unwrap_or_else(|error| panic!("database connection in {TEST_DATABASE_URL_ENV} is not a valid URL: {error}"));
     assert!(
         matches!(parsed.scheme(), "postgres" | "postgresql"),
-        "database connection in {TEST_CONFIG_ENV} must use PostgreSQL"
+        "database connection in {TEST_DATABASE_URL_ENV} must use PostgreSQL"
     );
-    (settings.database, parsed)
-}
-
-fn test_config_path() -> OsString {
-    let configured_path =
-        PathBuf::from(std::env::var_os(TEST_CONFIG_ENV).unwrap_or_else(|| panic!("{TEST_CONFIG_ENV} must point to a typed YAML configuration file")));
-    if configured_path.is_absolute() {
-        return configured_path.into_os_string();
-    }
-
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(configured_path).into_os_string()
+    parsed
 }
 
 fn database_url_for(configured_url: &Url, database_name: &str) -> Url {
@@ -113,20 +86,46 @@ pub(super) async fn managed_table_exists(pool: &PgPool, table: &str) -> bool {
         .unwrap()
 }
 
-pub(super) async fn rollback_from(pool: &PgPool, target_version: i64) {
-    let target_applied: i64 = query_scalar("SELECT COUNT(*) FROM _sqlx_migrations WHERE version = $1")
-        .bind(target_version)
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert_eq!(target_applied, 1, "target migration {target_version} is not applied");
+pub(super) async fn migrate_through(pool: &PgPool, target_version: i64) {
+    let rows = status(pool).await.unwrap();
+    assert!(rows.iter().all(|row| row.kind == "pending"), "migrate_through requires a clean migration state");
 
-    let steps: i64 = query_scalar("SELECT COUNT(*) FROM _sqlx_migrations WHERE version >= $1")
+    let target_index = rows
+        .iter()
+        .position(|row| row.version == target_version)
+        .unwrap_or_else(|| panic!("target migration {target_version} is not present in the local migration source"));
+    let steps = u32::try_from(target_index + 1).unwrap();
+    up(pool, Some(steps)).await.unwrap();
+
+    assert_migrated_through(pool, target_version).await;
+}
+
+pub(super) async fn rollback_from(pool: &PgPool, target_version: i64) {
+    let latest_applied: Option<i64> = query_scalar("SELECT MAX(version) FROM _sqlx_migrations WHERE success = TRUE")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        latest_applied,
+        Some(target_version),
+        "rollback_from requires the target migration to be the latest applied migration"
+    );
+
+    down(pool, Some(1)).await.unwrap();
+
+    let target_applied: i64 = query_scalar("SELECT COUNT(*) FROM _sqlx_migrations WHERE version = $1 AND success = TRUE")
         .bind(target_version)
         .fetch_one(pool)
         .await
         .unwrap();
-    down(pool, Some(u32::try_from(steps).unwrap())).await.unwrap();
+    assert_eq!(target_applied, 0, "target migration {target_version} remained applied after rollback");
+}
+
+async fn assert_migrated_through(pool: &PgPool, target_version: i64) {
+    for row in status(pool).await.unwrap() {
+        let expected = if row.version <= target_version { "applied" } else { "pending" };
+        assert_eq!(row.kind, expected, "unexpected migration state for version {}", row.version);
+    }
 }
 
 fn test_database_name() -> String {

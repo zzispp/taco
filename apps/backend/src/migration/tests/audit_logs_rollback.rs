@@ -1,13 +1,13 @@
 use sqlx::query_scalar;
 
-use super::{TestDatabase, managed_table_exists, rollback_from, up};
+use super::{TestDatabase, managed_table_exists, migrate_through, rollback_from};
 
 const AUDIT_LOGS_MIGRATION_VERSION: i64 = 20260713000004;
 
 #[tokio::test]
 async fn audit_log_migration_down_removes_outbox_and_projected_logs() {
     let database = TestDatabase::create().await;
-    up(database.pool(), None).await.unwrap();
+    migrate_through(database.pool(), AUDIT_LOGS_MIGRATION_VERSION).await;
 
     rollback_from(database.pool(), AUDIT_LOGS_MIGRATION_VERSION).await;
 

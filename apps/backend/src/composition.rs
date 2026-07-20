@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use ::system::{
     api::{SystemApiState, SystemApiStateParts, create_router as create_system_router},
-    application::{SystemService, SystemUseCase},
-    infra::{RedisSystemCache, StorageSystemRepository},
+    application::SystemUseCase,
     notice::{NoticeApiState, create_router as create_notice_router},
 };
 use audit::{
@@ -15,19 +14,16 @@ use captcha::{
     api::{CaptchaApiState, create_router as create_captcha_router},
     application::{CaptchaProvider, CaptchaService, CaptchaUseCase},
     infra::RedisCaptchaStore,
-    providers::{
-        cap::CapProvider,
-        cloudflare_turnstile::{CloudflareTurnstileProvider, ReqwestTurnstileVerifier},
-    },
+    providers::cap::CapProvider,
 };
-use configuration::{Settings, SettingsError, ValidatedCorsList};
+use configuration::Settings;
 use observability::api::{SystemLogApiState, SystemLogApiStateParts, create_router as create_system_log_router};
 use rbac::api::{RbacApiState, RbacApiStateParts, create_router as create_rbac_router};
 use scheduler::api::{SchedulerApiState, SchedulerApiStateParts, create_router as create_scheduler_router};
-use storage::{Database, connect_database};
+use storage::connect_database;
 use tower_http::services::ServeDir;
 use user::{
-    api::{ApiState, ApiStateParts, AuthHttpConfig, RefreshCookieConfig, TokenSettings, create_router as create_user_router},
+    api::{ApiState, ApiStateParts, TokenSettings, create_router as create_user_router},
     infra::LocalAvatarStorage,
 };
 
@@ -50,29 +46,28 @@ use crate::{
 
 pub(crate) mod access_catalog;
 mod audit_wiring;
-mod bootstrap_wiring;
 mod core_wiring;
-mod http_pipeline;
+pub(crate) mod http_pipeline;
 mod rbac_wiring;
 mod routes;
 mod runtime_config;
 mod scheduler_wiring;
+pub(crate) mod setup_wiring;
 mod system_log_cleanup_execution;
-pub(crate) mod tracing_config_listener;
-pub(crate) mod tracing_runtime;
-pub(crate) use bootstrap_wiring::bootstrap_admin;
 #[cfg(test)]
 pub(crate) mod tests;
+pub(crate) mod tracing_config_listener;
+pub(crate) mod tracing_runtime;
 
 const AVATAR_URL_PREFIX: &str = "/uploads/avatars";
 
 pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let database = connect_database(&settings.database_url()?).await?;
-    migration::prepare_runtime_schema(database.raw_pool(), settings.database.auto_migrate).await?;
+    migration::ensure_runtime_schema_ready(database.raw_pool()).await?;
     let observability = build_observability_services(database.clone()).await?;
     let rbac = build_rbac_services(settings, database.clone(), observability.infrastructure_observer.clone()).await?;
     let endpoints = access_catalog::EndpointCatalog::build()?;
-    let authorization = authorization_config(settings, &endpoints)?;
+    let authorization = authorization_config(&endpoints)?;
     rbac.use_case.validate_protected_handlers(&authorization)?;
     let system = build_system_services(settings, database.clone(), observability.infrastructure_observer.clone()).await?;
     let users = build_user_services(
@@ -135,10 +130,11 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
 
 #[cfg(test)]
 pub(crate) fn build_public_router(settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
-    let app = add_metrics_route(
-        public_routes(settings, system::HealthState::for_test(tracing_runtime::TracingConfigListenerHealth::new())),
-        &metrics_handle,
-    );
+    let app = crate::embedded_frontend::with_embedded_frontend(normal_public_routes(
+        settings,
+        system::HealthState::for_test(tracing_runtime::TracingConfigListenerHealth::new()),
+    ));
+    let app = add_metrics_route(app, &metrics_handle);
     let app = app.layer(middleware::from_fn(types::http::locale_middleware));
     let app = http_pipeline::with_timeout(app, settings)?;
     let app = http_pipeline::apply_metrics_layer(app, &metrics_handle);
@@ -154,15 +150,14 @@ pub fn create_app(state: AppState, settings: &Settings, metrics_handle: taco_tra
         authorization: state.authorization.clone(),
         endpoints: state.endpoints.clone(),
     });
-    let api_router = create_api_router(&state, settings)?;
+    let api_router = create_api_router(&state, settings)?.layer(middleware::from_fn_with_state(auth_state, auth_middleware));
     let health_state = system::HealthState::new(state.tracing_config_listener_health.clone(), state.system_log_runtime.clone());
-    let app = public_routes(settings, health_state).nest("/api", api_router);
+    let app = crate::embedded_frontend::with_embedded_frontend(normal_public_routes(settings, health_state).nest("/api", api_router));
     let app = add_metrics_route(app, &metrics_handle);
     let app = app.layer(Extension(state.audit_outbox_runtime.clone()));
     let app = app.layer(Extension(state.session_cleanup_runtime.clone()));
     let app = app.layer(Extension(state.system_log_runtime.clone()));
     let app = app.layer(Extension(state._tracing_config_listener_runtime.clone()));
-    let app = app.layer(middleware::from_fn_with_state(auth_state, auth_middleware));
     apply_runtime_layers(
         app,
         RuntimeLayerParts {
@@ -212,26 +207,10 @@ fn user_api_state(state: &AppState, settings: &Settings) -> BackendResult<ApiSta
         ip_location_resolver: state.ip_location_resolver.clone(),
         operation_audit: state.audit_outbox.clone(),
         security_audit: state.audit_outbox.clone(),
-        auth_http: auth_http_config(settings)?,
     })
     .with_avatar_storage(avatar_storage)
     .with_avatar_config(user_config.clone())
     .with_export_config(user_config))
-}
-
-fn auth_http_config(settings: &Settings) -> BackendResult<AuthHttpConfig> {
-    let cookie = settings.refresh_cookie_config()?;
-    let cors = settings.validated_cors()?;
-    let ValidatedCorsList::Values(trusted_origins) = cors.allowed_origins else {
-        return Err(SettingsError::WildcardCorsOrigin("cors.allowed_origins").into());
-    };
-    Ok(AuthHttpConfig {
-        refresh_cookie: RefreshCookieConfig {
-            secure: cookie.secure,
-            path: cookie.path,
-        },
-        trusted_origins,
-    })
 }
 
 fn system_api_state(state: &AppState) -> SystemApiState {
@@ -275,18 +254,8 @@ fn public_routes(settings: &Settings, health_state: system::HealthState) -> Rout
         .nest_service(AVATAR_URL_PREFIX, ServeDir::new(&settings.uploads.avatar_directory))
 }
 
-pub use rbac_wiring::rebuild_rbac_cache;
-
-pub async fn rebuild_persistent_system_cache(settings: &Settings, database: Database, observer: taco_tracing::InfrastructureObserver) -> BackendResult<()> {
-    let cache = RedisSystemCache::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
-    let system: Arc<dyn SystemUseCase> = Arc::new(SystemService::with_cache(StorageSystemRepository::new(database), cache));
-    rebuild_system_cache(&system).await
-}
-
-async fn rebuild_system_cache(system: &Arc<dyn SystemUseCase>) -> BackendResult<()> {
-    system.refresh_config_cache().await?;
-    system.refresh_dict_cache().await?;
-    Ok(())
+fn normal_public_routes(settings: &Settings, health_state: system::HealthState) -> Router {
+    public_routes(settings, health_state).merge(installation::api::installed_router())
 }
 
 async fn build_captcha_service(
@@ -294,12 +263,8 @@ async fn build_captcha_service(
     system: Arc<dyn SystemUseCase>,
     observer: taco_tracing::InfrastructureObserver,
 ) -> BackendResult<Arc<dyn CaptchaUseCase>> {
-    let store = RedisCaptchaStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer.clone()).await?;
-    let turnstile_secret_key = settings.cloudflare_turnstile_secret_key();
-    let providers: Vec<Arc<dyn CaptchaProvider>> = vec![
-        Arc::new(CapProvider::new(store)),
-        Arc::new(CloudflareTurnstileProvider::new(ReqwestTurnstileVerifier::new(observer), turnstile_secret_key)),
-    ];
+    let store = RedisCaptchaStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
+    let providers: Vec<Arc<dyn CaptchaProvider>> = vec![Arc::new(CapProvider::new(store))];
     Ok(Arc::new(CaptchaService::new(CaptchaSystemConfig::new(system), providers)))
 }
 
