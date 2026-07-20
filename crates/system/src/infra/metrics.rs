@@ -17,6 +17,9 @@ use super::network_interfaces::public_ips;
 const TOP_PROCESS_LIMIT: usize = 8;
 const MILLIS_PER_SECOND: f64 = 1_000.0;
 const PERCENT_MULTIPLIER: f64 = 100.0;
+const APFS_FILE_SYSTEM: &str = "apfs";
+const MACOS_ROOT_MOUNT_POINT: &str = "/";
+const MACOS_DATA_VOLUME_MOUNT_POINT: &str = "/System/Volumes/Data";
 
 #[derive(Clone, Default)]
 pub struct SysinfoServerMetricsCollector;
@@ -121,7 +124,36 @@ fn memory(system: &System) -> ServerMemoryMetrics {
 fn disks() -> Vec<ServerDiskMetrics> {
     let mut disks = Disks::new_with_refreshed_list();
     disks.refresh(true);
-    disks.iter().map(disk_metrics).collect()
+    reportable_disks(disks.iter().map(disk_metrics).collect())
+}
+
+fn reportable_disks(disks: Vec<ServerDiskMetrics>) -> Vec<ServerDiskMetrics> {
+    #[cfg(target_os = "macos")]
+    {
+        filter_macos_apfs_volume_group(disks)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        disks
+    }
+}
+
+fn filter_macos_apfs_volume_group(disks: Vec<ServerDiskMetrics>) -> Vec<ServerDiskMetrics> {
+    if !disks.iter().any(is_macos_apfs_root_volume) {
+        return disks;
+    }
+
+    // APFS mounts the system root and Data volume from one capacity pool.
+    disks.into_iter().filter(|disk| !is_macos_apfs_data_volume(disk)).collect()
+}
+
+fn is_macos_apfs_root_volume(disk: &ServerDiskMetrics) -> bool {
+    disk.mount_point == MACOS_ROOT_MOUNT_POINT && disk.file_system.eq_ignore_ascii_case(APFS_FILE_SYSTEM)
+}
+
+fn is_macos_apfs_data_volume(disk: &ServerDiskMetrics) -> bool {
+    disk.mount_point == MACOS_DATA_VOLUME_MOUNT_POINT && disk.file_system.eq_ignore_ascii_case(APFS_FILE_SYSTEM)
 }
 
 fn disk_metrics(disk: &sysinfo::Disk) -> ServerDiskMetrics {
@@ -214,15 +246,5 @@ fn time_error(error: time::error::Format) -> SystemError {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::sampled_at;
-
-    #[test]
-    fn sampled_at_uses_fixed_utc_milliseconds() {
-        let value = sampled_at().unwrap();
-
-        assert_eq!(value.len(), 24);
-        assert_eq!(value.as_bytes()[19], b'.');
-        assert_eq!(value.as_bytes()[23], b'Z');
-    }
-}
+#[path = "metrics_tests.rs"]
+mod tests;
