@@ -41,7 +41,7 @@ target
 
 # local task record
 .codex-tasks
-storage/
+/storage/
 .local/
 /local-data/
 config/config.yaml

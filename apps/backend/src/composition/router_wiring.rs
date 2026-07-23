@@ -147,6 +147,7 @@ fn audit_api_state(state: &AppState) -> AuditApiState {
 fn system_log_api_state(state: &AppState) -> SystemLogApiState {
     SystemLogApiState::new(SystemLogApiStateParts {
         logs: state.system_logs.clone(),
+        exporter: state.system_log_exporter.clone(),
         cleanup_executions: Arc::new(system_log_cleanup_execution::SchedulerSystemLogCleanupExecutionAdapter::new(
             state.scheduler.clone(),
             state.scheduler_audited.clone(),

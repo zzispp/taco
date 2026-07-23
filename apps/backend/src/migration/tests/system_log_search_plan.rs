@@ -4,11 +4,12 @@ use sqlx::{AssertSqlSafe, PgPool, query, query_scalar};
 use super::{TestDatabase, up};
 
 const FIXTURE_ROWS: i32 = 50_000;
+const CURSOR_INDEX: &str = "sys_system_log_20260716_pkey";
 const NGRAM_INDEX: &str = "search_ngrams_idx";
 const TARGET_INDEX: &str = "target_occurred_at_id_idx";
 
 #[tokio::test]
-async fn system_log_short_cjk_and_target_prefix_queries_use_their_indexes() {
+async fn system_log_queries_reuse_primary_and_search_indexes() {
     let database = TestDatabase::create().await;
     up(database.pool(), None).await.unwrap();
     seed_search_fixture(database.pool()).await;
@@ -23,9 +24,11 @@ async fn system_log_short_cjk_and_target_prefix_queries_use_their_indexes() {
         "SELECT id FROM sys_system_log WHERE target='user' OR target LIKE 'user::%' ESCAPE '\\'",
     )
     .await;
+    let cursor_plan = explain(database.pool(), "SELECT id FROM sys_system_log ORDER BY occurred_at DESC,id DESC LIMIT 20").await;
 
     assert_plan_uses_index(&ngram_plan, NGRAM_INDEX);
     assert_plan_uses_index(&target_plan, TARGET_INDEX);
+    assert_plan_uses_index(&cursor_plan, CURSOR_INDEX);
     database.drop().await;
 }
 

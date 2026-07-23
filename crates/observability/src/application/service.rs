@@ -1,23 +1,28 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use kernel::pagination::{CursorPage, CursorPageRequest};
+use audit_contract::AuditOutboxRecord;
+use kernel::{
+    excel::TemporaryXlsxFile,
+    pagination::{CursorPage, CursorPageRequest},
+};
 
 use crate::domain::{SystemLogDetail, SystemLogFilter, SystemLogSummary};
 
 use super::{
-    ObservabilityError, ObservabilityResult, SystemLogExportSession, SystemLogRepository, SystemLogRetentionReport, SystemLogRetentionUseCase,
-    SystemLogUseCase, localized, system_log_cursor_page, system_log_cursor_query,
+    ObservabilityError, ObservabilityResult, SystemLogExportRequest, SystemLogExportUseCase, SystemLogExportWriterFactory, SystemLogRepository,
+    SystemLogRetentionReport, SystemLogRetentionStore, SystemLogRetentionUseCase, SystemLogUseCase, localized, system_log_cursor_page, system_log_cursor_query,
 };
 
 #[derive(Clone)]
 pub struct SystemLogService {
     repository: Arc<dyn SystemLogRepository>,
+    retention_store: Arc<dyn SystemLogRetentionStore>,
 }
 
 impl SystemLogService {
-    pub fn new(repository: Arc<dyn SystemLogRepository>) -> Self {
-        Self { repository }
+    pub fn new(repository: Arc<dyn SystemLogRepository>, retention_store: Arc<dyn SystemLogRetentionStore>) -> Self {
+        Self { repository, retention_store }
     }
 }
 
@@ -34,12 +39,8 @@ impl SystemLogUseCase for SystemLogService {
         self.repository.find(id).await?.ok_or(ObservabilityError::NotFound)
     }
 
-    async fn delete(&self, id: String) -> ObservabilityResult<()> {
-        self.delete_many(vec![id]).await
-    }
-
-    async fn delete_many(&self, ids: Vec<String>) -> ObservabilityResult<()> {
-        self.repository.delete_ids(&validate_ids(ids)?).await
+    async fn delete_with_audit(&self, ids: Vec<String>, audit: AuditOutboxRecord) -> ObservabilityResult<()> {
+        self.repository.delete_ids_with_audit(&validate_ids(ids)?, &audit).await
     }
 
     async fn count(&self, filter: SystemLogFilter) -> ObservabilityResult<u64> {
@@ -51,9 +52,24 @@ impl SystemLogUseCase for SystemLogService {
         validate_required_time_range(&filter)?;
         delete_all_matching(self.repository.as_ref(), filter, batch_size).await
     }
+}
 
-    async fn begin_export(&self) -> ObservabilityResult<Box<dyn SystemLogExportSession>> {
-        self.repository.begin_export().await
+#[derive(Clone)]
+pub struct SystemLogExportService {
+    repository: Arc<dyn SystemLogRepository>,
+    writer_factory: Arc<dyn SystemLogExportWriterFactory>,
+}
+
+impl SystemLogExportService {
+    pub fn new(repository: Arc<dyn SystemLogRepository>, writer_factory: Arc<dyn SystemLogExportWriterFactory>) -> Self {
+        Self { repository, writer_factory }
+    }
+}
+
+#[async_trait]
+impl SystemLogExportUseCase for SystemLogExportService {
+    async fn export_xlsx(&self, request: SystemLogExportRequest) -> ObservabilityResult<TemporaryXlsxFile> {
+        super::export::system_logs(self.repository.as_ref(), self.writer_factory.as_ref(), request).await
     }
 }
 
@@ -90,8 +106,8 @@ fn partial_cleanup_error(report: SystemLogRetentionReport, error: ObservabilityE
 
 #[async_trait]
 impl SystemLogRetentionUseCase for SystemLogService {
-    async fn cleanup_expired(&self, retention_days: u64, batch_size: u64) -> ObservabilityResult<SystemLogRetentionReport> {
-        super::retention::cleanup_expired(self.repository.as_ref(), retention_days, batch_size).await
+    async fn cleanup_expired(&self, retention_days: u64, boundary_batch_size: u64) -> ObservabilityResult<SystemLogRetentionReport> {
+        super::retention::cleanup_expired(self.retention_store.as_ref(), retention_days, boundary_batch_size).await
     }
 }
 

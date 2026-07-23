@@ -103,6 +103,7 @@ pub trait SystemCacheRefreshPort: Send + Sync + 'static {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SystemLogCleanupResult {
     pub deleted: u64,
+    /// Number of committed partition-drop or row-delete transactions.
     pub batches: u64,
 }
 
@@ -150,7 +151,7 @@ pub struct SystemLogCleanupFilter {
 /// Executes complete system-log cleanup cycles for scheduler invocations.
 #[async_trait]
 pub trait SystemLogCleanupPort: Send + Sync + 'static {
-    async fn cleanup_expired(&self, retention_days: u64, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure>;
+    async fn cleanup_expired(&self, retention_days: u64, boundary_batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure>;
     async fn cleanup_filtered(&self, filter: SystemLogCleanupFilter, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure>;
 }
 

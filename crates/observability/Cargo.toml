@@ -24,3 +24,4 @@ types.workspace = true
 utoipa.workspace = true
 
 [dev-dependencies]
+tower.workspace = true

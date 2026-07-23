@@ -1,13 +1,16 @@
 use async_trait::async_trait;
+use audit_contract::AuditOutboxRecord;
 use storage::Database;
-use time::OffsetDateTime;
 
 use crate::{
-    application::{ObservabilityResult, SystemLogCursorQuery, SystemLogCursorSlice, SystemLogExportSession, SystemLogRepository},
+    application::{
+        ObservabilityResult, SystemLogCursorQuery, SystemLogCursorSlice, SystemLogExportSession, SystemLogRepository, SystemLogRetentionReport,
+        SystemLogRetentionStore,
+    },
     domain::{NewSystemLog, SystemLogDetail, SystemLogFilter},
 };
 
-use super::{command, export_session::StorageSystemLogExportSession, query};
+use super::{command, export_session::StorageSystemLogExportSession, query, retention_store};
 
 #[derive(Clone)]
 pub struct StorageSystemLogRepository {
@@ -34,8 +37,8 @@ impl SystemLogRepository for StorageSystemLogRepository {
         query::find(self.database.raw_pool(), id).await
     }
 
-    async fn delete_ids(&self, ids: &[String]) -> ObservabilityResult<()> {
-        command::delete_ids(self.database.raw_pool(), ids).await
+    async fn delete_ids_with_audit(&self, ids: &[String], audit: &AuditOutboxRecord) -> ObservabilityResult<()> {
+        command::delete_ids_with_audit(self.database.raw_pool(), ids, audit).await
     }
 
     async fn count(&self, filter: SystemLogFilter) -> ObservabilityResult<u64> {
@@ -46,11 +49,14 @@ impl SystemLogRepository for StorageSystemLogRepository {
         command::delete_filtered_batch(self.database.raw_pool(), filter, limit).await
     }
 
-    async fn delete_expired_batch(&self, cutoff: OffsetDateTime, limit: u64) -> ObservabilityResult<u64> {
-        command::delete_expired_batch(self.database.raw_pool(), cutoff, limit).await
-    }
-
     async fn begin_export(&self) -> ObservabilityResult<Box<dyn SystemLogExportSession>> {
         Ok(Box::new(StorageSystemLogExportSession::begin(&self.database).await?))
+    }
+}
+
+#[async_trait]
+impl SystemLogRetentionStore for StorageSystemLogRepository {
+    async fn cleanup_before(&self, cutoff: time::OffsetDateTime, boundary_batch_size: u64) -> ObservabilityResult<SystemLogRetentionReport> {
+        retention_store::cleanup_before(self.database.raw_pool(), cutoff, boundary_batch_size).await
     }
 }

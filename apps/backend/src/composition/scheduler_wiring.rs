@@ -86,10 +86,10 @@ impl SystemCacheRefreshPort for SchedulerSystemCacheAdapter {
 
 #[async_trait::async_trait]
 impl SystemLogCleanupPort for SchedulerSystemLogCleanupAdapter {
-    async fn cleanup_expired(&self, retention_days: u64, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
+    async fn cleanup_expired(&self, retention_days: u64, boundary_batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
         let report = self
             .retention
-            .cleanup_expired(retention_days, batch_size)
+            .cleanup_expired(retention_days, boundary_batch_size)
             .await
             .map_err(system_log_cleanup_failure)?;
         Ok(SystemLogCleanupResult {

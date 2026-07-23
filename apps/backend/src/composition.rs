@@ -142,6 +142,7 @@ fn assemble_app_state(parts: AppStateAssembly) -> AppState {
         audit_outbox_runtime: audit.runtime,
         audit_export_config: audit.export_config,
         system_logs: observability.logs,
+        system_log_exporter: observability.exporter,
         system_log_export_config,
         system_log_runtime: observability.system_log_runtime,
         _tracing_config_listener_runtime: observability.config_listener_runtime,

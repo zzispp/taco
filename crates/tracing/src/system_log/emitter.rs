@@ -56,15 +56,13 @@ impl SystemLogEmitter {
         if size > SYSTEM_LOG_EVENT_MAX_BYTES {
             return self.state.record_drop("oversize", 1);
         }
-        // Reserve before publishing so a fast writer cannot complete this event
-        // before it is included in pending accounting.
-        self.state.record_accepted();
-        if let Err(error) = self.sender.try_send(event) {
-            self.state.record_send_failure(match error {
+        self.state.record_enqueue(|| match self.sender.try_send(event) {
+            Ok(()) => Ok(()),
+            Err(error) => Err(match error {
                 mpsc::error::TrySendError::Full(_) => "queue_full",
                 mpsc::error::TrySendError::Closed(_) => "queue_closed",
-            });
-        }
+            }),
+        });
     }
 
     fn minimum_level(&self) -> u8 {
@@ -96,17 +94,19 @@ impl SystemLogRuntime {
             return;
         };
         match timeout(SYSTEM_LOG_SHUTDOWN_DRAIN_TIMEOUT, &mut writer).await {
-            Ok(Ok(())) => {}
-            Ok(Err(_)) => self.emitter.state.discard_all_pending("writer_cancelled"),
+            Ok(Ok(())) => self.emitter.state.record_writer_stopped(true),
+            Ok(Err(_)) => self.emitter.state.record_writer_stopped(false),
             Err(_) => {
+                self.emitter.state.mark_shutdown_timeout();
                 writer.abort();
                 let _ = writer.await;
-                self.emitter.state.discard_all_pending("shutdown_timeout");
+                self.emitter.state.record_writer_stopped(false);
             }
         }
     }
 
     fn request_shutdown(&self) {
+        self.emitter.state.stop_accepting();
         self.shutdown.send_replace(true);
     }
 }
@@ -122,7 +122,7 @@ pub fn start_system_log_runtime(sink: Arc<dyn SystemLogSink>, min_level: SystemL
     let emitter = SystemLogEmitter {
         sender,
         level: SystemLogLevelSource::Fixed(Arc::new(std::sync::atomic::AtomicU8::new(min_level.priority()))),
-        state: Arc::new(IngestionState::default()),
+        state: Arc::new(IngestionState::new(SYSTEM_LOG_CHANNEL_CAPACITY)),
     };
     runtime(emitter, receiver, sink)
 }
@@ -132,13 +132,14 @@ pub fn start_system_log_runtime_with_state(sink: Arc<dyn SystemLogSink>, state: 
     let emitter = SystemLogEmitter {
         sender,
         level: SystemLogLevelSource::Runtime(state),
-        state: Arc::new(IngestionState::default()),
+        state: Arc::new(IngestionState::new(SYSTEM_LOG_CHANNEL_CAPACITY)),
     };
     runtime(emitter, receiver, sink)
 }
 
 fn runtime(emitter: SystemLogEmitter, receiver: mpsc::Receiver<SystemLogEvent>, sink: Arc<dyn SystemLogSink>) -> SystemLogRuntime {
     let (shutdown, shutdown_receiver) = watch::channel(false);
+    emitter.state.record_writer_started();
     let writer = tokio::spawn(run_writer(WriterRuntime {
         receiver,
         context: WriterContext::new(sink, emitter.state.clone()),

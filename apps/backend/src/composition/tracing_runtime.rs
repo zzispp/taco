@@ -4,8 +4,11 @@ use async_trait::async_trait;
 use constants::system_config::EXPORT_BATCH_CONFIG_KEY;
 use kernel::runtime_config::{ExportBatchConfig, ExportConfigProvider};
 use observability::{
-    application::{ObservabilityError, SystemLogRepository, SystemLogRetentionUseCase, SystemLogService, SystemLogUseCase},
-    infra::{ObservabilitySystemLogSink, StorageSystemLogRepository},
+    application::{
+        ObservabilityError, SystemLogExportService, SystemLogExportUseCase, SystemLogRepository, SystemLogRetentionStore, SystemLogRetentionUseCase,
+        SystemLogService, SystemLogUseCase,
+    },
+    infra::{ObservabilitySystemLogSink, StorageSystemLogRepository, SystemLogXlsxWriterFactory},
 };
 use system::application::{SystemError, SystemUseCase};
 use taco_tracing::{
@@ -20,6 +23,7 @@ use super::tracing_config_listener::{establish_tracing_config_subscription, star
 
 pub(super) struct ObservabilityServices {
     pub(super) logs: Arc<dyn SystemLogUseCase>,
+    pub(super) exporter: Arc<dyn SystemLogExportUseCase>,
     pub(super) retention: Arc<dyn SystemLogRetentionUseCase>,
     pub(super) system_log_runtime: Arc<SystemLogRuntime>,
     pub(super) config_listener_runtime: Arc<TracingConfigListenerRuntime>,
@@ -32,9 +36,13 @@ pub(super) async fn build_observability_services(database: storage::Database) ->
     let (listener, config) = establish_tracing_config_subscription(database.raw_pool()).await?;
     let tracing_state = RuntimeTracingState::new(config);
     let infrastructure_observer = InfrastructureObserver::new(tracing_state.clone());
-    let repository: Arc<dyn SystemLogRepository> = Arc::new(StorageSystemLogRepository::new(database.clone()));
-    let service = Arc::new(SystemLogService::new(repository.clone()));
+    let storage = Arc::new(StorageSystemLogRepository::new(database.clone()));
+    let repository: Arc<dyn SystemLogRepository> = storage.clone();
+    let retention_store: Arc<dyn SystemLogRetentionStore> = storage;
+    let service = Arc::new(SystemLogService::new(repository.clone(), retention_store));
     let logs: Arc<dyn SystemLogUseCase> = service.clone();
+    let export_writer_factory = Arc::new(SystemLogXlsxWriterFactory);
+    let exporter: Arc<dyn SystemLogExportUseCase> = Arc::new(SystemLogExportService::new(repository.clone(), export_writer_factory));
     let retention: Arc<dyn SystemLogRetentionUseCase> = service;
     let runtime = Arc::new(start_system_log_runtime_with_state(
         Arc::new(ObservabilitySystemLogSink::new(repository)),
@@ -48,6 +56,7 @@ pub(super) async fn build_observability_services(database: storage::Database) ->
     let (config_listener_runtime, config_listener_health) = start_tracing_config_listener(listener, database.raw_pool().clone(), tracing_state);
     Ok(ObservabilityServices {
         logs,
+        exporter,
         retention,
         system_log_runtime: runtime,
         config_listener_runtime: Arc::new(config_listener_runtime),

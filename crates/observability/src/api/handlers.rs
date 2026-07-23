@@ -9,7 +9,7 @@ use rbac::api::CurrentUser;
 use rbac_macros::require_perms;
 use types::http::{ApiErrorResponse, RequestJson, RequestQuery, current_locale, xlsx_file_attachment};
 
-use crate::application::{ManualSystemLogCleanupRequest, ObservabilityResult};
+use crate::application::{ManualSystemLogCleanupRequest, ObservabilityResult, SystemLogExportRequest};
 
 use super::{
     SystemLogApiError, SystemLogApiState,
@@ -17,7 +17,7 @@ use super::{
         BatchIdsRequest, SystemLogCleanupAcceptedResponse, SystemLogCleanupCountResponse, SystemLogCleanupExecutionResponse, SystemLogCleanupQuery,
         SystemLogDetailResponse, SystemLogExportQuery, SystemLogListQuery, SystemLogSummaryResponse,
     },
-    export::{self, ExportRequest},
+    export::system_log_export_layout,
     input,
     openapi::SystemLogErrorResponses,
     presenter,
@@ -78,8 +78,14 @@ pub(in crate::api) async fn get_system_log(State(state): State<SystemLogApiState
     security(("bearerAuth" = []))
 )]
 #[require_perms("system:systemlog:remove")]
-pub(in crate::api) async fn delete_system_log(State(state): State<SystemLogApiState>, Path(id): Path<String>) -> ApiResult<Json<()>> {
-    state.logs.delete(id).await?;
+pub(in crate::api) async fn delete_system_log(
+    State(state): State<SystemLogApiState>,
+    audit_context: Option<Extension<audit_contract::OperationAuditContext>>,
+    Path(id): Path<String>,
+) -> ApiResult<Json<()>> {
+    let audit = successful_operation_audit(audit_context)?;
+    state.logs.delete_with_audit(vec![id], audit.record()).await?;
+    audit.mark_persisted();
     Ok(Json(()))
 }
 
@@ -99,9 +105,12 @@ pub(in crate::api) async fn delete_system_log(State(state): State<SystemLogApiSt
 #[require_perms("system:systemlog:remove")]
 pub(in crate::api) async fn delete_system_logs(
     State(state): State<SystemLogApiState>,
+    audit_context: Option<Extension<audit_contract::OperationAuditContext>>,
     RequestJson(request): RequestJson<BatchIdsRequest>,
 ) -> ApiResult<Json<()>> {
-    state.logs.delete_many(request.ids).await?;
+    let audit = successful_operation_audit(audit_context)?;
+    state.logs.delete_with_audit(request.ids, audit.record()).await?;
+    audit.mark_persisted();
     Ok(Json(()))
 }
 
@@ -203,13 +212,15 @@ pub(in crate::api) async fn export_system_logs(
     State(state): State<SystemLogApiState>,
     RequestQuery(query): RequestQuery<SystemLogExportQuery>,
 ) -> ApiResult<Response> {
-    let artifact = export::system_logs(ExportRequest {
-        filter: input::export_filter(&query)?,
-        batch: state.export_config.export_batch_config().await?,
-        locale: current_locale(),
-        state: &state,
-    })
-    .await?;
+    let locale = current_locale();
+    let artifact = state
+        .exporter
+        .export_xlsx(SystemLogExportRequest {
+            filter: input::export_filter(&query)?,
+            batch: state.export_config.export_batch_config().await?,
+            layout: system_log_export_layout(locale),
+        })
+        .await?;
     Ok(xlsx_file_attachment("system_logs.xlsx", artifact))
 }
 

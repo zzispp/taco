@@ -41,13 +41,16 @@ async fn shutdown_drains_queued_events_before_returning() {
 }
 
 #[tokio::test]
-async fn emitting_after_writer_shutdown_rolls_back_the_pending_reservation() {
+async fn emitting_after_writer_shutdown_is_dropped_without_pending_work() {
     let runtime = start_system_log_runtime(Arc::new(CollectingSink::default()), SystemLogLevel::Trace);
     runtime.shutdown().await;
 
     runtime.emitter().emit(event("after-shutdown"));
 
-    assert_eq!(runtime.status().dropped_events, 1);
+    let status = runtime.status();
+    assert_eq!(status.dropped_events, 1);
+    assert_eq!(status.queue_depth, 0);
+    assert_eq!(status.pending_events, 0);
 }
 
 #[tokio::test]
@@ -81,7 +84,12 @@ async fn shutdown_has_a_total_deadline_and_counts_the_in_flight_batch() {
         .await
         .expect("shutdown exceeded its total deadline");
 
-    assert_eq!(runtime.status().dropped_events, 1);
+    let status = runtime.status();
+    assert_eq!(status.dropped_events, 1);
+    assert!(!status.writer_running);
+    assert!(!status.writer_healthy);
+    assert_eq!(status.latest_write_failure.as_ref().map(|failure| failure.failed_events), Some(1));
+    assert_eq!(status.latest_write_failure.as_ref().map(|failure| failure.reason), Some("shutdown_timeout"));
 }
 
 fn event(message: &str) -> SystemLogEvent {

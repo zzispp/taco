@@ -33,4 +33,9 @@ impl SystemLogExportSession for StorageSystemLogExportSession {
         let Self { transaction } = *self;
         transaction.commit().await.map_err(mapping::sqlx_error)
     }
+
+    async fn abort(self: Box<Self>) -> ObservabilityResult<()> {
+        let Self { transaction } = *self;
+        transaction.rollback().await.map_err(mapping::sqlx_error)
+    }
 }

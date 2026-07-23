@@ -9,6 +9,9 @@ mod presenter;
 mod state;
 mod support;
 
+#[cfg(test)]
+mod tests;
+
 use axum::{
     Router,
     routing::{delete, get, post},

@@ -1,10 +1,10 @@
 use kernel::pagination::CursorDirection;
 use observability::{
-    application::{SystemLogBoundary, SystemLogCursorQuery, SystemLogRepository},
+    application::{SystemLogBoundary, SystemLogCursorQuery, SystemLogRepository, SystemLogRetentionStore},
     domain::{NewSystemLog, SystemLogFilter, SystemLogLevel},
     infra::StorageSystemLogRepository,
 };
-use sqlx::query;
+use sqlx::{PgPool, query, query_scalar};
 use time::{Duration, OffsetDateTime};
 
 use super::{TestDatabase, up};
@@ -28,17 +28,26 @@ async fn system_log_repository_reads_a_nonempty_first_page() {
 }
 
 #[tokio::test]
-async fn system_log_retention_waits_for_locked_expired_rows() {
+async fn system_log_retention_drops_full_partitions_and_batches_only_the_boundary() {
+    let database = TestDatabase::create().await;
+    up(database.pool(), None).await.unwrap();
+    let repository = repository(&database);
+    insert_retention_fixture(database.pool(), &repository).await;
+
+    let report = repository.cleanup_before(time("2026-07-16T12:00:00Z"), 1).await.unwrap();
+
+    assert_eq!((report.deleted, report.batches), (5, 5));
+    assert_partition_lifecycle(database.pool()).await;
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn system_log_retention_waits_for_locked_expired_partition() {
     let database = TestDatabase::create().await;
     up(database.pool(), None).await.unwrap();
     let repository = repository(&database);
     repository
-        .insert_batch(&[event(
-            "locked-expired-log",
-            OffsetDateTime::now_utc() - Duration::days(8),
-            "test::retention",
-            "expired",
-        )])
+        .insert_batch(&[event("locked-expired-log", time("2026-07-14T12:00:00Z"), "test::retention", "expired")])
         .await
         .unwrap();
     let mut lock = database.pool().begin().await.unwrap();
@@ -48,13 +57,15 @@ async fn system_log_retention_waits_for_locked_expired_rows() {
         .unwrap();
     let cleanup = tokio::spawn({
         let repository = repository.clone();
-        async move { repository.delete_expired_batch(OffsetDateTime::now_utc() - Duration::days(7), 1).await.unwrap() }
+        async move { repository.cleanup_before(time("2026-07-16T12:00:00Z"), 1).await.unwrap() }
     });
 
     tokio::time::sleep(std::time::Duration::from_millis(25)).await;
     assert!(!cleanup.is_finished());
     lock.commit().await.unwrap();
-    assert_eq!(cleanup.await.unwrap(), 1);
+    let report = cleanup.await.unwrap();
+    assert_eq!((report.deleted, report.batches), (1, 1));
+    assert!(!partition_exists(database.pool(), "sys_system_log_20260714").await);
     database.drop().await;
 }
 
@@ -76,7 +87,45 @@ async fn system_log_filtered_cleanup_uses_the_requested_batch_limit() {
     assert_eq!(repository.count(filter.clone()).await.unwrap(), 1);
     assert_eq!(repository.delete_filtered_batch(filter.clone(), 2).await.unwrap(), 1);
     assert_eq!(repository.count(filter).await.unwrap(), 0);
+    assert!(partition_exists(database.pool(), "sys_system_log_20260716").await);
     database.drop().await;
+}
+
+async fn insert_retention_fixture(pool: &PgPool, repository: &StorageSystemLogRepository) {
+    query("SELECT ensure_system_log_partition(TIMESTAMPTZ '2026-07-13 12:00:00+00')")
+        .execute(pool)
+        .await
+        .unwrap();
+    let events = [
+        event("expired-one", time("2026-07-14T01:00:00Z"), "test::retention", "expired"),
+        event("expired-two", time("2026-07-14T23:00:00Z"), "test::retention", "expired"),
+        event("expired-three", time("2026-07-15T12:00:00Z"), "test::retention", "expired"),
+        event("boundary-one", time("2026-07-16T01:00:00Z"), "test::retention", "expired"),
+        event("boundary-two", time("2026-07-16T11:59:59Z"), "test::retention", "expired"),
+        event("at-cutoff", time("2026-07-16T12:00:00Z"), "test::retention", "kept"),
+        event("after-cutoff", time("2026-07-16T20:00:00Z"), "test::retention", "kept"),
+        event("future", time("2026-07-17T12:00:00Z"), "test::retention", "kept"),
+    ];
+    repository.insert_batch(&events).await.unwrap();
+}
+
+async fn assert_partition_lifecycle(pool: &PgPool) {
+    for suffix in ["20260713", "20260714", "20260715"] {
+        assert!(!partition_exists(pool, &format!("sys_system_log_{suffix}")).await);
+    }
+    for suffix in ["20260716", "20260717"] {
+        assert!(partition_exists(pool, &format!("sys_system_log_{suffix}")).await);
+    }
+    let ids: Vec<String> = query_scalar("SELECT id FROM sys_system_log ORDER BY id").fetch_all(pool).await.unwrap();
+    assert_eq!(ids, ["after-cutoff", "at-cutoff", "future"]);
+}
+
+async fn partition_exists(pool: &PgPool, name: &str) -> bool {
+    query_scalar("SELECT to_regclass('public.' || $1) IS NOT NULL")
+        .bind(name)
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
 #[tokio::test]

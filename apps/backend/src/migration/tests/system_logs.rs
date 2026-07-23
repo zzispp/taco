@@ -3,8 +3,9 @@ use sqlx::{AssertSqlSafe, PgPool, query, query_as, query_scalar};
 use super::{TestDatabase, managed_table_exists, migrate_through, rollback_from, up};
 
 const SYSTEM_LOG_MIGRATION_VERSION: i64 = 20260716000001;
+const SYSTEM_LOG_RETENTION_MIGRATION_VERSION: i64 = 20260720000003;
+const REMOVED_INDEX: &str = "idx_sys_system_log_cursor";
 const INDEXES: &[&str] = &[
-    "idx_sys_system_log_cursor",
     "idx_sys_system_log_id",
     "idx_sys_system_log_ingested_seq",
     "idx_sys_system_log_level_cursor",
@@ -22,6 +23,7 @@ async fn system_log_migration_creates_partitioned_searchable_schema_and_seeds() 
     assert!(managed_table_exists(database.pool(), "sys_system_log").await);
     assert_parent_partitioning(database.pool()).await;
     assert_indexes(database.pool()).await;
+    assert_index_absent(database.pool(), REMOVED_INDEX).await;
     assert_partition_function_and_generated_search(database.pool()).await;
     assert_snapshot_and_ngram_columns(database.pool()).await;
     assert_constraints(database.pool()).await;
@@ -65,6 +67,20 @@ async fn system_log_migration_down_removes_owned_schema_and_seeds() {
     database.drop().await;
 }
 
+#[tokio::test]
+async fn system_log_retention_migration_restores_the_removed_index_on_rollback() {
+    let database = TestDatabase::create().await;
+    migrate_through(database.pool(), SYSTEM_LOG_RETENTION_MIGRATION_VERSION).await;
+    assert_index_absent(database.pool(), REMOVED_INDEX).await;
+    assert!(retention_drop_function_exists(database.pool()).await);
+
+    rollback_from(database.pool(), SYSTEM_LOG_RETENTION_MIGRATION_VERSION).await;
+
+    assert_index_present(database.pool(), REMOVED_INDEX).await;
+    assert!(!retention_drop_function_exists(database.pool()).await);
+    database.drop().await;
+}
+
 async fn assert_parent_partitioning(pool: &PgPool) {
     let strategy: String = query_scalar("SELECT partstrat::text FROM pg_partitioned_table WHERE partrelid='sys_system_log'::regclass")
         .fetch_one(pool)
@@ -82,6 +98,31 @@ async fn assert_indexes(pool: &PgPool) {
             .unwrap();
         assert!(exists, "missing system log index {index}");
     }
+}
+
+async fn assert_index_absent(pool: &PgPool, index: &str) {
+    let exists: bool = query_scalar("SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='sys_system_log' AND indexname=$1)")
+        .bind(index)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert!(!exists, "unexpected redundant system log index {index}");
+}
+
+async fn assert_index_present(pool: &PgPool, index: &str) {
+    let exists: bool = query_scalar("SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='sys_system_log' AND indexname=$1)")
+        .bind(index)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert!(exists, "missing system log index {index}");
+}
+
+async fn retention_drop_function_exists(pool: &PgPool) -> bool {
+    query_scalar("SELECT to_regprocedure('drop_expired_system_log_partition(text,timestamptz)') IS NOT NULL")
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
 async fn assert_partition_function_and_generated_search(pool: &PgPool) {
@@ -174,8 +215,8 @@ async fn assert_menus_and_permissions(pool: &PgPool) {
 }
 
 async fn assert_cleanup_job(pool: &PgPool) {
-    let job: (String, String, String, String, String, String) =
-        query_as("SELECT task_key,task_params::text,cron_expression,misfire_policy,concurrent,status FROM sys_job WHERE job_id='system-log-cleanup'")
+    let job: (String, String, String, String, String, String, String) =
+        query_as("SELECT task_key,task_params::text,cron_expression,misfire_policy,concurrent,status,remark FROM sys_job WHERE job_id='system-log-cleanup'")
             .fetch_one(pool)
             .await
             .unwrap();
@@ -185,6 +226,7 @@ async fn assert_cleanup_job(pool: &PgPool) {
         serde_json::json!({"retention_days": 7, "batch_size": 1000})
     );
     assert_eq!((job.2, job.3, job.4, job.5), ("0 0 19 * * *".into(), "2".into(), "1".into(), "0".into()));
+    assert!(job.6.contains("batch_size 仅控制截止日"));
 }
 
 async fn count(pool: &PgPool, sql: &str) -> i64 {

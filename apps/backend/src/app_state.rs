@@ -8,7 +8,7 @@ use captcha::application::CaptchaUseCase;
 use client_info::IpLocationResolver;
 use file::application::FileUseCase;
 use kernel::runtime_config::ExportConfigProvider;
-use observability::application::{ObservabilityError, SystemLogUseCase};
+use observability::application::{ObservabilityError, SystemLogExportUseCase, SystemLogUseCase};
 use rbac::application::{AuthorizationConfig, RbacAdminUseCase, RbacAuditedAdminUseCase, RbacCacheRefreshUseCase, RbacUseCase};
 use scheduler::application::{SchedulerAuditedUseCase, SchedulerError, SchedulerRuntimeHandle, SchedulerUseCase};
 use system::application::{ServerMetricsUseCase, SystemAuditedUseCase, SystemUseCase};
@@ -37,6 +37,7 @@ pub struct AppState {
     pub audit_outbox_runtime: AuditOutboxRuntimeHandle,
     pub audit_export_config: Arc<dyn ExportConfigProvider<Error = AuditError>>,
     pub system_logs: Arc<dyn SystemLogUseCase>,
+    pub system_log_exporter: Arc<dyn SystemLogExportUseCase>,
     pub system_log_export_config: Arc<dyn ExportConfigProvider<Error = ObservabilityError>>,
     pub system_log_runtime: Arc<taco_tracing::SystemLogRuntime>,
     pub _tracing_config_listener_runtime: Arc<crate::composition::tracing_runtime::TracingConfigListenerRuntime>,

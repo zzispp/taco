@@ -24,8 +24,8 @@ pub use runtime_config::{
 pub use runtime_state::RuntimeTracingState;
 pub use system_log::{
     SYSTEM_LOG_BATCH_SIZE, SYSTEM_LOG_CHANNEL_CAPACITY, SYSTEM_LOG_EVENT_MAX_BYTES, SYSTEM_LOG_FLUSH_INTERVAL, SYSTEM_LOG_SHUTDOWN_DRAIN_TIMEOUT,
-    SystemLogEmitter, SystemLogEvent, SystemLogEventInput, SystemLogIngestionStatus, SystemLogLayer, SystemLogLevel, SystemLogRuntime, SystemLogSink,
-    SystemLogWriteFailure, start_system_log_runtime, start_system_log_runtime_with_state,
+    SystemLogDeliveryGuarantee, SystemLogEmitter, SystemLogEvent, SystemLogEventInput, SystemLogIngestionStatus, SystemLogLayer, SystemLogLevel,
+    SystemLogRuntime, SystemLogSink, SystemLogWriteFailure, start_system_log_runtime, start_system_log_runtime_with_state,
 };
 pub use tracing_init::{ReloadableTracing, TracingInitError, init_global_subscriber};
 

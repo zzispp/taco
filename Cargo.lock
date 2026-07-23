@@ -2537,6 +2537,7 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
+ "tower",
  "types",
  "utoipa",
 ]
@@ -4080,6 +4081,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "testcontainers",
  "thiserror",
  "time",
  "tokio",

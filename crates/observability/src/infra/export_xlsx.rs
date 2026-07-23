@@ -1,23 +1,17 @@
 use kernel::excel::{ExcelResult, TemporaryXlsxFile, finish_xlsx_workbook};
 use rust_xlsxwriter::{Workbook, Worksheet, XlsxError};
-use types::http::{Locale, translate_message};
+use time::{OffsetDateTime, UtcOffset, format_description::BorrowedFormatItem};
 
 use crate::{
     application::{ObservabilityError, ObservabilityResult},
     domain::SystemLogDetail,
 };
 
-use super::super::presenter;
-
 const MAX_CELL_CHARS: usize = 32_767;
 const MAX_WORKSHEET_ROWS: u32 = 1_048_576;
 const FIRST_DATA_ROW: u32 = 1;
-const CONTINUATION_HEADERS: [&str; 4] = [
-    "excel.observability.system.continuation_headers.log_id",
-    "excel.observability.system.continuation_headers.value_kind",
-    "excel.observability.system.continuation_headers.part",
-    "excel.observability.system.continuation_headers.content",
-];
+const UTC_RFC3339_MILLIS: &[BorrowedFormatItem<'static>] =
+    time::macros::format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
 
 pub(super) struct SystemLogXlsxWriter {
     workbook: Workbook,
@@ -26,11 +20,10 @@ pub(super) struct SystemLogXlsxWriter {
 }
 
 impl SystemLogXlsxWriter {
-    pub(super) fn new(sheet_name: &str, headers: Vec<String>, locale: Locale) -> ExcelResult<Self> {
+    pub(super) fn new(sheet_name: &str, headers: [String; 6], continuation_headers: [String; 4]) -> ExcelResult<Self> {
         let mut workbook = Workbook::new();
-        let primary = WorksheetSeries::create(&mut workbook, sheet_name, headers)?;
-        let continuation_headers = CONTINUATION_HEADERS.iter().map(|key| translate_message(locale, key)).collect();
-        let continuation = WorksheetSeries::create(&mut workbook, &format!("{sheet_name}-continuation"), continuation_headers)?;
+        let primary = WorksheetSeries::create(&mut workbook, sheet_name, headers.into())?;
+        let continuation = WorksheetSeries::create(&mut workbook, &format!("{sheet_name}-continuation"), continuation_headers.into())?;
         Ok(Self {
             workbook,
             primary,
@@ -39,23 +32,8 @@ impl SystemLogXlsxWriter {
     }
 
     pub(super) fn append(&mut self, item: SystemLogDetail) -> ObservabilityResult<()> {
-        let fields = serde_json::to_string(&item.fields).map_err(|error| ObservabilityError::Infrastructure(error.to_string()))?;
-        let response = presenter::summary(item.summary)?;
-        let message = ValueChunks::new(response.log_id.clone(), "message", response.message);
-        let fields = ValueChunks::new(response.log_id.clone(), "fields", fields);
-        self.primary
-            .append(
-                &mut self.workbook,
-                &[
-                    response.log_id,
-                    response.occurred_at,
-                    response.level,
-                    response.target,
-                    message.primary_value(),
-                    fields.primary_value(),
-                ],
-            )
-            .map_err(export_error)?;
+        let (row, message, fields) = export_row(item)?;
+        self.primary.append(&mut self.workbook, &row).map_err(export_error)?;
         self.append_continuation(message)?;
         self.append_continuation(fields)
     }
@@ -67,14 +45,37 @@ impl SystemLogXlsxWriter {
     fn append_continuation(&mut self, value: ValueChunks) -> ObservabilityResult<()> {
         let log_id = value.log_id.clone();
         let kind = value.kind;
-        let chunks = value.continuations();
-        for (part, content) in chunks.into_iter().enumerate() {
+        for (part, content) in value.continuations().into_iter().enumerate() {
             self.continuation
                 .append(&mut self.workbook, &[log_id.clone(), kind.into(), (part + 1).to_string(), content])
                 .map_err(export_error)?;
         }
         Ok(())
     }
+}
+
+fn export_row(item: SystemLogDetail) -> ObservabilityResult<(Vec<String>, ValueChunks, ValueChunks)> {
+    let summary = item.summary;
+    let fields = serde_json::to_string(&item.fields).map_err(|error| ObservabilityError::Infrastructure(error.to_string()))?;
+    let occurred_at = timestamp(summary.occurred_at)?;
+    let message = ValueChunks::new(summary.id.clone(), "message", summary.message);
+    let fields = ValueChunks::new(summary.id.clone(), "fields", fields);
+    let row = vec![
+        summary.id,
+        occurred_at,
+        summary.level.code().into(),
+        summary.target,
+        message.primary_value(),
+        fields.primary_value(),
+    ];
+    Ok((row, message, fields))
+}
+
+fn timestamp(value: OffsetDateTime) -> ObservabilityResult<String> {
+    value
+        .to_offset(UtcOffset::UTC)
+        .format(UTC_RFC3339_MILLIS)
+        .map_err(|error| ObservabilityError::Infrastructure(error.to_string()))
 }
 
 struct WorksheetSeries {
@@ -189,8 +190,6 @@ fn excel_write_error(error: XlsxError) -> String {
 
 #[cfg(test)]
 mod tests {
-    use types::http::Locale;
-
     use crate::domain::{SystemLogDetail, SystemLogLevel, SystemLogSummary};
 
     use super::{MAX_CELL_CHARS, SystemLogXlsxWriter, ValueChunks, text_chunks};
@@ -216,15 +215,7 @@ mod tests {
 
     #[test]
     fn writer_finishes_when_message_and_fields_exceed_excel_cell_limits() {
-        let mut writer = SystemLogXlsxWriter::new(
-            "System logs",
-            vec!["id", "time", "level", "target", "message", "fields"]
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
-            Locale::En,
-        )
-        .unwrap();
+        let mut writer = writer();
         let long = "日".repeat(MAX_CELL_CHARS + 1);
 
         writer
@@ -240,27 +231,27 @@ mod tests {
             })
             .unwrap();
 
-        let artifact = writer.finish().unwrap();
-        assert!(artifact.content_length() > 0);
+        assert!(writer.finish().unwrap().content_length() > 0);
     }
 
     #[test]
     fn writer_rotates_the_primary_worksheet_before_the_excel_row_limit() {
-        let mut writer = SystemLogXlsxWriter::new(
-            "System logs",
-            vec!["id", "time", "level", "target", "message", "fields"]
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
-            Locale::En,
-        )
-        .unwrap();
+        let mut writer = writer();
         writer.primary.next_row = super::MAX_WORKSHEET_ROWS;
 
         writer.append(detail("row-limit")).unwrap();
 
         assert_eq!(writer.primary.sheet_number, 2);
         assert_eq!(writer.workbook.worksheets().len(), 3);
+    }
+
+    fn writer() -> SystemLogXlsxWriter {
+        SystemLogXlsxWriter::new(
+            "System logs",
+            ["id", "time", "level", "target", "message", "fields"].map(str::to_owned),
+            ["id", "kind", "part", "content"].map(str::to_owned),
+        )
+        .unwrap()
     }
 
     fn detail(id: &str) -> SystemLogDetail {

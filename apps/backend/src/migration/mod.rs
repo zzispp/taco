@@ -18,11 +18,13 @@ const MIGRATION_TABLE_NAME: &str = "_sqlx_migrations";
 #[cfg(test)]
 const MANAGED_FUNCTIONS: &[&str] = &[
     "archive_user_file_space()",
+    "drop_expired_system_log_partition(TEXT,TIMESTAMPTZ)",
     "prevent_referenced_avatar_trash()",
     "retire_replaced_avatar_asset()",
     "system_log_search_ngrams(TEXT)",
     "validate_user_avatar_asset()",
 ];
+
 const MANAGED_TABLES: &[&str] = &[
     "file_provider_cleanup",
     "file_upload_part",

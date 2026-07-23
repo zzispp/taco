@@ -52,6 +52,7 @@ impl ScheduledTask for SystemLogCleanupTask {
 #[serde(deny_unknown_fields)]
 pub struct SystemLogCleanupReport {
     pub deleted: u64,
+    /// Number of committed partition-drop or row-delete transactions.
     pub batches: u64,
 }
 

@@ -16,4 +16,5 @@ time.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+testcontainers.workspace = true
 tokio.workspace = true

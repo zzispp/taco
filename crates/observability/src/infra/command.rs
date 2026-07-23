@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
+use audit_contract::{AuditOutboxRecord, AuditStream};
 use sqlx::{PgPool, Postgres, QueryBuilder, Transaction, query, query_scalar};
+use storage::outbox::append_audit_record;
 use time::{Date, OffsetDateTime};
 
 use crate::{
@@ -11,7 +13,21 @@ use crate::{
 use super::{mapping, query as log_query};
 
 const INSERT_PREFIX: &str = "INSERT INTO sys_system_log (id,occurred_at,level,target,message,fields) ";
-const EXPIRED_BATCH_SQL: &str = "WITH candidates AS (SELECT occurred_at,id FROM sys_system_log WHERE occurred_at<$1 ORDER BY occurred_at ASC,id ASC LIMIT $2 FOR UPDATE), deleted AS (DELETE FROM sys_system_log AS log USING candidates WHERE log.occurred_at=candidates.occurred_at AND log.id=candidates.id RETURNING log.id) SELECT COUNT(*) FROM deleted";
+const AUDITED_DELETE_SQL: &str = r#"
+WITH candidates AS (
+    SELECT occurred_at,id
+    FROM sys_system_log
+    WHERE id=ANY($1)
+    ORDER BY occurred_at,id
+    FOR UPDATE
+), deleted AS (
+    DELETE FROM sys_system_log AS log
+    USING candidates
+    WHERE log.occurred_at=candidates.occurred_at AND log.id=candidates.id
+    RETURNING log.id
+)
+SELECT id FROM deleted ORDER BY id
+"#;
 
 pub(super) async fn insert_batch(pool: &PgPool, events: &[NewSystemLog]) -> ObservabilityResult<()> {
     if events.is_empty() {
@@ -23,14 +39,22 @@ pub(super) async fn insert_batch(pool: &PgPool, events: &[NewSystemLog]) -> Obse
     transaction.commit().await.map_err(mapping::sqlx_error)
 }
 
-pub(super) async fn delete_ids(pool: &PgPool, ids: &[String]) -> ObservabilityResult<()> {
+pub(super) async fn delete_ids_with_audit(pool: &PgPool, ids: &[String], audit: &AuditOutboxRecord) -> ObservabilityResult<()> {
+    if audit.stream() != AuditStream::Operation {
+        return Err(ObservabilityError::Infrastructure(
+            "system-log deletion requires an operation audit record".into(),
+        ));
+    }
     let mut transaction = pool.begin().await.map_err(mapping::sqlx_error)?;
-    ensure_ids_exist(&mut transaction, ids).await?;
-    query("DELETE FROM sys_system_log WHERE id=ANY($1)")
+    let deleted = query_scalar::<_, String>(AUDITED_DELETE_SQL)
         .bind(ids)
-        .execute(&mut *transaction)
+        .fetch_all(&mut *transaction)
         .await
         .map_err(mapping::sqlx_error)?;
+    ensure_exact_ids(ids, deleted)?;
+    append_audit_record(&mut transaction, audit)
+        .await
+        .map_err(|error| ObservabilityError::Infrastructure(error.to_string()))?;
     transaction.commit().await.map_err(mapping::sqlx_error)
 }
 
@@ -52,20 +76,7 @@ pub(super) async fn delete_filtered_batch(pool: &PgPool, filter: SystemLogFilter
     u64::try_from(count).map_err(|error| ObservabilityError::Infrastructure(format!("system log manual cleanup count conversion failed: {error}")))
 }
 
-pub(super) async fn delete_expired_batch(pool: &PgPool, cutoff: OffsetDateTime, limit: u64) -> ObservabilityResult<u64> {
-    let limit = valid_batch_limit(limit)?;
-    let mut transaction = pool.begin().await.map_err(mapping::sqlx_error)?;
-    let count = query_scalar::<_, i64>(EXPIRED_BATCH_SQL)
-        .bind(cutoff)
-        .bind(limit)
-        .fetch_one(&mut *transaction)
-        .await
-        .map_err(mapping::sqlx_error)?;
-    transaction.commit().await.map_err(mapping::sqlx_error)?;
-    u64::try_from(count).map_err(|error| ObservabilityError::Infrastructure(format!("system log cleanup count conversion failed: {error}")))
-}
-
-fn valid_batch_limit(limit: u64) -> ObservabilityResult<i64> {
+pub(super) fn valid_batch_limit(limit: u64) -> ObservabilityResult<i64> {
     let limit = i64::try_from(limit).map_err(|error| ObservabilityError::Infrastructure(format!("system log cleanup limit conversion failed: {error}")))?;
     if limit <= 0 {
         return Err(ObservabilityError::InvalidInput(localized("errors.observability.invalid_cleanup_batch_size")));
@@ -100,13 +111,10 @@ async fn insert_events(transaction: &mut Transaction<'_, Postgres>, events: &[Ne
     Ok(())
 }
 
-async fn ensure_ids_exist(transaction: &mut Transaction<'_, Postgres>, ids: &[String]) -> ObservabilityResult<()> {
-    let existing = query_scalar::<_, String>("SELECT id FROM sys_system_log WHERE id=ANY($1) ORDER BY id FOR UPDATE")
-        .bind(ids)
-        .fetch_all(&mut **transaction)
-        .await
-        .map_err(mapping::sqlx_error)?;
-    if existing.len() != ids.len() {
+fn ensure_exact_ids(ids: &[String], deleted: Vec<String>) -> ObservabilityResult<()> {
+    let mut expected = ids.to_vec();
+    expected.sort_unstable();
+    if deleted != expected {
         return Err(ObservabilityError::NotFound);
     }
     Ok(())
