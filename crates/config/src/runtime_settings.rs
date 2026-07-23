@@ -1,10 +1,6 @@
-use std::net::SocketAddr;
-
 use sha2::{Digest, Sha256};
 
-use crate::{
-    BootstrapInputs, InstallationProfile, PersistedInstallation, ServerSettings, Settings, SettingsError, UploadSettings, settings::required_config_value,
-};
+use crate::{Settings, SettingsError, settings::required_config_value};
 
 const KNOWN_INSECURE_JWT_SECRET_SHA256: [[u8; 32]; 2] = [
     [
@@ -17,43 +13,7 @@ const KNOWN_INSECURE_JWT_SECRET_SHA256: [[u8; 32]; 2] = [
     ],
 ];
 const MIN_JWT_SECRET_BYTES: usize = 32;
-const AVATAR_UPLOADS_DIRECTORY: &str = "uploads";
-const AVATAR_DIRECTORY: &str = "avatars";
-
 impl Settings {
-    pub fn from_persisted_installation(installation: PersistedInstallation, bootstrap: &BootstrapInputs) -> Result<Self, SettingsError> {
-        if !installation.complete {
-            return Err(SettingsError::IncompleteInstallation);
-        }
-        Self::from_installation_profile(installation.profile, bootstrap)
-    }
-
-    pub fn from_installation_profile(profile: InstallationProfile, bootstrap: &BootstrapInputs) -> Result<Self, SettingsError> {
-        let avatar_directory = bootstrap
-            .data_dir
-            .as_path()
-            .join(AVATAR_UPLOADS_DIRECTORY)
-            .join(AVATAR_DIRECTORY)
-            .into_os_string()
-            .into_string()
-            .map_err(|_| SettingsError::NonUnicodeDataDirectory)?;
-        let settings = Self {
-            server: server_settings(bootstrap.listen_addr),
-            database: profile.database,
-            jwt: profile.jwt,
-            user: profile.user,
-            http: profile.http,
-            metrics: profile.metrics,
-            audit: profile.audit,
-            client_info: profile.client_info,
-            redis: profile.redis,
-            scheduler: profile.scheduler,
-            uploads: UploadSettings { avatar_directory },
-        };
-        settings.validate()?;
-        Ok(settings)
-    }
-
     pub fn bind_addr(&self) -> String {
         match self.server.host.contains(':') {
             true => format!("[{}]:{}", self.server.host, self.server.port),
@@ -74,13 +34,6 @@ impl Settings {
             });
         }
         Ok(secret)
-    }
-}
-
-fn server_settings(listen_addr: SocketAddr) -> ServerSettings {
-    ServerSettings {
-        host: listen_addr.ip().to_string(),
-        port: listen_addr.port(),
     }
 }
 

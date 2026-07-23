@@ -1,3 +1,4 @@
+mod admin_continuity;
 mod audited_repository;
 mod audited_transaction;
 mod cursor_page;

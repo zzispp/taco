@@ -38,7 +38,7 @@ fn metrics_can_be_disabled() {
 #[test]
 fn structured_macros_redact_values_before_the_stdout_layer() {
     let output = CapturedOutput::default();
-    let subscriber = Registry::default().with(tracing_subscriber::fmt::layer().without_time().with_writer(output.clone()));
+    let subscriber = Registry::default().with(tracing_subscriber::fmt::layer().without_time().with_ansi(false).with_writer(output.clone()));
     let guard = tracing::subscriber::set_default(subscriber);
 
     crate::info_with_fields!(
@@ -62,7 +62,7 @@ async fn error_macro_redacts_raw_error_before_stdout_and_persistence() {
     let sink = Arc::new(CollectingSink::default());
     let runtime = start_system_log_runtime_with_state(sink.clone(), RuntimeTracingState::new(runtime_config(TracingLevel::Trace)));
     let subscriber = Registry::default()
-        .with(tracing_subscriber::fmt::layer().without_time().with_writer(output.clone()))
+        .with(tracing_subscriber::fmt::layer().without_time().with_ansi(false).with_writer(output.clone()))
         .with(SystemLogLayer::new(runtime.emitter()));
     let error = std::io::Error::other(
         "request failed https://login-user:credential-pass@example.com/run?token=query-token-value#url-fragment password=top-secret-value",

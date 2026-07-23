@@ -4,8 +4,8 @@ use time::OffsetDateTime;
 use super::*;
 use crate::{
     application::{AuditedPasswordChange, UserImportInput, UserImportRow, UserService, UserUseCase},
-    domain::UserId,
-    test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user, user_id},
+    domain::{AvatarFileId, UserId},
+    test_support::{MemoryUserRepository, TestPasswordHasher, VALID_PASSWORD, new_user, replace_user, stored_user},
 };
 
 #[tokio::test]
@@ -49,7 +49,7 @@ async fn apply_audited_user_updates(service: &UserService<MemoryUserRepository, 
         .await
         .unwrap();
     service
-        .update_avatar_with_audit(user_id.clone(), "/uploads/avatars/alice.png".into(), audit("avatar"))
+        .update_avatar_with_audit(user_id.clone(), AvatarFileId::new("file-avatar-1").unwrap(), audit("avatar"))
         .await
         .unwrap();
     service
@@ -168,22 +168,23 @@ async fn audited_user_import_propagates_repository_lookup_failures() {
 }
 
 #[tokio::test]
-async fn audited_user_import_cannot_replace_the_installation_owner() {
-    let repository = MemoryUserRepository::with_user(stored_user(1, "owner", "hashed:secret123"));
-    repository.mark_installation_owner(user_id(1));
+async fn audited_user_import_cannot_disable_the_last_enabled_admin() {
+    let repository = MemoryUserRepository::with_user(stored_user(1, "renamed-admin", "hashed:secret123").with_role_ids(vec!["admin-role"]));
     let service = UserService::new(repository, TestPasswordHasher);
+    let mut row = import_row("renamed-admin");
+    row.status = "1".into();
 
     let result = service
         .import_users_with_audit(
             UserImportInput {
-                rows: vec![import_row("owner")],
+                rows: vec![row],
                 update_support: true,
             },
-            audit("import-owner"),
+            audit("import-last-admin"),
         )
         .await;
 
-    assert!(matches!(result, Err(AppError::Forbidden(error)) if error.key() == "errors.user.installation_owner_protected"));
+    assert!(matches!(result, Err(AppError::Conflict(error)) if error.key() == "errors.user.last_enabled_admin_required"));
 }
 
 fn import_row(username: &str) -> UserImportRow {

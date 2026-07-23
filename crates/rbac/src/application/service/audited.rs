@@ -54,13 +54,11 @@ where
     pub(super) async fn replace_role_users_with_audit_command(&self, role_id: &str, input: RoleUserBindingInput, audit: AuditOutboxRecord) -> RbacResult<()> {
         ensure_role_exists(&self.repository, role_id).await?;
         let input = sanitize_role_users(input);
-        reject_installation_owner_role_mutation(&self.repository, role_id, &input.user_ids, true).await?;
         self.repository.replace_role_users_with_audit(role_id, input, &audit).await
     }
 
     pub(super) async fn delete_role_user_with_audit_command(&self, role_id: &str, user_id: &str, audit: AuditOutboxRecord) -> RbacResult<()> {
         ensure_role_exists(&self.repository, role_id).await?;
-        reject_installation_owner_role_mutation(&self.repository, role_id, &[user_id.into()], false).await?;
         self.repository.delete_role_user_with_audit(role_id, user_id, &audit).await
     }
 
@@ -68,7 +66,6 @@ where
         ensure_role_exists(&self.repository, role_id).await?;
         let user_ids = clean_ids(user_ids);
         reject_empty_ids(&user_ids)?;
-        reject_installation_owner_role_mutation(&self.repository, role_id, &user_ids, false).await?;
         self.repository.delete_role_users_with_audit(role_id, &user_ids, &audit).await
     }
 
@@ -100,13 +97,13 @@ where
     }
 
     pub(super) async fn replace_role_menus_with_audit_command(&self, role_id: &str, input: RoleMenuBindingInput, audit: AuditOutboxRecord) -> RbacResult<()> {
-        ensure_role_exists(&self.repository, role_id).await?;
+        reject_system_role_update(&self.repository, role_id).await?;
         self.repository.replace_role_menus_with_audit(role_id, input, &audit).await?;
         Ok(())
     }
 
     pub(super) async fn replace_role_depts_with_audit_command(&self, role_id: &str, input: RoleDeptBindingInput, audit: AuditOutboxRecord) -> RbacResult<()> {
-        ensure_role_exists(&self.repository, role_id).await?;
+        reject_system_role_update(&self.repository, role_id).await?;
         self.repository.replace_role_depts_with_audit(role_id, input, &audit).await?;
         Ok(())
     }

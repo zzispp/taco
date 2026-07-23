@@ -1,4 +1,5 @@
 mod auth_cookie;
+mod avatar_projection;
 mod dto;
 mod endpoint_specs;
 mod error;
@@ -10,6 +11,7 @@ mod state;
 mod tokens;
 mod user_list_filter;
 
+pub use avatar_projection::{AvatarProjectionApiState, create_avatar_projection_router};
 pub use dto::{
     AuthSessionResponse, AvatarResponse, ChangePasswordPayload, CreateUserPayload, ListUsersQuery, MeResponse, OnlineSessionResponse, OnlineSessionsQuery,
     OnlineSessionsResponse, ProfilePayload, ProfileResponse, ReplaceUserPayload, SignInPayload, SignUpPayload, TokenPairResponse, UserResponse,

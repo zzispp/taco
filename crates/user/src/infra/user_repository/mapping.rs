@@ -1,11 +1,10 @@
+use constants::system::LAST_ENABLED_ADMIN_REQUIRED_CONFLICT;
 use kernel::error::LocalizedError;
 use storage::StorageError;
-use types::{
-    rbac::RoleSummary,
-    user::{User, UserId},
-};
+use types::{rbac::RoleSummary, user::UserId};
 
 use crate::application::{AppError, AuthorizationUser, UserAuthRecord};
+use crate::domain::{AvatarFileId, User};
 
 use super::record::{AuthorizationUserRecord, UserRecord};
 
@@ -26,7 +25,6 @@ pub fn authorization_user(record: AuthorizationUserRecord) -> AuthorizationUser 
         username: record.user_name,
         dept_id: record.dept_id,
         status: record.status,
-        is_installation_owner: record.is_installation_owner,
         role_keys: record.role_keys,
         permissions: record.permissions,
     }
@@ -35,6 +33,8 @@ pub fn authorization_user(record: AuthorizationUserRecord) -> AuthorizationUser 
 pub fn user(record: UserRecord, relations: UserRelations) -> Result<User, StorageError> {
     let roles = relations.roles;
     let permissions = relations.permissions;
+    let avatar_file_id = avatar_file_id(record.avatar_file_id)?;
+    let avatar_version = u64::try_from(record.avatar_version).map_err(|error| StorageError::Database(error.to_string()))?;
     let create_time = types::http::format_utc_rfc3339_millis(record.create_time).map_err(|error| StorageError::Database(error.to_string()))?;
     Ok(User {
         id: UserId(record.user_id),
@@ -44,9 +44,9 @@ pub fn user(record: UserRecord, relations: UserRelations) -> Result<User, Storag
         email: record.email,
         phonenumber: record.phonenumber,
         sex: record.sex,
-        avatar: record.avatar,
+        avatar_file_id,
+        avatar_version,
         status: record.status,
-        is_installation_owner: record.is_installation_owner,
         auth_source: record.auth_source,
         email_verified: record.email_verified,
         remark: record.remark,
@@ -58,9 +58,18 @@ pub fn user(record: UserRecord, relations: UserRelations) -> Result<User, Storag
     })
 }
 
+fn avatar_file_id(value: Option<String>) -> Result<Option<AvatarFileId>, StorageError> {
+    value
+        .map(|value| AvatarFileId::new(value).map_err(|error| StorageError::Database(error.into())))
+        .transpose()
+}
+
 pub fn storage_error(error: StorageError) -> AppError {
     match error {
         StorageError::NotFound => AppError::NotFound,
+        StorageError::Conflict(code) if code == LAST_ENABLED_ADMIN_REQUIRED_CONFLICT => {
+            AppError::Conflict(LocalizedError::new("errors.user.last_enabled_admin_required"))
+        }
         StorageError::Conflict(_) => AppError::Conflict(LocalizedError::new("errors.common.conflict")),
         StorageError::UniqueViolation { constraint, message } => user_unique_violation(constraint.as_deref(), message),
         StorageError::Database(message) => AppError::Infrastructure(message),
@@ -97,11 +106,30 @@ mod tests {
     }
 
     #[test]
-    fn authorization_projection_preserves_explicit_permissions_and_owner_marker() {
-        let user = authorization_user(authorization_record("1", true, vec!["business-admin"], vec!["system:user:list"]));
+    fn authorization_projection_preserves_explicit_permissions() {
+        let user = authorization_user(authorization_record("1", vec!["business-admin"], vec!["system:user:list"]));
 
         assert_eq!(user.permissions, vec!["system:user:list"]);
-        assert!(user.is_installation_owner);
+    }
+
+    #[test]
+    fn user_mapping_rejects_negative_avatar_version() {
+        let mut record = user_record("2");
+        record.avatar_version = -1;
+
+        let error = user(record, UserRelations::default()).unwrap_err();
+
+        assert!(matches!(error, StorageError::Database(message) if message == "out of range integral type conversion attempted"));
+    }
+
+    #[test]
+    fn user_mapping_rejects_blank_avatar_file_id() {
+        let mut record = user_record("2");
+        record.avatar_file_id = Some(" ".into());
+
+        let error = user(record, UserRelations::default()).unwrap_err();
+
+        assert!(matches!(error, StorageError::Database(message) if message == "avatar file identifier cannot be blank"));
     }
 
     #[test]
@@ -120,6 +148,16 @@ mod tests {
             assert_eq!(message.params()[0].key(), "field");
             assert_eq!(message.params()[0].value(), field);
         }
+    }
+
+    #[test]
+    fn last_enabled_admin_conflict_maps_to_the_owned_localized_error() {
+        let error = storage_error(StorageError::Conflict(LAST_ENABLED_ADMIN_REQUIRED_CONFLICT.into()));
+
+        let AppError::Conflict(message) = error else {
+            panic!("last enabled administrator conflict must map to an application conflict");
+        };
+        assert_eq!(message.key(), "errors.user.last_enabled_admin_required");
     }
 
     #[test]
@@ -144,10 +182,10 @@ mod tests {
             email: "fixture-user@example.test".into(),
             phonenumber: None,
             sex: "2".into(),
-            avatar: None,
+            avatar_file_id: None,
+            avatar_version: 0,
             password: "hash".into(),
             status: "0".into(),
-            is_installation_owner: false,
             auth_source: "local".into(),
             email_verified: true,
             remark: None,
@@ -164,13 +202,12 @@ mod tests {
         }
     }
 
-    fn authorization_record(user_id: &str, is_installation_owner: bool, role_keys: Vec<&str>, permissions: Vec<&str>) -> AuthorizationUserRecord {
+    fn authorization_record(user_id: &str, role_keys: Vec<&str>, permissions: Vec<&str>) -> AuthorizationUserRecord {
         AuthorizationUserRecord {
             user_id: user_id.into(),
             user_name: "fixture-user".into(),
             dept_id: None,
             status: "0".into(),
-            is_installation_owner,
             role_keys: role_keys.into_iter().map(String::from).collect(),
             permissions: permissions.into_iter().map(String::from).collect(),
         }

@@ -33,18 +33,8 @@ pub use role_user_handlers::{delete_role_user, delete_role_users, replace_role_u
 
 use self::support::{checked_keys_for_tree, menu_tree, ok};
 
-type ExportRolesRequest = (
-    State<RbacApiState>,
-    Extension<CurrentUser>,
-    Extension<DataScopeFilter>,
-    RequestQuery<RoleExportQuery>,
-);
-type ListRolesRequest = (
-    State<RbacApiState>,
-    Extension<CurrentUser>,
-    Extension<DataScopeFilter>,
-    RequestQuery<RoleListQuery>,
-);
+type ExportRolesRequest = (State<RbacApiState>, Extension<DataScopeFilter>, RequestQuery<RoleExportQuery>);
+type ListRolesRequest = (State<RbacApiState>, Extension<DataScopeFilter>, RequestQuery<RoleListQuery>);
 type ApiResult<T> = Result<T, RbacApiError>;
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -81,17 +71,16 @@ pub async fn navbar(State(state): State<RbacApiState>, current_user: CurrentUser
 
 #[require_perms("system:role:export")]
 pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
-    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let (State(state), Extension(data_scope), RequestQuery(query)) = request;
     let filter = role_export_filter(query)?;
     let batch_size = state.export_config.export_batch_config().await?.page_size;
-    let scope = (!current_user.is_installation_owner).then_some(data_scope);
     let mut export = RoleXlsxExport::new(current_locale())?;
     state
         .rbac_admin
         .export_roles(
             RoleExportRequest {
                 filter: filter.page_filter(CursorPageRequest::default()),
-                scope,
+                scope: Some(data_scope),
                 batch_size,
             },
             &mut export,
@@ -102,13 +91,9 @@ pub async fn export_roles(request: ExportRolesRequest) -> ApiResult<Response> {
 
 #[require_perms("system:role:list")]
 pub async fn list_roles(request: ListRolesRequest) -> ApiResult<ApiJson<CursorPage<Role>>> {
-    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let (State(state), Extension(data_scope), RequestQuery(query)) = request;
     let filter = role_list_filter(query)?;
-    let page = if current_user.is_installation_owner {
-        state.rbac_admin.page_roles(filter).await?
-    } else {
-        state.rbac_admin.page_roles_scoped(filter, data_scope).await?
-    };
+    let page = state.rbac_admin.page_roles_scoped(filter, data_scope).await?;
     Ok(ok(page))
 }
 

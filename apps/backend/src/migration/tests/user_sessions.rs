@@ -10,7 +10,7 @@ use user::{
     infra::{StorageOnlineSessionStore, StorageUserRepository},
 };
 
-use super::{TestDatabase, managed_table_exists, up};
+use super::{TestDatabase, bootstrap_system_administrator, managed_table_exists, up};
 
 mod storage_lifecycle;
 
@@ -23,6 +23,7 @@ const SESSION_LIFETIME_MILLIS: i64 = 300_000;
 async fn user_session_migration_creates_expiring_user_bound_sessions() {
     let database = TestDatabase::create().await;
     up(database.pool(), None).await.unwrap();
+    bootstrap_system_administrator(database.pool()).await;
 
     assert!(managed_table_exists(database.pool(), SESSION_TABLE).await);
     assert_columns(database.pool()).await;

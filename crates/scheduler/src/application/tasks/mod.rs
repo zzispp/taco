@@ -1,4 +1,6 @@
 mod cache_refresh;
+mod file_cleanup;
+mod file_cleanup_params;
 mod http_report;
 mod http_request;
 mod http_sanitization;
@@ -8,6 +10,11 @@ mod system_log_cleanup_params;
 
 pub use cache_refresh::{
     CacheRefreshKind, REFRESH_CONFIG_CACHE_TASK_KEY, REFRESH_DICT_CACHE_TASK_KEY, RefreshConfigCacheTask, RefreshDictCacheTask, cache_refresh_failure,
+};
+pub use file_cleanup::{
+    CLEANUP_UPLOAD_SESSIONS_TASK_KEY, CleanupUploadSessionsTask, FILE_CLEANUP_DETAIL_SCHEMA_VERSION, FILE_TRASH_CLEANUP_DETAIL_KIND,
+    FILE_UPLOAD_SESSION_CLEANUP_DETAIL_KIND, FileCleanupKind, FileTrashCleanupReport, FileUploadSessionCleanupReport, PURGE_TRASH_TASK_KEY, PurgeTrashTask,
+    file_cleanup_failure,
 };
 pub use http_request::{HTTP_REQUEST_TASK_KEY, HttpRequestTask};
 pub(crate) use http_sanitization::{

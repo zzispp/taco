@@ -3,7 +3,7 @@ use audit_contract::AuditOutboxRecord;
 
 use crate::{
     application::{AppResult, ReplaceUserRecord, UserRepository},
-    domain::{ProfileUpdate, User, UserId},
+    domain::{AvatarFileId, ProfileUpdate, User, UserId},
 };
 
 /// An account password change coupled with the immutable operation record that
@@ -39,7 +39,7 @@ pub trait AuditedUserRepository: UserRepository {
     async fn record_login_with_audit(&self, id: UserId, ipaddr: String, audit: &AuditOutboxRecord) -> AppResult<()>;
     async fn update_password_with_audit(&self, id: UserId, password_hash: String, audit: &AuditOutboxRecord) -> AppResult<()>;
     async fn update_profile_with_audit(&self, id: UserId, profile: ProfileUpdate, audit: &AuditOutboxRecord) -> AppResult<User>;
-    async fn update_avatar_with_audit(&self, id: UserId, avatar: String, audit: &AuditOutboxRecord) -> AppResult<User>;
+    async fn update_avatar_with_audit(&self, id: UserId, avatar: AvatarFileId, audit: &AuditOutboxRecord) -> AppResult<User>;
     async fn update_status_with_audit(&self, id: UserId, status: String, audit: &AuditOutboxRecord) -> AppResult<User>;
     async fn replace_roles_with_audit(&self, id: UserId, role_ids: Vec<String>, audit: &AuditOutboxRecord) -> AppResult<User>;
 }

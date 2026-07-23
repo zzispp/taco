@@ -64,18 +64,13 @@ impl RbacCache for RedisRbacCache {
         serde_json::from_str(&value).map_err(json_error)
     }
 
-    async fn read_nav(&self, role_keys: &[String], is_installation_owner: bool) -> RbacResult<NavResponse> {
+    async fn read_nav(&self, role_keys: &[String]) -> RbacResult<NavResponse> {
         let snapshot = self.read_snapshot().await?;
-        Ok(nav_response(snapshot, role_keys, is_installation_owner))
+        Ok(nav_response(snapshot, role_keys))
     }
 }
 
-fn nav_response(snapshot: PermissionSnapshot, role_keys: &[String], is_installation_owner: bool) -> NavResponse {
-    if is_installation_owner {
-        return NavResponse {
-            nav_items: snapshot.installation_owner_menus,
-        };
-    }
+fn nav_response(snapshot: PermissionSnapshot, role_keys: &[String]) -> NavResponse {
     let sections = snapshot
         .menus
         .into_iter()
@@ -164,20 +159,19 @@ mod tests {
     }
 
     #[test]
-    fn installation_owner_navigation_ignores_assignable_role_keys() {
+    fn navigation_uses_the_assigned_role_keys() {
         let snapshot = PermissionSnapshot {
             roles: vec![],
             menus: vec![types::rbac::RoleMenuSnapshot {
                 role_key: "business-admin".into(),
                 sections: vec![section("business", vec![item("100", "Business")])],
             }],
-            installation_owner_menus: vec![section("owner", vec![item("101", "Owner")])],
         };
 
-        let navigation = nav_response(snapshot, &["business-admin".into()], true);
+        let navigation = nav_response(snapshot, &["business-admin".into()]);
 
-        assert_eq!(navigation.nav_items[0].code, "owner");
-        assert_eq!(navigation.nav_items[0].items[0].code, "101");
+        assert_eq!(navigation.nav_items[0].code, "business");
+        assert_eq!(navigation.nav_items[0].items[0].code, "100");
     }
 
     fn section(code: &str, items: Vec<NavItemResponse>) -> NavSectionResponse {

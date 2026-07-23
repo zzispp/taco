@@ -1,0 +1,3 @@
+# Reject sibling name conflicts
+
+Managed Files and Logical Folders share one case-insensitive Sibling Namespace while preserving the submitted display casing. Create, upload, rename, move, and restore operations reject conflicts instead of overwriting, merging, allowing duplicates, or silently adding numeric suffixes, so every visible name resolves unambiguously and no operation hides data loss or changes user intent. Repeating an upload to the same target name with the same Content Digest is the sole idempotent exception and returns the existing Managed File; the same name with different content conflicts. Restoring a Logical Folder validates the complete subtree before changing any asset state; one conflict rejects the whole restoration.

@@ -1,5 +1,3 @@
-use serde_json::json;
-
 use super::*;
 
 #[test]
@@ -65,18 +63,6 @@ fn rediss_url_selects_verified_tls_in_the_runtime_client() {
         }
         address => panic!("expected verified TLS Redis address, got {address:?}"),
     }
-}
-
-#[test]
-fn profile_rejects_unknown_connection_fields_and_enum_variants() {
-    let mut unknown_field = serde_json::to_value(valid_installation_profile()).unwrap();
-    unknown_field["database"]["url"] = json!("postgres://localhost/app");
-
-    let mut unsupported_scheme = serde_json::to_value(valid_installation_profile()).unwrap();
-    unsupported_scheme["redis"]["scheme"] = json!("http");
-
-    assert!(serde_json::from_value::<InstallationProfile>(unknown_field).is_err());
-    assert!(serde_json::from_value::<InstallationProfile>(unsupported_scheme).is_err());
 }
 
 #[test]

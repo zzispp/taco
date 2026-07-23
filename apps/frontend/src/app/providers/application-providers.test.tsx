@@ -5,13 +5,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { vi, it, expect, describe, beforeEach } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  gateAllowsInstalledProviders: false,
   initializedProviders: [] as string[],
 }));
 
 type ChildrenProps = Readonly<{
   children?: ReactNode;
-  loadingFallback?: ReactNode;
 }>;
 
 vi.mock('@mui/material-nextjs/v15-appRouter', async () => {
@@ -68,22 +66,6 @@ vi.mock('src/shared/ui/animate/motion-lazy', async () => {
 
 vi.mock('src/shared/ui/progress-bar', () => ({ ProgressBar: () => null }));
 vi.mock('src/shared/ui/snackbar', () => ({ Snackbar: () => null }));
-vi.mock('src/shared/ui/loading-screen', async () => {
-  const { createElement: create } = await import('react');
-  return { SplashScreen: () => create('div', { 'data-provider': 'splash' }) };
-});
-
-vi.mock('src/app/installation/installation-status-gate', async () => {
-  const { createElement: create } = await import('react');
-  return {
-    InstallationStatusGate: ({ children, loadingFallback }: ChildrenProps) =>
-      create(
-        'div',
-        { 'data-provider': 'setup-gate' },
-        state.gateAllowsInstalledProviders ? children : loadingFallback
-      ),
-  };
-});
 
 vi.mock('./auth-provider', async () => {
   const { createElement: create } = await import('react');
@@ -109,39 +91,23 @@ import { ApplicationProviders } from './application-providers';
 
 function renderProviders() {
   return renderToStaticMarkup(
-    createElement(ApplicationProviders, null, createElement('main', null, 'installed-content'))
+    createElement(ApplicationProviders, null, createElement('main', null, 'application-content'))
   );
 }
 
 describe('ApplicationProviders', () => {
   beforeEach(() => {
-    state.gateAllowsInstalledProviders = false;
     state.initializedProviders.length = 0;
   });
 
-  it('uses a local loading theme without initializing installed-only providers', () => {
-    const markup = renderProviders();
-
-    expect(markup).toMatch(
-      /data-provider="setup-gate"><div data-provider="cache"><div data-provider="theme"><div data-provider="splash"/
-    );
-    expect(markup.match(/data-provider="theme"/g)).toHaveLength(1);
-    expect(markup.match(/data-provider="cache"/g)).toHaveLength(1);
-    expect(state.initializedProviders).toEqual([]);
-    expect(markup).not.toContain('installed-content');
-  });
-
-  it('initializes the single runtime theme after the installation gate allows rendering', () => {
-    state.gateAllowsInstalledProviders = true;
-
+  it('initializes the runtime providers immediately', () => {
     const markup = renderProviders();
 
     expect(state.initializedProviders).toEqual(['auth', 'app-settings']);
     expect(markup).toMatch(
-      /data-provider="setup-gate"><div data-provider="auth"><div data-provider="app-settings"><div data-provider="localization"><div data-provider="cache"><div data-provider="theme">/
+      /data-provider="settings"><div data-provider="auth"><div data-provider="app-settings"><div data-provider="localization"><div data-provider="cache"><div data-provider="theme">/
     );
     expect(markup.match(/data-provider="theme"/g)).toHaveLength(1);
-    expect(markup).not.toContain('data-provider="splash"');
-    expect(markup).toContain('installed-content');
+    expect(markup).toContain('application-content');
   });
 });

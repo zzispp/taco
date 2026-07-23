@@ -3,7 +3,7 @@ use audit_contract::AuditOutboxRecord;
 
 use crate::{
     application::{AppResult, AuditedUserRepository, ReplaceUserRecord, UserImportWrite},
-    domain::{ProfileUpdate, User, UserId},
+    domain::{AvatarFileId, ProfileUpdate, User, UserId},
 };
 
 use super::{StorageUserRepository, mapping::storage_error};
@@ -42,7 +42,7 @@ impl AuditedUserRepository for StorageUserRepository {
         self.queries.update_profile_with_audit(id, profile, audit).await.map_err(storage_error)
     }
 
-    async fn update_avatar_with_audit(&self, id: UserId, avatar: String, audit: &AuditOutboxRecord) -> AppResult<User> {
+    async fn update_avatar_with_audit(&self, id: UserId, avatar: AvatarFileId, audit: &AuditOutboxRecord) -> AppResult<User> {
         self.queries.update_avatar_with_audit(id, avatar, audit).await.map_err(storage_error)
     }
 

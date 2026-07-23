@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
 
 import { assertNoEnvironmentFiles } from './src/shared/config/environment-files';
+import { defaultLocaleHomePath } from './src/shared/i18n/locale-contract';
 
 // ----------------------------------------------------------------------
 
@@ -22,6 +23,7 @@ const LOOPBACK_HOST_PATTERN = '127\\.0\\.0\\.1';
 const API_PATH_PREFIX = '/api';
 const UPLOADS_PATH_PREFIX = '/uploads';
 const WASM_EVAL_SOURCE = "'wasm-unsafe-eval'";
+export const DEVELOPMENT_PROXY_BODY_LIMIT_BYTES = Number.MAX_SAFE_INTEGER;
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -80,11 +82,21 @@ function developmentServerConfig(): Partial<NextConfig> {
   }
 
   return {
+    // Upload sessions and Providers own part sizing; the development rewrite must not truncate them.
+    experimental: {
+      globalNotFound: true,
+      proxyClientMaxBodySize: DEVELOPMENT_PROXY_BODY_LIMIT_BYTES,
+    },
     async headers() {
       return [{ source: '/:path*', headers: NEXT_SECURITY_HEADERS }];
     },
     async redirects() {
       return [
+        {
+          source: '/',
+          destination: defaultLocaleHomePath,
+          permanent: false,
+        },
         {
           source: '/:path*',
           has: [{ type: 'host', value: LOOPBACK_HOST_PATTERN }],

@@ -24,25 +24,24 @@ const ADD_PERMISSION: &str = "system:notice:add";
 const LIST_PERMISSION: &str = "system:notice:list";
 
 #[tokio::test]
-async fn closed_notice_requires_installation_owner_or_query_permission() {
+async fn closed_notice_requires_query_permission() {
     let cases = [
-        (false, Vec::new(), StatusCode::NOT_FOUND),
-        (false, vec![ADD_PERMISSION], StatusCode::NOT_FOUND),
-        (false, vec![QUERY_PERMISSION], StatusCode::OK),
-        (false, vec![RESERVED_WILDCARD_PERMISSION], StatusCode::NOT_FOUND),
-        (true, Vec::new(), StatusCode::OK),
+        (Vec::new(), StatusCode::NOT_FOUND),
+        (vec![ADD_PERMISSION], StatusCode::NOT_FOUND),
+        (vec![QUERY_PERMISSION], StatusCode::OK),
+        (vec![RESERVED_WILDCARD_PERMISSION], StatusCode::NOT_FOUND),
     ];
 
-    for (admin, permissions, expected) in cases {
-        let app = test_router(TestRepository::with_status(NOTICE_STATUS_CLOSED), current_user(admin, &permissions));
+    for (permissions, expected) in cases {
+        let app = test_router(TestRepository::with_status(NOTICE_STATUS_CLOSED), current_user(&permissions));
         let response = app.oneshot(empty_request(Method::GET, "/system/notices/notice-1")).await.unwrap();
-        assert_eq!(response.status(), expected, "admin={admin}, permissions={permissions:?}");
+        assert_eq!(response.status(), expected, "permissions={permissions:?}");
     }
 }
 
 #[tokio::test]
 async fn normal_notice_is_readable_without_notice_permission() {
-    let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(false, &[]));
+    let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(&[]));
     let response = app.oneshot(empty_request(Method::GET, "/system/notices/notice-1")).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
@@ -52,7 +51,7 @@ async fn list_endpoints_reject_legacy_page_parameters() {
     let cases = ["/system/notices?page=1&page_size=10", "/system/notices/notice-1/readers?page=1&page_size=10"];
 
     for uri in cases {
-        let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(false, &[LIST_PERMISSION]));
+        let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(&[LIST_PERMISSION]));
         let response = app.oneshot(empty_request(Method::GET, uri)).await.unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "uri={uri}");
         let body = response_json(response).await;
@@ -72,7 +71,7 @@ fn list_queries_default_to_the_public_cursor_limit() {
 #[tokio::test]
 async fn create_notice_uses_authenticated_username_for_audit() {
     let repository = TestRepository::with_status(STATUS_NORMAL);
-    let app = test_router(repository.clone(), current_user(false, &[ADD_PERMISSION]));
+    let app = test_router(repository.clone(), current_user(&[ADD_PERMISSION]));
     let response = app.oneshot(json_request("zh-CN", valid_payload("# Content"))).await.unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
@@ -94,7 +93,7 @@ async fn invalid_markdown_returns_localized_bad_request() {
     ];
 
     for (locale, expected_details) in cases {
-        let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(false, &[ADD_PERMISSION]));
+        let app = test_router(TestRepository::with_status(STATUS_NORMAL), current_user(&[ADD_PERMISSION]));
         let response = app.oneshot(json_request(locale, valid_payload("<script>alert(1)</script>"))).await.unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = response_json(response).await;
@@ -148,14 +147,13 @@ fn operation_audit_context() -> OperationAuditContext {
     context
 }
 
-fn current_user(is_installation_owner: bool, permissions: &[&str]) -> CurrentUser {
+fn current_user(permissions: &[&str]) -> CurrentUser {
     CurrentUser {
         id: "user-1".into(),
         username: "alice".into(),
         role_keys: Vec::new(),
         permissions: permissions.iter().map(|permission| (*permission).into()).collect(),
         dept_id: None,
-        is_installation_owner,
     }
 }
 

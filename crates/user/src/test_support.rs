@@ -1,15 +1,17 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use constants::system::{ADMIN_ROLE_KEY, STATUS_NORMAL};
+use kernel::error::LocalizedError;
 use kernel::pagination::CursorPage;
 use rbac::domain::DataScopeFilter;
 
 use crate::{
     application::{
-        AppError, AppResult, AuthorizationUser, PasswordHasher, ReplaceUserRecord, UserAuthRecord, UserExportRequest, UserExportSink, UserListFilter,
-        UserRepository,
+        AppError, AppResult, AuthorizationUser, BootstrapAdministratorOutcome, BootstrapAdministratorRecord, BootstrapAdministratorRepository, PasswordHasher,
+        ReplaceUserRecord, UserAuthRecord, UserExportRequest, UserExportSink, UserListFilter, UserRepository,
     },
-    domain::{ProfileUpdate, User, UserFormOptions, UserId, UserProfileGroups},
+    domain::{AvatarFileId, ProfileUpdate, User, UserFormOptions, UserId, UserProfileGroups},
 };
 use types::{
     rbac::RoleSummary,
@@ -17,6 +19,8 @@ use types::{
 };
 
 pub(crate) const VALID_PASSWORD: &str = "secret123";
+pub(crate) const SYSTEM_ADMIN_ROLE_ID: &str = "admin-role";
+pub(crate) const NON_SYSTEM_ADMIN_ROLE_ID: &str = "non-system-admin-role";
 
 #[derive(Clone, Default)]
 pub(crate) struct MemoryUserRepository {
@@ -35,7 +39,6 @@ struct RepositoryState {
     audits: Vec<audit_contract::AuditOutboxRecord>,
     audit_failure: Option<String>,
     auth_lookup_failure: Option<String>,
-    installation_owner: Option<UserId>,
 }
 
 #[derive(Clone)]
@@ -58,14 +61,6 @@ impl MemoryUserRepository {
         let repository = Self::default();
         repository.state.lock().unwrap().users = users;
         repository
-    }
-
-    pub(crate) fn mark_installation_owner(&self, id: UserId) {
-        set_installation_owner(&mut self.state.lock().unwrap(), id);
-    }
-
-    pub(crate) fn installation_owner_id(&self) -> Option<UserId> {
-        self.state.lock().unwrap().installation_owner.clone()
     }
 
     pub(crate) fn created_records(&self) -> Vec<ReplaceUserRecord> {
@@ -113,7 +108,6 @@ impl MemoryUserRepository {
 mod audited_repository;
 mod filters;
 mod fixtures;
-mod installation_owner_repository;
 mod login_security;
 mod online_session_store;
 mod repository;
@@ -161,13 +155,6 @@ fn find_stored_user_mut<'a>(state: &'a mut RepositoryState, id: &UserId) -> AppR
     state.users.iter_mut().find(|stored| stored.user.id == *id).ok_or(AppError::NotFound)
 }
 
-fn set_installation_owner(state: &mut RepositoryState, id: UserId) {
-    for stored in &mut state.users {
-        stored.user.is_installation_owner = stored.user.id == id;
-    }
-    state.installation_owner = Some(id);
-}
-
 fn replace_stored_user(state: &mut RepositoryState, id: &UserId, record: &ReplaceUserRecord) -> AppResult<User> {
     let stored = find_stored_user_mut(state, id)?;
     stored.user = user_from_record(id.clone(), record);
@@ -186,9 +173,9 @@ fn user_from_record(id: UserId, record: &ReplaceUserRecord) -> User {
         email: record.email.clone(),
         phonenumber: record.phonenumber.clone(),
         sex: record.sex.clone(),
-        avatar: None,
+        avatar_file_id: None,
+        avatar_version: 0,
         status: record.status.clone(),
-        is_installation_owner: false,
         auth_source: "local".into(),
         email_verified: false,
         remark: record.remark.clone(),
@@ -209,14 +196,42 @@ fn business_role() -> RoleSummary {
 }
 
 fn role_summary(id: &str) -> RoleSummary {
-    let (role_name, role_key) = if id == "1" {
-        ("业务管理员", "business-admin")
-    } else {
-        ("业务角色", "business-role")
+    let (role_name, role_key) = match id {
+        "1" => ("业务管理员", "business-admin"),
+        SYSTEM_ADMIN_ROLE_ID => ("系统管理员", ADMIN_ROLE_KEY),
+        NON_SYSTEM_ADMIN_ROLE_ID => ("非系统管理员", ADMIN_ROLE_KEY),
+        _ => ("业务角色", "business-role"),
     };
     RoleSummary {
         role_id: id.into(),
         role_name: role_name.into(),
         role_key: role_key.into(),
     }
+}
+
+fn commit_continuous_mutation<T>(state: &mut RepositoryState, mutation: impl FnOnce(&mut RepositoryState) -> AppResult<T>) -> AppResult<T> {
+    let mut next = state.clone();
+    let result = mutation(&mut next)?;
+    ensure_admin_continuity(state, &next)?;
+    *state = next;
+    Ok(result)
+}
+
+fn ensure_admin_continuity(before: &RepositoryState, after: &RepositoryState) -> AppResult<()> {
+    if has_enabled_admin(before) && !has_enabled_admin(after) {
+        return Err(AppError::Conflict(LocalizedError::new("errors.user.last_enabled_admin_required")));
+    }
+    Ok(())
+}
+
+fn has_enabled_admin(state: &RepositoryState) -> bool {
+    state.users.iter().any(|stored| {
+        !state.deleted.contains(&stored.user.id)
+            && stored.user.status == STATUS_NORMAL
+            && stored
+                .user
+                .roles
+                .iter()
+                .any(|role| role.role_id == SYSTEM_ADMIN_ROLE_ID && role.role_key == ADMIN_ROLE_KEY)
+    })
 }

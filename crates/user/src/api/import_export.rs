@@ -2,12 +2,10 @@ use std::collections::HashMap;
 
 use kernel::error::LocalizedError;
 use kernel::excel::{StreamingXlsxWriter, TemporaryXlsxFile, read_xlsx, write_xlsx};
-use types::{
-    http::{Locale, translate_message},
-    user::User,
-};
+use types::http::{Locale, translate_message};
 
 use crate::application::{AppError, AppResult, UserExportSink, UserImportRow};
+use crate::domain::User;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 enum ImportField {

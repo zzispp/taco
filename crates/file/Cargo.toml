@@ -1,0 +1,36 @@
+[package]
+name = "file"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+audit_contract.workspace = true
+axum.workspace = true
+base64.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+image = { workspace = true, features = ["gif"] }
+kernel.workspace = true
+rbac.workspace = true
+rbac_macros.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+storage.workspace = true
+sysinfo.workspace = true
+taco_tracing.workspace = true
+thiserror.workspace = true
+tempfile.workspace = true
+time.workspace = true
+tokio.workspace = true
+types.workspace = true
+user.workspace = true
+utoipa.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+configuration.workspace = true
+url.workspace = true

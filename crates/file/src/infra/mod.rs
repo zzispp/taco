@@ -1,0 +1,26 @@
+mod avatar_storage;
+mod image_preview;
+mod local;
+mod repository;
+mod repository_cleanup;
+mod repository_commands;
+mod repository_directory_trail;
+mod repository_provider_cleanup;
+mod repository_purge;
+mod repository_queries;
+mod repository_session_completion;
+mod repository_session_core;
+mod repository_session_lifecycle;
+mod repository_session_parts;
+mod repository_session_reuse;
+mod repository_session_support;
+mod repository_sessions;
+mod repository_support;
+mod repository_system_folders;
+mod repository_trash;
+mod repository_uploads;
+
+pub use avatar_storage::ManagedAvatarStorage;
+pub use image_preview::BoundedImagePreviewProcessor;
+pub use local::LocalFileProvider;
+pub use repository::StorageFileRepository;

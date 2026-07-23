@@ -9,6 +9,7 @@ argon2.workspace = true
 async-trait.workspace = true
 audit_contract.workspace = true
 axum.workspace = true
+bytes.workspace = true
 client_info.workspace = true
 constants.workspace = true
 image.workspace = true
@@ -20,6 +21,7 @@ redis.workspace = true
 rbac.workspace = true
 rbac_macros.workspace = true
 regex.workspace = true
+futures-util.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
@@ -33,6 +35,5 @@ utoipa.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 tokio.workspace = true
 tower.workspace = true

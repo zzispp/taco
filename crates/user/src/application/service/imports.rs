@@ -73,7 +73,6 @@ where
     }
 
     async fn prepare_import_update(&self, row: UserImportRow, existing: User) -> AppResult<(UserImportWrite, UserImportMessage)> {
-        self.reject_installation_owner_mutation(&existing.id).await?;
         let username = row.username.trim().to_owned();
         let record = self
             .prepare_replacement(

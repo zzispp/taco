@@ -21,6 +21,10 @@
     "logManagement": "日誌管理",
     "operationLogs": "操作日誌",
     "loginLogs": "登入日誌",
-    "systemLogs": "系統日誌"
+    "systemLogs": "系統日誌",
+    "fileManagement": "文件管理",
+    "fileOverview": "文件概覽",
+    "fileManager": "資產管理",
+    "fileSpaces": "空間管理"
   }
 }

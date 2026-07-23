@@ -39,20 +39,6 @@ where
         self.replace_user_record(input)
     }
 
-    pub(super) async fn reject_installation_owner_mutation(&self, id: &UserId) -> AppResult<()> {
-        if self.repository.is_installation_owner(id).await? {
-            return Err(AppError::Forbidden(kernel::error::LocalizedError::new(INSTALLATION_OWNER_PROTECTED_KEY)));
-        }
-        Ok(())
-    }
-
-    pub(super) async fn reject_installation_owner_mutations(&self, ids: &[UserId]) -> AppResult<()> {
-        for id in ids {
-            self.reject_installation_owner_mutation(id).await?;
-        }
-        Ok(())
-    }
-
     pub(super) async fn prepare_profile_update(&self, id: &UserId, profile: ProfileUpdate) -> AppResult<ProfileUpdate> {
         let profile = sanitize_profile_update(profile);
         validate_profile_update(&profile)?;
@@ -81,9 +67,11 @@ where
         self.password_hasher.hash(&password)
     }
 
-    pub(super) fn prepare_avatar_update(&self, avatar: String) -> AppResult<String> {
-        reject_blank_avatar(&avatar)?;
-        Ok(avatar.trim().into())
+    pub(super) fn prepare_avatar_update(&self, avatar: crate::domain::AvatarFileId) -> AppResult<crate::domain::AvatarFileId> {
+        if avatar.as_str().trim().is_empty() {
+            return Err(AppError::InvalidInput(localized("errors.user.avatar_blank")));
+        }
+        Ok(avatar)
     }
 
     pub(super) fn validate_user_deletions(&self, ids: &[UserId]) -> AppResult<()> {

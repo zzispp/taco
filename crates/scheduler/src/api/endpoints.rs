@@ -205,7 +205,7 @@ mod tests {
                 )
             })
             .filter_map(|spec| match spec.audit {
-                EndpointAudit::Operation(operation) => Some(operation),
+                EndpointAudit::Operation(operation) | EndpointAudit::Download(operation) => Some(operation),
                 EndpointAudit::ReadOnly | EndpointAudit::ExplicitReadOnly | EndpointAudit::Security => None,
             })
             .collect::<Vec<_>>();

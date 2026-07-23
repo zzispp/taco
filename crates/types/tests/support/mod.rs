@@ -5,7 +5,7 @@ use std::{
 };
 
 const LOCALES: &[&str] = &["zh-CN", "en", "zh-TW"];
-pub const LOCALE_PARTS: &[&str] = &["common", "user", "rbac", "system", "captcha", "scheduler", "audit"];
+pub const LOCALE_PARTS: &[&str] = &["common", "user", "rbac", "system", "captcha", "scheduler", "audit", "file"];
 
 pub fn parsed_catalogs() -> Vec<(&'static str, BTreeMap<String, String>)> {
     LOCALES.iter().map(|locale| (*locale, parse_parts(locale, LOCALE_PARTS))).collect()

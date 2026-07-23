@@ -1,4 +1,4 @@
-use crate::domain::{NewUser, ReplaceUser, User, UserId};
+use crate::domain::{AvatarFileId, NewUser, ReplaceUser, User, UserId};
 
 use super::{StoredUser, VALID_PASSWORD, business_role, role_summary, user_id};
 
@@ -30,6 +30,12 @@ impl StoredUser {
 
     pub(crate) fn with_status(mut self, status: &str) -> Self {
         self.user.status = status.into();
+        self
+    }
+
+    pub(crate) fn with_avatar_file_id(mut self, file_id: &str) -> Self {
+        self.user.avatar_file_id = Some(AvatarFileId::new(file_id).expect("avatar fixture id must be valid"));
+        self.user.avatar_version = 1;
         self
     }
 
@@ -87,9 +93,9 @@ pub(crate) fn stored_user(id: u64, username: &str, password_hash: &str) -> Store
             email: format!("{username}@example.com"),
             phonenumber: Some("15888888888".into()),
             sex: "2".into(),
-            avatar: None,
+            avatar_file_id: None,
+            avatar_version: 0,
             status: "0".into(),
-            is_installation_owner: false,
             auth_source: "local".into(),
             email_verified: false,
             remark: None,

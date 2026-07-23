@@ -5,13 +5,13 @@ import type { LangCode } from './locales-config';
 
 import { useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useRouter as useNextRouter } from 'next/navigation';
 
 import { usePathname } from 'src/shared/routes/hooks';
 import { useSettingsContext } from 'src/shared/ui/settings';
 import { localizePath, requireLangCode, localeFromPathname } from 'src/shared/routes/locale-path';
 
 import { fallbackLng, getCurrentLang } from './locales-config';
+import { replaceDocumentLocation } from './document-navigation';
 
 // ----------------------------------------------------------------------
 
@@ -31,7 +31,6 @@ export function useTranslate(namespace?: Namespace) {
 
 function useLanguageChanger() {
   const pathname = usePathname();
-  const router = useNextRouter();
 
   return useCallback(
     (lang: LangCode) => {
@@ -39,9 +38,9 @@ function useLanguageChanger() {
       if (lang === locale) return;
 
       const currentPath = `${pathname}${window.location.search}${window.location.hash}`;
-      router.replace(localizePath(lang, currentPath));
+      replaceDocumentLocation(window.location, localizePath(lang, currentPath));
     },
-    [pathname, router]
+    [pathname]
   );
 }
 

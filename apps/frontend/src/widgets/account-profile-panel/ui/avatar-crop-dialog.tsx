@@ -1,37 +1,47 @@
 'use client';
 
-import type { Area } from 'react-easy-crop';
-
 import Cropper from 'react-easy-crop';
-import { useState, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Slider from '@mui/material/Slider';
 import Dialog from '@mui/material/Dialog';
 import Avatar from '@mui/material/Avatar';
+import Tooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import CircularProgress from '@mui/material/CircularProgress';
 
-import { toast } from 'src/shared/ui/snackbar';
 import { Iconify } from 'src/shared/ui/iconify';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
-import { croppedImageBlob, uploadAccountAvatar } from 'src/features/user-profile';
+import {
+  type AvatarSource,
+  AVATAR_SOURCE_ASSETS,
+  AVATAR_SOURCE_UPLOAD,
+  useAvatarCropController,
+  type AvatarCropController,
+} from 'src/features/user-profile';
+
+import { AvatarAssetPicker } from './avatar-asset-picker';
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
-const ROTATE_STEP = 90;
+const ZOOM_STEP = 0.1;
 
-export type AvatarCropDialogProps = {
+export type AvatarCropDialogProps = Readonly<{
   open: boolean;
   currentAvatar: string;
   onClose: () => void;
   onUploaded: () => Promise<void>;
-};
+}>;
 
 export function AvatarCropDialog({
   open,
@@ -40,188 +50,223 @@ export function AvatarCropDialog({
   onUploaded,
 }: AvatarCropDialogProps) {
   const { t } = useTranslate('admin');
-  const state = useAvatarCropState();
-  const actions = useAvatarCropActions({ state, onClose, onUploaded, t });
-
+  const controller = useAvatarCropController({ open, onClose, onUploaded, t });
   return (
-    <Dialog fullWidth maxWidth="md" open={open} onClose={onClose}>
+    <Dialog fullWidth maxWidth="md" open={open} onClose={controller.handleClose}>
       <DialogTitle>{t('profile.changeAvatar')}</DialogTitle>
       <DialogContent>
-        <AvatarCropBody {...{ state, actions, currentAvatar, t }} />
+        <AvatarSourceTabs controller={controller} t={t} />
+        {controller.source === AVATAR_SOURCE_UPLOAD ? (
+          <AvatarCropBody controller={controller} currentAvatar={currentAvatar} t={t} />
+        ) : (
+          <AssetSourceBody controller={controller} currentAvatar={currentAvatar} t={t} />
+        )}
       </DialogContent>
-      <DialogActions>
-        <Button color="inherit" onClick={onClose}>
-          {t('common.cancel')}
-        </Button>
-        <Button
-          variant="contained"
-          loading={state.loading}
-          disabled={!state.imageSrc}
-          onClick={actions.handleSubmit}
-        >
-          {t('common.save')}
-        </Button>
-      </DialogActions>
+      <AvatarDialogActions controller={controller} t={t} />
     </Dialog>
   );
 }
 
-function useAvatarCropState() {
-  const [imageSrc, setImageSrc] = useState('');
-  const [fileName, setFileName] = useState('avatar.png');
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(MIN_ZOOM);
-  const [rotation, setRotation] = useState(0);
-  const [croppedArea, setCroppedArea] = useState<Area | null>(null);
-  const [loading, setLoading] = useState(false);
+type Translate = ReturnType<typeof useTranslate>['t'];
 
-  return {
-    imageSrc,
-    fileName,
-    crop,
-    zoom,
-    rotation,
-    croppedArea,
-    loading,
-    setImageSrc,
-    setFileName,
-    setCrop,
-    setZoom,
-    setRotation,
-    setCroppedArea,
-    setLoading,
-  };
+function AvatarSourceTabs({ controller, t }: AvatarDialogContentProps) {
+  return (
+    <Tabs
+      value={controller.source}
+      onChange={(_, value: AvatarSource) => controller.handleSourceChange(value)}
+      variant="fullWidth"
+      sx={{ mb: 3 }}
+    >
+      <Tab
+        value={AVATAR_SOURCE_UPLOAD}
+        label={t('profile.uploadAvatar')}
+        disabled={controller.saving}
+      />
+      <Tab
+        value={AVATAR_SOURCE_ASSETS}
+        label={t('profile.selectFromAssets')}
+        disabled={controller.saving}
+      />
+    </Tabs>
+  );
 }
 
-type AvatarCropActionsOptions = Readonly<{
-  state: ReturnType<typeof useAvatarCropState>;
-  onClose: () => void;
-  onUploaded: () => Promise<void>;
-  t: ReturnType<typeof useTranslate>['t'];
+type AvatarDialogContentProps = Readonly<{
+  controller: AvatarCropController;
+  t: Translate;
 }>;
 
-function useAvatarCropActions({ state, onClose, onUploaded, t }: AvatarCropActionsOptions) {
-  const handleCropComplete = useCallback(
-    (_area: Area, pixels: Area) => state.setCroppedArea(pixels),
-    [state]
+function AvatarDialogActions({ controller, t }: AvatarDialogContentProps) {
+  return (
+    <DialogActions>
+      <Button color="inherit" onClick={controller.handleClose} disabled={controller.saving}>
+        {t('common.cancel')}
+      </Button>
+      <Button
+        variant="contained"
+        loading={controller.saving}
+        disabled={!controller.canSubmit}
+        onClick={controller.handleSubmit}
+      >
+        {t('common.save')}
+      </Button>
+    </DialogActions>
   );
-  const handleFileChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      event.target.value = '';
-      if (!file) return;
-      if (!file.type.startsWith('image/')) {
-        toast.error(t('profile.avatarImageOnly'));
-        return;
-      }
-      state.setFileName(file.name || 'avatar.png');
-      state.setImageSrc(URL.createObjectURL(file));
-      state.setCrop({ x: 0, y: 0 });
-      state.setZoom(MIN_ZOOM);
-      state.setRotation(0);
-    },
-    [state, t]
-  );
-  const handleSubmit = useCallback(async () => {
-    if (!state.imageSrc || !state.croppedArea) return;
-    state.setLoading(true);
-    try {
-      const blob = await croppedImageBlob(state.imageSrc, state.croppedArea, state.rotation);
-      await uploadAccountAvatar(blob, state.fileName);
-      await onUploaded();
-      toast.success(t('messages.saved'));
-      onClose();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('messages.saveFailed'));
-    } finally {
-      state.setLoading(false);
-    }
-  }, [onClose, onUploaded, state, t]);
+}
 
-  return { handleCropComplete, handleFileChange, handleSubmit };
+function AssetSourceBody({
+  controller,
+  currentAvatar,
+  t,
+}: Readonly<{
+  controller: AvatarCropController;
+  currentAvatar: string;
+  t: Translate;
+}>) {
+  if (controller.imageSrc) {
+    return <AvatarCropBody controller={controller} currentAvatar={currentAvatar} t={t} />;
+  }
+  return (
+    <Stack spacing={2}>
+      <AvatarAssetPicker
+        selectedId={controller.selectedAssetId}
+        onSelect={controller.handleAssetSelect}
+      />
+      {controller.assetLoading ? (
+        <Stack direction="row" spacing={1} alignItems="center">
+          <CircularProgress size={18} />
+          <Typography variant="body2">{t('common.loading')}</Typography>
+        </Stack>
+      ) : null}
+      {controller.assetError ? <Alert severity="error">{controller.assetError}</Alert> : null}
+    </Stack>
+  );
 }
 
 type AvatarCropBodyProps = Readonly<{
-  state: ReturnType<typeof useAvatarCropState>;
-  actions: ReturnType<typeof useAvatarCropActions>;
+  controller: AvatarCropController;
   currentAvatar: string;
-  t: ReturnType<typeof useTranslate>['t'];
+  t: Translate;
 }>;
 
-function AvatarCropBody({ state, actions, currentAvatar, t }: AvatarCropBodyProps) {
+function AvatarCropBody({ controller, currentAvatar, t }: AvatarCropBodyProps) {
   return (
     <Stack spacing={3}>
-      <AvatarCropCanvas {...{ state, actions, currentAvatar, t }} />
-      <AvatarCropControls {...{ state, actions, t }} />
+      <Box sx={{ height: 360, position: 'relative', bgcolor: 'grey.900', borderRadius: 2 }}>
+        {controller.imageSrc ? (
+          <Cropper
+            image={controller.imageSrc}
+            crop={controller.crop}
+            zoom={controller.zoom}
+            rotation={controller.rotation}
+            aspect={1}
+            cropShape="round"
+            showGrid={false}
+            onCropChange={controller.setCrop}
+            onZoomChange={controller.setZoom}
+            onCropComplete={controller.handleCropComplete}
+          />
+        ) : (
+          <Stack
+            alignItems="center"
+            justifyContent="center"
+            sx={{ height: 1, color: 'common.white' }}
+          >
+            <Avatar src={currentAvatar} sx={{ width: 120, height: 120, mb: 2 }} />
+            <Typography>{t('profile.selectAvatarFirst')}</Typography>
+          </Stack>
+        )}
+      </Box>
+      <AvatarCropControls controller={controller} t={t} />
     </Stack>
   );
 }
 
-function AvatarCropCanvas({ state, actions, currentAvatar, t }: AvatarCropBodyProps) {
+function AvatarCropControls({
+  controller,
+  t,
+}: Readonly<{
+  controller: AvatarCropController;
+  t: Translate;
+}>) {
   return (
-    <Box sx={{ height: 360, position: 'relative', bgcolor: 'grey.900', borderRadius: 2 }}>
-      {state.imageSrc ? (
-        <Cropper
-          image={state.imageSrc}
-          crop={state.crop}
-          zoom={state.zoom}
-          rotation={state.rotation}
-          aspect={1}
-          cropShape="round"
-          showGrid={false}
-          onCropChange={state.setCrop}
-          onZoomChange={state.setZoom}
-          onCropComplete={actions.handleCropComplete}
-        />
-      ) : (
-        <Stack
-          alignItems="center"
-          justifyContent="center"
-          sx={{ height: 1, color: 'common.white' }}
-        >
-          <Avatar src={currentAvatar} sx={{ width: 120, height: 120, mb: 2 }} />
-          <Typography>{t('profile.selectAvatarFirst')}</Typography>
-        </Stack>
-      )}
-    </Box>
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+      <AvatarSourceButton controller={controller} t={t} />
+      <AvatarRotationButtons controller={controller} t={t} />
+      <AvatarZoomControl controller={controller} t={t} />
+    </Stack>
   );
 }
 
-function AvatarCropControls({ state, actions, t }: Omit<AvatarCropBodyProps, 'currentAvatar'>) {
-  return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+function AvatarSourceButton({ controller, t }: { controller: AvatarCropController; t: Translate }) {
+  if (controller.source === AVATAR_SOURCE_UPLOAD) {
+    return (
       <Button
         component="label"
         variant="outlined"
+        disabled={controller.saving}
         startIcon={<Iconify icon="eva:cloud-upload-fill" />}
       >
         {t('actions.selectFile')}
-        <input hidden type="file" accept="image/*" onChange={actions.handleFileChange} />
+        <input hidden type="file" accept="image/*" onChange={controller.handleFileChange} />
       </Button>
-      <Stack direction="row" spacing={1}>
-        <Button
-          variant="outlined"
-          onClick={() => state.setRotation((value) => value - ROTATE_STEP)}
+    );
+  }
+  return (
+    <Button
+      variant="outlined"
+      disabled={controller.saving}
+      startIcon={<Iconify icon="solar:gallery-wide-bold" />}
+      onClick={controller.selectAnotherAsset}
+    >
+      {t('profile.selectAnotherAsset')}
+    </Button>
+  );
+}
+
+function AvatarRotationButtons({
+  controller,
+  t,
+}: {
+  controller: AvatarCropController;
+  t: Translate;
+}) {
+  return (
+    <Stack direction="row" spacing={1}>
+      <Tooltip title={t('profile.rotateLeft')}>
+        <IconButton
+          aria-label={t('profile.rotateLeft')}
+          onClick={controller.rotateLeft}
+          disabled={controller.saving}
         >
-          ↺
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={() => state.setRotation((value) => value + ROTATE_STEP)}
+          <Iconify icon="solar:restart-bold" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t('profile.rotateRight')}>
+        <IconButton
+          aria-label={t('profile.rotateRight')}
+          onClick={controller.rotateRight}
+          disabled={controller.saving}
         >
-          ↻
-        </Button>
-      </Stack>
-      <Box sx={{ flex: 1, width: 1 }}>
-        <Typography variant="caption">{t('profile.zoom')}</Typography>
-        <Slider
-          min={MIN_ZOOM}
-          max={MAX_ZOOM}
-          step={0.1}
-          value={state.zoom}
-          onChange={(_, value) => state.setZoom(value as number)}
-        />
-      </Box>
+          <Iconify icon="solar:restart-bold" sx={{ transform: 'scaleX(-1)' }} />
+        </IconButton>
+      </Tooltip>
     </Stack>
+  );
+}
+
+function AvatarZoomControl({ controller, t }: { controller: AvatarCropController; t: Translate }) {
+  return (
+    <Box sx={{ flex: 1, width: 1 }}>
+      <Typography variant="caption">{t('profile.zoom')}</Typography>
+      <Slider
+        min={MIN_ZOOM}
+        max={MAX_ZOOM}
+        step={ZOOM_STEP}
+        value={controller.zoom}
+        disabled={controller.saving}
+        onChange={(_, value) => controller.setZoom(value as number)}
+      />
+    </Box>
   );
 }

@@ -1,0 +1,3 @@
+# Validate batch metadata operations before commit
+
+Batch move, rename, Tag, recycle, and restore operations validate all selected assets and their Data Scope, conflicts, and Business References before one metadata transaction commits. Recycle, restore, and Permanent Deletion accept at most 100 distinct selected roots; selected descendants are collapsed under their selected ancestor before validation and mutation. A validation failure rolls back the whole batch; Provider-level Permanent Deletion is the deliberate exception and reports each object outcome because external storage deletion cannot share the database transaction.

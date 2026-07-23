@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use axum::{Router, extract::State, http::StatusCode, routing::get};
 use scheduler::{
     application::task::{
-        SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupPort, SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
+        FileCleanupPort, FileTrashCleanupResult, FileUploadSessionCleanupResult, SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupPort,
+        SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
     },
     infra::ReqwestHttpTaskClient,
 };
@@ -62,6 +63,7 @@ pub(super) fn task_context() -> TaskExecutionContext {
         http_client: Arc::new(ReqwestHttpTaskClient::new(client, observer())),
         system_cache: Arc::new(UnexpectedCachePort),
         system_log_cleanup: Arc::new(UnexpectedSystemLogCleanupPort),
+        file_cleanup: Arc::new(UnexpectedFileCleanupPort),
     }
 }
 
@@ -80,6 +82,7 @@ async fn record_http_call(State(calls): State<Arc<AtomicUsize>>) -> StatusCode {
 
 struct UnexpectedCachePort;
 struct UnexpectedSystemLogCleanupPort;
+struct UnexpectedFileCleanupPort;
 
 #[async_trait]
 impl SystemCacheRefreshPort for UnexpectedCachePort {
@@ -100,5 +103,16 @@ impl SystemLogCleanupPort for UnexpectedSystemLogCleanupPort {
 
     async fn cleanup_filtered(&self, _: SystemLogCleanupFilter, _: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
         panic!("HTTP-only scheduler runtime test invoked system log cleanup")
+    }
+}
+
+#[async_trait]
+impl FileCleanupPort for UnexpectedFileCleanupPort {
+    async fn purge_trash(&self, _: u64, _: u64) -> Result<FileTrashCleanupResult, TaskExecutionFailure> {
+        panic!("HTTP-only scheduler runtime test invoked file trash cleanup")
+    }
+
+    async fn cleanup_upload_sessions(&self, _: u64) -> Result<FileUploadSessionCleanupResult, TaskExecutionFailure> {
+        panic!("HTTP-only scheduler runtime test invoked upload session cleanup")
     }
 }

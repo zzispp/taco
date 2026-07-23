@@ -85,6 +85,9 @@ pub enum EndpointAudit {
     /// A non-GET endpoint that is intentionally non-mutating, such as a
     /// template download, preview, or captcha exchange.
     ExplicitReadOnly,
+    /// An authenticated GET that represents a business download and must be
+    /// written to the operation-audit outbox.
+    Download(OperationEndpointAudit),
     Operation(OperationEndpointAudit),
     Security,
 }
@@ -144,6 +147,8 @@ pub enum EndpointSpecError {
     EmptyPermissionRequirement { path: &'static str },
     #[error("operation audit cannot use GET: {path}")]
     OperationOnRead { path: &'static str },
+    #[error("download audit must use GET: {path}")]
+    DownloadOnWrite { path: &'static str },
     #[error("non-GET endpoint must declare explicit read-only, operation, or security audit policy: {method} {path}")]
     NonGetReadOnly { method: &'static str, path: &'static str },
     #[error("explicit read-only audit policy is only valid for non-GET endpoints: {path}")]
@@ -215,14 +220,25 @@ fn validate_audit(spec: EndpointSpec) -> Result<(), EndpointSpecError> {
             if !spec.method.supports_operation_audit() {
                 return Err(EndpointSpecError::OperationOnRead { path: spec.path });
             }
-            if operation.handler.trim().is_empty() {
-                return Err(EndpointSpecError::MissingOperationHandler { path: spec.path });
+            validate_operation(operation, spec.path)?;
+        }
+        EndpointAudit::Download(operation) => {
+            if !matches!(spec.method, EndpointMethod::Get) {
+                return Err(EndpointSpecError::DownloadOnWrite { path: spec.path });
             }
-            if operation.title_key.trim().is_empty() {
-                return Err(EndpointSpecError::MissingOperationTitle { path: spec.path });
-            }
+            validate_operation(operation, spec.path)?;
         }
         EndpointAudit::ReadOnly | EndpointAudit::ExplicitReadOnly | EndpointAudit::Security => {}
+    }
+    Ok(())
+}
+
+fn validate_operation(operation: OperationEndpointAudit, path: &'static str) -> Result<(), EndpointSpecError> {
+    if operation.handler.trim().is_empty() {
+        return Err(EndpointSpecError::MissingOperationHandler { path });
+    }
+    if operation.title_key.trim().is_empty() {
+        return Err(EndpointSpecError::MissingOperationTitle { path });
     }
     Ok(())
 }

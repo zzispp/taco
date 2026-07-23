@@ -43,4 +43,6 @@ target
 .codex-tasks
 storage/
 .local/
+/local-data/
+config/config.yaml
 apps/frontend/next-env.d.ts

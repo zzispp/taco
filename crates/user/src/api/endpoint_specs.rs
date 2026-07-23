@@ -104,6 +104,7 @@ pub(super) const AUTH_SIGN_IN: EndpointSpec = security!(Post, "/api/auth/sign-in
 pub(super) const AUTH_REFRESH: EndpointSpec = security!(Post, "/api/auth/refresh", EndpointAccess::Public);
 pub(super) const AUTH_LOGOUT: EndpointSpec = security!(Post, "/api/auth/logout", EndpointAccess::Public);
 pub(super) const AUTH_ME: EndpointSpec = read_only!(Get, "/api/auth/me", EndpointAccess::SelfAuthenticated);
+pub(super) const AVATAR_PROJECTION: EndpointSpec = read_only!(Get, "/api/avatars/{user_id}/{version}", EndpointAccess::Public);
 
 pub(super) const PROFILE_GET: EndpointSpec = read_only!(Get, "/api/account/profile", EndpointAccess::Authenticated);
 pub(super) const PROFILE_UPDATE: EndpointSpec = operation!(
@@ -130,7 +131,6 @@ pub(super) const PROFILE_AVATAR: EndpointSpec = operation!(
     BusinessType::Update,
     "user::upload_account_avatar"
 );
-
 pub(super) const ONLINE_LIST: EndpointSpec = scoped_permission_read_only!(Get, "/api/system/online/list", "system:online:list", "list_online_sessions");
 pub(super) const ONLINE_FORCE_LOGOUT: EndpointSpec = scoped_permission_operation!(
     Delete,
@@ -237,6 +237,7 @@ const SPECS: &[EndpointSpec] = &[
     AUTH_REFRESH,
     AUTH_LOGOUT,
     AUTH_ME,
+    AVATAR_PROJECTION,
     PROFILE_GET,
     PROFILE_UPDATE,
     PROFILE_PASSWORD,

@@ -6,7 +6,7 @@ use crate::BackendResult;
 
 use super::{MANAGED_TABLES, migrator};
 
-const MIGRATION_UP_COMMAND: &str = "taco --data-dir <path> --config-encryption-key <key> migration up";
+const MIGRATION_UP_COMMAND: &str = "taco --config <path> migration up";
 const MIGRATIONS_TABLE: &str = "_sqlx_migrations";
 const PUBLIC_SCHEMA: &str = "public";
 

@@ -148,7 +148,7 @@ mod tests {
             entries
                 .iter()
                 .filter_map(|spec| match spec.audit {
-                    EndpointAudit::Operation(operation) => Some(operation),
+                    EndpointAudit::Operation(operation) | EndpointAudit::Download(operation) => Some(operation),
                     EndpointAudit::ReadOnly | EndpointAudit::ExplicitReadOnly | EndpointAudit::Security => None,
                 })
                 .all(|operation| operation.request_capture == RequestCapture::Sanitized)

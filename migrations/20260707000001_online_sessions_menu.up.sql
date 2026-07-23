@@ -5,7 +5,7 @@ VALUES
 ON CONFLICT (menu_id) DO NOTHING;
 
 INSERT INTO sys_role_menu (role_id, menu_id)
-SELECT '2', menu_id
+SELECT 'admin', menu_id
 FROM sys_menu
 WHERE menu_id IN ('107', '1070')
 ON CONFLICT (role_id, menu_id) DO NOTHING;

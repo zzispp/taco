@@ -14,7 +14,7 @@ const NORMAL_STATUS: &str = "0";
 const CLOSED_STATUS: &str = "1";
 const NOTICE_TYPE: &str = "1";
 const ANNOUNCEMENT_TYPE: &str = "2";
-const ADMIN_USER_ID: &str = "1";
+const ADMIN_USER_ID: &str = "admin";
 const TACO_USER_ID: &str = "2";
 const FILTER_LIMIT: u64 = 20;
 const LOCK_SETTLE_DELAY: Duration = Duration::from_millis(50);
@@ -145,7 +145,7 @@ async fn insert_notice_user_fixtures(pool: &sqlx::PgPool) {
         r#"
         INSERT INTO sys_user (user_id,user_name,nick_name,email,password,create_time)
         VALUES
-            ('1','admin','Admin','admin@test.invalid','test-hash',CURRENT_TIMESTAMP),
+            ('admin','admin','Admin','admin@test.invalid','test-hash',CURRENT_TIMESTAMP),
             ('2','taco','Taco','taco@test.invalid','test-hash',CURRENT_TIMESTAMP)
         "#,
     )

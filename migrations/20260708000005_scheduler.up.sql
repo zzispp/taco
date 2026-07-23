@@ -120,6 +120,11 @@ VALUES
     ('1091', '调度日志删除', '109', 2, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:job:log:remove', '#', 'admin', CURRENT_TIMESTAMP, ''),
     ('1092', '调度日志导出', '109', 3, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:job:log:export', '#', 'admin', CURRENT_TIMESTAMP, '');
 
+INSERT INTO sys_role_menu (role_id, menu_id)
+SELECT 'admin', menu_id
+FROM sys_menu
+WHERE menu_id IN ('108', '109', '1080', '1081', '1082', '1083', '1084', '1085', '1086', '1090', '1091', '1092');
+
 INSERT INTO sys_dict_type (dict_id, dict_name, dict_type, status, create_by, create_time, remark)
 VALUES
     ('scheduler-job-group', '任务分组', 'sys_job_group', '0', 'admin', CURRENT_TIMESTAMP, '定时任务分组'),

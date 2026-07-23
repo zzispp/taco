@@ -11,7 +11,10 @@ const EXPORT_CONFIG_DISABLED_ERROR: &str = "infra.user.export_config_disabled";
 
 use crate::{
     api::TokenService,
-    application::{AccountVerifier, AppError, AppResult, AvatarConfigProvider, AvatarFile, AvatarStorage, SystemConfigProvider, UserUseCase},
+    application::{
+        AccountVerifier, AppError, AppResult, AvatarConfigProvider, AvatarOwner, AvatarStorage, NormalizedAvatar, SystemConfigProvider, UserUseCase,
+    },
+    domain::AvatarFileId,
 };
 
 #[derive(Clone)]
@@ -77,7 +80,11 @@ struct DisabledAvatarStorage;
 
 #[async_trait::async_trait]
 impl AvatarStorage for DisabledAvatarStorage {
-    async fn store_avatar(&self, _file: AvatarFile, _max_bytes: usize) -> AppResult<String> {
+    async fn store_avatar(&self, _owner: AvatarOwner, _avatar: NormalizedAvatar) -> AppResult<AvatarFileId> {
+        Err(AppError::Infrastructure(AVATAR_STORAGE_DISABLED_ERROR.into()))
+    }
+
+    async fn trash_avatar(&self, _owner: AvatarOwner, _file_id: AvatarFileId) -> AppResult<()> {
         Err(AppError::Infrastructure(AVATAR_STORAGE_DISABLED_ERROR.into()))
     }
 }

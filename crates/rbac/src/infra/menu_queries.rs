@@ -157,14 +157,6 @@ impl MenuQueries {
             .map_err(StorageError::from)
     }
 
-    pub async fn installation_owner_menu_rows(&self) -> StorageResult<Vec<RoleMenuRecord>> {
-        query_as::<_, RoleMenuRecord>(installation_owner_menu_query())
-            .bind(MENU_TYPE_BUTTON)
-            .fetch_all(self.database.pool())
-            .await
-            .map_err(StorageError::from)
-    }
-
     async fn find_many(&self, ids: Vec<String>) -> StorageResult<Vec<Menu>> {
         let mut menus = Vec::with_capacity(ids.len());
         for id in ids {
@@ -190,15 +182,6 @@ fn role_menu_query() -> &'static str {
     INNER JOIN sys_menu m ON m.menu_id = rm.menu_id
     WHERE r.del_flag = '0' AND r.status = '0' AND m.status = '0' AND m.visible = '0' AND m.menu_type <> $1
     ORDER BY role_key ASC, parent_id ASC, order_num ASC, menu_id ASC
-    "#
-}
-
-fn installation_owner_menu_query() -> &'static str {
-    r#"
-    SELECT '' AS role_key, m.menu_id, m.menu_name, m.parent_id, m.path, m.menu_type, m.icon, m.order_num
-    FROM sys_menu m
-    WHERE m.status = '0' AND m.visible = '0' AND m.menu_type <> $1
-    ORDER BY m.parent_id ASC, m.order_num ASC, m.menu_id ASC
     "#
 }
 

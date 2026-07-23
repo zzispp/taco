@@ -4,17 +4,23 @@
     {
       "code": "cn",
       "documentLanguage": "zh-CN",
-      "backendLanguage": "zh-CN"
+      "backendLanguage": "zh-CN",
+      "dayjsLocale": "zh-cn",
+      "muiLocale": "zhCN"
     },
     {
       "code": "en",
       "documentLanguage": "en",
-      "backendLanguage": "en"
+      "backendLanguage": "en",
+      "dayjsLocale": "en",
+      "muiLocale": "enUS"
     },
     {
       "code": "tw",
       "documentLanguage": "zh-TW",
-      "backendLanguage": "zh-TW"
+      "backendLanguage": "zh-TW",
+      "dayjsLocale": "zh-tw",
+      "muiLocale": "zhTW"
     }
   ]
 }

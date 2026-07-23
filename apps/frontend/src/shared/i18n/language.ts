@@ -1,6 +1,7 @@
 import type { LangCode } from './locales-config';
 
 import { getCurrentLang } from './locales-config';
+import { supportedLocaleCodes, getLocaleContractEntry } from './locale-contract';
 
 const DEFAULT_QUALITY = 1;
 const MIN_QUALITY = 0;
@@ -15,11 +16,12 @@ type LanguagePreference = Readonly<{
 export function normalizeLanguage(value?: string | null): LangCode | undefined {
   if (!value) return undefined;
 
-  const language = value.trim().toLowerCase().replaceAll('_', '-');
-  if (isTraditionalChinese(language)) return 'tw';
-  if (isSimplifiedChinese(language)) return 'cn';
-  if (language === 'en' || language.startsWith('en-')) return 'en';
-  return undefined;
+  const language = value.trim().replaceAll('_', '-');
+  const code = supportedLocaleCodes.find((entry) => entry.toLowerCase() === language.toLowerCase());
+  if (code) return code;
+
+  const requestedLocale = parseLocale(language);
+  return requestedLocale ? matchingContractLocale(requestedLocale) : undefined;
 }
 
 export function toBackendAcceptLanguage(value?: string | null): string | undefined {
@@ -68,23 +70,37 @@ function parseQuality(parameters: string[]): number | undefined {
   return quality >= MIN_QUALITY && quality <= MAX_QUALITY ? quality : undefined;
 }
 
-function isTraditionalChinese(language: string): boolean {
+function matchingContractLocale(requestedLocale: Intl.Locale): LangCode | undefined {
+  const locales = supportedLocaleCodes.map((code) => ({
+    code,
+    locale: new Intl.Locale(getLocaleContractEntry(code).documentLanguage),
+  }));
+  const exact = locales.find(({ locale }) => locale.baseName === requestedLocale.baseName);
+  if (exact) return exact.code;
+
+  const requestedMaximized = requestedLocale.maximize();
+  const maximized = locales.map(({ code, locale }) => ({ code, locale: locale.maximize() }));
+  const exactMaximized = maximized.find(
+    ({ locale }) => locale.baseName === requestedMaximized.baseName
+  );
+  if (exactMaximized) return exactMaximized.code;
+
+  const sameScript = maximized.find(
+    ({ locale }) =>
+      locale.language === requestedMaximized.language && locale.script === requestedMaximized.script
+  );
   return (
-    language === 'tw' ||
-    language.startsWith('zh-tw') ||
-    language.startsWith('zh-hk') ||
-    language.startsWith('zh-mo') ||
-    language.startsWith('zh-hant')
+    sameScript?.code ??
+    maximized.find(({ locale }) => locale.language === requestedMaximized.language)?.code
   );
 }
 
-function isSimplifiedChinese(language: string): boolean {
-  return (
-    language === 'cn' ||
-    language === 'zh' ||
-    language.startsWith('zh-cn') ||
-    language.startsWith('zh-hans')
-  );
+function parseLocale(value: string): Intl.Locale | undefined {
+  try {
+    return new Intl.Locale(value);
+  } catch {
+    return undefined;
+  }
 }
 
 function languageOption(language: LangCode) {

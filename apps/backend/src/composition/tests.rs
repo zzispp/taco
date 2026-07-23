@@ -69,21 +69,17 @@ fn auth_whitelist_contains_fixed_routes_and_public_endpoint_specs() {
     let catalog = EndpointCatalog::build().unwrap();
     let rules = auth_whitelist(&catalog);
 
-    for path in [
-        "/health",
-        "/ready",
-        "/metrics",
-        "/uploads/avatars/{*file}",
-        installation::api::SETUP_STATUS_PATH,
-    ] {
+    for path in ["/health", "/ready", "/metrics"] {
         assert_eq!(rule_methods(&rules, path), Some(vec!["GET".to_owned()]));
     }
 
     let logout_rule = rules.iter().find(|rule| rule.path_pattern == "/api/auth/logout");
+    let avatar_rule = rules.iter().find(|rule| rule.path_pattern == "/api/avatars/{user_id}/{version}");
     let me_rule = rules.iter().find(|rule| rule.path_pattern == "/api/auth/me");
     let docs_rule = rules.iter().find(|rule| rule.path_pattern == "/docs");
 
     assert_eq!(logout_rule.map(|rule| rule.methods.clone()), Some(vec!["POST".to_owned()]));
+    assert_eq!(avatar_rule.map(|rule| rule.methods.clone()), Some(vec!["GET".to_owned()]));
     assert_eq!(me_rule, None);
     assert_eq!(docs_rule, None);
 }

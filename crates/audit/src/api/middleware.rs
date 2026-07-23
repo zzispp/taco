@@ -48,7 +48,7 @@ impl OperationAuditState {
 }
 
 /// Persists one durable operation-audit event before returning an authenticated
-/// write response.  It deliberately never captures a response body.
+/// audited response. It deliberately never captures a response body.
 pub async fn operation_audit_middleware(State(state): State<OperationAuditState>, request: Request, next: Next) -> Response {
     let uri = original_uri(&request);
     let Some(policy) = state.catalog.find(request.method().as_str(), uri.path()) else {

@@ -12,9 +12,7 @@ VALUES
     ('109', '102', '0,100,102', '财务部门', 2, 'taco', '15888888888', 'taco@example.com', '0', '0', 'admin', CURRENT_TIMESTAMP);
 
 INSERT INTO sys_role (role_id, role_name, role_key, role_sort, data_scope, menu_check_strictly, dept_check_strictly, status, del_flag, system, create_by, create_time, remark)
-VALUES
-    ('1', '超级管理员', 'admin', 1, '1', TRUE, TRUE, '0', '0', TRUE, 'admin', CURRENT_TIMESTAMP, '超级管理员'),
-    ('2', '普通角色', 'common', 2, '2', TRUE, TRUE, '0', '0', FALSE, 'admin', CURRENT_TIMESTAMP, '普通角色');
+VALUES ('admin', '系统管理员', 'admin', 1, '1', TRUE, TRUE, '0', '0', TRUE, 'admin', CURRENT_TIMESTAMP, '系统管理员');
 
 INSERT INTO sys_post (post_id, post_code, post_name, post_sort, status, create_by, create_time, remark)
 VALUES
@@ -70,8 +68,7 @@ VALUES
     ('1063', '参数删除', '106', 4, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:config:remove', '#', 'admin', CURRENT_TIMESTAMP, ''),
     ('1064', '参数导出', '106', 5, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:config:export', '#', 'admin', CURRENT_TIMESTAMP, '');
 
-INSERT INTO sys_role_dept (role_id, dept_id) VALUES ('2', '100'), ('2', '101'), ('2', '105');
-INSERT INTO sys_role_menu (role_id, menu_id) SELECT '2', menu_id FROM sys_menu;
+INSERT INTO sys_role_menu (role_id, menu_id) SELECT 'admin', menu_id FROM sys_menu;
 
 INSERT INTO sys_dict_type (dict_id, dict_name, dict_type, status, create_by, create_time, remark)
 VALUES

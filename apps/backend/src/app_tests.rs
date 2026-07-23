@@ -80,19 +80,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn normal_public_routes_report_installed_and_ready() {
+    async fn public_routes_report_ready_and_reject_unknown_api_paths() {
         let settings = test_settings();
         let metrics = None;
         let app = composition::build_public_router(&settings, metrics).unwrap();
 
-        let status = app
+        let unknown_api = app
             .clone()
-            .oneshot(Request::builder().uri("/api/setup/status").body(Body::empty()).unwrap())
+            .oneshot(Request::builder().uri("/api/unknown").body(Body::empty()).unwrap())
             .await
             .unwrap();
         let ready = app.oneshot(Request::builder().uri("/ready").body(Body::empty()).unwrap()).await.unwrap();
 
-        assert_eq!(status.status(), StatusCode::OK);
+        assert_eq!(unknown_api.status(), StatusCode::NOT_FOUND);
         assert_eq!(ready.status(), StatusCode::OK);
     }
 

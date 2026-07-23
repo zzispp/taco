@@ -142,7 +142,6 @@ fn user_check_request(method: &str, path: &str, current_user: &CurrentUser) -> A
         path: path.into(),
         role_keys: current_user.role_keys.clone(),
         permissions: current_user.permissions.clone(),
-        is_installation_owner: current_user.is_installation_owner,
     }
 }
 
@@ -153,7 +152,6 @@ fn current_user(user: AuthorizationUser) -> CurrentUser {
         role_keys: user.role_keys,
         permissions: user.permissions,
         dept_id: user.dept_id,
-        is_installation_owner: user.is_installation_owner,
     }
 }
 
@@ -188,12 +186,13 @@ mod tests {
         extract::{OriginalUri, Request},
         http::Uri,
     };
+    use rbac::application::ApiCheckRequest;
     use types::user::UserId;
     use user::application::AuthorizationUser;
 
     use crate::composition::access_catalog::EndpointCatalog;
 
-    use super::{accepts_authenticated_actor, allows_unauthenticated, authorization_path, current_user, requires_data_scope};
+    use super::{accepts_authenticated_actor, allows_unauthenticated, authorization_path, current_user, requires_data_scope, user_check_request};
 
     #[test]
     fn nested_api_routes_resolve_public_access_against_the_external_uri() {
@@ -232,20 +231,29 @@ mod tests {
     }
 
     #[test]
-    fn current_user_uses_the_installation_owner_marker() {
-        assert!(current_user(user(true, "business-admin")).is_installation_owner);
-        assert!(!current_user(user(false, "admin")).is_installation_owner);
+    fn authorization_request_carries_only_rbac_grants() {
+        let current_user = current_user(user("business-admin", vec!["system:user:add"]));
+        let request = user_check_request("POST", "/api/system/users", &current_user);
+
+        assert_eq!(
+            request,
+            ApiCheckRequest {
+                method: "POST".into(),
+                path: "/api/system/users".into(),
+                role_keys: vec!["business-admin".into()],
+                permissions: vec!["system:user:add".into()],
+            }
+        );
     }
 
-    fn user(is_installation_owner: bool, role_key: &str) -> AuthorizationUser {
+    fn user(role_key: &str, permissions: Vec<&str>) -> AuthorizationUser {
         AuthorizationUser {
             id: UserId("test-user".into()),
             username: "tester".into(),
             dept_id: None,
             status: "0".into(),
-            is_installation_owner,
             role_keys: vec![role_key.into()],
-            permissions: Vec::new(),
+            permissions: permissions.into_iter().map(String::from).collect(),
         }
     }
 }

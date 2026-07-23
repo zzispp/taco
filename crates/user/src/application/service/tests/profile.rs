@@ -100,11 +100,15 @@ async fn change_password_updates_password_hash() {
 }
 
 #[tokio::test]
-async fn update_avatar_persists_url() {
+async fn update_avatar_persists_file_reference_and_increments_version() {
     let repository = MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"));
     let service = UserService::new(repository, TestPasswordHasher);
 
-    let user = service.update_avatar(user_id(1), "/uploads/avatars/a.png".into()).await.unwrap();
+    let user = service
+        .update_avatar(user_id(1), crate::domain::AvatarFileId::new("file-avatar-1").unwrap())
+        .await
+        .unwrap();
 
-    assert_eq!(user.avatar.as_deref(), Some("/uploads/avatars/a.png"));
+    assert_eq!(user.avatar_file_id.as_ref().map(|value| value.as_str()), Some("file-avatar-1"));
+    assert_eq!(user.avatar_version, 1);
 }

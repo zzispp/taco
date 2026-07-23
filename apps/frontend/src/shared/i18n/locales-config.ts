@@ -1,124 +1,120 @@
 import type { InitOptions } from 'i18next';
-import type { Theme, Components } from '@mui/material/styles';
 
 import resourcesToBackend from 'i18next-resources-to-backend';
 
-// MUI Core Locales
-import { zhCN as zhCNCore, zhTW as zhTWCore } from '@mui/material/locale';
-// MUI Date Pickers Locales
-import { enUS as enUSDate, zhCN as zhCNDate, zhTW as zhTWDate } from '@mui/x-date-pickers/locales';
-// MUI Data Grid Locales
-import {
-  enUS as enUSDataGrid,
-  zhCN as zhCNDataGrid,
-  zhTW as zhTWDataGrid,
-} from '@mui/x-data-grid/locales';
-
 import { mergeAdminResources } from './admin-resources';
-import localeContract from '../../../../../locale-contract.json';
+import { I18N_NAMESPACES, type I18nNamespace } from './types';
+import {
+  type LocaleCode,
+  defaultLocaleCode,
+  supportedLocaleCodes,
+  getLocaleContractEntry,
+} from './locale-contract';
 
 // ----------------------------------------------------------------------
 
-type LocaleContract = Readonly<{
-  defaultLocale: string;
-  locales: readonly Readonly<{
-    code: string;
-    documentLanguage: string;
-    backendLanguage: string;
-  }>[];
-}>;
+export type LangCode = LocaleCode;
+export const supportedLngs = supportedLocaleCodes;
 
-const contract = localeContract as LocaleContract;
-
-export type LangCode = 'cn' | 'en' | 'tw';
-export const supportedLngs = contract.locales.map(({ code }) => localeCode(code));
-
-export const fallbackLng = localeCode(contract.defaultLocale);
+export const fallbackLng = defaultLocaleCode;
 export const defaultNS = 'common';
-
-/**
- * @countryCode https://flagcdn.com/en/codes.json
- * @adapterLocale https://github.com/iamkun/dayjs/tree/master/src/locale
- * @numberFormat https://simplelocalize.io/data/locales/
- */
 
 export type LangOption = {
   value: LangCode;
   label: string;
-  countryCode: string;
+  countryCode?: string;
   documentLanguage: string;
   backendLanguage: string;
-  adapterLocale?: string;
-  numberFormat: { code: string; currency: string };
-  systemValue?: { components: Components<Theme> };
+  dayjsLocale: string;
+  numberFormat: { code: string };
 };
 
-export const allLangs: LangOption[] = [
-  {
-    value: 'en',
-    label: 'English',
-    countryCode: 'GB',
-    documentLanguage: contractLocale('en').documentLanguage,
-    backendLanguage: contractLocale('en').backendLanguage,
-    adapterLocale: 'en',
-    numberFormat: { code: 'en-US', currency: 'USD' },
-    systemValue: {
-      components: { ...enUSDate.components, ...enUSDataGrid.components },
-    },
-  },
-  {
-    value: 'cn',
-    label: 'Chinese',
-    countryCode: 'CN',
-    documentLanguage: contractLocale('cn').documentLanguage,
-    backendLanguage: contractLocale('cn').backendLanguage,
-    adapterLocale: 'zh-cn',
-    numberFormat: { code: 'zh-CN', currency: 'CNY' },
-    systemValue: {
-      components: { ...zhCNCore.components, ...zhCNDate.components, ...zhCNDataGrid.components },
-    },
-  },
-  {
-    value: 'tw',
-    label: 'Traditional Chinese',
-    countryCode: 'TW',
-    documentLanguage: contractLocale('tw').documentLanguage,
-    backendLanguage: contractLocale('tw').backendLanguage,
-    adapterLocale: 'zh-tw',
-    numberFormat: { code: 'zh-TW', currency: 'TWD' },
-    systemValue: {
-      components: { ...zhTWCore.components, ...zhTWDate.components, ...zhTWDataGrid.components },
-    },
-  },
-];
+export const allLangs: LangOption[] = supportedLocaleCodes.map(createLangOption);
+
+function createLangOption(value: LangCode): LangOption {
+  const contract = getLocaleContractEntry(value);
+  const locale = new Intl.Locale(contract.documentLanguage);
+  const maximized = locale.maximize();
+
+  return {
+    value,
+    label: localeDisplayName(locale),
+    countryCode: maximized.region,
+    documentLanguage: contract.documentLanguage,
+    backendLanguage: contract.backendLanguage,
+    dayjsLocale: contract.dayjsLocale,
+    numberFormat: { code: numberFormatLocale(maximized) },
+  };
+}
+
+function localeDisplayName(locale: Intl.Locale): string {
+  const displayNames = new Intl.DisplayNames([locale.baseName], { type: 'language' });
+  return displayNames.of(locale.baseName) ?? locale.baseName;
+}
+
+function numberFormatLocale(locale: Intl.Locale): string {
+  return locale.region ? `${locale.language}-${locale.region}` : locale.language;
+}
 
 // ----------------------------------------------------------------------
 
-export const i18nResourceLoader = resourcesToBackend(async (lang: LangCode, namespace: string) => {
-  if (namespace === 'admin') {
-    const [base, navigation, dashboard, accessControl, profile, onlineSessions, notice] =
-      await Promise.all([
-        import(`./langs/${lang}/admin.json`),
-        import(`./langs/${lang}/admin-navigation.json`),
-        import(`./langs/${lang}/admin-dashboard.json`),
-        import(`./langs/${lang}/admin-access-control.json`),
-        import(`./langs/${lang}/admin-profile.json`),
-        import(`./langs/${lang}/admin-online-sessions.json`),
-        import(`./langs/${lang}/admin-notice.json`),
-      ]);
-    return mergeAdminResources(
-      base.default,
-      navigation.default,
-      dashboard.default,
-      accessControl.default,
-      profile.default,
-      onlineSessions.default,
-      notice.default
-    );
+export const i18nResourceLoader = resourcesToBackend(loadTranslationResource);
+
+export async function loadTranslationResource(
+  lang: LangCode,
+  namespace: string
+): Promise<Record<string, unknown>> {
+  getLocaleContractEntry(lang);
+  assertI18nNamespace(namespace);
+
+  try {
+    return namespace === 'admin'
+      ? await loadAdminTranslationResource(lang)
+      : await loadNamespaceTranslationResource(lang, namespace);
+  } catch (error) {
+    throw new Error(`Locale resource is missing or unreadable: ${lang}/${namespace}`, {
+      cause: error,
+    });
   }
+}
+
+async function loadAdminTranslationResource(lang: LangCode): Promise<Record<string, unknown>> {
+  const [base, navigation, dashboard, accessControl, profile, onlineSessions, notice, file] =
+    await Promise.all([
+      import(`./langs/${lang}/admin.json`),
+      import(`./langs/${lang}/admin-navigation.json`),
+      import(`./langs/${lang}/admin-dashboard.json`),
+      import(`./langs/${lang}/admin-access-control.json`),
+      import(`./langs/${lang}/admin-profile.json`),
+      import(`./langs/${lang}/admin-online-sessions.json`),
+      import(`./langs/${lang}/admin-notice.json`),
+      import(`./langs/${lang}/admin-file.json`),
+    ]);
+  return mergeAdminResources(
+    base.default,
+    navigation.default,
+    dashboard.default,
+    accessControl.default,
+    profile.default,
+    onlineSessions.default,
+    notice.default,
+    file.default
+  );
+}
+
+async function loadNamespaceTranslationResource(
+  lang: LangCode,
+  namespace: Exclude<I18nNamespace, 'admin'>
+): Promise<Record<string, unknown>> {
   const resource = await import(`./langs/${lang}/${namespace}.json`);
   return resource.default;
-});
+}
+
+function assertI18nNamespace(namespace: string): asserts namespace is I18nNamespace {
+  if (!I18N_NAMESPACES.includes(namespace as I18nNamespace)) {
+    throw new Error(`Unsupported i18n namespace: ${namespace}`);
+  }
+}
 
 export function i18nOptions(lang = fallbackLng, namespace = defaultNS): InitOptions {
   return {
@@ -141,19 +137,4 @@ export function getCurrentLang(lang?: string): LangOption {
   }
 
   return allLangs.find((l) => l.value === lang) ?? fallbackLang;
-}
-
-function contractLocale(code: LangCode) {
-  const locale = contract.locales.find((entry) => entry.code === code);
-  if (!locale) {
-    throw new Error(`Locale contract is missing language: ${code}`);
-  }
-  return locale;
-}
-
-function localeCode(value: string): LangCode {
-  if (value === 'cn' || value === 'en' || value === 'tw') {
-    return value;
-  }
-  throw new Error(`Locale contract has unsupported language: ${value}`);
 }

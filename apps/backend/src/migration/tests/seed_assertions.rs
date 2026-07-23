@@ -2,22 +2,26 @@ use sqlx::{PgPool, query_scalar};
 
 use super::scheduler_assertions::assert_scheduler_seed;
 
+mod administrator;
 mod audit_logs;
+mod file_management;
 mod navigation;
 mod notice;
 mod system_logs;
 
+use administrator::assert_system_administrator_role_seed;
 use audit_logs::assert_audit_log_seed;
+use file_management::assert_file_management_seed;
 use navigation::assert_navigation_seed;
 use notice::assert_notice_seed;
 use system_logs::assert_system_log_seed;
 
-const EXPECTED_ROLE_COUNT: i64 = 0;
-const EXPECTED_MENU_COUNT: i64 = 80;
+const EXPECTED_ROLE_COUNT: i64 = 1;
+const EXPECTED_MENU_COUNT: i64 = 95;
 const EXPECTED_DEPT_COUNT: i64 = 10;
 const EXPECTED_POST_COUNT: i64 = 4;
 const EXPECTED_DICT_TYPE_COUNT: i64 = 10;
-const EXPECTED_CONFIG_COUNT: i64 = 12;
+const EXPECTED_CONFIG_COUNT: i64 = 13;
 const EXPECTED_PUBLIC_CONFIG_COUNT: i64 = 5;
 const EXPECTED_CAPTCHA_DIFFICULTY: i64 = 4;
 const EXPECTED_REFRESH_TTL_SECONDS: i64 = 604_800;
@@ -35,34 +39,16 @@ pub(super) async fn assert_seed_data_exists(pool: &PgPool) {
     assert_eq!(table_count(pool, "sys_user").await, 0);
     assert_eq!(table_count(pool, "sys_user_role").await, 0);
     assert_eq!(table_count(pool, "sys_user_post").await, 0);
-    assert_legacy_rbac_seed_removed(pool).await;
+    assert_system_administrator_role_seed(pool).await;
     assert_eq!(public_config_count(pool).await, EXPECTED_PUBLIC_CONFIG_COUNT);
     assert_seed_config_values(pool).await;
     assert_seed_config_remarks(pool).await;
     assert_navigation_seed(pool).await;
+    assert_file_management_seed(pool).await;
     assert_notice_seed(pool).await;
     assert_scheduler_seed(pool).await;
     assert_audit_log_seed(pool).await;
     assert_system_log_seed(pool).await;
-}
-
-async fn assert_legacy_rbac_seed_removed(pool: &PgPool) {
-    let legacy_role_count: i64 = query_scalar("SELECT COUNT(*) FROM sys_role WHERE role_key = ANY($1)")
-        .bind(["admin", "common"])
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert_eq!(legacy_role_count, 0);
-
-    for (name, sql) in [
-        ("sys_user_role", "SELECT COUNT(*) FROM sys_user_role"),
-        ("sys_role_menu", "SELECT COUNT(*) FROM sys_role_menu"),
-        ("sys_role_dept", "SELECT COUNT(*) FROM sys_role_dept"),
-        ("sys_log_menu_hierarchy_role_grant", "SELECT COUNT(*) FROM sys_log_menu_hierarchy_role_grant"),
-    ] {
-        let count: i64 = query_scalar(sql).fetch_one(pool).await.unwrap();
-        assert_eq!(count, 0, "legacy role association remains in {name}");
-    }
 }
 
 async fn assert_seed_config_values(pool: &PgPool) {
@@ -78,6 +64,11 @@ async fn assert_seed_config_values(pool: &PgPool) {
     assert_eq!(password_policy(pool).await["max_length"], 128);
     assert_eq!(password_policy(pool).await["forbid_username_contains"], true);
     assert_eq!(avatar_config(pool).await["max_bytes"], EXPECTED_AVATAR_MAX_BYTES);
+    let file_config = file_management_config(pool).await;
+    assert_eq!(file_config["max_file_bytes"], 10_737_418_240_u64);
+    assert_eq!(file_config["default_space_quota_bytes"], 21_474_836_480_u64);
+    assert_eq!(file_config["upload_part_bytes"], 16_777_216_u64);
+    assert_eq!(file_config["upload_session_inactivity_days"], 7);
     assert_eq!(export_batch_config(pool).await["page_size"], EXPECTED_EXPORT_PAGE_SIZE);
     assert_eq!(site_display_config(pool).await["site_name"], "taco");
     assert_eq!(mode_theme(pool).await, "theme-light");
@@ -113,6 +104,17 @@ async fn assert_seed_config_remarks(pool: &PgPool) {
     .await;
     assert_config_remark_contains(pool, "sys.auth.loginLockConfig", &["max_retry_count", "lock_minutes"]).await;
     assert_config_remark_contains(pool, "sys.upload.avatarConfig", &["max_bytes"]).await;
+    assert_config_remark_contains(
+        pool,
+        "sys.file.managementConfig",
+        &[
+            "max_file_bytes",
+            "default_space_quota_bytes",
+            "upload_part_bytes",
+            "upload_session_inactivity_days",
+        ],
+    )
+    .await;
     assert_config_value_and_remark_exclude(pool, "sys.upload.avatarConfig", "config.yaml").await;
     assert_config_remark_contains(pool, "sys.export.batchConfig", &["page_size"]).await;
     assert_config_remark_contains(pool, "sys.site.displayConfig", &["site_name", "logo_url", "footer_text"]).await;
@@ -178,6 +180,10 @@ async fn password_policy(pool: &PgPool) -> serde_json::Value {
 
 async fn avatar_config(pool: &PgPool) -> serde_json::Value {
     config_json(pool, "sys.upload.avatarConfig").await
+}
+
+async fn file_management_config(pool: &PgPool) -> serde_json::Value {
+    config_json(pool, "sys.file.managementConfig").await
 }
 
 async fn export_batch_config(pool: &PgPool) -> serde_json::Value {

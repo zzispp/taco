@@ -1,7 +1,7 @@
 use kernel::pagination::CursorPageRequest;
 use rbac::{
     application::{RbacRepository, RoleExportRequest, RoleExportSink, RoleListFilter},
-    domain::Role,
+    domain::{DataScope, DataScopeFilter, Role},
     infra::StorageRbacRepository,
 };
 use sqlx::{PgPool, query};
@@ -71,7 +71,7 @@ async fn assert_user_export(pool: &PgPool) {
         .export_users(
             UserExportRequest {
                 filter: user_filter(),
-                scope: None,
+                scope: all_data_scope(),
                 batch_size: 1,
             },
             &mut sink,
@@ -195,6 +195,15 @@ fn user_filter() -> UserListFilter {
         role_ids: Vec::new(),
         begin_time: None,
         end_time: None,
+    }
+}
+
+fn all_data_scope() -> DataScopeFilter {
+    DataScopeFilter {
+        data_scope: DataScope::All,
+        user_id: "snapshot-exporter".into(),
+        dept_id: None,
+        dept_ids: Vec::new(),
     }
 }
 

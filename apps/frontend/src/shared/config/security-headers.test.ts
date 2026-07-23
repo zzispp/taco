@@ -1,7 +1,10 @@
 import { it, expect, describe } from 'vitest';
 
 import { CONFIG } from './index';
-import nextConfig, { NEXT_SECURITY_HEADERS } from '../../../next.config';
+import nextConfig, {
+  NEXT_SECURITY_HEADERS,
+  DEVELOPMENT_PROXY_BODY_LIMIT_BYTES,
+} from '../../../next.config';
 
 describe('Next security headers', () => {
   it('sets browser document protections for every frontend route', () => {
@@ -33,6 +36,11 @@ describe('Next security headers', () => {
     expect(nextConfig.allowedDevOrigins).toBeUndefined();
     expect(await nextConfig.redirects?.()).toEqual([
       {
+        source: '/',
+        destination: '/cn/',
+        permanent: false,
+      },
+      {
         source: '/:path*',
         has: [{ type: 'host', value: '127\\.0\\.0\\.1' }],
         destination: 'http://localhost:8082/:path*',
@@ -55,8 +63,19 @@ describe('Next security headers', () => {
     ]);
   });
 
+  it('does not truncate backend-owned upload parts in the development proxy', () => {
+    expect(DEVELOPMENT_PROXY_BODY_LIMIT_BYTES).toBe(Number.MAX_SAFE_INTEGER);
+    expect(nextConfig.experimental?.proxyClientMaxBodySize).toBe(
+      DEVELOPMENT_PROXY_BODY_LIMIT_BYTES
+    );
+  });
+
+  it('uses an independent global not-found document with multiple root layouts', () => {
+    expect(nextConfig.experimental?.globalNotFound).toBe(true);
+  });
+
   it('does not treat arbitrary characters as dots in the loopback host matcher', async () => {
-    const [redirect] = (await nextConfig.redirects?.()) ?? [];
+    const redirect = (await nextConfig.redirects?.())?.find((item) => item.has);
     const hostPattern = redirect?.has?.[0]?.value;
 
     expect(hostPattern).toBe('127\\.0\\.0\\.1');

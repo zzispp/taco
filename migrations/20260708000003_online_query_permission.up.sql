@@ -5,6 +5,6 @@ ON CONFLICT (menu_id) DO NOTHING;
 UPDATE sys_menu SET order_num = 2 WHERE menu_id = '1070';
 
 INSERT INTO sys_role_menu (role_id, menu_id)
-SELECT '2', '1071'
+SELECT 'admin', '1071'
 WHERE EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = '1071')
 ON CONFLICT (role_id, menu_id) DO NOTHING;

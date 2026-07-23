@@ -3,7 +3,10 @@ use scheduler::{
     application::{
         NEXT_TIMES_MAX_COUNT, next_times_after,
         task::{ScheduledTaskMetadata, StaticTaskCatalog, TaskCatalog, TaskParams},
-        tasks::{HttpRequestParams, HttpRequestTask, NoTaskParams, RefreshConfigCacheTask, RefreshDictCacheTask, SystemLogCleanupTask},
+        tasks::{
+            CleanupUploadSessionsTask, HttpRequestParams, HttpRequestTask, NoTaskParams, PurgeTrashTask, RefreshConfigCacheTask, RefreshDictCacheTask,
+            SystemLogCleanupTask,
+        },
     },
     domain::{ParamSchema, ParamWidget},
 };
@@ -42,6 +45,8 @@ fn explicit_catalog_contains_each_builtin_task_once() {
         RefreshConfigCacheTask::descriptor(),
         RefreshDictCacheTask::descriptor(),
         SystemLogCleanupTask::descriptor(),
+        PurgeTrashTask::descriptor(),
+        CleanupUploadSessionsTask::descriptor(),
     ];
     let catalog = StaticTaskCatalog::try_new(definitions.clone()).expect("builtin task keys must be unique");
     let keys = catalog.all().into_iter().map(|item| item.task_key).collect::<Vec<_>>();
@@ -50,6 +55,8 @@ fn explicit_catalog_contains_each_builtin_task_once() {
     assert_eq!(
         keys,
         vec![
+            "file.cleanupUploadSessions",
+            "file.purgeTrash",
             "httpClient.request",
             "observability.cleanupSystemLogs",
             "system.refreshConfigCache",
@@ -184,5 +191,10 @@ fn scheduler_task_i18n_keys_are_translated() {
     assert_eq!(
         translate_message(Locale::ZhCn, "scheduler.tasks.observability.system_log_cleanup.name"),
         "系统日志清理"
+    );
+    assert_eq!(translate_message(Locale::ZhCn, "scheduler.tasks.file.purge_trash.name"), "文件回收站清理");
+    assert_eq!(
+        translate_message(Locale::ZhCn, "scheduler.tasks.file.cleanup_upload_sessions.name"),
+        "文件上传会话清理"
     );
 }

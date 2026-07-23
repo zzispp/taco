@@ -12,6 +12,7 @@ import { useColorScheme, ThemeProvider as ThemeVarsProvider } from '@mui/materia
 
 import { useTranslate } from 'src/shared/i18n';
 import { useSettingsContext } from 'src/shared/ui/settings';
+import { requireLocaleSystemValue } from 'src/shared/i18n/locale-runtime';
 
 import { createTheme } from './create-theme';
 import { Rtl } from './with-settings/right-to-left';
@@ -40,7 +41,7 @@ export function ThemeProvider({ themeOverrides, children, ...other }: ThemeProvi
 
   const theme = createTheme({
     settingsState: settings.state,
-    localeComponents: currentLang?.systemValue,
+    localeComponents: requireLocaleSystemValue(currentLang.value),
     themeOverrides,
   });
 

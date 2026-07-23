@@ -19,8 +19,9 @@ impl EndpointAuditCatalog {
         validate_endpoint_specs(&specs).map_err(endpoint_error)?;
         let mut routers = HashMap::new();
         for spec in specs {
-            let EndpointAudit::Operation(operation) = spec.audit else {
-                continue;
+            let operation = match spec.audit {
+                EndpointAudit::Operation(operation) | EndpointAudit::Download(operation) => operation,
+                EndpointAudit::ReadOnly | EndpointAudit::ExplicitReadOnly | EndpointAudit::Security => continue,
             };
             routers
                 .entry(spec.method.as_str())
@@ -66,5 +67,26 @@ mod tests {
             Some("example::replace")
         );
         assert_eq!(catalog.find("GET", "/api/system/examples/example-1"), None);
+    }
+
+    #[test]
+    fn catalog_resolves_explicit_download_endpoint_from_contract() {
+        let catalog = EndpointAuditCatalog::new(vec![EndpointSpec {
+            method: EndpointMethod::Get,
+            path: "/api/system/examples/{id}/download",
+            access: EndpointAccess::Authenticated,
+            audit: EndpointAudit::Download(OperationEndpointAudit {
+                title_key: "audit.module.example",
+                business_type: BusinessType::Export,
+                handler: "example::download",
+                request_capture: RequestCapture::None,
+            }),
+        }])
+        .unwrap();
+
+        assert_eq!(
+            catalog.find("GET", "/api/system/examples/example-1/download").map(|entry| entry.handler),
+            Some("example::download")
+        );
     }
 }

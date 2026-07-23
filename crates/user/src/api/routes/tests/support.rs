@@ -15,7 +15,7 @@ use types::rbac::NavResponse;
 
 use crate::{
     api::{ApiState, ApiStateParts},
-    application::{AccountVerifier, AppError, AppResult, SystemConfigProvider, UserService},
+    application::{AccountVerifier, AppError, AppResult, AvatarConfig, AvatarConfigProvider, AvatarStorage, SystemConfigProvider, UserService},
     test_support::{MemoryLoginFailureStore, MemoryOnlineSessionStore, MemoryUserRepository, TestLoginLockConfigProvider, TestPasswordHasher, stored_user},
 };
 
@@ -79,6 +79,7 @@ struct TestAppInput {
     captcha: TestCaptcha,
     current_user: ::rbac::api::CurrentUser,
     data_scope: DataScopeFilter,
+    avatar_storage: Option<Arc<dyn AvatarStorage>>,
 }
 
 pub(super) fn test_router() -> Router {
@@ -99,6 +100,7 @@ pub(super) fn test_app_with_failed_login_cleanup() -> TestApp {
         captcha: TestCaptcha::disabled(),
         current_user: admin_current_user(),
         data_scope: all_data_scope(),
+        avatar_storage: None,
     })
 }
 
@@ -130,6 +132,7 @@ fn test_app_with_repository(repository: MemoryUserRepository, config: TestConfig
         captcha,
         current_user: admin_current_user(),
         data_scope: all_data_scope(),
+        avatar_storage: None,
     })
 }
 
@@ -141,6 +144,19 @@ pub(super) fn test_app_with_scope(repository: MemoryUserRepository, current_user
         captcha: TestCaptcha::disabled(),
         current_user,
         data_scope,
+        avatar_storage: None,
+    })
+}
+
+pub(super) fn test_app_with_avatar_storage(repository: MemoryUserRepository, avatar_storage: Arc<dyn AvatarStorage>) -> TestApp {
+    test_app_from_input(TestAppInput {
+        repository,
+        login_failures: MemoryLoginFailureStore::default(),
+        config: TestConfig::new(true),
+        captcha: TestCaptcha::disabled(),
+        current_user: admin_current_user(),
+        data_scope: all_data_scope(),
+        avatar_storage: Some(avatar_storage),
     })
 }
 
@@ -150,7 +166,7 @@ fn test_app_from_input(input: TestAppInput) -> TestApp {
     let sessions = Arc::new(MemoryOnlineSessionStore::default());
     let events = Arc::new(MemorySecurityAuditRecorder::new(sessions.clone()));
     let operation_events = Arc::new(MemoryOperationAuditRecorder::default());
-    let state = ApiState::new(ApiStateParts {
+    let mut state = ApiState::new(ApiStateParts {
         users: Arc::new(users),
         tokens: tokens::token_service(sessions.clone()),
         rbac: Arc::new(UnusedRbac),
@@ -160,6 +176,9 @@ fn test_app_from_input(input: TestAppInput) -> TestApp {
         operation_audit: operation_events.clone(),
         security_audit: events.clone(),
     });
+    if let Some(avatar_storage) = input.avatar_storage {
+        state = state.with_avatar_storage(avatar_storage).with_avatar_config(Arc::new(TestAvatarConfigProvider));
+    }
     let router = Router::new()
         .nest("/api", create_router(state))
         .layer(Extension(input.current_user))
@@ -173,6 +192,15 @@ fn test_app_from_input(input: TestAppInput) -> TestApp {
         repository,
         events,
         operation_events,
+    }
+}
+
+struct TestAvatarConfigProvider;
+
+#[async_trait]
+impl AvatarConfigProvider for TestAvatarConfigProvider {
+    async fn avatar_config(&self) -> AppResult<AvatarConfig> {
+        Ok(AvatarConfig { max_bytes: 1_048_576 })
     }
 }
 

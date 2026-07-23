@@ -15,7 +15,7 @@ use axum::{
     http::{Method, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::post,
+    routing::{get, post},
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -143,6 +143,28 @@ async fn request_capture_none_never_reads_a_config_payload() {
     assert_eq!(events[0].request_params, "");
 }
 
+#[tokio::test]
+async fn explicit_download_audit_persists_a_get_event_without_response_capture() {
+    let recorder = MemoryRecorder::default();
+    let app = Router::new()
+        .route("/api/download", get(empty_handler))
+        .layer(middleware::from_fn(authorize))
+        .layer(middleware::from_fn_with_state(
+            download_state(Arc::new(recorder.clone())),
+            operation_audit_middleware,
+        ));
+
+    let response = app.oneshot(download_request()).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let events = recorder.events();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].request_method, "GET");
+    assert_eq!(events[0].business_type, BusinessType::Export);
+    assert_eq!(events[0].handler, "test::download");
+    assert_eq!(events[0].request_params, "");
+}
+
 fn app(recorder: Arc<dyn AuditOutboxRecorder>, request_capture: RequestCapture) -> Router {
     Router::new()
         .route("/api/test", post(test_handler))
@@ -154,8 +176,30 @@ async fn test_handler(RequestJson(_input): RequestJson<Value>) -> Json<Value> {
     Json(json!({"ok": true, "access_token": "response-secret"}))
 }
 
+async fn empty_handler() -> StatusCode {
+    StatusCode::OK
+}
+
 fn state(recorder: Arc<dyn AuditOutboxRecorder>, request_capture: RequestCapture) -> OperationAuditState {
     OperationAuditState::try_new(vec![operation_endpoint(request_capture)], recorder).unwrap()
+}
+
+fn download_state(recorder: Arc<dyn AuditOutboxRecorder>) -> OperationAuditState {
+    OperationAuditState::try_new(
+        vec![EndpointSpec {
+            method: EndpointMethod::Get,
+            path: "/api/download",
+            access: EndpointAccess::Authenticated,
+            audit: EndpointAudit::Download(OperationEndpointAudit {
+                title_key: "audit.module.file",
+                business_type: BusinessType::Export,
+                handler: "test::download",
+                request_capture: RequestCapture::None,
+            }),
+        }],
+        recorder,
+    )
+    .unwrap()
 }
 
 fn operation_endpoint(request_capture: RequestCapture) -> EndpointSpec {
@@ -214,6 +258,12 @@ fn json_request(body: &'static [u8]) -> Request {
         .header("x-request-id", "request-1")
         .body(Body::from(body))
         .unwrap();
+    request.extensions_mut().insert(ConnectInfo("10.0.0.2:8080".parse::<SocketAddr>().unwrap()));
+    request
+}
+
+fn download_request() -> Request {
+    let mut request = Request::builder().method(Method::GET).uri("/api/download").body(Body::empty()).unwrap();
     request.extensions_mut().insert(ConnectInfo("10.0.0.2:8080".parse::<SocketAddr>().unwrap()));
     request
 }

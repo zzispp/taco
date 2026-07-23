@@ -87,6 +87,30 @@ fn endpoint_specs_reject_operation_audit_for_get() {
 }
 
 #[test]
+fn endpoint_specs_allow_explicit_download_audit_only_for_get() {
+    let download = EndpointSpec {
+        method: EndpointMethod::Get,
+        audit: EndpointAudit::Download(OperationEndpointAudit {
+            title_key: "audit.module.example",
+            business_type: BusinessType::Export,
+            handler: "example::download",
+            request_capture: RequestCapture::None,
+        }),
+        ..VALID
+    };
+    assert_eq!(validate_endpoint_specs(&[download]), Ok(()));
+
+    let invalid = EndpointSpec {
+        method: EndpointMethod::Post,
+        ..download
+    };
+    assert_eq!(
+        validate_endpoint_specs(&[invalid]),
+        Err(EndpointSpecError::DownloadOnWrite { path: "/api/system/example" })
+    );
+}
+
+#[test]
 fn endpoint_manifests_validate_across_static_segments() {
     const FIRST: &[EndpointSpec] = &[VALID];
     const SECOND: &[EndpointSpec] = &[EndpointSpec {

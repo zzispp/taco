@@ -143,8 +143,9 @@ mod tests {
     use serde_json::{Map, json};
 
     use crate::application::task::{
-        HttpTaskClient, OutboundHttpFailure, OutboundHttpRequest, OutboundHttpResponse, ScheduledTask, SystemCacheRefreshPort, SystemLogCleanupFilter,
-        SystemLogCleanupLevel, SystemLogCleanupPort, SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure, TaskInvocation,
+        FileCleanupPort, FileTrashCleanupResult, FileUploadSessionCleanupResult, HttpTaskClient, OutboundHttpFailure, OutboundHttpRequest,
+        OutboundHttpResponse, ScheduledTask, SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupLevel, SystemLogCleanupPort,
+        SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure, TaskInvocation,
     };
 
     use super::{
@@ -177,6 +178,7 @@ mod tests {
             http_client: Arc::new(UnexpectedHttpClient),
             system_cache: Arc::new(UnexpectedSystemCache),
             system_log_cleanup: Arc::new(CompletedCleanup),
+            file_cleanup: Arc::new(UnexpectedFileCleanup),
         }
     }
 
@@ -193,6 +195,7 @@ mod tests {
     struct UnexpectedHttpClient;
     struct UnexpectedSystemCache;
     struct CompletedCleanup;
+    struct UnexpectedFileCleanup;
 
     #[async_trait]
     impl HttpTaskClient for UnexpectedHttpClient {
@@ -222,6 +225,17 @@ mod tests {
             assert_eq!(filter.levels, vec![SystemLogCleanupLevel::Error]);
             assert_eq!(batch_size, 1_000);
             Ok(SystemLogCleanupResult { deleted: 9, batches: 3 })
+        }
+    }
+
+    #[async_trait]
+    impl FileCleanupPort for UnexpectedFileCleanup {
+        async fn purge_trash(&self, _: u64, _: u64) -> Result<FileTrashCleanupResult, TaskExecutionFailure> {
+            panic!("system log cleanup test invoked file trash cleanup")
+        }
+
+        async fn cleanup_upload_sessions(&self, _: u64) -> Result<FileUploadSessionCleanupResult, TaskExecutionFailure> {
+            panic!("system log cleanup test invoked upload session cleanup")
         }
     }
 }

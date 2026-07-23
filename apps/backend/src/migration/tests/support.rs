@@ -1,15 +1,25 @@
 use std::{
+    ffi::OsString,
+    path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use configuration::Settings;
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions, query, query_scalar};
+use storage::Database;
 use url::Url;
+use user::{
+    application::{BootstrapAdministratorOutcome, BootstrapAdministratorRecord, BootstrapAdministratorRepository},
+    infra::StorageUserRepository,
+};
 
 use super::{down, status, up};
 
-const TEST_DATABASE_URL_ENV: &str = "TACO_TEST_DATABASE_URL";
 const ADMIN_DATABASE_NAME: &str = "postgres";
+const MUTATION_TEST_ADMINISTRATOR_USERNAME: &str = "migration-mutation-admin";
+const MUTATION_TEST_ADMINISTRATOR_EMAIL: &str = "migration-mutation-admin@test.invalid";
+const MUTATION_TEST_ADMINISTRATOR_PASSWORD_HASH: &str = "migration-mutation-admin-password-hash";
 
 static NEXT_TEST_DB_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -61,14 +71,25 @@ impl TestDatabase {
 }
 
 fn configured_database() -> Url {
-    let database_url = std::env::var(TEST_DATABASE_URL_ENV)
-        .unwrap_or_else(|_| panic!("{TEST_DATABASE_URL_ENV} must contain a PostgreSQL URL for migration integration tests"));
-    let parsed = Url::parse(&database_url).unwrap_or_else(|error| panic!("database connection in {TEST_DATABASE_URL_ENV} is not a valid URL: {error}"));
+    let database_url = load_local_settings()
+        .database_url()
+        .unwrap_or_else(|error| panic!("test configuration database connection is invalid: {error}"));
+    let parsed = Url::parse(&database_url).unwrap_or_else(|error| panic!("test configuration database connection is not a valid URL: {error}"));
     assert!(
         matches!(parsed.scheme(), "postgres" | "postgresql"),
-        "database connection in {TEST_DATABASE_URL_ENV} must use PostgreSQL"
+        "test configuration database connection must use PostgreSQL"
     );
     parsed
+}
+
+fn load_local_settings() -> Settings {
+    let path = local_configuration_path();
+    Settings::load_from_args(vec![OsString::from("taco"), OsString::from("--config"), path.clone().into_os_string()])
+        .unwrap_or_else(|error| panic!("failed to load local test configuration {}: {error}", path.display()))
+}
+
+fn local_configuration_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/config.yaml")
 }
 
 fn database_url_for(configured_url: &Url, database_name: &str) -> Url {
@@ -84,6 +105,22 @@ pub(super) async fn managed_table_exists(pool: &PgPool, table: &str) -> bool {
         .fetch_one(pool)
         .await
         .unwrap()
+}
+
+pub(super) async fn bootstrap_system_administrator(pool: &PgPool) {
+    let repository = StorageUserRepository::new(Database::new(pool.clone()));
+    let outcome = repository
+        .create_system_administrator_if_absent(BootstrapAdministratorRecord {
+            username: MUTATION_TEST_ADMINISTRATOR_USERNAME.into(),
+            nick_name: MUTATION_TEST_ADMINISTRATOR_USERNAME.into(),
+            email: MUTATION_TEST_ADMINISTRATOR_EMAIL.into(),
+            password_hash: MUTATION_TEST_ADMINISTRATOR_PASSWORD_HASH.into(),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(outcome, BootstrapAdministratorOutcome::Created);
+    assert!(repository.has_enabled_system_administrator().await.unwrap());
 }
 
 pub(super) async fn migrate_through(pool: &PgPool, target_version: i64) {

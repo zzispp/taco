@@ -1,0 +1,97 @@
+# 本地数据根目录；相对路径以本 YAML 文件所在目录解析，默认落到项目根目录的 local-data。
+data_directory: ../local-data
+
+server:
+  # HTTP 监听地址。
+  host: '0.0.0.0'
+  # HTTP 监听端口。
+  port: 3000
+
+database:
+  # 数据库连接协议。
+  scheme: postgres
+  # PostgreSQL TLS 模式。
+  ssl_mode: disable
+  # 数据库主机地址。
+  host: '127.0.0.1'
+  # 数据库端口。
+  port: 5435
+  # 数据库登录用户名。
+  username: 'postgres'
+  # 数据库登录密码；必须替换占位符。
+  password: '<DATABASE_PASSWORD>'
+  # 数据库名称。
+  name: 'postgres'
+  # 是否在进程启动时自动应用 migration；生产环境通常设为 false。
+  auto_migrate: false
+
+jwt:
+  # JWT 签名密钥；使用 taco secret generate-jwt 生成后替换占位符。
+  secret: '<JWT_SECRET>'
+
+user:
+  online_sessions:
+    # 在线会话清理任务的执行间隔（毫秒）。
+    cleanup_interval_ms: 60000
+    # 单次清理的在线会话数量。
+    cleanup_batch_size: 1000
+
+http:
+  # HTTP 请求处理超时时间（毫秒）。
+  request_timeout_ms: 30000
+  # 是否启用 HTTP 响应压缩。
+  compression_enabled: true
+
+metrics:
+  # 是否启用指标端点。
+  enabled: true
+
+audit:
+  outbox:
+    # 审计 Outbox 工作线程数量。
+    worker_count: 4
+    # 单次领取的审计 Outbox 记录数量。
+    claim_batch_size: 64
+    # 空闲时轮询审计 Outbox 的间隔（毫秒）。
+    poll_interval_ms: 250
+    # 审计 Outbox 记录的租约时长（毫秒）。
+    lease_duration_ms: 30000
+    # 审计 Outbox 失败重试前的等待时间（毫秒）。
+    retry_delay_ms: 5000
+    # 已处理审计 Outbox 记录的清理间隔（毫秒）。
+    cleanup_interval_ms: 3600000
+    # 单次清理的已处理审计 Outbox 记录数量。
+    cleanup_batch_size: 1000
+    # 已处理审计 Outbox 记录的保留天数。
+    processed_retention_days: 7
+
+client_info:
+  ip_location:
+    # IP 地理位置查询超时时间（毫秒）。
+    request_timeout_ms: 3000
+
+redis:
+  # Redis 连接协议。
+  scheme: redis
+  # Redis 主机地址。
+  host: '127.0.0.1'
+  # Redis 端口。
+  port: 6381
+  # Redis 用户名；未启用 ACL 时显式写 null。
+  username: null
+  # Redis 密码；未设置密码时显式写 null。
+  password: null
+  # Redis 逻辑数据库编号。
+  database: 0
+  # Redis RESP 协议版本。
+  protocol: resp3
+  # Taco 使用的 Redis 键前缀。
+  key_prefix: 'taco:'
+
+scheduler:
+  http_client:
+    # 调度任务 HTTP 客户端超时时间（毫秒）。
+    request_timeout_ms: 30000
+  runtime:
+    # 调度运行时对账间隔（毫秒）。
+    reconcile_interval_ms: 1000

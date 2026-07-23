@@ -1,0 +1,3 @@
+# Use one active write Provider with multi-Provider reads
+
+Every Stored Object records the `provider_key` of its immutable storage home, and Provider Registry dispatches reads and deletion to that Provider. Exactly one Active Write Provider is selected when an Upload Session starts and remains pinned for the session; changing the active Provider affects only later uploads. The first release registers only Local. Future Provider credentials must be modelled in the strict startup YAML schema loaded through `--config`, and a configuration change requires a restart. Unavailable Providers fail explicitly rather than load-balancing or silently failing over.

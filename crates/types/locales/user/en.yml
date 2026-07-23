@@ -1,8 +1,7 @@
 _version: 1
 errors.user.invalid_credentials: "Username or password is incorrect"
 errors.user.duplicate_field: "%{field} already exists"
-errors.user.installation_owner_exists: "An installation owner already exists"
-errors.user.installation_owner_protected: "The installation owner cannot be changed through user management"
+errors.user.last_enabled_admin_required: "The system must retain at least one enabled administrator"
 errors.user.new_password_same_as_old: "New password cannot be same as old password"
 errors.user.import_empty: "Import user data cannot be empty"
 errors.user.import_failed: "User import failed: %{errors}"

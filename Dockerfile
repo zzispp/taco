@@ -26,11 +26,10 @@ FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates curl \
-    && rm --recursive --force /var/lib/apt/lists/*
+    && rm --recursive --force /var/lib/apt/lists/* \
+    && mkdir --parents /app/config /app/local-data
 
 COPY --from=backend-build /workspace/target/release/taco /usr/local/bin/taco
-
-ENV TACO_DATA_DIR=/data
 
 EXPOSE 3000
 

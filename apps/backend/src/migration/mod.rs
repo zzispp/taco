@@ -3,10 +3,11 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::BackendResult;
 #[cfg(test)]
 use sqlx::AssertSqlSafe;
+#[cfg(test)]
+use sqlx::query;
 use sqlx::{
     PgConnection, PgPool,
     migrate::{Migrate, MigrateError, Migrator},
-    query,
 };
 
 mod readiness;
@@ -15,10 +16,24 @@ pub use readiness::ensure_runtime_schema_ready;
 const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../migrations");
 const MIGRATION_TABLE_NAME: &str = "_sqlx_migrations";
 #[cfg(test)]
-const MANAGED_FUNCTIONS: &[&str] = &["system_log_search_ngrams(TEXT)"];
-
+const MANAGED_FUNCTIONS: &[&str] = &[
+    "archive_user_file_space()",
+    "prevent_referenced_avatar_trash()",
+    "retire_replaced_avatar_asset()",
+    "system_log_search_ngrams(TEXT)",
+    "validate_user_avatar_asset()",
+];
 const MANAGED_TABLES: &[&str] = &[
-    "sys_installation_owner",
+    "file_provider_cleanup",
+    "file_upload_part",
+    "file_upload_session",
+    "file_business_reference",
+    "file_entry_tag",
+    "file_tag",
+    "file_entry",
+    "file_object",
+    "file_storage_provider",
+    "file_space",
     "audit_outbox",
     "sys_user_session",
     "sys_logininfor",
@@ -57,15 +72,6 @@ pub async fn up(pool: &PgPool, steps: Option<u32>) -> BackendResult<()> {
         return Ok(());
     }
     run_migrator(pool, &migrator).await?;
-    Ok(())
-}
-
-pub async fn reset_public_schema(pool: &PgPool) -> BackendResult<()> {
-    let mut transaction = pool.begin().await?;
-    query("DROP SCHEMA public CASCADE").execute(&mut *transaction).await?;
-    query("CREATE SCHEMA public AUTHORIZATION CURRENT_USER").execute(&mut *transaction).await?;
-    query("GRANT ALL ON SCHEMA public TO PUBLIC").execute(&mut *transaction).await?;
-    transaction.commit().await?;
     Ok(())
 }
 

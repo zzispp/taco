@@ -1,75 +1,76 @@
 use std::sync::Arc;
 
-use ::system::{
-    api::{SystemApiState, SystemApiStateParts, create_router as create_system_router},
-    application::SystemUseCase,
-    notice::{NoticeApiState, create_router as create_notice_router},
-};
-use audit::{
-    api::{AuditApiState, AuditApiStateParts, OperationAuditState, create_router as create_audit_router},
-    infra::UserLoginUnlocker,
-};
-use axum::{Extension, Router, middleware};
+use ::system::application::SystemUseCase;
 use captcha::{
-    api::{CaptchaApiState, create_router as create_captcha_router},
     application::{CaptchaProvider, CaptchaService, CaptchaUseCase},
     infra::RedisCaptchaStore,
     providers::cap::CapProvider,
 };
 use configuration::Settings;
-use observability::api::{SystemLogApiState, SystemLogApiStateParts, create_router as create_system_log_router};
-use rbac::api::{RbacApiState, RbacApiStateParts, create_router as create_rbac_router};
-use scheduler::api::{SchedulerApiState, SchedulerApiStateParts, create_router as create_scheduler_router};
 use storage::connect_database;
-use tower_http::services::ServeDir;
-use user::{
-    api::{ApiState, ApiStateParts, TokenSettings, create_router as create_user_router},
-    infra::LocalAvatarStorage,
-};
 
 use self::{
-    audit_wiring::{AuditServiceParts, audit_outbox_config, build_audit_services},
-    core_wiring::{build_system_services, build_user_services},
-    http_pipeline::{RuntimeLayerParts, add_metrics_route, apply_runtime_layers},
-    rbac_wiring::build_rbac_services,
+    audit_wiring::{AuditServiceParts, AuditServices, audit_outbox_config, build_audit_services},
+    core_wiring::{SystemServices, UserServices, build_system_services, build_user_services},
+    file_wiring::{FileServices, build_file_services},
+    rbac_wiring::{RbacServices, build_rbac_services},
     routes::authorization_config,
-    runtime_config::{CaptchaAccountVerifier, CaptchaSystemConfig, RuntimeRbacConfig, RuntimeSystemConfig, RuntimeUserConfig},
-    scheduler_wiring::build_scheduler_services,
-    tracing_runtime::{build_observability_services, observability_export_config},
+    runtime_config::{CaptchaSystemConfig, RuntimeFileConfig},
+    scheduler_wiring::{SchedulerServices, build_scheduler_services},
+    tracing_runtime::{ObservabilityServices, build_observability_services, observability_export_config},
 };
-use crate::{
-    BackendResult,
-    app_state::AppState,
-    auth::{AuthState, AuthStateParts, auth_middleware},
-    docs, migration, system,
-};
+use crate::{BackendResult, app_state::AppState, migration};
 
 pub(crate) mod access_catalog;
 mod audit_wiring;
 mod core_wiring;
+mod file_wiring;
 pub(crate) mod http_pipeline;
 mod rbac_wiring;
+mod router_wiring;
 mod routes;
 mod runtime_config;
 mod scheduler_wiring;
-pub(crate) mod setup_wiring;
 mod system_log_cleanup_execution;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) mod tracing_config_listener;
 pub(crate) mod tracing_runtime;
 
-const AVATAR_URL_PREFIX: &str = "/uploads/avatars";
+pub(crate) use core_wiring::bootstrap_administrator;
+pub(crate) use core_wiring::ensure_enabled_system_administrator;
+#[cfg(test)]
+pub(crate) use router_wiring::build_public_router;
+pub use router_wiring::create_app;
+
+struct AppStateAssembly {
+    users: UserServices,
+    rbac: RbacServices,
+    system: SystemServices,
+    files: FileServices,
+    audit: AuditServices,
+    observability: ObservabilityServices,
+    scheduler: SchedulerServices,
+    captcha: Arc<dyn CaptchaUseCase>,
+    authorization: rbac::application::AuthorizationConfig,
+    endpoints: access_catalog::EndpointCatalog,
+}
 
 pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
     let database = connect_database(&settings.database_url()?).await?;
     migration::ensure_runtime_schema_ready(database.raw_pool()).await?;
+    ensure_enabled_system_administrator(database.clone()).await?;
     let observability = build_observability_services(database.clone()).await?;
     let rbac = build_rbac_services(settings, database.clone(), observability.infrastructure_observer.clone()).await?;
     let endpoints = access_catalog::EndpointCatalog::build()?;
     let authorization = authorization_config(&endpoints)?;
     rbac.use_case.validate_protected_handlers(&authorization)?;
     let system = build_system_services(settings, database.clone(), observability.infrastructure_observer.clone()).await?;
+    let files = build_file_services(
+        &settings.data_directory,
+        database.clone(),
+        Arc::new(RuntimeFileConfig::new(system.use_case.clone())),
+    )?;
     let users = build_user_services(
         settings,
         database.clone(),
@@ -83,8 +84,9 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         database.clone(),
         system.use_case.clone(),
         observability.logs.clone(),
-        observability.retention,
-        observability.infrastructure_observer,
+        observability.retention.clone(),
+        files.cleanup.clone(),
+        observability.infrastructure_observer.clone(),
     )?;
     let audit = build_audit_services(AuditServiceParts {
         database,
@@ -92,9 +94,35 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         location_resolver: users.location_resolver.clone(),
         outbox: audit_outbox_config(settings)?,
     })?;
-    let system_log_export_config = observability_export_config(system.use_case.clone());
+    Ok(assemble_app_state(AppStateAssembly {
+        users,
+        rbac,
+        system,
+        files,
+        audit,
+        observability,
+        scheduler,
+        captcha,
+        authorization,
+        endpoints,
+    }))
+}
 
-    Ok(AppState {
+fn assemble_app_state(parts: AppStateAssembly) -> AppState {
+    let AppStateAssembly {
+        users,
+        rbac,
+        system,
+        files,
+        audit,
+        observability,
+        scheduler,
+        captcha,
+        authorization,
+        endpoints,
+    } = parts;
+    let system_log_export_config = observability_export_config(system.use_case.clone());
+    AppState {
         users: users.use_case,
         tokens: users.tokens,
         session_cleanup_runtime: users.session_cleanup_runtime,
@@ -108,6 +136,7 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         notices_audited: system.notices_audited,
         metrics: system.metrics,
         captcha,
+        files: files.use_case,
         audit: audit.use_case,
         audit_outbox: audit.outbox,
         audit_outbox_runtime: audit.runtime,
@@ -125,137 +154,7 @@ pub async fn build_app_state(settings: &Settings) -> BackendResult<AppState> {
         scheduler_runtime: scheduler.runtime,
         authorization,
         endpoints,
-    })
-}
-
-#[cfg(test)]
-pub(crate) fn build_public_router(settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
-    let app = crate::embedded_frontend::with_embedded_frontend(normal_public_routes(
-        settings,
-        system::HealthState::for_test(tracing_runtime::TracingConfigListenerHealth::new()),
-    ));
-    let app = add_metrics_route(app, &metrics_handle);
-    let app = app.layer(middleware::from_fn(types::http::locale_middleware));
-    let app = http_pipeline::with_timeout(app, settings)?;
-    let app = http_pipeline::apply_metrics_layer(app, &metrics_handle);
-    http_pipeline::apply_http_layers(app, settings)
-}
-
-pub fn create_app(state: AppState, settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
-    let auth_state = AuthState::new(AuthStateParts {
-        users: state.users.clone(),
-        tokens: state.tokens.clone(),
-        rbac: state.rbac.clone(),
-        system: state.system.clone(),
-        authorization: state.authorization.clone(),
-        endpoints: state.endpoints.clone(),
-    });
-    let api_router = create_api_router(&state, settings)?.layer(middleware::from_fn_with_state(auth_state, auth_middleware));
-    let health_state = system::HealthState::new(state.tracing_config_listener_health.clone(), state.system_log_runtime.clone());
-    let app = crate::embedded_frontend::with_embedded_frontend(normal_public_routes(settings, health_state).nest("/api", api_router));
-    let app = add_metrics_route(app, &metrics_handle);
-    let app = app.layer(Extension(state.audit_outbox_runtime.clone()));
-    let app = app.layer(Extension(state.session_cleanup_runtime.clone()));
-    let app = app.layer(Extension(state.system_log_runtime.clone()));
-    let app = app.layer(Extension(state._tracing_config_listener_runtime.clone()));
-    apply_runtime_layers(
-        app,
-        RuntimeLayerParts {
-            settings,
-            audit: operation_audit_state(&state)?,
-            metrics: &metrics_handle,
-            http_logs: Some(state.http_log_state.clone()),
-        },
-    )
-}
-
-fn create_api_router(state: &AppState, settings: &Settings) -> BackendResult<Router> {
-    Ok(Router::new()
-        .merge(create_user_router(user_api_state(state, settings)?))
-        .merge(create_rbac_router(
-            RbacApiState::new(RbacApiStateParts {
-                rbac: state.rbac.clone(),
-                rbac_admin: state.rbac_admin.clone(),
-                rbac_audited_admin: state.rbac_audited_admin.clone(),
-                rbac_cache_refresher: state.rbac_cache_refresher.clone(),
-            })
-            .with_export_config(Arc::new(RuntimeRbacConfig::new(state.system.clone()))),
-        ))
-        .merge(create_system_router(system_api_state(state)))
-        .merge(create_notice_router(NoticeApiState::new(state.notices.clone(), state.notices_audited.clone())))
-        .merge(create_captcha_router(CaptchaApiState::new(state.captcha.clone())))
-        .merge(create_audit_router(audit_api_state(state)))
-        .merge(create_system_log_router(system_log_api_state(state)))
-        .merge(create_scheduler_router(SchedulerApiState::new(SchedulerApiStateParts {
-            scheduler: state.scheduler.clone(),
-            audited_scheduler: state.scheduler_audited.clone(),
-            export_config: state.scheduler_export_config.clone(),
-            runtime: state.scheduler_runtime.clone(),
-        }))))
-}
-
-fn user_api_state(state: &AppState, settings: &Settings) -> BackendResult<ApiState> {
-    let user_config = Arc::new(RuntimeUserConfig::new(state.system.clone()));
-    let account_verifier = Arc::new(CaptchaAccountVerifier::new(state.captcha.clone()));
-    let avatar_storage = Arc::new(LocalAvatarStorage::new(settings.uploads.avatar_directory.clone(), AVATAR_URL_PREFIX));
-    Ok(ApiState::new(ApiStateParts {
-        users: state.users.clone(),
-        tokens: state.tokens.clone(),
-        rbac: state.rbac.clone(),
-        config: user_config.clone(),
-        account_verifier,
-        ip_location_resolver: state.ip_location_resolver.clone(),
-        operation_audit: state.audit_outbox.clone(),
-        security_audit: state.audit_outbox.clone(),
-    })
-    .with_avatar_storage(avatar_storage)
-    .with_avatar_config(user_config.clone())
-    .with_export_config(user_config))
-}
-
-fn system_api_state(state: &AppState) -> SystemApiState {
-    SystemApiState::new(SystemApiStateParts {
-        system: state.system.clone(),
-        system_audited: state.system_audited.clone(),
-        operation_audit: state.audit_outbox.clone(),
-        metrics: state.metrics.clone(),
-        rbac: state.rbac.clone(),
-        rbac_admin: state.rbac_admin.clone(),
-    })
-    .with_export_config(Arc::new(RuntimeSystemConfig::new(state.system.clone())))
-}
-
-fn audit_api_state(state: &AppState) -> AuditApiState {
-    AuditApiState::new(AuditApiStateParts {
-        audit: state.audit.clone(),
-        export_config: state.audit_export_config.clone(),
-        unlocker: Arc::new(UserLoginUnlocker::new(state.users.clone())),
-    })
-}
-
-fn system_log_api_state(state: &AppState) -> SystemLogApiState {
-    SystemLogApiState::new(SystemLogApiStateParts {
-        logs: state.system_logs.clone(),
-        cleanup_executions: Arc::new(system_log_cleanup_execution::SchedulerSystemLogCleanupExecutionAdapter::new(
-            state.scheduler.clone(),
-            state.scheduler_audited.clone(),
-        )),
-        export_config: state.system_log_export_config.clone(),
-    })
-}
-
-fn operation_audit_state(state: &AppState) -> Result<OperationAuditState, audit::application::AuditError> {
-    OperationAuditState::try_new(state.endpoints.specs().to_vec(), state.audit_outbox.clone())
-}
-
-fn public_routes(settings: &Settings, health_state: system::HealthState) -> Router {
-    docs::router()
-        .merge(system::create_router(health_state))
-        .nest_service(AVATAR_URL_PREFIX, ServeDir::new(&settings.uploads.avatar_directory))
-}
-
-fn normal_public_routes(settings: &Settings, health_state: system::HealthState) -> Router {
-    public_routes(settings, health_state).merge(installation::api::installed_router())
+    }
 }
 
 async fn build_captcha_service(
@@ -266,10 +165,4 @@ async fn build_captcha_service(
     let store = RedisCaptchaStore::connect(&settings.redis_url()?, settings.redis.key_prefix.clone(), observer).await?;
     let providers: Vec<Arc<dyn CaptchaProvider>> = vec![Arc::new(CapProvider::new(store))];
     Ok(Arc::new(CaptchaService::new(CaptchaSystemConfig::new(system), providers)))
-}
-
-fn token_settings(settings: &Settings) -> BackendResult<TokenSettings> {
-    Ok(TokenSettings {
-        secret: settings.jwt_secret()?,
-    })
 }

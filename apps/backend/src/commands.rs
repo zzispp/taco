@@ -1,65 +1,32 @@
 use std::io::Write;
 
-use configuration::{BootstrapInputs, ConfigEncryptionKey, DataDirectory, InstallationStateStore, Settings};
+use configuration::Settings;
 use storage::connect_database;
 
-use crate::{
-    BackendResult,
-    installation_mode::{InstallationMode, classify},
-    migration, startup,
-};
+use crate::{BackendResult, migration, startup};
 
-mod installation_recovery_command;
+mod administrator_command;
 mod migration_command;
 mod parser;
+mod secret_command;
 
-use parser::{BackendCommand, InstallationCommand, MigrationCommand, SecretCommand, command_from_args};
+use parser::{AdministratorCommand, BackendCommand, MigrationCommand, SecretCommand, command_from_args};
 
 pub async fn run() -> BackendResult<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
-    match command_from_args(args.clone())? {
-        BackendCommand::Serve => run_server(args).await,
-        BackendCommand::Migration(command) => run_migration(installed_settings(args)?, command).await,
-        BackendCommand::Secrets(SecretCommand::Generate) => write_generated_secret(),
-        BackendCommand::Installation(InstallationCommand::Reset) => reset_installation_state(args),
-        BackendCommand::Installation(InstallationCommand::ProfileTemplate) => write_installation_profile_template(),
-        BackendCommand::Installation(InstallationCommand::Reconfigure { connections_path }) => {
-            installation_recovery_command::reconfigure(args, &connections_path).await
-        }
-        BackendCommand::Installation(InstallationCommand::Recover { profile_path }) => installation_recovery_command::recover(args, &profile_path).await,
+    let command = command_from_args(args.clone())?;
+    match command {
+        BackendCommand::Secret(SecretCommand::GenerateJwt) => secret_command::generate_jwt(),
+        BackendCommand::Serve => startup::serve(Settings::load_from_args(args)?).await,
+        BackendCommand::Migration(command) => run_migration(Settings::load_from_args(args)?, command).await,
+        BackendCommand::Administrator(command) => run_administrator(Settings::load_from_args(args)?, command).await,
     }
 }
 
-async fn run_server(args: Vec<String>) -> BackendResult<()> {
-    match classify(BootstrapInputs::load_from_args(args)?)? {
-        InstallationMode::Setup(bootstrap) => startup::serve_setup(bootstrap).await,
-        InstallationMode::Normal(settings) => startup::serve(*settings).await,
+async fn run_administrator(settings: Settings, command: AdministratorCommand) -> BackendResult<()> {
+    match command {
+        AdministratorCommand::Bootstrap(input) => administrator_command::bootstrap(settings, input).await,
     }
-}
-
-fn installed_settings(args: Vec<String>) -> BackendResult<Settings> {
-    match classify(BootstrapInputs::load_from_args(args)?)? {
-        InstallationMode::Normal(settings) => Ok(*settings),
-        InstallationMode::Setup(_) => Err("installation is not complete; complete web setup before running migrations".into()),
-    }
-}
-
-fn write_generated_secret() -> BackendResult<()> {
-    let key = ConfigEncryptionKey::generate();
-    writeln!(std::io::stdout().lock(), "TACO_CONFIG_ENCRYPTION_KEY={}", key.encode())?;
-    Ok(())
-}
-
-fn reset_installation_state(args: Vec<String>) -> BackendResult<()> {
-    let data_dir = DataDirectory::load_from_args(args)?;
-    InstallationStateStore::new(data_dir).remove()?;
-    Ok(())
-}
-
-fn write_installation_profile_template() -> BackendResult<()> {
-    serde_json::to_writer_pretty(std::io::stdout().lock(), &configuration::InstallationProfile::default())?;
-    writeln!(std::io::stdout().lock())?;
-    Ok(())
 }
 
 async fn run_migration(settings: Settings, command: MigrationCommand) -> BackendResult<()> {

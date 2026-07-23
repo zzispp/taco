@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 
 use crate::application::AuthorizationUser;
+use crate::domain::AvatarFileId;
 
 use super::*;
 
@@ -76,12 +77,12 @@ where
         self.change_password_with_audit_command(input).await
     }
 
-    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User> {
+    async fn update_avatar(&self, id: UserId, avatar: AvatarFileId) -> AppResult<User> {
         let avatar = self.prepare_avatar_update(avatar)?;
         self.repository.update_avatar(id, avatar).await
     }
 
-    async fn update_avatar_with_audit(&self, id: UserId, avatar: String, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
+    async fn update_avatar_with_audit(&self, id: UserId, avatar: AvatarFileId, audit: audit_contract::AuditOutboxRecord) -> AppResult<User> {
         self.update_avatar_with_audit_command(id, avatar, audit).await
     }
 
@@ -94,7 +95,6 @@ where
     }
 
     async fn replace_user(&self, id: UserId, input: ReplaceUser) -> AppResult<User> {
-        self.reject_installation_owner_mutation(&id).await?;
         let user = self.prepare_replacement(&id, input).await?;
         self.repository.replace(id, user).await
     }
@@ -104,7 +104,6 @@ where
     }
 
     async fn delete_user(&self, id: UserId) -> AppResult<()> {
-        self.reject_installation_owner_mutation(&id).await?;
         self.repository.delete(id).await
     }
 
@@ -114,7 +113,6 @@ where
 
     async fn delete_users(&self, ids: Vec<UserId>) -> AppResult<()> {
         self.validate_user_deletions(&ids)?;
-        self.reject_installation_owner_mutations(&ids).await?;
         self.repository.delete_many(ids).await
     }
 
@@ -127,7 +125,6 @@ where
     }
 
     async fn reset_password(&self, id: UserId, password: String) -> AppResult<()> {
-        self.reject_installation_owner_mutation(&id).await?;
         let hash = self.prepare_password_reset(&id, password).await?;
         self.repository.update_password(id, hash).await
     }
@@ -137,7 +134,6 @@ where
     }
 
     async fn update_status(&self, id: UserId, status: String) -> AppResult<User> {
-        self.reject_installation_owner_mutation(&id).await?;
         let status = self.prepare_status_update(status)?;
         self.repository.update_status(id, status).await
     }
@@ -147,7 +143,6 @@ where
     }
 
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User> {
-        self.reject_installation_owner_mutation(&id).await?;
         let role_ids = self.prepare_role_replacement(role_ids)?;
         self.repository.replace_roles(id, role_ids).await
     }

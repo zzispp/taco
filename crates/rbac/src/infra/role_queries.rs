@@ -31,6 +31,7 @@ use self::{
     sql::{ROLE_COLUMNS, dept_query, insert_role_sql, permission_query, update_role_sql},
     support::{ensure_batch_rows, ensure_rows_affected},
 };
+use super::admin_continuity::{acquire_admin_continuity_lock, ensure_enabled_admin_remains};
 
 #[derive(Clone)]
 pub struct RoleQueries {
@@ -61,6 +62,8 @@ impl RoleQueries {
     }
 
     pub async fn replace(&self, id: &str, input: RoleInput) -> StorageResult<Role> {
+        let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query(update_role_sql())
             .bind(id)
             .bind(input.role_name)
@@ -71,19 +74,25 @@ impl RoleQueries {
             .bind(input.dept_check_strictly)
             .bind(input.status)
             .bind(input.remark)
-            .execute(self.database.pool())
+            .execute(&mut *transaction)
             .await?;
         ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
+        transaction.commit().await.map_err(StorageError::from)?;
         self.find(id).await?.ok_or(StorageError::NotFound)
     }
 
     pub async fn update_status(&self, id: &str, status: String) -> StorageResult<Role> {
+        let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("UPDATE sys_role SET status=$2, update_time=CURRENT_TIMESTAMP WHERE role_id=$1 AND del_flag='0'")
             .bind(id)
             .bind(status)
-            .execute(self.database.pool())
+            .execute(&mut *transaction)
             .await?;
         ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
+        transaction.commit().await.map_err(StorageError::from)?;
         self.find(id).await?.ok_or(StorageError::NotFound)
     }
 
@@ -105,23 +114,27 @@ impl RoleQueries {
 
     pub async fn delete(&self, id: &str) -> StorageResult<()> {
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         let result = query("UPDATE sys_role SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE role_id = $1 AND del_flag = '0'")
             .bind(id)
             .execute(&mut *tx)
             .await?;
         ensure_rows_affected(result.rows_affected())?;
         delete_role_relations(&mut tx, &[id.to_owned()]).await?;
+        ensure_enabled_admin_remains(&mut tx).await?;
         tx.commit().await.map_err(StorageError::from)
     }
 
     pub async fn delete_many(&self, ids: &[String]) -> StorageResult<()> {
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         let result = query("UPDATE sys_role SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE role_id = ANY($1) AND del_flag = '0'")
             .bind(ids)
             .execute(&mut *tx)
             .await?;
         ensure_batch_rows(result.rows_affected(), ids.len())?;
         delete_role_relations(&mut tx, ids).await?;
+        ensure_enabled_admin_remains(&mut tx).await?;
         tx.commit().await.map_err(StorageError::from)
     }
 
@@ -173,27 +186,6 @@ impl RoleQueries {
         user_pages::page(&self.database, filter, scope).await
     }
 
-    pub async fn has_installation_owner(&self, user_ids: &[String]) -> StorageResult<bool> {
-        if user_ids.is_empty() {
-            return Ok(false);
-        }
-        query_scalar("SELECT EXISTS(SELECT 1 FROM sys_installation_owner WHERE owner_user_id = ANY($1))")
-            .bind(user_ids)
-            .fetch_one(self.database.pool())
-            .await
-            .map_err(StorageError::from)
-    }
-
-    pub async fn has_installation_owner_in_role(&self, role_id: &str) -> StorageResult<bool> {
-        query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM sys_installation_owner owner JOIN sys_user_role user_role ON user_role.user_id = owner.owner_user_id WHERE user_role.role_id = $1)",
-        )
-        .bind(role_id)
-        .fetch_one(self.database.pool())
-        .await
-        .map_err(StorageError::from)
-    }
-
     pub async fn replace_menus(&self, role_id: &str, input: RoleMenuBindingInput) -> StorageResult<()> {
         let menu_ids = normalize_menu_ids(self.database.pool(), &input.menu_ids).await?;
         replace_menu_ids(self.database.pool(), role_id, menu_ids).await
@@ -208,22 +200,28 @@ impl RoleQueries {
     }
 
     pub async fn delete_user(&self, role_id: &str, user_id: &str) -> StorageResult<()> {
+        let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("DELETE FROM sys_user_role WHERE role_id=$1 AND user_id=$2")
             .bind(role_id)
             .bind(user_id)
-            .execute(self.database.pool())
+            .execute(&mut *transaction)
             .await?;
-        ensure_rows_affected(result.rows_affected())
+        ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
+        transaction.commit().await.map_err(StorageError::from)
     }
 
     pub async fn delete_users(&self, role_id: &str, user_ids: &[String]) -> StorageResult<()> {
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         let result = query("DELETE FROM sys_user_role WHERE role_id=$1 AND user_id = ANY($2)")
             .bind(role_id)
             .bind(user_ids)
             .execute(&mut *tx)
             .await?;
         ensure_batch_rows(result.rows_affected(), user_ids.len())?;
+        ensure_enabled_admin_remains(&mut tx).await?;
         tx.commit().await.map_err(StorageError::from)
     }
 

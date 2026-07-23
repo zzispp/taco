@@ -76,9 +76,9 @@ mod tests {
     use serde_json::{Value, json};
 
     use crate::application::task::{
-        HttpTaskClient, OutboundHttpFailure, OutboundHttpHeader, OutboundHttpRequest, OutboundHttpResponse, OutboundHttpResponseHead, ScheduledTask,
-        SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupPort, SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
-        TaskInvocation,
+        FileCleanupPort, FileTrashCleanupResult, FileUploadSessionCleanupResult, HttpTaskClient, OutboundHttpFailure, OutboundHttpHeader, OutboundHttpRequest,
+        OutboundHttpResponse, OutboundHttpResponseHead, ScheduledTask, SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupPort,
+        SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure, TaskInvocation,
     };
 
     use super::{HttpFailureCode, HttpRequestTask};
@@ -170,6 +170,7 @@ mod tests {
                     http_client: Arc::new(StubHttpClient { result }),
                     system_cache: Arc::new(UnexpectedCachePort),
                     system_log_cleanup: Arc::new(UnexpectedSystemLogCleanupPort),
+                    file_cleanup: Arc::new(UnexpectedFileCleanupPort),
                 },
                 invocation(),
             )
@@ -261,6 +262,7 @@ mod tests {
 
     struct UnexpectedCachePort;
     struct UnexpectedSystemLogCleanupPort;
+    struct UnexpectedFileCleanupPort;
 
     #[async_trait]
     impl SystemCacheRefreshPort for UnexpectedCachePort {
@@ -281,6 +283,17 @@ mod tests {
 
         async fn cleanup_filtered(&self, _: SystemLogCleanupFilter, _: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
             panic!("HTTP task test invoked system log cleanup")
+        }
+    }
+
+    #[async_trait]
+    impl FileCleanupPort for UnexpectedFileCleanupPort {
+        async fn purge_trash(&self, _: u64, _: u64) -> Result<FileTrashCleanupResult, TaskExecutionFailure> {
+            panic!("HTTP task test invoked file trash cleanup")
+        }
+
+        async fn cleanup_upload_sessions(&self, _: u64) -> Result<FileUploadSessionCleanupResult, TaskExecutionFailure> {
+            panic!("HTTP task test invoked upload session cleanup")
         }
     }
 }

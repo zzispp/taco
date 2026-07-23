@@ -10,19 +10,27 @@ impl UserRepository for MemoryUserRepository {
 
     async fn replace(&self, id: UserId, record: ReplaceUserRecord) -> AppResult<User> {
         let mut state = self.state.lock().unwrap();
-        let user = replace_stored_user(&mut state, &id, &record)?;
-        state.replaced.push((id, record));
-        Ok(user)
+        commit_continuous_mutation(&mut state, |next| {
+            let user = replace_stored_user(next, &id, &record)?;
+            next.replaced.push((id, record));
+            Ok(user)
+        })
     }
 
     async fn delete(&self, id: UserId) -> AppResult<()> {
-        self.state.lock().unwrap().deleted.push(id);
-        Ok(())
+        let mut state = self.state.lock().unwrap();
+        commit_continuous_mutation(&mut state, |next| {
+            next.deleted.push(id);
+            Ok(())
+        })
     }
 
     async fn delete_many(&self, ids: Vec<UserId>) -> AppResult<()> {
-        self.state.lock().unwrap().deleted.extend(ids);
-        Ok(())
+        let mut state = self.state.lock().unwrap();
+        commit_continuous_mutation(&mut state, |next| {
+            next.deleted.extend(ids);
+            Ok(())
+        })
     }
 
     async fn find_by_id(&self, id: UserId) -> AppResult<Option<User>> {
@@ -90,16 +98,11 @@ impl UserRepository for MemoryUserRepository {
 
     async fn find_authorization_by_id(&self, id: UserId) -> AppResult<Option<AuthorizationUser>> {
         let state = self.state.lock().unwrap();
-        let owner_id = state.installation_owner.as_ref();
-        Ok(state.users.iter().find(|stored| stored.user.id == id).map(|stored| {
-            let mut user = AuthorizationUser::from_user(stored.user.clone());
-            user.is_installation_owner = owner_id == Some(&stored.user.id);
-            user
-        }))
-    }
-
-    async fn is_installation_owner(&self, id: &UserId) -> AppResult<bool> {
-        Ok(self.state.lock().unwrap().installation_owner.as_ref() == Some(id))
+        Ok(state
+            .users
+            .iter()
+            .find(|stored| stored.user.id == id)
+            .map(|stored| AuthorizationUser::from_user(stored.user.clone())))
     }
 
     async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()> {
@@ -151,7 +154,7 @@ impl UserRepository for MemoryUserRepository {
         let users = state
             .users
             .iter()
-            .filter(|stored| request.scope.as_ref().is_none_or(|scope| memory_scope_matches(&stored.user, scope)))
+            .filter(|stored| memory_scope_matches(&stored.user, &request.scope))
             .filter(|stored| memory_filter_matches(&stored.user, &request.filter))
             .map(|stored| stored.user.clone())
             .collect::<Vec<_>>();
@@ -179,26 +182,35 @@ impl UserRepository for MemoryUserRepository {
         Ok(stored.user.clone())
     }
 
-    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User> {
+    async fn update_avatar(&self, id: UserId, avatar: AvatarFileId) -> AppResult<User> {
         let mut state = self.state.lock().unwrap();
         let stored = find_stored_user_mut(&mut state, &id)?;
-        stored.user.avatar = Some(avatar);
+        stored.user.avatar_file_id = Some(avatar);
+        stored.user.avatar_version = stored
+            .user
+            .avatar_version
+            .checked_add(1)
+            .ok_or_else(|| AppError::Infrastructure("avatar version overflow".into()))?;
         Ok(stored.user.clone())
     }
 
     async fn update_status(&self, id: UserId, status: String) -> AppResult<User> {
         let mut state = self.state.lock().unwrap();
-        let stored = find_stored_user_mut(&mut state, &id)?;
-        stored.user.status = status;
-        Ok(stored.user.clone())
+        commit_continuous_mutation(&mut state, |next| {
+            let stored = find_stored_user_mut(next, &id)?;
+            stored.user.status = status;
+            Ok(stored.user.clone())
+        })
     }
 
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User> {
         let mut state = self.state.lock().unwrap();
-        let stored = find_stored_user_mut(&mut state, &id)?;
-        stored.user.roles = role_ids.iter().map(|id| role_summary(id)).collect();
-        stored.user.role_ids = role_ids;
-        Ok(stored.user.clone())
+        commit_continuous_mutation(&mut state, |next| {
+            let stored = find_stored_user_mut(next, &id)?;
+            stored.user.roles = role_ids.iter().map(|id| role_summary(id)).collect();
+            stored.user.role_ids = role_ids;
+            Ok(stored.user.clone())
+        })
     }
 
     async fn profile_groups(&self, id: UserId) -> AppResult<UserProfileGroups> {
@@ -241,5 +253,38 @@ impl UserRepository for MemoryUserRepository {
                 children: vec![],
             }],
         })
+    }
+}
+
+#[async_trait]
+impl BootstrapAdministratorRepository for MemoryUserRepository {
+    async fn has_enabled_system_administrator(&self) -> AppResult<bool> {
+        Ok(has_enabled_admin(&self.state.lock().unwrap()))
+    }
+
+    async fn create_system_administrator_if_absent(&self, record: BootstrapAdministratorRecord) -> AppResult<BootstrapAdministratorOutcome> {
+        let mut state = self.state.lock().unwrap();
+        if has_enabled_admin(&state) {
+            return Ok(BootstrapAdministratorOutcome::AlreadyPresent);
+        }
+
+        store_created_user(&mut state, bootstrap_administrator_record(record));
+        Ok(BootstrapAdministratorOutcome::Created)
+    }
+}
+
+fn bootstrap_administrator_record(record: BootstrapAdministratorRecord) -> ReplaceUserRecord {
+    ReplaceUserRecord {
+        username: record.username,
+        password_hash: Some(record.password_hash),
+        nick_name: record.nick_name,
+        dept_id: None,
+        email: record.email,
+        phonenumber: None,
+        sex: "2".into(),
+        status: STATUS_NORMAL.into(),
+        remark: None,
+        role_ids: vec![SYSTEM_ADMIN_ROLE_ID.into()],
+        post_ids: Vec::new(),
     }
 }

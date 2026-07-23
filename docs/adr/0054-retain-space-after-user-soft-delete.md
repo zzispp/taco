@@ -1,0 +1,3 @@
+# Retain personal spaces after user soft deletion
+
+The current User context marks deleted users with `del_flag = '2'` rather than physically deleting their rows. File Management preserves the user's Personal Asset Space as an Archived Personal Asset Space, keeps its owner identity and last department boundary, and lets authorized administrators manage it through Data Scope; it does not automatically transfer or cascade-delete the assets. If a true user hard-delete operation is introduced later, it must explicitly refuse while the space contains active, trashed, or referenced assets instead of silently destroying them.

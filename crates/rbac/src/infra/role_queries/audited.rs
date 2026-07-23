@@ -5,7 +5,10 @@ use time::OffsetDateTime;
 
 use crate::{
     domain::{Role, RoleDataScopeInput, RoleDeptBindingInput, RoleInput, RoleMenuBindingInput, RoleUserBindingInput},
-    infra::audited_transaction::commit_audited_write,
+    infra::{
+        admin_continuity::{acquire_admin_continuity_lock, ensure_enabled_admin_remains},
+        audited_transaction::commit_audited_write,
+    },
 };
 
 use super::{
@@ -29,6 +32,7 @@ impl RoleQueries {
 
     pub(in crate::infra) async fn replace_with_audit(&self, id: &str, input: RoleInput, audit: &AuditOutboxRecord) -> StorageResult<Role> {
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query(update_role_sql())
             .bind(id)
             .bind(input.role_name)
@@ -42,18 +46,21 @@ impl RoleQueries {
             .execute(&mut *transaction)
             .await?;
         ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await?;
         self.find(id).await?.ok_or(StorageError::NotFound)
     }
 
     pub(in crate::infra) async fn update_status_with_audit(&self, id: &str, status: String, audit: &AuditOutboxRecord) -> StorageResult<Role> {
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("UPDATE sys_role SET status=$2, update_time=CURRENT_TIMESTAMP WHERE role_id=$1 AND del_flag='0'")
             .bind(id)
             .bind(status)
             .execute(&mut *transaction)
             .await?;
         ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await?;
         self.find(id).await?.ok_or(StorageError::NotFound)
     }
@@ -76,17 +83,20 @@ impl RoleQueries {
 
     pub(in crate::infra) async fn delete_with_audit(&self, id: &str, audit: &AuditOutboxRecord) -> StorageResult<()> {
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("UPDATE sys_role SET del_flag = '2', update_time = CURRENT_TIMESTAMP WHERE role_id = $1 AND del_flag = '0'")
             .bind(id)
             .execute(&mut *transaction)
             .await?;
         ensure_rows_affected(result.rows_affected())?;
         delete_role_relations(&mut transaction, &[id.to_owned()]).await?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await
     }
 
     pub(in crate::infra) async fn delete_many_with_audit(&self, ids: &[String], audit: &AuditOutboxRecord) -> StorageResult<()> {
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("UPDATE sys_role SET del_flag = '2', update_time = $2 WHERE role_id = ANY($1) AND del_flag = '0'")
             .bind(ids)
             .bind(OffsetDateTime::now_utc())
@@ -94,6 +104,7 @@ impl RoleQueries {
             .await?;
         ensure_batch_rows(result.rows_affected(), ids.len())?;
         delete_role_relations(&mut transaction, ids).await?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await
     }
 
@@ -105,23 +116,27 @@ impl RoleQueries {
 
     pub(in crate::infra) async fn delete_user_with_audit(&self, role_id: &str, user_id: &str, audit: &AuditOutboxRecord) -> StorageResult<()> {
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("DELETE FROM sys_user_role WHERE role_id=$1 AND user_id=$2")
             .bind(role_id)
             .bind(user_id)
             .execute(&mut *transaction)
             .await?;
         ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await
     }
 
     pub(in crate::infra) async fn delete_users_with_audit(&self, role_id: &str, user_ids: &[String], audit: &AuditOutboxRecord) -> StorageResult<()> {
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("DELETE FROM sys_user_role WHERE role_id=$1 AND user_id = ANY($2)")
             .bind(role_id)
             .bind(user_ids)
             .execute(&mut *transaction)
             .await?;
         ensure_batch_rows(result.rows_affected(), user_ids.len())?;
+        ensure_enabled_admin_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await
     }
 

@@ -126,20 +126,6 @@ pub(super) fn reject_unscoped_user_ids(requested: &[String], scoped: &[String]) 
     Err(RbacError::Forbidden)
 }
 
-pub(super) async fn reject_installation_owner_role_mutation<R: RbacRepository>(
-    repository: &R,
-    role_id: &str,
-    user_ids: &[String],
-    replaces_all_role_users: bool,
-) -> RbacResult<()> {
-    let targets_owner = repository.has_installation_owner(user_ids).await?;
-    let removes_existing_owner = replaces_all_role_users && repository.role_has_installation_owner(role_id).await?;
-    if targets_owner || removes_existing_owner {
-        return Err(RbacError::Conflict(localized("errors.rbac.installation_owner_protected")));
-    }
-    Ok(())
-}
-
 pub(super) fn validate_page(page: &CursorPageRequest) -> RbacResult<()> {
     crate::application::cursor::validate_cursor_request(page)
 }

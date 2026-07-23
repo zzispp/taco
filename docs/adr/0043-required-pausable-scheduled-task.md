@@ -1,0 +1,3 @@
+# Add a required but pausable scheduled-task lifecycle
+
+File Management seeds two required system jobs that default to enabled and cannot be deleted or re-imported, but operators may pause them and change their Cron execution policies. `file.purgeTrash` defaults to `0 0 20 * * *` and `file.cleanupUploadSessions` defaults to `0 0 21 * * *` in the Scheduler's UTC clock. Missed schedules fire once after recovery, and concurrent executions are disallowed. Separating the jobs isolates their parameters, reports, retries, and failure states; making either job deletable would break a lifecycle guaranteed by the Managed Asset Library.

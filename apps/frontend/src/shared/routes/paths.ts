@@ -10,9 +10,6 @@ export const paths = {
   page403: '/error/403',
   page404: '/error/404',
   page500: '/error/500',
-  setup: {
-    root: '/setup',
-  },
   auth: {
     jwt: {
       signIn: `${ROOTS.AUTH}/sign-in`,
@@ -21,6 +18,10 @@ export const paths = {
   },
   dashboard: {
     root: ROOTS.DASHBOARD,
+    files: `${ROOTS.DASHBOARD}/files`,
+    file: `${ROOTS.DASHBOARD}/file`,
+    fileManager: `${ROOTS.DASHBOARD}/file-manager`,
+    fileSpaces: `${ROOTS.DASHBOARD}/file-spaces`,
     profile: `${ROOTS.DASHBOARD}/profile`,
     overview: `${ROOTS.DASHBOARD}/overview`,
     monitor: `${ROOTS.DASHBOARD}/monitor`,

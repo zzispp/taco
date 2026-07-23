@@ -22,6 +22,8 @@ struct Locale {
     code: String,
     document_language: String,
     backend_language: String,
+    dayjs_locale: String,
+    mui_locale: String,
 }
 
 fn main() {
@@ -65,6 +67,8 @@ fn validate_locale_contract(contract: &LocaleContract) {
         assert!(!locale.code.is_empty(), "locale contract locale code cannot be empty");
         assert!(!locale.document_language.is_empty(), "locale contract documentLanguage cannot be empty");
         assert!(!locale.backend_language.is_empty(), "locale contract backendLanguage cannot be empty");
+        assert!(!locale.dayjs_locale.is_empty(), "locale contract dayjsLocale cannot be empty");
+        assert!(!locale.mui_locale.is_empty(), "locale contract muiLocale cannot be empty");
     }
 }
 

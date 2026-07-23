@@ -7,8 +7,6 @@ const GET: &[&str] = &["GET"];
 const HEALTH_PATH: &str = "/health";
 const READY_PATH: &str = "/ready";
 const METRICS_PATH: &str = "/metrics";
-const AVATAR_FILES_PATH: &str = "/uploads/avatars/{*file}";
-const INSTALLATION_STATUS_PATH: &str = installation::api::SETUP_STATUS_PATH;
 
 pub(super) fn authorization_config(endpoints: &EndpointCatalog) -> BackendResult<AuthorizationConfig> {
     Ok(AuthorizationConfig::compile(auth_whitelist(endpoints), endpoints.permission_rules())?)
@@ -23,7 +21,7 @@ pub(super) fn auth_whitelist(endpoints: &EndpointCatalog) -> Vec<AuthWhitelistRu
 }
 
 fn fixed_auth_whitelist() -> Vec<AuthWhitelistRule> {
-    [HEALTH_PATH, READY_PATH, METRICS_PATH, AVATAR_FILES_PATH, INSTALLATION_STATUS_PATH]
+    [HEALTH_PATH, READY_PATH, METRICS_PATH]
         .into_iter()
         .map(|path_pattern| AuthWhitelistRule {
             methods: GET.iter().map(|method| (*method).into()).collect(),

@@ -1,0 +1,3 @@
+# Make upload initialization and completion idempotent
+
+Clients identify one logical upload with an `Idempotency-Key` scoped to the caller and target Personal Asset Space. Repeating initialization returns the original Upload Session and Quota Reservation, while changing the bound filename, target, size, or Content Digest conflicts. If concurrent initialization races at the unique intent boundary, the losing provider session is aborted or queued for cleanup, its reservation is released, and the winning session is returned. Repeating completion returns the original Managed File result, preventing network retries and page recovery from creating duplicate sessions or quota commitments.

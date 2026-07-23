@@ -22,7 +22,7 @@ async fn self_scope_rejects_out_of_scope_user_object_operations() {
 }
 
 #[tokio::test]
-async fn admin_can_operate_outside_self_scope_user_object() {
+async fn admin_permission_does_not_bypass_self_data_scope_user_object() {
     let repository = user_scope_repository();
     let app = test_app_with_scope(repository.clone(), admin_current_user(), self_data_scope(1, "103"));
 
@@ -32,8 +32,8 @@ async fn admin_can_operate_outside_self_scope_user_object() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(repository.deleted_records(), vec![crate::test_support::user_id(2)]);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(repository.deleted_records(), Vec::new());
 }
 
 fn self_scope_app() -> TestApp {

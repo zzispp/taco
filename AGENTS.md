@@ -7,8 +7,11 @@ This is a Rust and pnpm monorepo.
 - `apps/backend` is the backend composition root and runtime entry.
 - `apps/frontend` is the Next.js admin frontend.
 - Rust workspace members live in `apps/backend` and `crates/*`.
-- Immutable runtime infrastructure configuration lives in the encrypted
-  installation state under the operator-provided data directory.
+- Startup infrastructure configuration lives in the strict YAML file selected
+  by `--config`. `config/config.example.yaml` defines the template and local
+  `config/config.yaml` contains operator values. `data_directory` may be
+  absolute or relative to the YAML file's directory; loading resolves it to an
+  absolute runtime path. The Local File Provider uses `<data_directory>/files`.
 - SQLx migrations live in `migrations/`.
 - Static assets belong under each app's `public/` directory.
 
@@ -21,6 +24,7 @@ Current backend business crates:
 - `crates/system`: system administration bounded context
 - `crates/scheduler`: scheduled job bounded context
 - `crates/captcha`: captcha capability
+- `crates/file`: file-management and asset-storage bounded context
 
 Current backend shared crates:
 
@@ -30,6 +34,7 @@ Current backend shared crates:
 - `crates/storage`: database and storage foundation
 - `crates/types`: shared transport DTOs
 - `crates/constants`, `crates/kernel`, `crates/tracing`: shared support crates
+- `crates/rbac_macros`, `crates/scheduler_macros`: supporting macro crates
 
 Current frontend source layout:
 
@@ -57,8 +62,8 @@ If a requested change does not fit the current boundaries, refactor the boundary
 
 The backend must remain DDD + Clean Architecture.
 
-- `apps/backend` is composition root only: bootstrap, wiring, router assembly, startup, migration commands.
-- Business logic belongs in the owning bounded context crate: `crates/audit`, `crates/observability`, `crates/user`, `crates/rbac`, `crates/system`, `crates/scheduler`, or `crates/captcha`.
+- `apps/backend` is composition root only: wiring, router assembly, startup, migration commands, and administrator-bootstrap CLI orchestration.
+- Business logic belongs in the owning bounded context crate: `crates/audit`, `crates/observability`, `crates/user`, `crates/rbac`, `crates/system`, `crates/scheduler`, `crates/captcha`, or `crates/file`.
 - Inside a bounded context, keep responsibilities separated across `domain`, `application`, `infra`, and `api`.
 - Generic crates such as `audit_contract`, `client_info`, `config`, `storage`, `types`, `constants`, `kernel`, and `tracing` must not absorb bounded-context business rules.
 - Do not move domain decisions into transport DTOs, config loaders, persistence helpers, or HTTP entrypoints.
@@ -72,7 +77,7 @@ Backend placement rule:
 
 ## Constants, Runtime Parameters, And Configuration Boundaries
 
-Constants and runtime parameters must have a single clear owner. Do not duplicate the same semantic value across crates, modules, the encrypted installation profile, and `sys_config`.
+Constants and runtime parameters must have a single clear owner. Do not duplicate the same semantic value across crates, modules, the startup YAML configuration, and `sys_config`.
 
 Constant ownership rules:
 
@@ -85,14 +90,14 @@ Constant ownership rules:
 Runtime parameter rules:
 
 - Parameters that may be changed during operations without a code release belong in `sys_config`.
-- Startup infrastructure configuration belongs in the encrypted installation profile created by the setup wizard. Only the data directory, configuration-encryption key, and optional listener address are bootstrap CLI/environment inputs.
-- A semantic value must not have two active runtime sources. Do not read the same behavior from both the installation profile and `sys_config`.
+- Startup infrastructure configuration belongs exclusively in the strict YAML file passed through `--config`. It has no environment-variable interpolation or implicit defaults, and a YAML change requires a process restart.
+- A semantic value must not have two active runtime sources. Do not read the same behavior from both startup YAML and `sys_config`.
 - Before changing any constant, runtime parameter, business threshold, limit, or policy value, locate all read sites and state the parameter's semantic meaning in one line.
 
 Parsing and validation ownership:
 
 - `sys_config` key constants belong in `crates/constants/src/system_config.rs`.
-- JSON structure, parsing, and validation belong to the owning bounded context or feature crate, not `crates/types`.
+- Startup YAML structure, parsing, and validation belong in `crates/config`. `sys_config` JSON structure, parsing, and validation belong to the owning bounded context or feature crate, not `crates/types`.
 - `apps/backend` is only the composition root: it may inject config providers and adapters, but must not own business parsing or validation logic.
 - Frontend public config types and parsing belong under `apps/frontend/src/entities/system`; shared UI must receive values through props or app-level providers and must not import entity config directly.
 
@@ -100,7 +105,8 @@ Failure and migration rules:
 
 - Missing or invalid required `sys_config` values must fail explicitly. Do not add silent fallback, defensive defaulting, mock success paths, or swallowed parse errors.
 - Migrations or seed data must provide valid defaults so normal deployments have required parameters.
-- Do not edit already-applied migration files for compatibility work. Add a new migration for data conversion, seed changes, or key consolidation.
+- An unpublished development baseline whose database can be rebuilt may be changed destructively only by an explicit project decision. Rebuild the development database and reapply all migrations after changing that baseline.
+- Do not edit migration history already used by a deployed or data-retaining instance. Add a forward migration for its data conversion, seed change, or key consolidation.
 - When changing `sys_config` seeds, update migration tests that assert key existence, public readability, counts, and default JSON shape.
 - Frontend may keep build-time UI defaults only for initial display before runtime parameters load; it must not use defaults to hide invalid runtime parameter data.
 
@@ -143,17 +149,7 @@ Forbidden drift under `apps/frontend/src`:
 
 Internationalization is a cross-cutting transport/UI concern, but business error ownership stays inside the owning bounded context.
 
-Supported backend wire locales:
-
-- `zh-CN`: Simplified Chinese, default fallback
-- `en`: English
-- `zh-TW`: Traditional Chinese
-
-Supported frontend language codes:
-
-- `cn`: maps to backend `zh-CN`
-- `en`: maps to backend `en`
-- `tw`: maps to backend `zh-TW`
+`locale-contract.json` is the single static contract for the default locale, supported URL locales, HTML language tags, and frontend-to-backend locale mapping. Backend locale catalogs and `Locale` normalization must support every `backendLanguage` declared by that contract.
 
 ### Backend Error I18n
 
@@ -163,15 +159,15 @@ Supported frontend language codes:
 - Do not call global `rust_i18n::set_locale` for request handling. Resolve the locale per request and pass/use it explicitly when building the response.
 - HTTP language parsing, locale normalization, request locale middleware, and `ApiErrorResponse` construction helpers belong in `crates/types/src/http`.
 - Shared localizable error payload primitives belong in `crates/kernel`; they must not depend on HTTP, Axum, or a bounded context.
-- Business error keys belong to the owning bounded context. Do not move user/RBAC/system/captcha business rules into `types`, `kernel`, `config`, `storage`, or `apps/backend`.
+- Business error keys belong to the owning bounded context. Do not move user/RBAC/system/captcha/file business rules into `types`, `kernel`, `config`, `storage`, or `apps/backend`.
 - API error mappers belong in each bounded context `api` layer, for example `crates/user/src/api/error.rs`.
 - `apps/backend` may only wire shared middleware and routers after the owning crate provides the behavior.
-- Do not store user-facing English or Chinese sentences in `AppError`, `RbacError`, `SystemError`, `CaptchaError`, or equivalent application errors. Store stable localization keys plus explicit parameters.
+- Do not store user-facing English or Chinese sentences in `AppError`, `RbacError`, `SystemError`, `CaptchaError`, `FileError`, or equivalent application errors. Store stable localization keys plus explicit parameters.
 - Parameterized details must use named parameters, for example `errors.user.import_account_exists` with `{ username }`.
 - Infrastructure errors must not expose raw database, Redis, JWT, IO, or provider error text in API responses. Log/trace the raw error internally, and return stable localized `message/details`.
 - JSON/content-type/body extraction errors must use the same localized API error shape as business errors.
 
-Backend `Accept-Language` normalization rules:
+Current backend `Accept-Language` normalization rules:
 
 - `zh-CN`, `zh-Hans`, `zh`, `cn` -> `zh-CN`
 - `zh-TW`, `zh-Hant`, `zh-HK`, `zh-MO`, `tw` -> `zh-TW`
@@ -180,7 +176,7 @@ Backend `Accept-Language` normalization rules:
 
 When adding or changing backend error keys:
 
-1. Add/update the key in all three catalogs: `zh-CN.yml`, `en.yml`, and `zh-TW.yml`.
+1. Add/update the key in every catalog supported by `crates/types/src/http/locale.rs`.
 2. Update the owning context error construction or mapper.
 3. Add or update tests that assert stable `code/status` and localized `message/details`.
 
@@ -188,15 +184,15 @@ When adding or changing backend error keys:
 
 - Frontend i18n infrastructure belongs in `apps/frontend/src/shared/i18n`.
 - Frontend HTTP language/error handling belongs in `apps/frontend/src/shared/api`.
-- `locale-contract.json` is the single static contract for the default locale, supported URL locales, HTML language tags, and backend wire locales. Frontend code, embedded-backend build logic, and release packaging must consume this file rather than duplicate these values.
+- Frontend code, embedded-backend build logic, and release packaging must consume `locale-contract.json` rather than duplicating locale code or frontend-to-backend mapping values.
 - Do not create top-level `locales`, `i18n`, `global-config`, or other parallel language folders outside the FSD `shared` layer.
-- Language resources must stay under `apps/frontend/src/shared/i18n/langs/{cn,en,tw}/`.
-- Each supported language must provide the same namespace files: `common.json`, `messages.json`, `admin.json`, and `navbar.json`.
+- Language resources must stay under `apps/frontend/src/shared/i18n/langs/<locale-contract-code>/`.
+- Each supported language must provide every namespace declared by `I18N_NAMESPACES` in `apps/frontend/src/shared/i18n/types.ts`. The `admin` namespace is composed through the established loader and may use `admin.json` plus `admin-*.json` resource files.
 - Add UI copy to the namespace and slice that already owns the feature. Do not hardcode visible user-facing text in components when the surrounding feature uses i18n.
-- `tw` resources should be Traditional Chinese equivalents of the existing Simplified Chinese copy unless the feature explicitly requires different wording.
-- Frontend language normalization must map `zh-TW`, `zh-HK`, `zh-Hant`, and `tw` to `tw`; `zh-CN`, `zh-Hans`, `zh`, and `cn` to `cn`; and `en-*` to `en`.
-- URL locale is the sole frontend language source. `/cn`, `/en`, and `/tw` are independently addressable sites; language switching must preserve the current internal path through Next client navigation.
-- The API client must derive `Accept-Language` from the leading URL locale, mapped as `cn -> zh-CN`, `en -> en`, `tw -> zh-TW`. It must not read or write `localStorage.i18nextLng`, and must not set the header for a path without a supported locale prefix.
+- Non-default locale resources should be equivalent localized copy unless the feature explicitly requires different wording.
+- Frontend language normalization must resolve input against the URL locale codes and document-language values declared by `locale-contract.json`; do not hardcode the current locale set.
+- URL locale is the sole frontend language source. Each `/<locale-contract-code>/` site is independently addressable, and language switching must preserve the current internal path through Next client navigation.
+- The API client must derive `Accept-Language` from the leading URL locale through that contract's `backendLanguage`. It must not read or write `localStorage.i18nextLng`, and must not set the header for a path without a supported locale prefix.
 - API error normalization must prefer backend localized details: `data.details ?? data.message ?? axios message`.
 - Normalized frontend errors must preserve `status`, `code`, and `details` for auth guards, forms, and toast logic.
 - Auth/session rejection must not compare localized or English error text. Use `status === 401` or `code === 'unauthorized'`.
@@ -213,6 +209,8 @@ When adding or changing backend error keys:
 - `just quality-precommit`: run the mandatory Rust pre-commit gate.
 - `just quality-complete`: run the mandatory Rust completion gate.
 - `just install-git-hooks`: install the repository native Git pre-commit hook.
+
+Rust integration tests read their PostgreSQL administrative connection from the untracked local `config/config.yaml`. Each test creates and drops an isolated temporary database; the configured user must be able to create databases, terminate connections, and drop databases.
 
 ## Rust Quality Gates
 
@@ -236,7 +234,7 @@ Frontend unit tests use Vitest. Run `pnpm --filter frontend test` for frontend b
 
 Rust tests should be colocated with the crate they validate using normal `#[cfg(test)]` modules or integration tests when a public API boundary is required.
 
-Run `just test` before submitting Rust changes, and keep tests deterministic and under the configured timeout.
+Keep Rust tests deterministic and under the configured timeout.
 
 ## Commit & Pull Request Guidelines
 
@@ -250,4 +248,4 @@ Pull requests should describe the change, list validation commands run, link rel
 
 Do not commit secrets or local credentials.
 
-Keep immutable runtime infrastructure configuration in the encrypted installation state and operationally mutable parameters in `sys_config`. Document any new bootstrap input or installation field in the relevant app or crate README.
+Keep startup infrastructure configuration in the strict YAML file passed through `--config` and operationally mutable parameters in `sys_config`. Do not commit local credentials; document new YAML fields and their restart semantics in the relevant app or crate README.

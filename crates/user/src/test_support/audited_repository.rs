@@ -3,7 +3,7 @@ use audit_contract::{AuditOutboxEvent, AuditOutboxRecord};
 
 use crate::{
     application::{AppResult, AuditedUserRepository, ReplaceUserRecord, UserImportWrite, UserRepository},
-    domain::{ProfileUpdate, User, UserId},
+    domain::{AvatarFileId, ProfileUpdate, User, UserId},
 };
 
 use super::MemoryUserRepository;
@@ -27,6 +27,7 @@ impl AuditedUserRepository for MemoryUserRepository {
                 UserImportWrite::Replace { id, user } => replace_imported_user(&mut transaction, id, user)?,
             }
         }
+        super::ensure_admin_continuity(&state, &transaction)?;
         transaction.audits.push(audit.clone());
         *state = transaction;
         Ok(())
@@ -74,7 +75,7 @@ impl AuditedUserRepository for MemoryUserRepository {
         Ok(result)
     }
 
-    async fn update_avatar_with_audit(&self, id: UserId, avatar: String, audit: &AuditOutboxRecord) -> AppResult<User> {
+    async fn update_avatar_with_audit(&self, id: UserId, avatar: AvatarFileId, audit: &AuditOutboxRecord) -> AppResult<User> {
         self.ensure_audit_available()?;
         let result = <Self as UserRepository>::update_avatar(self, id, avatar).await?;
         self.record_audit(audit);

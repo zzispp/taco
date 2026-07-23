@@ -39,3 +39,6 @@ VALUES (
     '1093', '调度日志详情', '109', 4, '#', '', '', '',
     FALSE, FALSE, 'F', '0', '0', 'system:job:log:detail', '#', 'admin', CURRENT_TIMESTAMP, ''
 );
+
+INSERT INTO sys_role_menu (role_id, menu_id)
+VALUES ('admin', '1093');

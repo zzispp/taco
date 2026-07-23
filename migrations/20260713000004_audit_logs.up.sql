@@ -155,7 +155,7 @@ VALUES
     ('1132', '账户解锁', '113', 3, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:logininfor:unlock', '#', 'admin', CURRENT_TIMESTAMP, '清除账户密码失败计数');
 
 INSERT INTO sys_role_menu (role_id, menu_id)
-SELECT '2', menu_id
+SELECT 'admin', menu_id
 FROM sys_menu
 WHERE menu_id IN ('111', '112', '113', '1120', '1121', '1122', '1130', '1131', '1132');
 

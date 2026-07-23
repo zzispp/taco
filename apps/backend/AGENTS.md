@@ -2,29 +2,29 @@
 
 ## Backend Scope
 
-- `apps/backend` is the Axum binary and composition root.
-- Keep runtime wiring here: load `configuration::Settings`, connect storage, build repositories, services, token settings, and routes.
-- Keep business rules in the shared crates under `crates/*`; do not move domain behavior into `main.rs`.
+- `apps/backend` is the `taco` command binary and composition root.
+- Keep runtime wiring and command orchestration here: load `configuration::Settings`, connect storage, build repositories, services, token settings, routes, migration commands, and administrator bootstrap.
+- Keep business rules in their owning bounded-context crates under `crates/*`; do not move domain behavior into `main.rs`, command parsing, or composition wiring.
 - When backend work touches shared crates, follow the root `AGENTS.md` plus any crate-local instructions.
 
 ## Architecture Rules
 
 - Inject concrete infrastructure at the composition root; application and domain logic should depend on traits or explicit parameters.
-- Do not hardcode secrets, credentials, ports, or database URLs in source. Use configuration or environment-backed settings.
+- Do not hardcode secrets, credentials, ports, or database URLs in source. Use the typed YAML configuration selected through `--config`; backend runtime settings must not come from environment variables.
 - Let startup failures fail loudly with clear messages. Do not add silent fallbacks for missing config, database connection errors, or schema setup failures.
 - In API, application, and storage layers, propagate typed errors instead of using `unwrap`, `expect`, or stringly-typed error checks.
 - Never silently discard fallible results. Use `?`, explicit `match`, or visible logging when an operation is intentionally best-effort.
-- Async failures should propagate to the API boundary so callers receive meaningful error responses.
+- Request-path failures should propagate to the API boundary, CLI failures to the command boundary, and background failures must remain observable through their defined lifecycle and health behavior.
 - Prefer private modules with explicit public crate exports.
 - Newly added traits must have doc comments that explain their role and implementation expectations.
 - Keep modules focused and small. Extract helpers when validation, mapping, or routing code starts mixing responsibilities.
 
 ## Logging Rules
 
-- Backend code must use the internal `taco_tracing` crate for logging. Do not call `println!`, `eprintln!`, `dbg!`, `log::*`, `tracing::*`, or `tracing_subscriber::*` directly from backend modules.
+- Production backend code must use the internal `taco_tracing` crate for logging. Do not call `println!`, `eprintln!`, `dbg!`, `log::*`, `tracing::*`, or `tracing_subscriber::*` directly from production backend modules; isolated tracing integration tests may install a test subscriber.
 - Initialize tracing exactly once in the backend composition root after schema readiness and loading `sys.observability.tracingConfig` from PostgreSQL.
 - Tracing runtime behavior must be driven solely by the persisted observability parameter. Invalid logging configuration must fail startup or parameter updates explicitly; do not fall back to environment variables or a hardcoded default.
-- Add operationally mutable logging controls to the observability runtime parameter schema and seed migration, not the immutable encrypted installation profile.
+- Add operationally mutable logging controls to the observability runtime parameter schema and seed migration, not the strict startup YAML configuration.
 
 ## Rust Style Rules
 
@@ -69,6 +69,7 @@
 
 - Review the change for simplification: remove dead code, reduce duplication, and keep the diff focused on the requested behavior.
 - Avoid unrelated refactors, drive-by cleanups, and formatting-only churn.
+- `just test` reads its PostgreSQL administrative connection from local `config/config.yaml`; its configured user must be able to create isolated test databases, terminate their connections, and drop them.
 - Run `just test` before finishing backend work so the repository 60-second timeout wrapper is used.
 - Run `cargo clippy -p backend --all-targets -- -D warnings` for changes in this app; use the relevant crate name when backend behavior changes in `crates/*`.
 - If Rust dependencies change, include the generated `Cargo.lock` update and run `cargo check`.

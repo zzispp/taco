@@ -1,7 +1,7 @@
 use configuration::{
     AuditOutboxSettings, AuditSettings, ClientInfoSettings, ClientIpLocationSettings, DatabaseScheme, DatabaseSettings, DatabaseSslMode, HttpSettings,
     JwtSettings, MetricsSettings, OnlineSessionSettings, RedisProtocol, RedisScheme, RedisSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings,
-    SchedulerSettings, ServerSettings, Settings, UploadSettings, UserSettings,
+    SchedulerSettings, ServerSettings, Settings, UserSettings,
 };
 
 const TEST_SERVER_PORT: u16 = 3_000;
@@ -21,6 +21,7 @@ const TEST_JWT_SECRET: &str = "config-test-jwt-secret-32-bytes!";
 
 pub(crate) fn test_settings() -> Settings {
     Settings {
+        data_directory: "test-storage".into(),
         server: ServerSettings {
             host: "127.0.0.1".into(),
             port: TEST_SERVER_PORT,
@@ -44,9 +45,6 @@ pub(crate) fn test_settings() -> Settings {
         client_info: client_info_settings(),
         redis: redis_settings(),
         scheduler: scheduler_settings(),
-        uploads: UploadSettings {
-            avatar_directory: "test-storage/uploads/avatars".into(),
-        },
     }
 }
 
@@ -87,6 +85,7 @@ fn database_settings() -> DatabaseSettings {
         username: "postgres".into(),
         password: "postgres".into(),
         name: "postgres".into(),
+        auto_migrate: false,
     }
 }
 

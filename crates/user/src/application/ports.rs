@@ -1,5 +1,5 @@
-use super::{AppResult, AvatarConfig, LoginLockConfig, PasswordPolicy};
-use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfile, UserProfileGroups};
+use super::{AppResult, AvatarConfig, BootstrapAdministratorOutcome, BootstrapAdministratorRecord, LoginLockConfig, PasswordPolicy};
+use crate::domain::{AvatarFileId, Credentials, NewUser, ProfileUpdate, ReplaceUser, User, UserFormOptions, UserId, UserProfile, UserProfileGroups};
 use async_trait::async_trait;
 use audit_contract::AuditOutboxRecord;
 use kernel::pagination::{CursorPage, CursorPageRequest};
@@ -30,7 +30,7 @@ pub struct UserListFilter {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UserExportRequest {
     pub filter: UserListFilter,
-    pub scope: Option<DataScopeFilter>,
+    pub scope: DataScopeFilter,
     pub batch_size: u64,
 }
 
@@ -65,7 +65,6 @@ pub struct AuthorizationUser {
     pub username: String,
     pub dept_id: Option<String>,
     pub status: String,
-    pub is_installation_owner: bool,
     pub role_keys: Vec<String>,
     pub permissions: Vec<String>,
 }
@@ -77,7 +76,6 @@ impl AuthorizationUser {
             username: user.username,
             dept_id: user.dept_id,
             status: user.status,
-            is_installation_owner: user.is_installation_owner,
             role_keys: user.roles.into_iter().map(|role| role.role_key).collect(),
             permissions: user.permissions,
         }
@@ -142,13 +140,6 @@ impl UserImportMessage {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AvatarFile {
-    pub filename: Option<String>,
-    pub content_type: Option<String>,
-    pub bytes: Vec<u8>,
-}
-
 #[async_trait]
 pub trait UserRepository: Send + Sync + 'static {
     async fn create(&self, user: ReplaceUserRecord) -> AppResult<User>;
@@ -162,7 +153,6 @@ pub trait UserRepository: Send + Sync + 'static {
     async fn find_auth_by_email(&self, email: &str) -> AppResult<Option<UserAuthRecord>>;
     async fn find_auth_by_id(&self, id: UserId) -> AppResult<Option<UserAuthRecord>>;
     async fn find_authorization_by_id(&self, id: UserId) -> AppResult<Option<AuthorizationUser>>;
-    async fn is_installation_owner(&self, id: &UserId) -> AppResult<bool>;
     async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()>;
     async fn list(&self, filter: UserListFilter) -> AppResult<CursorPage<User>>;
     async fn list_scoped(&self, filter: UserListFilter, scope: DataScopeFilter) -> AppResult<CursorPage<User>>;
@@ -170,21 +160,26 @@ pub trait UserRepository: Send + Sync + 'static {
     async fn export_users(&self, request: UserExportRequest, sink: &mut dyn UserExportSink) -> AppResult<()>;
     async fn update_password(&self, id: UserId, password_hash: String) -> AppResult<()>;
     async fn update_profile(&self, id: UserId, profile: ProfileUpdate) -> AppResult<User>;
-    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User>;
+    async fn update_avatar(&self, id: UserId, avatar: AvatarFileId) -> AppResult<User>;
     async fn update_status(&self, id: UserId, status: String) -> AppResult<User>;
     async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> AppResult<User>;
     async fn profile_groups(&self, id: UserId) -> AppResult<UserProfileGroups>;
     async fn form_options(&self) -> AppResult<UserFormOptions>;
 }
 
+#[async_trait]
+/// Persists the protected system administrator bootstrap operation atomically.
+///
+/// Implementations must determine whether an enabled protected administrator already exists and,
+/// when absent, create the user with the protected administrator role in one transaction.
+pub trait BootstrapAdministratorRepository: Send + Sync + 'static {
+    async fn has_enabled_system_administrator(&self) -> AppResult<bool>;
+    async fn create_system_administrator_if_absent(&self, record: BootstrapAdministratorRecord) -> AppResult<BootstrapAdministratorOutcome>;
+}
+
 pub trait PasswordHasher: Send + Sync + 'static {
     fn hash(&self, password: &str) -> AppResult<String>;
     fn verify(&self, password: &str, password_hash: &str) -> AppResult<bool>;
-}
-
-#[async_trait]
-pub trait AvatarStorage: Send + Sync + 'static {
-    async fn store_avatar(&self, file: AvatarFile, max_bytes: usize) -> AppResult<String>;
 }
 
 #[async_trait]
@@ -245,8 +240,8 @@ pub trait UserUseCase: Send + Sync + 'static {
     async fn update_profile_with_audit(&self, id: UserId, profile: ProfileUpdate, audit: AuditOutboxRecord) -> AppResult<User>;
     async fn change_password(&self, id: UserId, old_password: String, new_password: String) -> AppResult<()>;
     async fn change_password_with_audit(&self, input: super::AuditedPasswordChange) -> AppResult<()>;
-    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User>;
-    async fn update_avatar_with_audit(&self, id: UserId, avatar: String, audit: AuditOutboxRecord) -> AppResult<User>;
+    async fn update_avatar(&self, id: UserId, avatar: AvatarFileId) -> AppResult<User>;
+    async fn update_avatar_with_audit(&self, id: UserId, avatar: AvatarFileId, audit: AuditOutboxRecord) -> AppResult<User>;
     async fn create_user(&self, input: NewUser) -> AppResult<User>;
     async fn create_user_with_audit(&self, input: NewUser, audit: AuditOutboxRecord) -> AppResult<User>;
     async fn replace_user(&self, id: UserId, input: ReplaceUser) -> AppResult<User>;

@@ -3,7 +3,7 @@ import type { CursorPageResponse } from './types';
 import type { QueryParams, CursorPageRequest } from './pagination';
 
 import useSWR from 'swr';
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import { fetcher } from './http-client';
 import { cursorQuery } from './pagination';
@@ -36,22 +36,28 @@ export type CursorResourceState<T> = Readonly<{
 
 type CursorResourceKey = readonly [string, AxiosRequestConfig, string];
 
+export type RefreshableCursorResourceState<T> = CursorResourceState<T> &
+  Readonly<{ refresh: () => Promise<void> }>;
+
 export function useCursorResource<T>({
   endpoint,
   request,
   params = {},
   context = '',
   keepPreviousData = true,
-}: CursorResourceOptions): CursorResourceState<T> {
-  const { data, isLoading, error, isValidating } = useSWR<CursorPageResponse<T>>(
+}: CursorResourceOptions): RefreshableCursorResourceState<T> {
+  const { data, isLoading, error, isValidating, mutate } = useSWR<CursorPageResponse<T>>(
     cursorResourceKey({ endpoint, request, params, context, keepPreviousData }),
     fetchCursorPage,
     cursorResourceConfig(keepPreviousData)
   );
+  const refresh = useCallback(async () => {
+    await mutate();
+  }, [mutate]);
 
   return useMemo(
-    () => cursorResourceState(data, { isLoading, error, isValidating }),
-    [data, error, isLoading, isValidating]
+    () => ({ ...cursorResourceState(data, { isLoading, error, isValidating }), refresh }),
+    [data, error, isLoading, isValidating, refresh]
   );
 }
 

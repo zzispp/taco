@@ -9,8 +9,6 @@ import { themeConfig, ThemeProvider } from 'src/shared/theme';
 import { MotionLazy } from 'src/shared/ui/animate/motion-lazy';
 import { SettingsDrawer, defaultSettings, SettingsProvider } from 'src/shared/ui/settings';
 
-import { ApplicationSetupGate } from 'src/app/installation/application-setup-gate';
-
 import { AuthProvider } from './auth-provider';
 import { AppSettingsProvider } from './settings-provider';
 
@@ -21,33 +19,25 @@ type ApplicationProvidersProps = Readonly<{
 export function ApplicationProviders({ children }: ApplicationProvidersProps) {
   return (
     <SettingsProvider defaultSettings={defaultSettings}>
-      <ApplicationSetupGate>
-        <InstalledApplicationProviders>{children}</InstalledApplicationProviders>
-      </ApplicationSetupGate>
+      <AuthProvider>
+        <AppSettingsProvider>
+          <LocalizationProvider>
+            <AppRouterCacheProvider options={{ key: 'css' }}>
+              <ThemeProvider
+                modeStorageKey={themeConfig.modeStorageKey}
+                defaultMode={themeConfig.defaultMode}
+              >
+                <MotionLazy>
+                  <Snackbar />
+                  <ProgressBar />
+                  <SettingsDrawer />
+                  {children}
+                </MotionLazy>
+              </ThemeProvider>
+            </AppRouterCacheProvider>
+          </LocalizationProvider>
+        </AppSettingsProvider>
+      </AuthProvider>
     </SettingsProvider>
-  );
-}
-
-function InstalledApplicationProviders({ children }: ApplicationProvidersProps) {
-  return (
-    <AuthProvider>
-      <AppSettingsProvider>
-        <LocalizationProvider>
-          <AppRouterCacheProvider options={{ key: 'css' }}>
-            <ThemeProvider
-              modeStorageKey={themeConfig.modeStorageKey}
-              defaultMode={themeConfig.defaultMode}
-            >
-              <MotionLazy>
-                <Snackbar />
-                <ProgressBar />
-                <SettingsDrawer />
-                {children}
-              </MotionLazy>
-            </ThemeProvider>
-          </AppRouterCacheProvider>
-        </LocalizationProvider>
-      </AppSettingsProvider>
-    </AuthProvider>
   );
 }

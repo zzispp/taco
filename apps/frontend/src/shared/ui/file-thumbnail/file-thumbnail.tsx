@@ -28,10 +28,11 @@ export function FileThumbnail({
 }: FileThumbnailProps) {
   const fileMeta = getFileMeta(file);
 
-  const previewEnabled = !previewUrlProp && !!file;
+  const hasPreviewUrlProp = previewUrlProp !== undefined;
+  const previewEnabled = !hasPreviewUrlProp && !!file && !!showImage && fileMeta.format === 'image';
   const { previewUrl } = useFilePreview(previewEnabled ? file : null);
 
-  const imageSrc = previewUrlProp ?? previewUrl;
+  const imageSrc = hasPreviewUrlProp ? previewUrlProp : previewUrl;
   const canShowImage = fileMeta.format === 'image' && !!showImage && imageSrc;
 
   const tooltipProps = slotProps?.tooltip;

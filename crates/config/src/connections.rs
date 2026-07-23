@@ -103,11 +103,7 @@ fn set_redis_options(url: &mut Url, settings: &RedisSettings) -> Result<(), Sett
 }
 
 fn required<'a>(key: &'static str, value: &'a str) -> Result<&'a str, SettingsError> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(SettingsError::BlankConfigValue(key));
-    }
-    Ok(value)
+    crate::settings::validated_config_value(key, value)
 }
 
 fn require_secret(key: &'static str, value: &str) -> Result<(), SettingsError> {

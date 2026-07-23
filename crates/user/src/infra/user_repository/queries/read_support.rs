@@ -1,9 +1,10 @@
+use crate::{
+    domain::User,
+    infra::user_repository::{mapping::user, record::UserRecord, sql},
+};
 use rbac::domain::DataScopeFilter;
 use sqlx::{AssertSqlSafe, query_as, query_scalar};
 use storage::{StorageError, StorageResult};
-use types::user::User;
-
-use crate::infra::user_repository::{mapping::user, record::UserRecord, sql};
 
 use super::{UserQueries, relations};
 

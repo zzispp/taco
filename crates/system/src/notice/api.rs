@@ -108,7 +108,7 @@ pub async fn get_notice(State(state): State<NoticeApiState>, Extension(current_u
 }
 
 fn can_view_closed_notice(current_user: &CurrentUser) -> bool {
-    current_user.is_installation_owner || current_user.permissions.iter().any(|permission| permission == NOTICE_QUERY_PERMISSION)
+    current_user.permissions.iter().any(|permission| permission == NOTICE_QUERY_PERMISSION)
 }
 
 #[require_perms("system:notice:add")]

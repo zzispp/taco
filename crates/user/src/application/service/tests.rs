@@ -10,10 +10,10 @@ use kernel::pagination::MAX_CURSOR_LIMIT;
 use rbac::domain::{DataScope, DataScopeFilter};
 
 mod admin;
+mod admin_continuity;
 mod audited;
 mod auth;
-mod installation_owner;
-mod owner_protection;
+mod bootstrap;
 mod profile;
 mod support;
 

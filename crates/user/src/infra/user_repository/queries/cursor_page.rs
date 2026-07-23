@@ -1,15 +1,14 @@
+use crate::application::{
+    AppResult, UserListFilter,
+    cursor::{UserCursorCodec, UserCursorPoint, UserDecodedCursor, timestamp_from_nanos, timestamp_nanos},
+};
+use crate::domain::User;
+use crate::infra::user_repository::{filter_sql, mapping, record::UserRecord};
 use kernel::pagination::{CursorDirection, CursorPage};
 use rbac::domain::DataScopeFilter;
 use sqlx::{AssertSqlSafe, query_as};
 use storage::{StorageError, StorageResult, database::to_i64};
 use time::OffsetDateTime;
-use types::user::User;
-
-use crate::application::{
-    AppResult, UserListFilter,
-    cursor::{UserCursorCodec, UserCursorPoint, UserDecodedCursor, timestamp_from_nanos, timestamp_nanos},
-};
-use crate::infra::user_repository::{filter_sql, mapping, record::UserRecord};
 
 use super::UserQueries;
 

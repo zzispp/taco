@@ -1,9 +1,13 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{DatabaseScheme, DatabaseSslMode, RedisProtocol, RedisScheme, SettingsError};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Settings {
+    pub data_directory: PathBuf,
     pub server: ServerSettings,
     pub database: DatabaseSettings,
     pub jwt: JwtSettings,
@@ -14,10 +18,10 @@ pub struct Settings {
     pub client_info: ClientInfoSettings,
     pub redis: RedisSettings,
     pub scheduler: SchedulerSettings,
-    pub uploads: UploadSettings,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServerSettings {
     pub host: String,
     pub port: u16,
@@ -33,6 +37,7 @@ pub struct DatabaseSettings {
     pub username: String,
     pub password: String,
     pub name: String,
+    pub auto_migrate: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -142,15 +147,28 @@ pub struct RedisSettings {
     pub key_prefix: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UploadSettings {
-    pub avatar_directory: String,
+pub(crate) fn required_config_value(key: &'static str, value: &str) -> Result<String, SettingsError> {
+    validated_config_value(key, value).map(str::to_owned)
 }
 
-pub(crate) fn required_config_value(key: &'static str, value: &str) -> Result<String, SettingsError> {
+pub(crate) fn validated_config_value<'a>(key: &'static str, value: &'a str) -> Result<&'a str, SettingsError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return Err(SettingsError::BlankConfigValue(key));
     }
-    Ok(trimmed.to_owned())
+    if is_example_placeholder(trimmed) {
+        return Err(SettingsError::PlaceholderConfigValue(key));
+    }
+    if contains_environment_interpolation(trimmed) {
+        return Err(SettingsError::EnvironmentInterpolation(key));
+    }
+    Ok(trimmed)
+}
+
+fn is_example_placeholder(value: &str) -> bool {
+    value.len() > 2 && value.starts_with('<') && value.ends_with('>')
+}
+
+fn contains_environment_interpolation(value: &str) -> bool {
+    value.contains("${")
 }

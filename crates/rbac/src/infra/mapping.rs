@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use constants::system::LAST_ENABLED_ADMIN_REQUIRED_CONFLICT;
 use kernel::error::LocalizedError;
 use storage::StorageError;
 
@@ -81,22 +82,19 @@ pub fn menu(record: MenuRecord) -> Menu {
     }
 }
 
-pub fn permission_snapshot(
-    permission_rows: Vec<RolePermissionRecord>,
-    dept_rows: Vec<RoleDeptRecord>,
-    menu_rows: Vec<RoleMenuRecord>,
-    installation_owner_menu_rows: Vec<RoleMenuRecord>,
-) -> PermissionSnapshot {
+pub fn permission_snapshot(permission_rows: Vec<RolePermissionRecord>, dept_rows: Vec<RoleDeptRecord>, menu_rows: Vec<RoleMenuRecord>) -> PermissionSnapshot {
     PermissionSnapshot {
         roles: role_permissions(permission_rows, dept_rows),
         menus: role_menus(menu_rows),
-        installation_owner_menus: nav_sections(installation_owner_menu_rows),
     }
 }
 
 pub fn storage_error(error: StorageError) -> RbacError {
     match error {
         StorageError::NotFound => RbacError::NotFound,
+        StorageError::Conflict(code) if code == LAST_ENABLED_ADMIN_REQUIRED_CONFLICT => {
+            RbacError::Conflict(LocalizedError::new("errors.rbac.last_enabled_admin_required"))
+        }
         StorageError::Conflict(_) => RbacError::Conflict(LocalizedError::new("errors.common.conflict")),
         StorageError::UniqueViolation { constraint, message } => rbac_unique_violation(constraint.as_deref(), message),
         StorageError::Database(message) => RbacError::Infrastructure(message),

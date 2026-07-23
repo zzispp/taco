@@ -40,7 +40,7 @@ VALUES
     ('1103', '公告删除', '110', 4, '#', '', '', '', FALSE, FALSE, 'F', '0', '0', 'system:notice:remove', '#', 'admin', CURRENT_TIMESTAMP, '');
 
 INSERT INTO sys_role_menu (role_id, menu_id)
-SELECT '2', menu_id
+SELECT 'admin', menu_id
 FROM sys_menu
 WHERE menu_id IN ('110', '1100', '1101', '1102', '1103');
 

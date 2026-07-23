@@ -6,6 +6,30 @@ use time::OffsetDateTime;
 
 use super::TaskExecutionFailure;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FileTrashCleanupResult {
+    pub purged_entries: u64,
+    pub blocked_roots: u64,
+    pub deleted_objects: u64,
+    pub failed_objects: u64,
+    pub retried_provider_cleanups: u64,
+    pub failed_provider_cleanups: u64,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FileUploadSessionCleanupResult {
+    pub expired_sessions: u64,
+    pub reconciled_sessions: u64,
+    pub retried_provider_cleanups: u64,
+    pub failed_provider_cleanups: u64,
+}
+
+#[async_trait]
+pub trait FileCleanupPort: Send + Sync + 'static {
+    async fn purge_trash(&self, retention_days: u64, batch_size: u64) -> Result<FileTrashCleanupResult, TaskExecutionFailure>;
+    async fn cleanup_upload_sessions(&self, batch_size: u64) -> Result<FileUploadSessionCleanupResult, TaskExecutionFailure>;
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutboundHttpRequest {
     pub method: String,

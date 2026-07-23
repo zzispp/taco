@@ -42,11 +42,11 @@ impl Settings {
     }
 
     pub(crate) fn validate(&self) -> Result<(), SettingsError> {
+        validate_data_directory(&self.data_directory)?;
         crate::settings::required_config_value("server.host", &self.server.host)?;
         positive("server.port", self.server.port)?;
         self.database_url()?;
         self.redis_url()?;
-        crate::settings::required_config_value("uploads.avatar_directory", &self.uploads.avatar_directory)?;
         self.jwt_secret()?;
         self.http_config()?;
         self.scheduler_config()?;
@@ -55,6 +55,23 @@ impl Settings {
         self.client_info_config()?;
         Ok(())
     }
+}
+
+fn validate_data_directory(path: &std::path::Path) -> Result<(), SettingsError> {
+    validate_data_directory_value(path)?;
+    if !path.is_absolute() {
+        return Err(SettingsError::RelativeDataDirectory);
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_data_directory_value(path: &std::path::Path) -> Result<(), SettingsError> {
+    if path.as_os_str().is_empty() {
+        return Err(SettingsError::BlankConfigValue("data_directory"));
+    }
+    let value = path.to_string_lossy();
+    crate::settings::validated_config_value("data_directory", &value)?;
+    Ok(())
 }
 
 fn positive(key: &'static str, value: impl PartialEq + From<u8>) -> Result<(), SettingsError> {

@@ -58,6 +58,7 @@ fn collect_endpoint_specs() -> Vec<EndpointSpec> {
     specs.extend(scheduler::api::endpoint_specs().iter().copied());
     specs.extend(audit::api::endpoint_specs().iter().copied());
     specs.extend(observability::api::endpoint_specs().iter().copied());
+    specs.extend(file::api::endpoint_specs().iter().copied());
     specs
 }
 
@@ -104,7 +105,7 @@ mod tests {
 
     use super::{EndpointCatalog, collect_endpoint_specs};
 
-    const EXPECTED_OPERATION_ENDPOINTS: usize = 87;
+    const EXPECTED_OPERATION_ENDPOINTS: usize = 99;
 
     #[test]
     fn matcher_distinguishes_methods_on_the_same_dynamic_route() {
@@ -161,7 +162,10 @@ mod tests {
     #[test]
     fn aggregate_manifest_covers_all_management_operations_and_explicit_read_only_posts() {
         let specs = collect_endpoint_specs();
-        let operations = specs.iter().filter(|spec| matches!(spec.audit, EndpointAudit::Operation(_))).count();
+        let operations = specs
+            .iter()
+            .filter(|spec| matches!(spec.audit, EndpointAudit::Operation(_) | EndpointAudit::Download(_)))
+            .count();
 
         assert_eq!(operations, EXPECTED_OPERATION_ENDPOINTS);
         assert_read_only_post(&specs, "/api/system/users/import-template");

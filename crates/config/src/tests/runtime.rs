@@ -101,6 +101,7 @@ fn full_settings_validation_rejects_blank_connection_and_derived_storage_values(
             ..database_parts()
         }),
         Settings {
+            data_directory: "/var/lib/taco".into(),
             redis: RedisSettings {
                 host: " ".into(),
                 ..redis_settings()
@@ -108,14 +109,11 @@ fn full_settings_validation_rejects_blank_connection_and_derived_storage_values(
             ..valid_settings()
         },
         Settings {
+            data_directory: "/var/lib/taco".into(),
             redis: RedisSettings {
                 key_prefix: " ".into(),
                 ..redis_settings()
             },
-            ..valid_settings()
-        },
-        Settings {
-            uploads: UploadSettings { avatar_directory: " ".into() },
             ..valid_settings()
         },
     ];
@@ -126,7 +124,6 @@ fn full_settings_validation_rejects_blank_connection_and_derived_storage_values(
         "database.name",
         "redis.host",
         "redis.key_prefix",
-        "uploads.avatar_directory",
     ];
 
     for (settings, key) in cases.into_iter().zip(keys) {

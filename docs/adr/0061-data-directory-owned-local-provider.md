@@ -1,0 +1,3 @@
+# Keep Local Provider data under the configured data directory
+
+The Local Provider derives one fixed root at `<data_directory>/files`, separating completed objects, Upload Parts, and derivatives into internal subdirectories. `data_directory` is a value in the strict startup YAML loaded through `--config`; a relative value is resolved from that YAML file's directory before runtime receives an absolute path. Operators do not configure a second local path, and a YAML change requires a Taco restart. No subdirectory is mounted with `ServeDir`; authenticated File Management APIs and Avatar Projections mediate every read. Moving a deployment therefore requires the configured data directory and its contents, not an additional runtime source.

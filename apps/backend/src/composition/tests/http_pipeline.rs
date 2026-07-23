@@ -16,12 +16,12 @@ use axum::{
     extract::{ConnectInfo, Request},
     http::{HeaderValue, Method, StatusCode, header},
     middleware::{self, Next},
-    response::Response,
+    response::{IntoResponse, Response},
     routing::post,
 };
 use tower::ServiceExt;
 
-use super::super::http_pipeline::{RuntimeLayerParts, apply_runtime_layers, apply_setup_layers_with_timeout};
+use super::super::http_pipeline::{RuntimeLayerParts, apply_runtime_layers};
 
 const TEST_TIMEOUT_MS: u64 = 5;
 const SLOW_DELAY_MS: u64 = 30;
@@ -31,6 +31,7 @@ const SUCCESS_PATH: &str = "/api/__composition-metrics-success";
 const TIMEOUT_PATH: &str = "/api/__composition-metrics-timeout";
 const STATIC_PATH: &str = "/uploads/avatars/avatar.png";
 const DOCS_PATH: &str = "/docs";
+const AVATAR_PROJECTION_PATH: &str = "/api/avatars/user-1/1";
 
 #[derive(Clone, Default)]
 struct MemoryRecorder(Arc<Mutex<Vec<AuditOutboxRecord>>>);
@@ -150,22 +151,14 @@ async fn metrics_cover_success_and_timeout_responses() {
 }
 
 #[tokio::test]
-async fn setup_pipeline_uses_a_request_timeout() {
-    let app = apply_setup_layers_with_timeout(Router::new().route(TIMEOUT_PATH, post(slow_handler)), Duration::from_millis(TEST_TIMEOUT_MS));
-
-    let response = app.oneshot(request(TIMEOUT_PATH)).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
-}
-
-#[tokio::test]
 async fn browser_security_headers_are_global_with_route_specific_cache_and_csp() {
     let settings = super::test_settings();
     let metrics = None;
     let routes = Router::new()
         .route(SUCCESS_PATH, post(ok_handler))
         .route(STATIC_PATH, post(ok_handler))
-        .route(DOCS_PATH, post(ok_handler));
+        .route(DOCS_PATH, post(ok_handler))
+        .route(AVATAR_PROJECTION_PATH, post(avatar_handler));
     let app = apply_runtime_layers(
         routes,
         RuntimeLayerParts {
@@ -190,9 +183,10 @@ async fn browser_security_headers_are_global_with_route_specific_cache_and_csp()
         .await
         .unwrap();
     let static_asset = app.clone().oneshot(request(STATIC_PATH)).await.unwrap();
-    let docs = app.oneshot(request(DOCS_PATH)).await.unwrap();
+    let docs = app.clone().oneshot(request(DOCS_PATH)).await.unwrap();
+    let avatar = app.oneshot(request(AVATAR_PROJECTION_PATH)).await.unwrap();
 
-    for response in [&api, &static_asset, &docs] {
+    for response in [&api, &static_asset, &docs, &avatar] {
         assert_eq!(
             response.headers().get(header::X_CONTENT_TYPE_OPTIONS),
             Some(&HeaderValue::from_static("nosniff"))
@@ -208,6 +202,10 @@ async fn browser_security_headers_are_global_with_route_specific_cache_and_csp()
     assert_eq!(api.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN), None);
     assert_eq!(static_asset.headers().get(header::CACHE_CONTROL), None);
     assert_eq!(docs.headers().get(header::CACHE_CONTROL), None);
+    assert_eq!(
+        avatar.headers().get(header::CACHE_CONTROL),
+        Some(&HeaderValue::from_static("public, max-age=31536000, immutable"))
+    );
     assert_eq!(api.headers().get(header::CONTENT_SECURITY_POLICY), None);
     assert_eq!(static_asset.headers().get(header::CONTENT_SECURITY_POLICY), None);
     assert_eq!(
@@ -267,6 +265,14 @@ async fn slow_handler() -> StatusCode {
 
 async fn ok_handler() -> StatusCode {
     StatusCode::OK
+}
+
+async fn avatar_handler() -> Response {
+    let mut response = StatusCode::OK.into_response();
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"));
+    response
 }
 
 struct MetricExpectation<'a> {

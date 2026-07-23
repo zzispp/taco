@@ -7,13 +7,14 @@ use serde_json::Value;
 
 use crate::domain::{ExecutionDetail, TaskParamFormSpec};
 
-use super::{HttpTaskClient, SystemCacheRefreshPort, SystemLogCleanupPort};
+use super::{FileCleanupPort, HttpTaskClient, SystemCacheRefreshPort, SystemLogCleanupPort};
 
 #[derive(Clone)]
 pub struct TaskExecutionContext {
     pub http_client: Arc<dyn HttpTaskClient>,
     pub system_cache: Arc<dyn SystemCacheRefreshPort>,
     pub system_log_cleanup: Arc<dyn SystemLogCleanupPort>,
+    pub file_cleanup: Arc<dyn FileCleanupPort>,
 }
 
 #[derive(Clone, Debug)]
@@ -120,6 +121,7 @@ pub struct ScheduledTaskDefinition {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TaskLifecyclePolicy {
     Administrable,
+    RequiredPausable,
     RequiredEnabled,
 }
 
@@ -127,6 +129,7 @@ impl TaskLifecyclePolicy {
     pub const fn capabilities(self) -> TaskLifecycleCapabilities {
         match self {
             Self::Administrable => TaskLifecycleCapabilities::ADMINISTRABLE,
+            Self::RequiredPausable => TaskLifecycleCapabilities::REQUIRED_PAUSABLE,
             Self::RequiredEnabled => TaskLifecycleCapabilities::REQUIRED_ENABLED,
         }
     }
@@ -162,6 +165,12 @@ impl TaskLifecycleCapabilities {
         can_disable: false,
         can_delete: false,
         can_edit_execution_policy: false,
+    };
+
+    pub const REQUIRED_PAUSABLE: Self = Self {
+        can_disable: true,
+        can_delete: false,
+        can_edit_execution_policy: true,
     };
 }
 

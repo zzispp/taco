@@ -34,6 +34,16 @@ fn rbac_unique_constraints_map_to_owned_conflicts() {
 }
 
 #[test]
+fn last_enabled_admin_conflict_maps_to_the_owned_localized_error() {
+    let error = storage_error(StorageError::Conflict(LAST_ENABLED_ADMIN_REQUIRED_CONFLICT.into()));
+
+    let RbacError::Conflict(message) = error else {
+        panic!("last enabled administrator conflict must map to an RBAC conflict");
+    };
+    assert_eq!(message.key(), "errors.rbac.last_enabled_admin_required");
+}
+
+#[test]
 fn unknown_rbac_unique_constraint_remains_infrastructure_error() {
     assert!(matches!(storage_error(unique_violation("unknown_unique_index")), RbacError::Infrastructure(message) if message == "duplicate key"));
     assert!(matches!(storage_error(StorageError::Database("connection lost".into())), RbacError::Infrastructure(message) if message == "connection lost"));

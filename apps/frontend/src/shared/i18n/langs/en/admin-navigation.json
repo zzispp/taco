@@ -21,6 +21,10 @@
     "logManagement": "Log Management",
     "operationLogs": "Operation Logs",
     "loginLogs": "Login Logs",
-    "systemLogs": "System Logs"
+    "systemLogs": "System Logs",
+    "fileManagement": "File Management",
+    "fileOverview": "File Overview",
+    "fileManager": "Asset Management",
+    "fileSpaces": "Space Management"
   }
 }

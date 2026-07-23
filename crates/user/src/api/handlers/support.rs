@@ -4,6 +4,7 @@ use crate::{
     application::AppResult,
 };
 use audit_contract::{AuditOutboxRecord, OperationAuditContext};
+use kernel::error::LocalizedError;
 
 const MISSING_OPERATION_AUDIT_ACTOR: &str = "authenticated operation audit actor is missing";
 const MISSING_OPERATION_AUDIT_CONTEXT: &str = "operation audit context is missing";
@@ -14,18 +15,8 @@ pub(super) type AccountPasswordRequest = (
     Option<Extension<OperationAuditContext>>,
     RequestJson<ChangePasswordPayload>,
 );
-pub(super) type ExportUsersRequest = (
-    State<ApiState>,
-    Extension<CurrentUser>,
-    Extension<DataScopeFilter>,
-    RequestQuery<UserExportQuery>,
-);
-pub(super) type ListUsersRequest = (
-    State<ApiState>,
-    Extension<CurrentUser>,
-    Extension<DataScopeFilter>,
-    RequestQuery<ListUsersQuery>,
-);
+pub(super) type ExportUsersRequest = (State<ApiState>, Extension<DataScopeFilter>, RequestQuery<UserExportQuery>);
+pub(super) type ListUsersRequest = (State<ApiState>, Extension<DataScopeFilter>, RequestQuery<ListUsersQuery>);
 pub(super) struct SuccessfulOperationAudit {
     context: OperationAuditContext,
     record: AuditOutboxRecord,

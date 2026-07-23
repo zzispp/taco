@@ -8,6 +8,7 @@ const SECTION_KEY_BY_CODE: Record<string, string> = {
   '1': 'nav.systemManagement',
   '3': 'nav.systemMonitor',
   '4': 'nav.overview',
+  '5': 'nav.fileManagement',
 };
 
 const ITEM_KEY_BY_CODE: Record<string, string> = {
@@ -32,6 +33,10 @@ const ITEM_KEY_BY_CODE: Record<string, string> = {
 const ITEM_KEY_BY_PATH: Record<string, string> = {
   [paths.dashboard.root]: 'nav.dashboard',
   [paths.dashboard.overview]: 'nav.overview',
+  [paths.dashboard.files]: 'nav.fileManagement',
+  [paths.dashboard.file]: 'nav.fileOverview',
+  [paths.dashboard.fileManager]: 'nav.fileManager',
+  [paths.dashboard.fileSpaces]: 'nav.fileSpaces',
   [paths.dashboard.admin.root]: 'nav.systemManagement',
   [paths.dashboard.monitor]: 'nav.systemMonitor',
   [paths.dashboard.admin.users]: 'nav.users',

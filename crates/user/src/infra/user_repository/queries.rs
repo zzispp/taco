@@ -1,25 +1,26 @@
+use crate::application::{AuthorizationUser, ReplaceUserRecord, UserListFilter};
+use crate::domain::{AvatarFileId, ProfileUpdate, User, UserId, UserProfileGroups};
 use kernel::pagination::CursorPage;
 use rbac::domain::DataScopeFilter;
 use sqlx::{query, query_as};
 use storage::{Database, StorageError, StorageResult};
 use time::OffsetDateTime;
-use types::user::{ProfileUpdate, User, UserId, UserProfileGroups};
-
-use crate::application::{AuthorizationUser, ReplaceUserRecord, UserListFilter};
 
 use super::write;
 
+mod admin_continuity;
 mod audited_write;
+mod bootstrap;
 mod cleanup;
 mod cursor_page;
 mod export;
-pub(super) mod installation_owner;
 mod options;
 mod read_support;
 mod relations;
 mod write_support;
 
 use self::{
+    admin_continuity::{acquire_admin_continuity_lock, ensure_enabled_system_administrator_remains},
     cleanup::delete_user_relations,
     write_support::{required_password, revoke_user_sessions, should_revoke_sessions},
 };
@@ -51,6 +52,7 @@ impl UserQueries {
     pub async fn delete(&self, id: UserId) -> StorageResult<()> {
         let user_id = id.0;
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         let result = query("UPDATE sys_user SET del_flag = '2', update_time = $2 WHERE user_id = $1 AND del_flag = '0'")
             .bind(&user_id)
             .bind(OffsetDateTime::now_utc())
@@ -58,6 +60,7 @@ impl UserQueries {
             .await?;
         write::ensure_rows_affected(result.rows_affected())?;
         delete_user_relations(&mut tx, std::slice::from_ref(&user_id)).await?;
+        ensure_enabled_system_administrator_remains(&mut tx).await?;
         revoke_user_sessions(&mut tx, &[user_id]).await?;
         tx.commit().await.map_err(StorageError::from)
     }
@@ -65,6 +68,7 @@ impl UserQueries {
     pub async fn delete_many(&self, ids: Vec<UserId>) -> StorageResult<()> {
         let ids: Vec<String> = ids.into_iter().map(|id| id.0).collect();
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         let result = query("UPDATE sys_user SET del_flag = '2', update_time = $2 WHERE user_id = ANY($1) AND del_flag = '0'")
             .bind(&ids)
             .bind(OffsetDateTime::now_utc())
@@ -72,6 +76,7 @@ impl UserQueries {
             .await?;
         ensure_batch_rows(result.rows_affected(), ids.len())?;
         delete_user_relations(&mut tx, &ids).await?;
+        ensure_enabled_system_administrator_remains(&mut tx).await?;
         revoke_user_sessions(&mut tx, &ids).await?;
         tx.commit().await.map_err(StorageError::from)
     }
@@ -154,12 +159,13 @@ impl UserQueries {
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
     }
 
-    pub async fn update_avatar(&self, id: UserId, avatar: String) -> StorageResult<User> {
-        let result = query("UPDATE sys_user SET avatar=$2,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
-            .bind(&id.0)
-            .bind(avatar)
-            .execute(self.database.pool())
-            .await?;
+    pub async fn update_avatar(&self, id: UserId, avatar: AvatarFileId) -> StorageResult<User> {
+        let result =
+            query("UPDATE sys_user SET avatar_file_id=$2,avatar_version=avatar_version+1,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
+                .bind(&id.0)
+                .bind(avatar.as_str())
+                .execute(self.database.pool())
+                .await?;
         write::ensure_rows_affected(result.rows_affected())?;
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
     }
@@ -167,12 +173,14 @@ impl UserQueries {
     pub async fn update_status(&self, id: UserId, status: String) -> StorageResult<User> {
         let revoke_sessions = should_revoke_sessions(false, &status);
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         let result = query("UPDATE sys_user SET status=$2,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
             .bind(&id.0)
             .bind(status)
             .execute(&mut *tx)
             .await?;
         write::ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_system_administrator_remains(&mut tx).await?;
         if revoke_sessions {
             revoke_user_sessions(&mut tx, std::slice::from_ref(&id.0)).await?;
         }
@@ -183,7 +191,9 @@ impl UserQueries {
     pub async fn replace_roles(&self, id: UserId, role_ids: Vec<String>) -> StorageResult<User> {
         write::ensure_ids_exist(self.database.pool(), write::ReferenceTable::role(), &role_ids).await?;
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         write::replace_roles(&mut tx, &id.0, role_ids).await?;
+        ensure_enabled_system_administrator_remains(&mut tx).await?;
         tx.commit().await.map_err(StorageError::from)?;
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
     }

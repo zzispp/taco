@@ -6,7 +6,10 @@ use types::user::UserId;
 use crate::application::ReplaceUserRecord;
 use constants::system::STATUS_NORMAL;
 
-use super::UserQueries;
+use super::{
+    UserQueries,
+    admin_continuity::{acquire_admin_continuity_lock, ensure_enabled_system_administrator_remains},
+};
 use crate::infra::user_repository::{sql, write};
 
 impl UserQueries {
@@ -18,7 +21,9 @@ impl UserQueries {
 
     pub(super) async fn update_user(&self, id: &UserId, input: ReplaceUserRecord) -> StorageResult<()> {
         let mut tx = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut tx).await?;
         update_user_in_transaction(&mut tx, id, input).await?;
+        ensure_enabled_system_administrator_remains(&mut tx).await?;
         tx.commit().await.map_err(StorageError::from)
     }
 

@@ -1,44 +1,101 @@
 # Production Docker Deployment
 
 Taco's production image contains the statically exported frontend and one
-`taco` executable. PostgreSQL and Redis are external services; they are not
-created by the production Compose file and their connection details are
-entered in the first-visit setup wizard.
+`taco` executable. PostgreSQL and Redis are external services; the production
+Compose file does not create them. Startup configuration comes from a host YAML
+file. The container neither creates nor changes that configuration.
 
-## Start
+## Configuration File
 
-Generate a configuration root key before the first start. The command does
-not require a data directory or an existing installation. With Docker only,
-build the image once and run its operator command:
-
-```bash
-docker build --tag taco:local .
-docker run --rm taco:local secrets generate
-```
-
-An operator using a checked-out Rust toolchain can run the equivalent
-`cargo run --quiet -p backend --bin taco -- secrets generate` command.
-
-Copy the generated value into the shell that starts Compose:
+Create the host configuration from `config/config.example.yaml` in the release
+package or repository:
 
 ```bash
-export TACO_CONFIG_ENCRYPTION_KEY='<generated Base64URL value>'
-COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose -f compose.production.yaml up -d --build
+sudo install -d -m 0750 /etc/taco
+sudo cp config/config.example.yaml /etc/taco/config.yaml
+sudo chmod 0600 /etc/taco/config.yaml
 ```
 
-The service publishes only `127.0.0.1:3000`. Visit the public site through
-the host's HTTPS reverse proxy and complete the three setup steps. Taco stores
-the encrypted installation state and mutable uploads in the named
-`taco-data` volume mounted at `/data`.
+To generate the JWT signing secret, build the image and run the YAML-independent
+secret command:
 
-The Compose liveness probe targets `/health`. During setup that endpoint is
-healthy even though `/ready` remains unavailable until the installed runtime
-can reach PostgreSQL and Redis.
+```bash
+docker compose -f compose.production.yaml build taco
+docker compose -f compose.production.yaml run --rm taco secret generate-jwt
+```
+
+Copy the command's sole output in full into `jwt.secret` in
+`/etc/taco/config.yaml`. Do not commit the secret or pass it through command
+arguments. From a checked-out Rust toolchain, the equivalent command is:
+
+```bash
+cargo run -p backend --bin taco -- secret generate-jwt
+```
+
+Use a controlled editor to replace every `<...>` placeholder. A production
+configuration must meet these constraints:
+
+- `data_directory` may be absolute or relative; a relative path is resolved from
+  the YAML file's directory. Retain the template's `../local-data`: Compose
+  mounts the YAML at `/app/config/config.yaml`, where it resolves to
+  `/app/local-data`. The named `taco-data` volume persists that directory, and
+  the Local File Provider uses `/app/local-data/files`.
+- Use a container-listenable `server.host` and a `server.port` that matches the
+  Compose-published port.
+- Supply real external `database`, `redis`, and `jwt.secret` values. The
+  `jwt.secret` must contain at least 32 UTF-8 bytes. Do not commit real
+  configuration or credentials.
+- Explicitly set `database.auto_migrate` to `false` for production.
+
+Configuration loading is strict: every field must be present. Unknown fields,
+unreplaced `<...>` placeholders, or a blank required value make Taco exit with
+an error. YAML has no environment-variable interpolation or implicit defaults.
+Restart Taco after changing
+`/etc/taco/config.yaml`.
+
+## First Start
+
+`compose.production.yaml` mounts host `/etc/taco/config.yaml` read-only at
+`/app/config/config.yaml` and starts `taco --config /app/config/config.yaml`.
+The example disables automatic migration, so a new database needs a schema and
+an enabled system administrator before Taco can bind its HTTP port.
+
+Build the Compose service image, then inspect and apply migrations with the
+same read-only configuration:
+
+```bash
+docker compose -f compose.production.yaml build taco
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration status
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration up
+```
+
+Create the administrator explicitly before the first start:
+
+```bash
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml administrator bootstrap --username <username> --email <email> --password-stdin
+```
+
+`--password-stdin` consumes the first password line from standard input. A
+password is neither accepted as a command argument nor written to YAML or
+command output. The command is allowed only when no enabled user is bound to
+the built-in `admin` (`system=true`) role, and it creates the user and role
+binding atomically.
+
+Start the service after that initialization:
+
+```bash
+docker compose -f compose.production.yaml up -d
+```
+
+The service publishes only `127.0.0.1:3000`. The Compose liveness probe targets
+`/health`; `/ready` returns `200` once the HTTP service has started.
+Configuration, schema, and dependency initialization complete before the
+listener is bound, so `/ready` is not a continuous dependency health probe.
 
 ## Reverse Proxy Contract
 
-Terminate TLS at the host-side reverse proxy and proxy its upstream requests
-to `http://127.0.0.1:3000`. The proxy must remove client-supplied forwarding
+Terminate TLS at the host-side reverse proxy and proxy its upstream requests to
+`http://127.0.0.1:3000`. The proxy must remove client-supplied forwarding
 headers and set the canonical `X-Forwarded-For`, `X-Forwarded-Host`, and
 `X-Forwarded-Proto` values. Taco accepts these standard headers without a
 trusted-proxy CIDR configuration.
@@ -51,58 +108,38 @@ The proxy must keep `/metrics`, `/docs`, and `/openapi.json` internal. Do not
 route those paths from the public virtual host. Restrict metrics scraping and
 API documentation access to the operator or private monitoring network.
 
-## Operations
+## Migrations And Upgrades
 
-Apply forward migrations from the new image before starting an installed release. `run` creates a one-off operator container, so it does not depend on the normal service becoming ready before the migration is applied:
-
-```bash
-COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose -f compose.production.yaml run --rm taco migration up
-COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose -f compose.production.yaml up -d
-```
-
-To deliberately reset an instance, stop the service, generate and export a
-new root key, then remove the encrypted installation state:
+Production configuration should disable automatic migration. Every schema
+change for a deployed or data-retaining instance requires a new forward
+migration. When upgrading the current Compose service image, build it first,
+run the same `migration status` and `migration up` commands used for first
+start, then restart Taco:
 
 ```bash
-COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose -f compose.production.yaml stop taco
-docker run --rm taco:local secrets generate
-export TACO_CONFIG_ENCRYPTION_KEY='<new generated Base64URL value>'
-COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose -f compose.production.yaml run --rm taco installation reset --confirm-reset
-COMPOSE_DISABLE_ENV_FILE=1 COMPOSE_ENV_FILES= docker compose -f compose.production.yaml up -d
+docker compose -f compose.production.yaml build taco
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration status
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration up
+docker compose -f compose.production.yaml up -d --force-recreate taco
 ```
 
-The reset command does not need the former root key. After the next setup
-submission revalidates its PostgreSQL and Redis inputs, Taco only performs a
-destructive reset on a fresh target. If the selected PostgreSQL database already
-contains Taco schema, setup rejects the request before PostgreSQL or Redis is
-changed. `FLUSHALL` clears every logical database in the selected Redis instance,
-regardless of the selected database number or key prefix, so a fresh installation
-target must still be dedicated to Taco.
+If no enabled user is bound to the built-in `admin` role, restore one with the
+`administrator bootstrap` command from First Start before restarting. Taco
+never creates an administrator from startup YAML and refuses to start without
+an enabled administrator. If `database.auto_migrate` is explicitly set to
+`true`, Taco applies forward migrations before accepting requests; production
+should still use the explicit procedure above.
 
-## Server Migration And State Recovery
+## Configuration And Data Relocation
 
-Move the named `taco-data` volume, `TACO_CONFIG_ENCRYPTION_KEY`, PostgreSQL,
-Redis, and uploads together when moving a server. An intact encrypted state file
-starts the migrated installation directly; do not repeat web setup.
-
-When only database or Redis endpoints change, mount the data volume and run
-`installation reconfigure --connections <path>` with a JSON document containing
-the `database` and `redis` objects from the installation profile. The command
-checks the migrated schema, installation owner, and Redis before atomically
-replacing the encrypted state.
-
-When the state file is missing but the Taco database is intact, generate a
-complete `InstallationProfile` JSON template with `installation profile template`,
-fill in the former immutable configuration and current connections, then run
-`installation recover --profile <path>`. Recovery verifies the same database
-and Redis invariants, writes a new encrypted state file, and generates a fresh
-JWT signing key. Existing browser sessions are intentionally invalidated; users
-must sign in again.
-
-If the former root key is lost but `installation-state.enc` remains, run
-`installation reset --confirm-reset` first to remove only that encrypted state
-file, then recover with a new root key. This action does not change PostgreSQL,
-Redis, or uploads.
+Move the host `/etc/taco/config.yaml`, external PostgreSQL, Redis, and the
+`taco-data` volume together when moving a server. On the new host, keep mounting
+the configuration read-only at `/app/config/config.yaml`; with
+`data_directory: ../local-data`, its runtime directory remains
+`/app/local-data`. When database, Redis, listen address, or data directory
+changes, update YAML and restart. Startup YAML has no online reload. Whether a
+`sys_config` parameter takes effect online is defined by its owning feature; it
+is not a substitute for startup YAML.
 
 ## Build Contract
 

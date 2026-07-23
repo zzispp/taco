@@ -1,14 +1,13 @@
 services:
   taco:
     build: .
-    environment:
-      TACO_CONFIG_ENCRYPTION_KEY: ${TACO_CONFIG_ENCRYPTION_KEY:?TACO_CONFIG_ENCRYPTION_KEY is required}
-      TACO_DATA_DIR: /data
+    command: ['--config', '/app/config/config.yaml']
     ports:
       - '127.0.0.1:3000:3000'
     restart: unless-stopped
     volumes:
-      - taco-data:/data
+      - /etc/taco/config.yaml:/app/config/config.yaml:ro
+      - taco-data:/app/local-data
     healthcheck:
       test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:3000/health']
       interval: 10s

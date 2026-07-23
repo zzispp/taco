@@ -1,6 +1,5 @@
 mod audited;
 mod filter_sql;
-mod installation_owner_port;
 mod mapping;
 mod queries;
 mod record;
@@ -12,8 +11,11 @@ use kernel::pagination::CursorPage;
 use storage::Database;
 
 use crate::{
-    application::{AppResult, AuthorizationUser, ReplaceUserRecord, UserAuthRecord, UserExportRequest, UserExportSink, UserListFilter, UserRepository},
-    domain::{ProfileUpdate, User, UserId, UserProfileGroups},
+    application::{
+        AppResult, AuthorizationUser, BootstrapAdministratorOutcome, BootstrapAdministratorRecord, BootstrapAdministratorRepository, ReplaceUserRecord,
+        UserAuthRecord, UserExportRequest, UserExportSink, UserListFilter, UserRepository,
+    },
+    domain::{AvatarFileId, ProfileUpdate, User, UserId, UserProfileGroups},
 };
 use rbac::domain::DataScopeFilter;
 
@@ -93,10 +95,6 @@ impl UserRepository for StorageUserRepository {
         self.queries.find_authorization_by_id(id).await.map_err(storage_error)
     }
 
-    async fn is_installation_owner(&self, id: &UserId) -> AppResult<bool> {
-        self.queries.is_installation_owner(id).await.map_err(storage_error)
-    }
-
     async fn record_login(&self, id: UserId, ipaddr: String) -> AppResult<()> {
         self.queries.record_login(id, ipaddr).await.map_err(storage_error)
     }
@@ -129,7 +127,7 @@ impl UserRepository for StorageUserRepository {
         self.queries.update_profile(id, profile).await.map_err(storage_error)
     }
 
-    async fn update_avatar(&self, id: UserId, avatar: String) -> AppResult<User> {
+    async fn update_avatar(&self, id: UserId, avatar: AvatarFileId) -> AppResult<User> {
         self.queries.update_avatar(id, avatar).await.map_err(storage_error)
     }
 
@@ -147,5 +145,16 @@ impl UserRepository for StorageUserRepository {
 
     async fn form_options(&self) -> AppResult<crate::domain::UserFormOptions> {
         self.queries.form_options().await.map_err(storage_error)
+    }
+}
+
+#[async_trait]
+impl BootstrapAdministratorRepository for StorageUserRepository {
+    async fn has_enabled_system_administrator(&self) -> AppResult<bool> {
+        self.queries.has_enabled_system_administrator().await.map_err(storage_error)
+    }
+
+    async fn create_system_administrator_if_absent(&self, record: BootstrapAdministratorRecord) -> AppResult<BootstrapAdministratorOutcome> {
+        self.queries.create_system_administrator_if_absent(record).await.map_err(storage_error)
     }
 }

@@ -76,7 +76,7 @@ mod tests {
             .iter()
             .filter(|spec| spec.path.starts_with("/api/system/configs"))
             .filter_map(|spec| match spec.audit {
-                EndpointAudit::Operation(operation) => Some(operation),
+                EndpointAudit::Operation(operation) | EndpointAudit::Download(operation) => Some(operation),
                 EndpointAudit::ReadOnly | EndpointAudit::ExplicitReadOnly | EndpointAudit::Security => None,
             })
             .collect::<Vec<_>>();

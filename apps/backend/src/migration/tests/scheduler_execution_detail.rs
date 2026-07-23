@@ -7,6 +7,7 @@ const MIGRATIONS_BEFORE_DETAIL: u32 = 12;
 const DETAIL_MIGRATION_VERSION: i64 = 20260710000001;
 const DETAIL_MENU_ID: &str = "1093";
 const DETAIL_PERMISSION: &str = "system:job:log:detail";
+const SYSTEM_ADMIN_ROLE_ID: &str = "admin";
 const PERMISSION_CONFLICT_MENU_ID: &str = "scheduler-detail-permission-conflict";
 const DETAIL_DOWN_ROLE_ID: &str = "scheduler-detail-down";
 const DETAIL_COLUMN_COUNT: i64 = 3;
@@ -35,6 +36,7 @@ async fn execution_detail_menu_conflict_rolls_back_the_whole_migration() {
     assert!(up(database.pool(), None).await.is_err());
     assert_eq!(detail_column_count(database.pool()).await, 0);
     assert_eq!(detail_menu_count(database.pool()).await, 1);
+    assert_eq!(detail_role_binding_count(database.pool()).await, 0);
 
     query("DELETE FROM sys_menu WHERE menu_id=$1")
         .bind(DETAIL_MENU_ID)
@@ -56,6 +58,7 @@ async fn execution_detail_permission_conflict_rolls_back_the_whole_migration() {
     assert!(up(database.pool(), None).await.is_err());
     assert_eq!(detail_column_count(database.pool()).await, 0);
     assert_eq!(detail_menu_count(database.pool()).await, 0);
+    assert_eq!(detail_role_binding_count(database.pool()).await, 0);
     assert_eq!(menu_count(database.pool(), PERMISSION_CONFLICT_MENU_ID).await, 1);
 
     query("DELETE FROM sys_menu WHERE menu_id=$1")
@@ -243,7 +246,8 @@ async fn insert_detail_permission_conflict(pool: &PgPool) {
 async fn assert_detail_seed(pool: &PgPool) {
     assert_eq!(detail_column_count(pool).await, DETAIL_COLUMN_COUNT);
     assert_eq!(detail_menu_count(pool).await, 1);
-    assert_eq!(detail_role_binding_count(pool).await, 0);
+    assert_eq!(detail_role_binding_count(pool).await, 1);
+    assert_eq!(role_menu_binding_count(pool, SYSTEM_ADMIN_ROLE_ID, DETAIL_MENU_ID).await, 1);
     let permission: String = query_scalar("SELECT perms FROM sys_menu WHERE menu_id=$1")
         .bind(DETAIL_MENU_ID)
         .fetch_one(pool)
@@ -269,6 +273,15 @@ async fn detail_menu_count(pool: &PgPool) -> i64 {
 async fn detail_role_binding_count(pool: &PgPool) -> i64 {
     query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE menu_id=$1")
         .bind(DETAIL_MENU_ID)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn role_menu_binding_count(pool: &PgPool, role_id: &str, menu_id: &str) -> i64 {
+    query_scalar("SELECT COUNT(*) FROM sys_role_menu WHERE role_id=$1 AND menu_id=$2")
+        .bind(role_id)
+        .bind(menu_id)
         .fetch_one(pool)
         .await
         .unwrap()

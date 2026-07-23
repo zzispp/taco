@@ -10,7 +10,6 @@ pub(crate) fn admin_current_user() -> CurrentUser {
         id: user_id(1).0,
         username: "alice".into(),
         dept_id: Some("103".into()),
-        is_installation_owner: true,
     })
 }
 
@@ -19,7 +18,6 @@ pub(crate) fn self_current_user(user: u64, username: &str, dept_id: &str) -> Cur
         id: user_id(user).0,
         username: username.into(),
         dept_id: Some(dept_id.into()),
-        is_installation_owner: false,
     })
 }
 
@@ -45,7 +43,6 @@ struct CurrentUserFixture {
     id: String,
     username: String,
     dept_id: Option<String>,
-    is_installation_owner: bool,
 }
 
 fn current_user(fixture: CurrentUserFixture) -> CurrentUser {
@@ -55,6 +52,5 @@ fn current_user(fixture: CurrentUserFixture) -> CurrentUser {
         role_keys: vec!["business-admin".into()],
         permissions: vec!["system:online:list".into(), "system:online:forceLogout".into()],
         dept_id: fixture.dept_id,
-        is_installation_owner: fixture.is_installation_owner,
     }
 }

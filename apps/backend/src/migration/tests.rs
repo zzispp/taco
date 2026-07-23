@@ -3,9 +3,10 @@ use sqlx::{PgPool, query};
 mod audit_logs;
 mod audit_logs_rollback;
 mod audit_repository;
+mod bootstrap_administrator;
 mod data_integrity;
 mod export_snapshots;
-mod installation_owner;
+mod file_management;
 mod log_menu_hierarchy;
 mod notice_repository;
 mod notice_rollback;
@@ -30,12 +31,12 @@ mod tracing_config_listener;
 mod user_password_contract;
 mod user_sessions;
 use seed_assertions::assert_seed_data_exists;
-use support::{TestDatabase, managed_table_exists, migrate_through, rollback_from};
+use support::{TestDatabase, bootstrap_system_administrator, managed_table_exists, migrate_through, rollback_from};
 
 use super::{down, ensure_runtime_schema_ready, fresh, status, up};
 
-const MIGRATION_TOTAL: usize = 30;
-const FORWARD_ONLY_MIGRATION_VERSION: i64 = 20260717000005;
+const MIGRATION_TOTAL: usize = 31;
+const FORWARD_ONLY_MIGRATION_VERSION: i64 = 20260717000007;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
 #[tokio::test]
@@ -69,7 +70,7 @@ async fn rollback_rejects_forward_only_migrations_instead_of_skipping_them() {
     let error = down(database.pool(), Some(1)).await.unwrap_err();
 
     assert!(
-        error.to_string().contains("cannot roll back through forward-only migration 20260717000005"),
+        error.to_string().contains("cannot roll back through forward-only migration 20260717000007"),
         "unexpected error: {error}"
     );
     database.drop().await;
@@ -88,7 +89,9 @@ async fn fresh_drops_all_managed_tables_when_migration_state_is_missing() {
     assert!(managed_table_exists(pool, "audit_outbox").await);
     assert!(managed_table_exists(pool, "sys_job").await);
     assert!(managed_table_exists(pool, "sys_job_execution").await);
-    assert!(managed_table_exists(pool, "sys_installation_owner").await);
+    assert!(managed_table_exists(pool, "file_entry").await);
+    assert!(managed_table_exists(pool, "file_upload_session").await);
+    assert!(managed_table_exists(pool, "file_provider_cleanup").await);
 
     database.drop().await;
 }

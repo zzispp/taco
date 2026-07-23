@@ -11,7 +11,6 @@ export type SessionUser = {
   avatar: string | null;
   status: string;
   is_active: boolean;
-  is_installation_owner: boolean;
   auth_source: string;
   email_verified: boolean;
   remark: string | null;

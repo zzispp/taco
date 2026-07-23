@@ -1,17 +1,17 @@
+use crate::{
+    application::{ReplaceUserRecord, UserImportWrite},
+    domain::{AvatarFileId, ProfileUpdate, User, UserId},
+    infra::user_repository::write,
+};
 use audit_contract::{AuditOutboxEvent, AuditOutboxRecord};
 use constants::system::STATUS_NORMAL;
 use sqlx::{Postgres, Transaction, query};
 use storage::{StorageError, StorageResult, outbox::append_audit_record};
 use time::OffsetDateTime;
-use types::user::{ProfileUpdate, User, UserId};
-
-use crate::{
-    application::{ReplaceUserRecord, UserImportWrite},
-    infra::user_repository::write,
-};
 
 use super::{
     UserQueries,
+    admin_continuity::{acquire_admin_continuity_lock, ensure_enabled_system_administrator_remains},
     cleanup::delete_user_relations,
     ensure_batch_rows,
     write_support::{InsertUserCommand, insert_user_in_transaction, required_password, revoke_user_sessions, update_user_in_transaction},
@@ -42,6 +42,7 @@ impl UserQueries {
         }
 
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         for write in writes {
             match write {
                 UserImportWrite::Create(input) => {
@@ -62,6 +63,7 @@ impl UserQueries {
                 }
             }
         }
+        ensure_enabled_system_administrator_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await
     }
 
@@ -73,7 +75,9 @@ impl UserQueries {
     ) -> StorageResult<User> {
         self.ensure_references(&input).await?;
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         update_user_in_transaction(&mut transaction, &id, input).await?;
+        ensure_enabled_system_administrator_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await?;
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
     }
@@ -81,6 +85,7 @@ impl UserQueries {
     pub(in crate::infra::user_repository) async fn delete_with_audit(&self, id: UserId, audit: &AuditOutboxRecord) -> StorageResult<()> {
         let user_id = id.0;
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("UPDATE sys_user SET del_flag = '2', update_time = $2 WHERE user_id = $1 AND del_flag = '0'")
             .bind(&user_id)
             .bind(OffsetDateTime::now_utc())
@@ -88,6 +93,7 @@ impl UserQueries {
             .await?;
         write::ensure_rows_affected(result.rows_affected())?;
         delete_user_relations(&mut transaction, std::slice::from_ref(&user_id)).await?;
+        ensure_enabled_system_administrator_remains(&mut transaction).await?;
         revoke_user_sessions(&mut transaction, &[user_id]).await?;
         commit_audited_write(transaction, audit).await
     }
@@ -95,6 +101,7 @@ impl UserQueries {
     pub(in crate::infra::user_repository) async fn delete_many_with_audit(&self, ids: Vec<UserId>, audit: &AuditOutboxRecord) -> StorageResult<()> {
         let ids = ids.into_iter().map(|id| id.0).collect::<Vec<_>>();
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("UPDATE sys_user SET del_flag = '2', update_time = $2 WHERE user_id = ANY($1) AND del_flag = '0'")
             .bind(&ids)
             .bind(OffsetDateTime::now_utc())
@@ -102,6 +109,7 @@ impl UserQueries {
             .await?;
         ensure_batch_rows(result.rows_affected(), ids.len())?;
         delete_user_relations(&mut transaction, &ids).await?;
+        ensure_enabled_system_administrator_remains(&mut transaction).await?;
         revoke_user_sessions(&mut transaction, &ids).await?;
         commit_audited_write(transaction, audit).await
     }
@@ -160,15 +168,16 @@ impl UserQueries {
     pub(in crate::infra::user_repository) async fn update_avatar_with_audit(
         &self,
         id: UserId,
-        avatar: String,
+        avatar: AvatarFileId,
         audit: &AuditOutboxRecord,
     ) -> StorageResult<User> {
         let mut transaction = self.database.pool().begin().await?;
-        let result = query("UPDATE sys_user SET avatar=$2,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
-            .bind(&id.0)
-            .bind(avatar)
-            .execute(&mut *transaction)
-            .await?;
+        let result =
+            query("UPDATE sys_user SET avatar_file_id=$2,avatar_version=avatar_version+1,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
+                .bind(&id.0)
+                .bind(avatar.as_str())
+                .execute(&mut *transaction)
+                .await?;
         write::ensure_rows_affected(result.rows_affected())?;
         commit_audited_write(transaction, audit).await?;
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
@@ -182,12 +191,14 @@ impl UserQueries {
     ) -> StorageResult<User> {
         let revoke_sessions = status != STATUS_NORMAL;
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         let result = query("UPDATE sys_user SET status=$2,update_time=CURRENT_TIMESTAMP WHERE user_id=$1 AND del_flag='0'")
             .bind(&id.0)
             .bind(status)
             .execute(&mut *transaction)
             .await?;
         write::ensure_rows_affected(result.rows_affected())?;
+        ensure_enabled_system_administrator_remains(&mut transaction).await?;
         if revoke_sessions {
             revoke_user_sessions(&mut transaction, std::slice::from_ref(&id.0)).await?;
         }
@@ -203,7 +214,9 @@ impl UserQueries {
     ) -> StorageResult<User> {
         write::ensure_ids_exist(self.database.pool(), write::ReferenceTable::role(), &role_ids).await?;
         let mut transaction = self.database.pool().begin().await?;
+        acquire_admin_continuity_lock(&mut transaction).await?;
         write::replace_roles(&mut transaction, &id.0, role_ids).await?;
+        ensure_enabled_system_administrator_remains(&mut transaction).await?;
         commit_audited_write(transaction, audit).await?;
         self.find_by_id(id).await?.ok_or(StorageError::NotFound)
     }

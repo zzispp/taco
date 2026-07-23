@@ -22,9 +22,9 @@ use self::{
     authorization::{data_scope_filter, is_whitelisted, required_permission, validate_protected_handlers},
     localization::localized,
     validation::{
-        clean_ids, ensure_menu_exists, ensure_role_exists, reject_duplicate_role, reject_empty_ids, reject_installation_owner_role_mutation,
-        reject_invalid_menu, reject_menu_delete, reject_role_in_use, reject_system_role_update, reject_unscoped_user_ids, required, sanitize_menu,
-        sanitize_menu_filter, sanitize_role, sanitize_role_data_scope, sanitize_role_filter, sanitize_role_user_filter, sanitize_role_users, validate_page,
+        clean_ids, ensure_menu_exists, ensure_role_exists, reject_duplicate_role, reject_empty_ids, reject_invalid_menu, reject_menu_delete,
+        reject_role_in_use, reject_system_role_update, reject_unscoped_user_ids, required, sanitize_menu, sanitize_menu_filter, sanitize_role,
+        sanitize_role_data_scope, sanitize_role_filter, sanitize_role_user_filter, sanitize_role_users, validate_page,
     },
 };
 
@@ -148,13 +148,11 @@ where
     pub async fn replace_role_users(&self, role_id: &str, input: RoleUserBindingInput) -> RbacResult<()> {
         ensure_role_exists(&self.repository, role_id).await?;
         let input = sanitize_role_users(input);
-        reject_installation_owner_role_mutation(&self.repository, role_id, &input.user_ids, true).await?;
         self.repository.replace_role_users(role_id, input).await
     }
 
     pub async fn delete_role_user(&self, role_id: &str, user_id: &str) -> RbacResult<()> {
         ensure_role_exists(&self.repository, role_id).await?;
-        reject_installation_owner_role_mutation(&self.repository, role_id, &[user_id.into()], false).await?;
         self.repository.delete_role_user(role_id, user_id).await
     }
 
@@ -162,7 +160,6 @@ where
         ensure_role_exists(&self.repository, role_id).await?;
         let user_ids = clean_ids(user_ids);
         reject_empty_ids(&user_ids)?;
-        reject_installation_owner_role_mutation(&self.repository, role_id, &user_ids, false).await?;
         self.repository.delete_role_users(role_id, &user_ids).await
     }
 
@@ -218,23 +215,23 @@ where
     }
 
     pub async fn replace_role_menus(&self, role_id: &str, input: RoleMenuBindingInput) -> RbacResult<()> {
-        ensure_role_exists(&self.repository, role_id).await?;
+        reject_system_role_update(&self.repository, role_id).await?;
         self.repository.replace_role_menus(role_id, input).await?;
         self.rebuild_cache().await
     }
 
     pub async fn replace_role_depts(&self, role_id: &str, input: RoleDeptBindingInput) -> RbacResult<()> {
-        ensure_role_exists(&self.repository, role_id).await?;
+        reject_system_role_update(&self.repository, role_id).await?;
         self.repository.replace_role_depts(role_id, input).await?;
         self.rebuild_cache().await
     }
 
     pub async fn navbar(&self, current_user: &CurrentUser) -> RbacResult<NavResponse> {
-        self.cache.read_nav(&current_user.role_keys, current_user.is_installation_owner).await
+        self.cache.read_nav(&current_user.role_keys).await
     }
 
     pub async fn authorize_api(&self, config: &AuthorizationConfig, request: ApiCheckRequest) -> RbacResult<()> {
-        if is_whitelisted(config, &request.method, &request.path)? || request.is_installation_owner {
+        if is_whitelisted(config, &request.method, &request.path)? {
             return Ok(());
         }
         let requirement = required_permission(config, &request)?;

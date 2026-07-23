@@ -1,0 +1,3 @@
+# Select avatars from the owner's personal space
+
+Profile avatar management supports both upload-and-crop and selecting an image from the current user's Personal Asset Space. Selection is never allowed from another user's Data Scope-visible space. The crop result becomes a new Managed File in the owner's lazily created Avatar Folder, while the source remains unchanged; avatar files and old trashed avatars count toward the owner's logical Space Quota. A public Avatar Projection resolves only the current `file_id` through a user-and-version URL; replacing the avatar invalidates the old URL, and neither the asset identifier nor its private directory becomes public.

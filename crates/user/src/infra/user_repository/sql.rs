@@ -1,11 +1,6 @@
 pub const USER_COLUMNS: &str = r#"
-    user_id, dept_id, user_name, nick_name, email, phonenumber, sex, avatar,
-    password, status,
-    EXISTS(
-        SELECT 1 FROM sys_installation_owner owner
-        WHERE owner.singleton_id = 1 AND owner.owner_user_id = user_id
-    ) AS is_installation_owner,
-    auth_source, email_verified, remark, create_time
+    user_id, dept_id, user_name, nick_name, email, phonenumber, sex, avatar_file_id, avatar_version,
+    password, status, auth_source, email_verified, remark, create_time
 "#;
 
 pub fn insert_user() -> &'static str {
@@ -80,10 +75,6 @@ pub fn batch_permission_query() -> &'static str {
 pub fn authorization_user_query() -> &'static str {
     r#"
     SELECT u.user_id,u.user_name,u.dept_id,u.status,
-      EXISTS(
-        SELECT 1 FROM sys_installation_owner owner
-        WHERE owner.singleton_id = 1 AND owner.owner_user_id = u.user_id
-      ) AS is_installation_owner,
       COALESCE((
         SELECT array_agg(r.role_key ORDER BY r.role_sort,r.role_id)
         FROM sys_user_role ur INNER JOIN sys_role r ON r.role_id=ur.role_id
@@ -131,7 +122,7 @@ pub fn scoped_existing_user_ids() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{USER_COLUMNS, authorization_user_query, batch_permission_query, batch_post_query, batch_role_query};
+    use super::{authorization_user_query, batch_permission_query, batch_post_query, batch_role_query};
 
     #[test]
     fn relation_queries_load_each_relation_for_the_complete_user_batch() {
@@ -150,13 +141,6 @@ mod tests {
 
         assert!(query.contains("role_keys"));
         assert!(query.contains("permissions"));
-        assert!(query.contains("is_installation_owner"));
         assert!(query.contains("u.user_id = $1"));
-    }
-
-    #[test]
-    fn user_projection_exposes_the_installation_owner_marker() {
-        assert!(USER_COLUMNS.contains("sys_installation_owner"));
-        assert!(USER_COLUMNS.contains("is_installation_owner"));
     }
 }

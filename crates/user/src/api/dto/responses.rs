@@ -13,6 +13,7 @@ const IMPORT_DETAIL_SEPARATOR: &str = "; ";
 const USERNAME_PARAM: &str = "username";
 const COUNT_PARAM: &str = "count";
 const DETAILS_PARAM: &str = "details";
+const AVATAR_PROJECTION_PREFIX: &str = "/api/avatars";
 
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
@@ -26,7 +27,6 @@ pub struct UserResponse {
     pub avatar: Option<String>,
     pub status: String,
     pub is_active: bool,
-    pub is_installation_owner: bool,
     pub auth_source: String,
     pub email_verified: bool,
     pub remark: Option<String>,
@@ -99,6 +99,10 @@ pub type OnlineSessionsResponse = CursorPage<OnlineSessionResponse>;
 
 impl From<User> for UserResponse {
     fn from(value: User) -> Self {
+        let avatar = value
+            .avatar_file_id
+            .as_ref()
+            .map(|_| format!("{AVATAR_PROJECTION_PREFIX}/{}/{}", value.id.0, value.avatar_version));
         Self {
             user_id: value.id.0,
             username: value.username,
@@ -107,10 +111,9 @@ impl From<User> for UserResponse {
             email: value.email,
             phonenumber: value.phonenumber,
             sex: value.sex,
-            avatar: value.avatar,
+            avatar,
             is_active: value.status == "0",
             status: value.status,
-            is_installation_owner: value.is_installation_owner,
             auth_source: value.auth_source,
             email_verified: value.email_verified,
             remark: value.remark,
@@ -133,8 +136,8 @@ impl From<UserFormOptions> for UserFormOptionsResponse {
     }
 }
 
-impl From<types::user::UserProfile> for ProfileResponse {
-    fn from(value: types::user::UserProfile) -> Self {
+impl From<crate::domain::UserProfile> for ProfileResponse {
+    fn from(value: crate::domain::UserProfile) -> Self {
         Self {
             user: value.user.into(),
             role_group: value.role_group,
@@ -198,4 +201,48 @@ fn format_session_time(value: i64) -> crate::application::AppResult<String> {
     let timestamp = OffsetDateTime::from_unix_timestamp_nanos(i128::from(value) * NANOS_PER_MILLISECOND)
         .map_err(|error| crate::application::AppError::Infrastructure(error.to_string()))?;
     format_utc_rfc3339_millis(timestamp).map_err(|error| crate::application::AppError::Infrastructure(error.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::{AvatarFileId, UserId};
+
+    #[test]
+    fn avatar_projection_uses_user_and_version_without_exposing_file_id() {
+        let response = UserResponse::from(user(Some(AvatarFileId::new("private-file-id").unwrap()), 7));
+
+        assert_eq!(response.avatar.as_deref(), Some("/api/avatars/user-1/7"));
+        assert!(!response.avatar.as_deref().unwrap().contains("private-file-id"));
+    }
+
+    #[test]
+    fn user_without_avatar_has_no_projection() {
+        let response = UserResponse::from(user(None, 0));
+
+        assert_eq!(response.avatar, None);
+    }
+
+    fn user(avatar_file_id: Option<AvatarFileId>, avatar_version: u64) -> User {
+        User {
+            id: UserId("user-1".into()),
+            username: "alice".into(),
+            nick_name: "Alice".into(),
+            dept_id: None,
+            email: "alice@example.test".into(),
+            phonenumber: None,
+            sex: "2".into(),
+            avatar_file_id,
+            avatar_version,
+            status: "0".into(),
+            auth_source: "local".into(),
+            email_verified: false,
+            remark: None,
+            roles: vec![],
+            role_ids: vec![],
+            post_ids: vec![],
+            permissions: vec![],
+            create_time: String::new(),
+        }
+    }
 }

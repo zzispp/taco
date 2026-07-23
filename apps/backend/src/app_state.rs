@@ -6,6 +6,7 @@ use audit::{
 };
 use captcha::application::CaptchaUseCase;
 use client_info::IpLocationResolver;
+use file::application::FileUseCase;
 use kernel::runtime_config::ExportConfigProvider;
 use observability::application::{ObservabilityError, SystemLogUseCase};
 use rbac::application::{AuthorizationConfig, RbacAdminUseCase, RbacAuditedAdminUseCase, RbacCacheRefreshUseCase, RbacUseCase};
@@ -30,6 +31,7 @@ pub struct AppState {
     pub notices_audited: Arc<dyn NoticeAuditedUseCase>,
     pub metrics: Arc<dyn ServerMetricsUseCase>,
     pub captcha: Arc<dyn CaptchaUseCase>,
+    pub files: Arc<dyn FileUseCase>,
     pub audit: Arc<dyn AuditUseCase>,
     pub audit_outbox: Arc<StorageAuditOutboxRepository>,
     pub audit_outbox_runtime: AuditOutboxRuntimeHandle,

@@ -16,7 +16,6 @@ use rbac::domain::DataScopeFilter;
 const IMPORT_ACCOUNT_CREATED_KEY: &str = "messages.user.import_account_created";
 const IMPORT_ACCOUNT_UPDATED_KEY: &str = "messages.user.import_account_updated";
 const DATA_SCOPE_FORBIDDEN_KEY: &str = "errors.user.data_scope_forbidden";
-const INSTALLATION_OWNER_PROTECTED_KEY: &str = "errors.user.installation_owner_protected";
 
 use self::validation::{
     sanitize_and_validate_new_user, sanitize_credentials, sanitize_filter, sanitize_profile_update, sanitize_replace_user, validate_credentials, validate_page,
@@ -25,14 +24,13 @@ use self::validation::{
 
 mod audited;
 mod authentication;
+mod bootstrap;
 mod commands;
 mod imports;
-mod installation_owner;
 mod security;
 mod use_case;
 mod validation;
 
-pub(crate) use installation_owner::validate_initial_installation_owner;
 pub use security::UnconfiguredLoginSecurity;
 
 pub struct UserService<R, H, P = StaticPasswordPolicyProvider, F = UnconfiguredLoginSecurity, C = UnconfiguredLoginSecurity> {
@@ -195,13 +193,6 @@ fn verify_password<H: PasswordHasher>(hasher: &H, password: &str, found: &UserAu
     }
 
     Err(AppError::Unauthorized)
-}
-
-fn reject_blank_avatar(avatar: &str) -> AppResult<()> {
-    if avatar.trim().is_empty() {
-        return Err(AppError::InvalidInput(localized("errors.user.avatar_blank")));
-    }
-    Ok(())
 }
 
 fn reject_unscoped_user_ids(requested: &[UserId], scoped: &[UserId]) -> AppResult<()> {

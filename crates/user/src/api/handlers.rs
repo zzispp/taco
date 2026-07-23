@@ -5,7 +5,6 @@ use axum::{
     response::Response,
 };
 use constants::system_config::REGISTER_USER_KEY;
-use kernel::error::LocalizedError;
 use rbac::{api::CurrentUser, domain::DataScopeFilter};
 use rbac_macros::require_perms;
 use types::http::{RequestJson, RequestQuery, current_locale, xlsx_attachment, xlsx_file_attachment};
@@ -21,8 +20,8 @@ use crate::{
         import_export::{UserXlsxExport, import_template_xlsx, parse_import_rows},
         user_list_filter::{export_user_filter, list_user_filter},
     },
-    application::{AppError, AuditedPasswordChange, AvatarFile, OnlineSession, UserExportRequest, UserImportInput},
-    domain::{NewUser, User, UserId},
+    application::{AppError, AuditedPasswordChange, AvatarFile, AvatarOwner, OnlineSession, UserExportRequest, UserImportInput, normalize_avatar},
+    domain::{AvatarFileId, NewUser, User, UserId},
 };
 
 type ApiResult<T> = Result<T, ApiError>;
@@ -104,26 +103,60 @@ pub async fn change_account_password(
 pub async fn upload_account_avatar(
     (State(state), Extension(current_user), audit_context, multipart): UploadAccountAvatarRequest,
 ) -> ApiResult<ApiJson<AvatarResponse>> {
+    let owner = AvatarOwner {
+        user_id: current_user.id.clone(),
+        department_id: current_user.dept_id.clone(),
+    };
     let avatar = avatar_file(multipart).await?;
     let max_bytes = state.avatar_config.avatar_config().await?.max_bytes;
-    let img_url = state.avatar_storage.store_avatar(avatar, max_bytes).await?;
+    let avatar = normalize_avatar(avatar, max_bytes).await?;
+    let file_id = state.avatar_storage.store_avatar(owner.clone(), avatar).await?;
+    match bind_avatar(&state, owner.clone(), file_id.clone(), audit_context).await {
+        Ok(response) => Ok(ok(response)),
+        Err(error) => {
+            state.avatar_storage.trash_avatar(owner, file_id).await?;
+            Err(error)
+        }
+    }
+}
+
+async fn bind_avatar(
+    state: &ApiState,
+    owner: AvatarOwner,
+    next: AvatarFileId,
+    audit_context: Option<Extension<audit_contract::OperationAuditContext>>,
+) -> ApiResult<AvatarResponse> {
     let audit = successful_operation_audit(audit_context)?;
     let user = state
         .users
-        .update_avatar_with_audit(UserId(current_user.id), img_url.clone(), audit.record())
+        .update_avatar_with_audit(UserId(owner.user_id.clone()), next.clone(), audit.record())
         .await?;
     audit.mark_persisted();
-    Ok(ok(AvatarResponse { img_url, user: user.into() }))
+    let user = crate::api::UserResponse::from(user);
+    let img_url = user
+        .avatar
+        .clone()
+        .ok_or_else(|| AppError::Infrastructure("persisted avatar has no public projection".into()))?;
+    Ok(AvatarResponse { img_url, user })
 }
 
 #[require_perms("system:user:export")]
 pub async fn export_users(request: ExportUsersRequest) -> ApiResult<Response> {
-    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let (State(state), Extension(data_scope), RequestQuery(query)) = request;
     let filter = export_user_filter(&query)?;
     let batch_size = state.export_config.export_batch_config().await?.page_size;
-    let scope = (!current_user.is_installation_owner).then_some(data_scope);
     let mut export = UserXlsxExport::new(current_locale())?;
-    state.users.export_users(UserExportRequest { filter, scope, batch_size }, &mut export).await?;
+    state
+        .users
+        .export_users(
+            UserExportRequest {
+                filter,
+                scope: data_scope,
+                batch_size,
+            },
+            &mut export,
+        )
+        .await?;
     Ok(xlsx_file_attachment("users.xlsx", export.finish()?))
 }
 
@@ -157,12 +190,8 @@ pub async fn user_import_template() -> ApiResult<Response> {
 
 #[require_perms("system:user:list")]
 pub async fn list_users(request: ListUsersRequest) -> ApiResult<ApiJson<UsersPageResponse>> {
-    let (State(state), Extension(current_user), Extension(data_scope), RequestQuery(query)) = request;
+    let (State(state), Extension(data_scope), RequestQuery(query)) = request;
     let filter = list_user_filter(query)?;
-    let page = if current_user.is_installation_owner {
-        state.users.list_users(filter).await?
-    } else {
-        state.users.list_users_scoped(filter, data_scope).await?
-    };
+    let page = state.users.list_users_scoped(filter, data_scope).await?;
     Ok(ok(page.map(UserResponse::from)))
 }

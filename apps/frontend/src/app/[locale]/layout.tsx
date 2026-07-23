@@ -1,3 +1,5 @@
+import '../../global.css';
+
 import { notFound } from 'next/navigation';
 
 import InitColorSchemeScript from '@mui/material/InitColorSchemeScript';

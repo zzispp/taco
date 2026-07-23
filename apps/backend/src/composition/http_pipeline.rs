@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use audit::api::{OperationAuditState, operation_audit_middleware};
 use axum::{
     Router,
@@ -11,18 +9,17 @@ use axum::{
 use configuration::Settings;
 use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
-    timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 
 use crate::{BackendResult, http_config};
 
 const API_PATH_PREFIX: &str = "/api/";
+const AVATAR_PROJECTION_PATH_PREFIX: &str = "/api/avatars/";
 const DOCS_PATH: &str = "/docs";
 const PERMISSIONS_POLICY: &str = "permissions-policy";
 const PERMISSIONS_POLICY_VALUE: &str = "camera=(), microphone=(), geolocation=()";
 const DOCS_CONTENT_SECURITY_POLICY: &str = "frame-ancestors 'none'; object-src 'none'; base-uri 'none'";
-const SETUP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) struct RuntimeLayerParts<'a> {
     pub settings: &'a Settings,
@@ -67,15 +64,6 @@ pub(crate) fn apply_http_layers(app: Router, settings: &Settings) -> BackendResu
     Ok(apply_response_layers(app))
 }
 
-pub(crate) fn apply_setup_layers(app: Router) -> Router {
-    apply_setup_layers_with_timeout(app, SETUP_REQUEST_TIMEOUT)
-}
-
-pub(super) fn apply_setup_layers_with_timeout(app: Router, timeout: Duration) -> Router {
-    let app = app.layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, timeout));
-    apply_response_layers(app)
-}
-
 fn apply_response_layers(app: Router) -> Router {
     app.layer(PropagateRequestIdLayer::x_request_id())
         .layer(TraceLayer::new_for_http())
@@ -86,6 +74,7 @@ fn apply_response_layers(app: Router) -> Router {
 async fn browser_security_headers(request: Request, next: Next) -> Response {
     let path = request.uri().path();
     let is_api = path.starts_with(API_PATH_PREFIX);
+    let is_avatar_projection = path.starts_with(AVATAR_PROJECTION_PATH_PREFIX);
     let is_docs = path == DOCS_PATH || path.starts_with("/docs/");
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
@@ -93,23 +82,11 @@ async fn browser_security_headers(request: Request, next: Next) -> Response {
     headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     headers.insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     headers.insert(PERMISSIONS_POLICY, HeaderValue::from_static(PERMISSIONS_POLICY_VALUE));
-    if is_api {
+    if is_api && !is_avatar_projection {
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     }
     if is_docs {
         headers.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static(DOCS_CONTENT_SECURITY_POLICY));
     }
     response
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
-
-    use super::SETUP_REQUEST_TIMEOUT;
-
-    #[test]
-    fn setup_request_timeout_is_thirty_seconds() {
-        assert_eq!(SETUP_REQUEST_TIMEOUT, Duration::from_secs(30));
-    }
 }

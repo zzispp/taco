@@ -1,31 +1,12 @@
-use std::{net::SocketAddr, path::PathBuf};
-
 use super::*;
 
-mod bootstrap;
 mod connections;
-mod installation_state;
 mod jwt;
-mod profile;
 mod runtime;
+mod yaml_loading;
 
 pub(super) const TEST_JWT_SECRET: &str = "config-test-jwt-secret-32-bytes!";
 const TEST_DATABASE_PASSWORD: &str = "unit-test-password";
-const TEST_CONFIG_ENCRYPTION_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-
-pub(super) fn valid_installation_profile() -> InstallationProfile {
-    InstallationProfile {
-        database: database_parts(),
-        jwt: jwt_settings(),
-        user: user_settings(),
-        http: http_settings(),
-        metrics: metrics_settings(),
-        audit: audit_settings(),
-        client_info: client_info_settings(),
-        redis: redis_settings(),
-        scheduler: scheduler_settings(),
-    }
-}
 
 pub(super) fn settings_with_database(database: DatabaseSettings) -> Settings {
     let mut settings = valid_settings();
@@ -46,19 +27,22 @@ pub(super) fn settings_with_http(http: HttpSettings) -> Settings {
 }
 
 pub(super) fn valid_settings() -> Settings {
-    Settings::from_installation_profile(valid_installation_profile(), &bootstrap_inputs()).unwrap()
-}
-
-pub(super) fn bootstrap_inputs() -> BootstrapInputs {
-    bootstrap_inputs_at(PathBuf::from("/var/lib/taco"), "127.0.0.1:3000".parse().unwrap())
-}
-
-pub(super) fn bootstrap_inputs_at(data_dir: PathBuf, listen_addr: SocketAddr) -> BootstrapInputs {
-    BootstrapInputs::new(
-        DataDirectory::new(data_dir).unwrap(),
-        ConfigEncryptionKey::parse(TEST_CONFIG_ENCRYPTION_KEY).unwrap(),
-        listen_addr,
-    )
+    Settings {
+        data_directory: "/var/lib/taco".into(),
+        server: ServerSettings {
+            host: "127.0.0.1".into(),
+            port: 3_000,
+        },
+        database: database_parts(),
+        jwt: jwt_settings(),
+        user: user_settings(),
+        http: http_settings(),
+        metrics: metrics_settings(),
+        audit: audit_settings(),
+        client_info: client_info_settings(),
+        redis: redis_settings(),
+        scheduler: scheduler_settings(),
+    }
 }
 
 pub(super) fn database_parts() -> DatabaseSettings {
@@ -70,6 +54,7 @@ pub(super) fn database_parts() -> DatabaseSettings {
         username: "postgres".into(),
         password: TEST_DATABASE_PASSWORD.into(),
         name: "postgres".into(),
+        auto_migrate: false,
     }
 }
 

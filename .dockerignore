@@ -11,6 +11,8 @@ apps/frontend/out
 storage
 logs
 .local
+/local-data/
+config/config.yaml
 
 .env
 .env.*

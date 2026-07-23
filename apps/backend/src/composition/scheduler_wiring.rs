@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use configuration::{SchedulerSettings, Settings};
+use file::application::FileCleanupUseCase;
 use observability::{
     application::{SystemLogRetentionUseCase, SystemLogUseCase},
     domain::{SystemLogFilter, SystemLogLevel},
@@ -10,12 +11,13 @@ use scheduler::{
         SchedulerAuditedUseCase, SchedulerRuntimeConfig, SchedulerRuntimeHandle, SchedulerRuntimeParts, SchedulerService, SchedulerServiceParts,
         SchedulerUseCase, start_scheduler_runtime,
         task::{
-            ScheduledTaskMetadata, StaticTaskCatalog, SystemCacheRefreshPort, SystemLogCleanupFilter, SystemLogCleanupLevel, SystemLogCleanupPort,
-            SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
+            FileCleanupPort, FileTrashCleanupResult, FileUploadSessionCleanupResult, ScheduledTaskMetadata, StaticTaskCatalog, SystemCacheRefreshPort,
+            SystemLogCleanupFilter, SystemLogCleanupLevel, SystemLogCleanupPort, SystemLogCleanupResult, TaskExecutionContext, TaskExecutionFailure,
         },
         tasks::{
-            CacheRefreshKind, HttpRequestTask, RefreshConfigCacheTask, RefreshDictCacheTask, SystemLogCleanupReport, SystemLogCleanupTask,
-            cache_refresh_failure,
+            CacheRefreshKind, CleanupUploadSessionsTask, FileCleanupKind, FileTrashCleanupReport, FileUploadSessionCleanupReport, HttpRequestTask,
+            PurgeTrashTask, RefreshConfigCacheTask, RefreshDictCacheTask, SystemLogCleanupReport, SystemLogCleanupTask, cache_refresh_failure,
+            file_cleanup_failure,
         },
     },
     infra::{
@@ -47,6 +49,11 @@ struct SchedulerSystemLogCleanupAdapter {
     retention: Arc<dyn SystemLogRetentionUseCase>,
 }
 
+#[derive(Clone)]
+struct SchedulerFileCleanupAdapter {
+    files: Arc<dyn FileCleanupUseCase>,
+}
+
 struct RuntimeAssembly<'a> {
     config: &'a SchedulerSettings,
     repository: Arc<StorageSchedulerRepository>,
@@ -54,6 +61,7 @@ struct RuntimeAssembly<'a> {
     system: Arc<dyn SystemUseCase>,
     logs: Arc<dyn SystemLogUseCase>,
     retention: Arc<dyn SystemLogRetentionUseCase>,
+    file_cleanup: Arc<dyn FileCleanupUseCase>,
     observer: taco_tracing::InfrastructureObserver,
     pool: sqlx::PgPool,
     executor_epoch: String,
@@ -103,12 +111,60 @@ impl SystemLogCleanupPort for SchedulerSystemLogCleanupAdapter {
     }
 }
 
+#[async_trait::async_trait]
+impl FileCleanupPort for SchedulerFileCleanupAdapter {
+    async fn purge_trash(&self, retention_days: u64, batch_size: u64) -> Result<FileTrashCleanupResult, TaskExecutionFailure> {
+        let report = self
+            .files
+            .purge_trash(retention_days, batch_size)
+            .await
+            .map_err(|error| file_cleanup_failure(FileCleanupKind::PurgeTrash, format!("file trash cleanup failed: {error}")))?;
+        let result = FileTrashCleanupResult {
+            purged_entries: report.purged_entries,
+            blocked_roots: report.blocked_roots,
+            deleted_objects: report.deleted_objects,
+            failed_objects: report.failed_objects,
+            retried_provider_cleanups: report.retried_provider_cleanups,
+            failed_provider_cleanups: report.failed_provider_cleanups,
+        };
+        if result.failed_objects > 0 || result.failed_provider_cleanups > 0 {
+            return Err(
+                file_cleanup_failure(FileCleanupKind::PurgeTrash, "file trash cleanup completed with provider failures")
+                    .with_detail(FileTrashCleanupReport::from(result)),
+            );
+        }
+        Ok(result)
+    }
+
+    async fn cleanup_upload_sessions(&self, batch_size: u64) -> Result<FileUploadSessionCleanupResult, TaskExecutionFailure> {
+        let report = self
+            .files
+            .cleanup_upload_sessions(batch_size)
+            .await
+            .map_err(|error| file_cleanup_failure(FileCleanupKind::UploadSessions, format!("file upload-session cleanup failed: {error}")))?;
+        let result = FileUploadSessionCleanupResult {
+            expired_sessions: report.expired_sessions,
+            reconciled_sessions: report.reconciled_sessions,
+            retried_provider_cleanups: report.retried_provider_cleanups,
+            failed_provider_cleanups: report.failed_provider_cleanups,
+        };
+        if result.failed_provider_cleanups > 0 {
+            return Err(
+                file_cleanup_failure(FileCleanupKind::UploadSessions, "file upload-session cleanup completed with provider failures")
+                    .with_detail(FileUploadSessionCleanupReport::from(result)),
+            );
+        }
+        Ok(result)
+    }
+}
+
 pub(super) fn build_scheduler_services(
     settings: &Settings,
     database: Database,
     system: Arc<dyn SystemUseCase>,
     logs: Arc<dyn SystemLogUseCase>,
     retention: Arc<dyn SystemLogRetentionUseCase>,
+    file_cleanup: Arc<dyn FileCleanupUseCase>,
     observer: taco_tracing::InfrastructureObserver,
 ) -> BackendResult<SchedulerServices> {
     let config = settings.scheduler_config()?;
@@ -120,6 +176,8 @@ pub(super) fn build_scheduler_services(
         RefreshConfigCacheTask::descriptor(),
         RefreshDictCacheTask::descriptor(),
         SystemLogCleanupTask::descriptor(),
+        PurgeTrashTask::descriptor(),
+        CleanupUploadSessionsTask::descriptor(),
     ])?;
     let assembly = RuntimeAssembly {
         config: &config,
@@ -128,6 +186,7 @@ pub(super) fn build_scheduler_services(
         system: system.clone(),
         logs,
         retention,
+        file_cleanup,
         observer,
         pool,
         executor_epoch,
@@ -155,6 +214,7 @@ fn runtime_parts(assembly: RuntimeAssembly<'_>) -> BackendResult<SchedulerRuntim
             logs: assembly.logs,
             retention: assembly.retention,
         }),
+        file_cleanup: Arc::new(SchedulerFileCleanupAdapter { files: assembly.file_cleanup }),
     };
     Ok(SchedulerRuntimeParts {
         store: assembly.repository,

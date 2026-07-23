@@ -183,6 +183,21 @@ mod tests {
     }
 
     #[test]
+    fn required_pausable_task_can_pause_and_change_policy_but_cannot_be_deleted() {
+        let mut definition = SystemLogCleanupTask::descriptor();
+        definition.lifecycle = TaskLifecyclePolicy::RequiredPausable;
+        let catalog = StaticTaskCatalog::try_new([definition]).unwrap();
+        let job = job(definition.task_key);
+
+        assert!(require_status_change_allowed(catalog.as_ref(), &job, JobStatus::Paused).is_ok());
+        assert!(replacement(replacement_command(MisfirePolicy::DoNothing, ConcurrentPolicy::Allow), definition).is_ok());
+        let SchedulerError::Forbidden(error) = require_deletion_allowed(catalog.as_ref(), &job).unwrap_err() else {
+            panic!("required pausable task deletion must be forbidden");
+        };
+        assert_eq!(error.key(), "errors.scheduler.required_task_cannot_delete");
+    }
+
+    #[test]
     fn required_task_replacement_rejects_unsafe_execution_policies() {
         let definition = SystemLogCleanupTask::descriptor();
         let unsafe_policies = [

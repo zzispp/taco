@@ -32,7 +32,7 @@ where
         self.repository.update_password_with_audit(input.user_id, hash, &input.audit).await
     }
 
-    pub(super) async fn update_avatar_with_audit_command(&self, id: UserId, avatar: String, audit: AuditOutboxRecord) -> AppResult<User> {
+    pub(super) async fn update_avatar_with_audit_command(&self, id: UserId, avatar: crate::domain::AvatarFileId, audit: AuditOutboxRecord) -> AppResult<User> {
         let avatar = self.prepare_avatar_update(avatar)?;
         self.repository.update_avatar_with_audit(id, avatar, &audit).await
     }
@@ -43,36 +43,30 @@ where
     }
 
     pub(super) async fn replace_user_with_audit_command(&self, id: UserId, input: ReplaceUser, audit: AuditOutboxRecord) -> AppResult<User> {
-        self.reject_installation_owner_mutation(&id).await?;
         let user = self.prepare_replacement(&id, input).await?;
         self.repository.replace_with_audit(id, user, &audit).await
     }
 
     pub(super) async fn delete_user_with_audit_command(&self, id: UserId, audit: AuditOutboxRecord) -> AppResult<()> {
-        self.reject_installation_owner_mutation(&id).await?;
         self.repository.delete_with_audit(id, &audit).await
     }
 
     pub(super) async fn delete_users_with_audit_command(&self, ids: Vec<UserId>, audit: AuditOutboxRecord) -> AppResult<()> {
         self.validate_user_deletions(&ids)?;
-        self.reject_installation_owner_mutations(&ids).await?;
         self.repository.delete_many_with_audit(ids, &audit).await
     }
 
     pub(super) async fn reset_password_with_audit_command(&self, id: UserId, password: String, audit: AuditOutboxRecord) -> AppResult<()> {
-        self.reject_installation_owner_mutation(&id).await?;
         let hash = self.prepare_password_reset(&id, password).await?;
         self.repository.update_password_with_audit(id, hash, &audit).await
     }
 
     pub(super) async fn update_status_with_audit_command(&self, id: UserId, status: String, audit: AuditOutboxRecord) -> AppResult<User> {
-        self.reject_installation_owner_mutation(&id).await?;
         let status = self.prepare_status_update(status)?;
         self.repository.update_status_with_audit(id, status, &audit).await
     }
 
     pub(super) async fn replace_roles_with_audit_command(&self, id: UserId, role_ids: Vec<String>, audit: AuditOutboxRecord) -> AppResult<User> {
-        self.reject_installation_owner_mutation(&id).await?;
         let role_ids = self.prepare_role_replacement(role_ids)?;
         self.repository.replace_roles_with_audit(id, role_ids, &audit).await
     }

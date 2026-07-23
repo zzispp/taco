@@ -10,8 +10,9 @@ import { formatNumberLocale } from 'src/shared/i18n';
 export type InputNumberValue = string | number | null | undefined;
 
 type Options = Intl.NumberFormatOptions;
+type CurrencyOptions = Omit<Options, 'currency' | 'style'>;
 
-const DEFAULT_LOCALE = { code: 'en-US', currency: 'USD' };
+const DEFAULT_LOCALE = { code: 'en-US' };
 
 function processInput(inputValue: InputNumberValue): number | null {
   if (inputValue == null || Number.isNaN(inputValue)) return null;
@@ -37,18 +38,22 @@ export function fNumber(inputValue: InputNumberValue, options?: Options) {
 
 // ----------------------------------------------------------------------
 
-export function fCurrency(inputValue: InputNumberValue, options?: Options) {
+export function fCurrency(
+  inputValue: InputNumberValue,
+  currency: string,
+  options?: CurrencyOptions
+) {
   const locale = formatNumberLocale() || DEFAULT_LOCALE;
 
   const number = processInput(inputValue);
   if (number === null) return '';
 
   const fm = new Intl.NumberFormat(locale.code, {
+    ...options,
     style: 'currency',
-    currency: locale.currency,
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-    ...options,
   }).format(number);
 
   return fm;

@@ -1,10 +1,11 @@
 use rbac::{application::RbacRepository, domain::RoleDataScopeInput, infra::StorageRbacRepository};
 use sqlx::{PgPool, query, query_scalar};
 use storage::Database;
+
 use user::{application::UserRepository, domain::UserId, infra::StorageUserRepository};
 
 use self::fixtures::{MenuFixture, RelationFixture, RoleFixture, UserFixture};
-use super::{TestDatabase, up};
+use super::{TestDatabase, bootstrap_system_administrator, up};
 
 #[path = "data_integrity/fixtures.rs"]
 mod fixtures;
@@ -20,6 +21,7 @@ const SCOPE_ROLE_ID: &str = "integrity-r-scope";
 async fn integrity_migration_enforces_identity_and_relation_semantics() {
     let database = TestDatabase::create().await;
     up(database.pool(), None).await.unwrap();
+    bootstrap_system_administrator(database.pool()).await;
 
     assert_user_identity_semantics(database.pool()).await;
     assert_role_uniqueness(database.pool()).await;

@@ -11,7 +11,7 @@ use types::{
 };
 
 use crate::{
-    api::{CurrentUser, RbacApiState},
+    api::RbacApiState,
     domain::{DataScopeFilter, RoleUser, RoleUserBindingInput},
 };
 
@@ -20,16 +20,9 @@ use super::{
     support::{ok, role_user_filter, successful_operation_audit},
 };
 
-type RoleUsersRequest = (
-    State<RbacApiState>,
-    Extension<CurrentUser>,
-    Extension<DataScopeFilter>,
-    Path<String>,
-    RequestQuery<RoleUsersQuery>,
-);
+type RoleUsersRequest = (State<RbacApiState>, Extension<DataScopeFilter>, Path<String>, RequestQuery<RoleUsersQuery>);
 type RoleUserReplaceRequest = (
     State<RbacApiState>,
-    Extension<CurrentUser>,
     Extension<DataScopeFilter>,
     Path<String>,
     Extension<OperationAuditContext>,
@@ -37,14 +30,12 @@ type RoleUserReplaceRequest = (
 );
 type DeleteRoleUserRequest = (
     State<RbacApiState>,
-    Extension<CurrentUser>,
     Extension<DataScopeFilter>,
     Path<(String, String)>,
     Extension<OperationAuditContext>,
 );
 type DeleteRoleUsersRequest = (
     State<RbacApiState>,
-    Extension<CurrentUser>,
     Extension<DataScopeFilter>,
     Path<String>,
     Extension<OperationAuditContext>,
@@ -53,17 +44,14 @@ type DeleteRoleUsersRequest = (
 
 #[require_perms("system:role:list")]
 pub async fn role_users(request: RoleUsersRequest) -> ApiResult<ApiJson<CursorPage<RoleUser>>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(id), RequestQuery(query)) = request;
-    let scope = (!current_user.is_installation_owner).then_some(data_scope);
-    Ok(ok(state.rbac_admin.page_role_users(role_user_filter(id, query), scope).await?))
+    let (State(state), Extension(data_scope), Path(id), RequestQuery(query)) = request;
+    Ok(ok(state.rbac_admin.page_role_users(role_user_filter(id, query), Some(data_scope)).await?))
 }
 
 #[require_perms("system:role:edit")]
 pub async fn replace_role_users(request: RoleUserReplaceRequest) -> ApiResult<ApiJson<()>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(id), Extension(audit_context), RequestJson(payload)) = request;
-    RoleUserScopeGuard::new(&state, &current_user, data_scope)
-        .ensure_many(payload.user_ids.clone())
-        .await?;
+    let (State(state), Extension(data_scope), Path(id), Extension(audit_context), RequestJson(payload)) = request;
+    RoleUserScopeGuard::new(&state, data_scope).ensure_many(payload.user_ids.clone()).await?;
     let audit = successful_operation_audit(audit_context)?;
     state.rbac_audited_admin.replace_role_users_with_audit(&id, payload, audit.record()).await?;
     audit.mark_persisted();
@@ -72,8 +60,8 @@ pub async fn replace_role_users(request: RoleUserReplaceRequest) -> ApiResult<Ap
 
 #[require_perms("system:role:remove")]
 pub async fn delete_role_user(request: DeleteRoleUserRequest) -> ApiResult<ApiJson<()>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path((id, user_id)), Extension(audit_context)) = request;
-    RoleUserScopeGuard::new(&state, &current_user, data_scope).ensure_one(&user_id).await?;
+    let (State(state), Extension(data_scope), Path((id, user_id)), Extension(audit_context)) = request;
+    RoleUserScopeGuard::new(&state, data_scope).ensure_one(&user_id).await?;
     let audit = successful_operation_audit(audit_context)?;
     state.rbac_audited_admin.delete_role_user_with_audit(&id, &user_id, audit.record()).await?;
     audit.mark_persisted();
@@ -82,10 +70,8 @@ pub async fn delete_role_user(request: DeleteRoleUserRequest) -> ApiResult<ApiJs
 
 #[require_perms("system:role:remove")]
 pub async fn delete_role_users(request: DeleteRoleUsersRequest) -> ApiResult<ApiJson<()>> {
-    let (State(state), Extension(current_user), Extension(data_scope), Path(id), Extension(audit_context), RequestJson(payload)) = request;
-    RoleUserScopeGuard::new(&state, &current_user, data_scope)
-        .ensure_many(payload.ids.clone())
-        .await?;
+    let (State(state), Extension(data_scope), Path(id), Extension(audit_context), RequestJson(payload)) = request;
+    RoleUserScopeGuard::new(&state, data_scope).ensure_many(payload.ids.clone()).await?;
     let audit = successful_operation_audit(audit_context)?;
     state.rbac_audited_admin.delete_role_users_with_audit(&id, payload.ids, audit.record()).await?;
     audit.mark_persisted();
@@ -94,17 +80,12 @@ pub async fn delete_role_users(request: DeleteRoleUsersRequest) -> ApiResult<Api
 
 struct RoleUserScopeGuard<'a> {
     state: &'a RbacApiState,
-    current_user: &'a CurrentUser,
     data_scope: DataScopeFilter,
 }
 
 impl<'a> RoleUserScopeGuard<'a> {
-    const fn new(state: &'a RbacApiState, current_user: &'a CurrentUser, data_scope: DataScopeFilter) -> Self {
-        Self {
-            state,
-            current_user,
-            data_scope,
-        }
+    const fn new(state: &'a RbacApiState, data_scope: DataScopeFilter) -> Self {
+        Self { state, data_scope }
     }
 
     async fn ensure_one(&self, user_id: &str) -> ApiResult<()> {
@@ -112,9 +93,6 @@ impl<'a> RoleUserScopeGuard<'a> {
     }
 
     async fn ensure_many(&self, user_ids: Vec<String>) -> ApiResult<()> {
-        if self.current_user.is_installation_owner {
-            return Ok(());
-        }
         let user_ids = clean_user_ids(user_ids);
         if user_ids.is_empty() {
             return Ok(());
