@@ -1,3 +1,4 @@
+use kernel::pagination::CursorDirection;
 use sqlx::{Postgres, QueryBuilder};
 
 use crate::application::{FileListQuery, FileSpaceQuery};
@@ -22,17 +23,33 @@ impl SortDirection {
         }
     }
 
-    const fn operator(self) -> &'static str {
+    const fn operator(self, direction: CursorDirection) -> &'static str {
+        self.physical(direction).forward_operator()
+    }
+
+    const fn forward_operator(self) -> &'static str {
         match self {
             Self::Asc => ">",
             Self::Desc => "<",
         }
     }
 
-    const fn sql(self) -> &'static str {
+    const fn sql(self, direction: CursorDirection) -> &'static str {
+        self.physical(direction).forward_sql()
+    }
+
+    const fn forward_sql(self) -> &'static str {
         match self {
             Self::Asc => " ASC",
             Self::Desc => " DESC",
+        }
+    }
+
+    const fn physical(self, direction: CursorDirection) -> Self {
+        match (self, direction) {
+            (value, CursorDirection::Next) => value,
+            (Self::Asc, CursorDirection::Previous) => Self::Desc,
+            (Self::Desc, CursorDirection::Previous) => Self::Asc,
         }
     }
 }
@@ -78,7 +95,7 @@ impl EntrySortSpec {
             .push(" AND (")
             .push(self.column())
             .push(",e.entry_id)")
-            .push(self.direction.operator())
+            .push(self.direction.operator(cursor.direction))
             .push("(");
         match self.field {
             EntrySortField::UpdatedAt | EntrySortField::CreatedAt => query.push_bind(parse_time(&cursor.sort_value)?),
@@ -88,13 +105,13 @@ impl EntrySortSpec {
         Ok(())
     }
 
-    pub(in crate::infra) fn push_order(self, query: &mut QueryBuilder<Postgres>) {
+    pub(in crate::infra) fn push_order(self, query: &mut QueryBuilder<Postgres>, direction: CursorDirection) {
         query
             .push(" ORDER BY ")
             .push(self.column())
-            .push(self.direction.sql())
+            .push(self.direction.sql(direction))
             .push(",e.entry_id")
-            .push(self.direction.sql());
+            .push(self.direction.sql(direction));
     }
 
     fn column(self) -> &'static str {
@@ -162,16 +179,19 @@ impl SpaceSortSpec {
         let Some(cursor) = cursor else { return Ok(()) };
         query.push(" AND (");
         self.push_column(query, default_quota)?;
-        query.push(",s.space_id)").push(self.direction.operator()).push("(");
+        query.push(",s.space_id)").push(self.direction.operator(cursor.direction)).push("(");
         self.push_cursor_value(query, cursor)?;
         query.push(",").push_bind(cursor.id.clone()).push(")");
         Ok(())
     }
 
-    pub(in crate::infra) fn push_order(self, query: &mut QueryBuilder<Postgres>, default_quota: ByteSize) -> FileResult<()> {
+    pub(in crate::infra) fn push_order(self, query: &mut QueryBuilder<Postgres>, default_quota: ByteSize, direction: CursorDirection) -> FileResult<()> {
         query.push(" ORDER BY ");
         self.push_column(query, default_quota)?;
-        query.push(self.direction.sql()).push(",s.space_id").push(self.direction.sql());
+        query
+            .push(self.direction.sql(direction))
+            .push(",s.space_id")
+            .push(self.direction.sql(direction));
         Ok(())
     }
 

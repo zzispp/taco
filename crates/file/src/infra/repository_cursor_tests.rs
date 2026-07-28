@@ -1,3 +1,4 @@
+use kernel::pagination::CursorDirection;
 use sqlx::{Postgres, QueryBuilder};
 
 use crate::{FileError, application::FileSpaceQuery, domain::ByteSize, error::keys};
@@ -11,6 +12,7 @@ fn cursor(sort_value: &str) -> PageCursor {
     PageCursor {
         sort_value: sort_value.into(),
         id: "space-1".into(),
+        direction: CursorDirection::Next,
         fingerprint: "fingerprint".into(),
         limit: 20,
     }

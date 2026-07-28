@@ -1,4 +1,4 @@
-use kernel::pagination::CursorPageRequest;
+use kernel::pagination::CursorDirection;
 use sqlx::{Postgres, QueryBuilder};
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
     error::keys,
 };
 
-use super::{EntrySortSpec, PageCursor, VIRTUAL_SPACE_CTE, decode_cursor, entry_query, normalize_list_filter, page_fingerprint, scope_query};
+use super::{EntrySortSpec, PageCursor, VIRTUAL_SPACE_CTE, entry_query, normalize_list_filter, page_fingerprint, scope_query};
 
 fn scope_sql(scope: &FileAccessScope) -> String {
     let mut query = QueryBuilder::<Postgres>::new("SELECT 1 WHERE");
@@ -56,10 +56,6 @@ fn cursor_fingerprint_ignores_cursor_and_canonicalizes_department_order() {
 
     assert_eq!(page_fingerprint(&actor_a, &first), page_fingerprint(&actor_a, &second));
     assert_eq!(page_fingerprint(&actor_a, &first), page_fingerprint(&actor_b, &first));
-
-    let page = CursorPageRequest { limit: 20, cursor: None };
-    let token = super::encode_cursor("2026-01-01T00:00:00Z", "entry", &page_fingerprint(&actor_a, &first), &page);
-    assert!(decode_cursor(Some(&token), &page_fingerprint(&actor_a, &second), &page).is_ok());
 }
 
 #[test]
@@ -111,17 +107,28 @@ fn sort_spec_emits_keyset_order_and_rejects_unknown_values() {
     };
     let spec = EntrySortSpec::from_filter(&filter).unwrap();
     let mut query = QueryBuilder::<Postgres>::new("SELECT 1");
-    spec.push_order(&mut query);
+    spec.push_order(&mut query, CursorDirection::Next);
     assert_eq!(query.sql().as_str(), "SELECT 1 ORDER BY e.normalized_name ASC,e.entry_id ASC");
 
     let cursor = PageCursor {
         sort_value: "alpha".into(),
         id: "entry".into(),
+        direction: CursorDirection::Next,
         fingerprint: "fp".into(),
         limit: 20,
     };
     spec.push_cursor_bound(&mut query, Some(&cursor)).unwrap();
     assert!(query.sql().as_str().contains("AND (e.normalized_name,e.entry_id)>("));
+
+    let mut previous_query = QueryBuilder::<Postgres>::new("SELECT 1");
+    let previous_cursor = PageCursor {
+        direction: CursorDirection::Previous,
+        ..cursor
+    };
+    spec.push_cursor_bound(&mut previous_query, Some(&previous_cursor)).unwrap();
+    spec.push_order(&mut previous_query, CursorDirection::Previous);
+    assert!(previous_query.sql().as_str().contains("AND (e.normalized_name,e.entry_id)<("));
+    assert!(previous_query.sql().as_str().ends_with("ORDER BY e.normalized_name DESC,e.entry_id DESC"));
 
     let invalid = FileListQuery {
         sort_by: Some("size".into()),

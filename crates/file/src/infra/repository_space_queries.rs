@@ -9,7 +9,7 @@ use crate::{FileError, FileResult};
 
 use super::views::space_view;
 use crate::infra::repository_support::{
-    PHYSICAL_USAGE_SQL, SpaceRecord, SpaceSortSpec, VIRTUAL_SPACE_CTE, decode_cursor, encode_cursor, scope_query, space_page_fingerprint, storage_error,
+    CursorBoundary, FilePageContext, PHYSICAL_USAGE_SQL, SpaceRecord, SpaceSortSpec, VIRTUAL_SPACE_CTE, scope_query, space_page_fingerprint, storage_error,
 };
 
 pub(in crate::infra) async fn list_spaces(
@@ -22,26 +22,24 @@ pub(in crate::infra) async fn list_spaces(
     page.validate().map_err(|_| FileError::InvalidInput(keys::CURSOR_LIMIT_INVALID))?;
     let sort = SpaceSortSpec::from_filter(&filter)?;
     let fingerprint = space_page_fingerprint(actor, &filter);
-    let cursor = decode_cursor(filter.cursor.as_deref(), &fingerprint, &page)?;
+    let page_context = FilePageContext::new(filter.cursor.as_deref(), &fingerprint, &page)?;
     let mut query = QueryBuilder::<Postgres>::new(VIRTUAL_SPACE_CTE);
     query.push(" SELECT s.space_id,s.owner_user_id,s.owner_name,d.dept_name AS department_name,s.status,s.active_bytes,s.trashed_bytes,s.reserved_bytes,s.quota_override_bytes,");
     query.push(PHYSICAL_USAGE_SQL);
     query.push(" AS physical_bytes,s.updated_at FROM visible_spaces s LEFT JOIN sys_dept d ON d.dept_id=s.owner_dept_id WHERE");
     scope_query(&mut query, actor, "s");
     append_filters(&mut query, &filter);
-    sort.push_cursor_bound(&mut query, cursor.as_ref(), default_quota)?;
-    let limit = page.limit.checked_add(1).ok_or(FileError::InvalidInput(keys::CURSOR_LIMIT_TOO_LARGE))?;
-    sort.push_order(&mut query, default_quota)?;
-    query.push(" LIMIT ");
-    query.push_bind(i64::try_from(limit).map_err(|_| FileError::InvalidInput(keys::CURSOR_LIMIT_TOO_LARGE))?);
+    sort.push_cursor_bound(&mut query, page_context.cursor(), default_quota)?;
+    sort.push_order(&mut query, default_quota, page_context.direction())?;
+    query.push(" LIMIT ").push_bind(page_context.query_limit()?);
     let rows = query.build_query_as::<SpaceRecord>().fetch_all(database.pool()).await.map_err(storage_error)?;
-    let has_next = rows.len() > page.limit as usize;
-    let rows = rows.into_iter().take(page.limit as usize).collect::<Vec<_>>();
-    let next = next_cursor(rows.last().filter(|_| has_next), sort, default_quota, &fingerprint, &page)?;
+    let slice = page_context.build_page(rows, |row| {
+        Ok(CursorBoundary::new(sort.cursor_value(row, default_quota)?, row.space_id.clone()))
+    })?;
     Ok(CursorPage::new(
-        rows.into_iter().map(|row| space_view(row, default_quota)).collect(),
-        next,
-        None,
+        slice.records.into_iter().map(|row| space_view(row, default_quota)).collect(),
+        slice.next_cursor,
+        slice.previous_cursor,
     ))
 }
 
@@ -84,15 +82,4 @@ fn append_filters(query: &mut QueryBuilder<Postgres>, filter: &FileSpaceQuery) {
             .push_bind(search.clone())
             .push(" || '%')");
     }
-}
-
-fn next_cursor(
-    row: Option<&SpaceRecord>,
-    sort: SpaceSortSpec,
-    default_quota: crate::domain::ByteSize,
-    fingerprint: &str,
-    page: &CursorPageRequest,
-) -> FileResult<Option<String>> {
-    row.map(|row| Ok(encode_cursor(sort.cursor_value(row, default_quota)?, &row.space_id, fingerprint, page)))
-        .transpose()
 }

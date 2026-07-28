@@ -1,6 +1,3 @@
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use kernel::pagination::CursorPageRequest;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, QueryBuilder};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -12,6 +9,10 @@ use crate::{FileError, FileResult};
 #[path = "repository_cursor.rs"]
 mod cursor;
 pub(in crate::infra) use cursor::{EntrySortSpec, SpaceSortSpec};
+
+#[path = "repository_page.rs"]
+mod page;
+pub(in crate::infra) use page::{CursorBoundary, FilePageContext, PageCursor};
 
 pub(super) const PHYSICAL_USAGE_SQL: &str = "COALESCE((SELECT SUM(objects.size_bytes) FROM (SELECT DISTINCT o.object_id,o.size_bytes FROM file_object o JOIN file_entry pe ON pe.object_id=o.object_id WHERE pe.space_id=s.space_id) objects),0)::BIGINT";
 
@@ -67,14 +68,6 @@ pub(super) struct ObjectRecord {
     pub object_key: String,
     pub size_bytes: i64,
     pub sha256: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(super) struct PageCursor {
-    pub sort_value: String,
-    pub id: String,
-    pub fingerprint: String,
-    pub limit: u64,
 }
 
 pub(super) fn storage_error(error: impl std::fmt::Display) -> FileError {
@@ -257,26 +250,6 @@ pub(super) fn space_page_fingerprint(scope: &FileAccessScope, filter: &FileSpace
     let mut digest = Sha256::new();
     digest.update(serde_json::to_vec(&value).unwrap_or_default());
     format!("{:x}", digest.finalize())
-}
-
-pub(super) fn encode_cursor(sort_value: impl Into<String>, id: &str, fingerprint: &str, page: &CursorPageRequest) -> String {
-    let cursor = PageCursor {
-        sort_value: sort_value.into(),
-        id: id.to_owned(),
-        fingerprint: fingerprint.to_owned(),
-        limit: page.limit,
-    };
-    URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).expect("file cursor serialization is infallible"))
-}
-
-pub(super) fn decode_cursor(cursor: Option<&str>, fingerprint: &str, page: &CursorPageRequest) -> FileResult<Option<PageCursor>> {
-    let Some(cursor) = cursor else { return Ok(None) };
-    let bytes = URL_SAFE_NO_PAD.decode(cursor).map_err(|_| FileError::InvalidInput(keys::CURSOR_MALFORMED))?;
-    let value: PageCursor = serde_json::from_slice(&bytes).map_err(|_| FileError::InvalidInput(keys::CURSOR_MALFORMED))?;
-    if value.fingerprint != fingerprint || value.limit != page.limit {
-        return Err(FileError::InvalidInput(keys::CURSOR_QUERY_MISMATCH));
-    }
-    Ok(Some(value))
 }
 
 #[cfg(test)]

@@ -23,6 +23,8 @@ mod batch;
 mod directory_trail;
 #[path = "repository_tests/overview.rs"]
 mod overview;
+#[path = "repository_tests/pagination.rs"]
+mod pagination;
 #[path = "repository_tests/upload.rs"]
 mod upload;
 #[path = "repository_tests/upload_idempotency.rs"]

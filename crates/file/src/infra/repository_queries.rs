@@ -8,7 +8,7 @@ use crate::error::keys;
 use crate::{FileError, FileResult};
 
 use super::repository_support::{
-    ContentRecord, EntryRecord, EntrySortSpec, ObjectRecord, PHYSICAL_USAGE_SQL, SpaceRecord, decode_cursor, encode_cursor, entry_columns, entry_query,
+    ContentRecord, CursorBoundary, EntryRecord, EntrySortSpec, FilePageContext, ObjectRecord, PHYSICAL_USAGE_SQL, SpaceRecord, entry_columns, entry_query,
     normalize_list_filter, page_fingerprint, scope_query, storage_error,
 };
 
@@ -25,25 +25,17 @@ pub(super) async fn list_entries(database: &Database, actor: &FileAccessScope, f
     let filter = normalize_list_filter(filter);
     let sort = EntrySortSpec::from_filter(&filter)?;
     let fingerprint = page_fingerprint(actor, &filter);
-    let cursor = decode_cursor(filter.cursor.as_deref(), &fingerprint, &page)?;
+    let page_context = FilePageContext::new(filter.cursor.as_deref(), &fingerprint, &page)?;
     let mut query = QueryBuilder::<Postgres>::new("SELECT ");
     query.push(entry_columns());
     entry_query(&mut query, actor, &filter)?;
-    sort.push_cursor_bound(&mut query, cursor.as_ref())?;
-    let limit = page.limit.checked_add(1).ok_or(FileError::InvalidInput(keys::CURSOR_LIMIT_TOO_LARGE))?;
-    sort.push_order(&mut query);
-    query
-        .push(" LIMIT ")
-        .push_bind(i64::try_from(limit).map_err(|_| FileError::InvalidInput(keys::CURSOR_LIMIT_TOO_LARGE))?);
+    sort.push_cursor_bound(&mut query, page_context.cursor())?;
+    sort.push_order(&mut query, page_context.direction());
+    query.push(" LIMIT ").push_bind(page_context.query_limit()?);
     let records = query.build_query_as::<EntryRecord>().fetch_all(database.pool()).await.map_err(storage_error)?;
-    let has_next = records.len() > page.limit as usize;
-    let records = records.into_iter().take(page.limit as usize).collect::<Vec<_>>();
-    let next = records
-        .last()
-        .filter(|_| has_next)
-        .map(|record| encode_cursor(sort.cursor_value(record), &record.entry_id, &fingerprint, &page));
-    let items = build_views(database, records).await?;
-    Ok(CursorPage::new(items, next, None))
+    let slice = page_context.build_page(records, |record| Ok(CursorBoundary::new(sort.cursor_value(record), record.entry_id.clone())))?;
+    let items = build_views(database, slice.records).await?;
+    Ok(CursorPage::new(items, slice.next_cursor, slice.previous_cursor))
 }
 
 pub(super) async fn find_entry(database: &Database, actor: &FileAccessScope, id: FileId) -> FileResult<Option<FileEntryView>> {
