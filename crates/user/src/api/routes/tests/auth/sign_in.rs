@@ -33,6 +33,52 @@ async fn sign_in_accepts_email_identifier_and_returns_access_token() {
 }
 
 #[tokio::test]
+async fn sign_in_uses_unknown_location_when_all_ip_location_providers_fail() {
+    let app = test_app_with_ip_location(TestIpLocationOutcome::ProviderFailure);
+
+    let response = app
+        .router
+        .clone()
+        .oneshot(json_request(
+            Method::POST,
+            "/api/auth/sign-in",
+            json!({"identifier":"alice","password":VALID_PASSWORD}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_non_empty_string(&json_body(response).await["access_token"]);
+    let sessions = app.sessions.sessions();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].login_location, "未知");
+}
+
+#[tokio::test]
+async fn sign_in_keeps_ip_location_configuration_failures_explicit() {
+    for outcome in [
+        TestIpLocationOutcome::InvalidConfig,
+        TestIpLocationOutcome::InvalidSetting,
+        TestIpLocationOutcome::RuntimeConfig,
+    ] {
+        let app = test_app_with_ip_location(outcome);
+        let response = app
+            .router
+            .oneshot(json_request(
+                Method::POST,
+                "/api/auth/sign-in",
+                json!({"identifier":"alice","password":VALID_PASSWORD}),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(json_body(response).await["code"], "infrastructure_error");
+        assert_eq!(app.sessions.sessions(), Vec::new());
+    }
+}
+
+#[tokio::test]
 async fn sign_in_sets_host_only_strict_http_only_refresh_cookie_without_exposing_refresh_token() {
     let app = test_router();
 

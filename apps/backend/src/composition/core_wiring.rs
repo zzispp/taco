@@ -5,7 +5,7 @@ use ::system::{
     infra::{RedisSystemCache, StorageSystemRepository, SysinfoServerMetricsCollector},
     notice::{NoticeAuditedUseCase, NoticeService, NoticeUseCase, StorageNoticeRepository},
 };
-use client_info::{IpLocationClientConfig, IpLocationResolver, PconlineIpLocationResolver};
+use client_info::{IpLocationClientConfig, IpLocationResolver, PublicIpLocationResolver};
 use configuration::Settings;
 use storage::Database;
 use user::{
@@ -67,7 +67,7 @@ pub(super) async fn build_user_services(
     let user_repository = StorageUserRepository::new(database.clone());
     let user_service = UserService::with_password_policy(user_repository, Argon2PasswordHasher, runtime_config.clone());
     let client_info = settings.client_info_config()?;
-    let location_resolver: Arc<dyn IpLocationResolver> = Arc::new(PconlineIpLocationResolver::new(
+    let location_resolver: Arc<dyn IpLocationResolver> = Arc::new(PublicIpLocationResolver::new(
         Arc::new(runtime_config.clone()),
         IpLocationClientConfig {
             request_timeout: Duration::from_millis(client_info.ip_location.request_timeout_ms),

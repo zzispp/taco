@@ -8,6 +8,8 @@ pub enum ClientInfoError {
     InvalidConfig(&'static str),
     #[error("invalid client information setting: {0}")]
     InvalidSetting(&'static str),
+    #[error("client information runtime config error: {0}")]
+    RuntimeConfig(String),
     #[error("client information provider error: {0}")]
     Provider(String),
 }

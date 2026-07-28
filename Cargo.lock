@@ -699,8 +699,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "constants",
- "encoding_rs",
  "http",
+ "metrics",
+ "metrics-exporter-prometheus",
  "reqwest",
  "serde",
  "serde_json",

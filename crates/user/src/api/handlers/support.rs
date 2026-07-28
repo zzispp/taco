@@ -97,7 +97,7 @@ pub(super) fn ok<T>(data: T) -> ApiJson<T> {
 
 pub(super) async fn issue_tokens_for_user(state: &ApiState, client: &client_info::ClientInfo, user: &User) -> AppResult<TokenPair> {
     let ipaddr = client.ipaddr();
-    let location = state.ip_location_resolver.resolve_ip_location(&ipaddr).await.map_err(client_info_error)?;
+    let location = authentication_location(state.ip_location_resolver.as_ref(), &ipaddr).await?;
     let login_location = login_location(location, current_locale());
     let profile = state.users.profile(user.id.clone()).await?;
     state
@@ -112,6 +112,22 @@ pub(super) async fn issue_tokens_for_user(state: &ApiState, client: &client_info
             os: client.os.clone(),
         })
         .await
+}
+
+async fn authentication_location(resolver: &dyn client_info::IpLocationResolver, ip_address: &str) -> AppResult<client_info::IpLocation> {
+    match resolver.resolve_ip_location(ip_address).await {
+        Ok(location) => Ok(location),
+        Err(client_info::ClientInfoError::Provider(error)) => {
+            taco_tracing::warn_with_fields!(
+                "ip location provider failure did not block authentication",
+                component = "ip_location",
+                ip_address = ip_address,
+                error = error,
+            );
+            Ok(client_info::IpLocation::Unknown)
+        }
+        Err(error) => Err(client_info_error(error)),
+    }
 }
 
 fn login_location(location: client_info::IpLocation, locale: types::http::Locale) -> String {

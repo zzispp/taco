@@ -99,7 +99,18 @@ async fn assert_seed_config_remarks(pool: &PgPool) {
     assert_config_remark_contains(
         pool,
         "sys.client.ipLocationConfig",
-        &["enabled", "pconline", "本地化未知文案", "本地化内网文案", "在线会话", "审计日志"],
+        &[
+            "enabled",
+            "ipwho.is",
+            "ipquery.io",
+            "GeoJS",
+            "全部 Provider 失败",
+            "不阻断认证",
+            "本地化未知文案",
+            "本地化内网文案",
+            "在线会话",
+            "审计日志",
+        ],
     )
     .await;
     assert_config_remark_contains(pool, "sys.auth.loginLockConfig", &["max_retry_count", "lock_minutes"]).await;

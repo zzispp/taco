@@ -5,5 +5,5 @@ mod location;
 pub use client::ClientInfo;
 pub use error::{ClientInfoError, ClientInfoResult};
 pub use location::{
-    IpLocation, IpLocationClientConfig, IpLocationConfig, IpLocationResolver, IpLocationSettingsReader, PconlineIpLocationResolver, parse_ip_location_config,
+    IpLocation, IpLocationClientConfig, IpLocationConfig, IpLocationResolver, IpLocationSettingsReader, PublicIpLocationResolver, parse_ip_location_config,
 };

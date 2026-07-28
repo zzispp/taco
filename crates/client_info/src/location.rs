@@ -5,8 +5,9 @@ use serde::Deserialize;
 
 use crate::{ClientInfoError, ClientInfoResult};
 
-mod pconline;
-pub use pconline::PconlineIpLocationResolver;
+mod provider;
+mod resolver;
+pub use resolver::PublicIpLocationResolver;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IpLocation {
@@ -35,8 +36,8 @@ pub trait IpLocationSettingsReader: Send + Sync + 'static {
 
 /// Resolves an IP address without translating semantic location states.
 ///
-/// Implementations return errors for configuration, transport, and parsing
-/// failures. `Unknown` is reserved for successfully classified unknown data.
+/// Implementations preserve configuration errors and return `Provider` only
+/// after all external location providers have failed.
 #[async_trait]
 pub trait IpLocationResolver: Send + Sync + 'static {
     async fn resolve_ip_location(&self, ip_address: &str) -> ClientInfoResult<IpLocation>;

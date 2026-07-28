@@ -243,8 +243,8 @@ fn user_config_error(error: SystemError) -> AppError {
 
 fn client_info_config_error(error: SystemError) -> ClientInfoError {
     match error {
-        SystemError::NotFound => ClientInfoError::Provider(REQUIRED_SYSTEM_CONFIG_ERROR.into()),
-        other => ClientInfoError::Provider(other.to_string()),
+        SystemError::NotFound => ClientInfoError::RuntimeConfig(REQUIRED_SYSTEM_CONFIG_ERROR.into()),
+        other => ClientInfoError::RuntimeConfig(other.to_string()),
     }
 }
 

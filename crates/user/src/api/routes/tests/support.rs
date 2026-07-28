@@ -7,15 +7,14 @@ use ::rbac::application::{ApiCheckRequest, AuthorizationConfig, RbacError, RbacR
 use async_trait::async_trait;
 use audit_contract::{AuditOutboxEvent, SecurityAuditEvent};
 use axum::{Extension, Router, extract::ConnectInfo, middleware};
-use client_info::{ClientInfoResult, IpLocation, IpLocationResolver};
+use client_info::IpLocationResolver;
 use constants::system_config::REGISTER_USER_KEY;
-use kernel::error::LocalizedError;
 use rbac::domain::DataScopeFilter;
 use types::rbac::NavResponse;
 
 use crate::{
     api::{ApiState, ApiStateParts},
-    application::{AccountVerifier, AppError, AppResult, AvatarConfig, AvatarConfigProvider, AvatarStorage, SystemConfigProvider, UserService},
+    application::{AppResult, AvatarConfig, AvatarConfigProvider, AvatarStorage, SystemConfigProvider, UserService},
     test_support::{MemoryLoginFailureStore, MemoryOnlineSessionStore, MemoryUserRepository, TestLoginLockConfigProvider, TestPasswordHasher, stored_user},
 };
 
@@ -25,18 +24,24 @@ use super::super::create_router;
 mod audit;
 #[path = "support/audit_recorders.rs"]
 mod audit_recorders;
+#[path = "support/captcha.rs"]
+mod captcha;
 #[path = "support/http.rs"]
 mod http;
+#[path = "support/ip_location.rs"]
+mod ip_location;
 #[path = "support/rbac.rs"]
 mod rbac_fixtures;
 #[path = "support/tokens.rs"]
 mod tokens;
 
 pub(super) use audit_recorders::{MemoryOperationAuditRecorder, MemorySecurityAuditRecorder};
+pub(super) use captcha::TestCaptcha;
 pub(super) use http::{
     LocalizedJsonRequest, assert_non_empty_string, authenticated_request, json_body, json_request, json_request_with_accept_language, refresh_cookie_request,
     response_json, sign_in,
 };
+pub(super) use ip_location::{TestIpLocationOutcome, test_ip_location_resolver};
 pub(super) use rbac_fixtures::{admin_current_user, all_data_scope, self_current_user, self_data_scope};
 
 pub(super) use crate::test_support::VALID_PASSWORD;
@@ -80,6 +85,7 @@ struct TestAppInput {
     current_user: ::rbac::api::CurrentUser,
     data_scope: DataScopeFilter,
     avatar_storage: Option<Arc<dyn AvatarStorage>>,
+    ip_location_resolver: Arc<dyn IpLocationResolver>,
 }
 
 pub(super) fn test_router() -> Router {
@@ -101,6 +107,7 @@ pub(super) fn test_app_with_failed_login_cleanup() -> TestApp {
         current_user: admin_current_user(),
         data_scope: all_data_scope(),
         avatar_storage: None,
+        ip_location_resolver: test_ip_location_resolver(TestIpLocationOutcome::Resolved),
     })
 }
 
@@ -114,6 +121,19 @@ pub(super) fn test_router_with_captcha(captcha: TestCaptcha) -> Router {
 
 pub(super) fn test_app_with_captcha(captcha: TestCaptcha) -> TestApp {
     test_app_with_repository(base_repository(), TestConfig::new(true), captcha)
+}
+
+pub(super) fn test_app_with_ip_location(outcome: TestIpLocationOutcome) -> TestApp {
+    test_app_from_input(TestAppInput {
+        repository: base_repository(),
+        login_failures: MemoryLoginFailureStore::default(),
+        config: TestConfig::new(true),
+        captcha: TestCaptcha::disabled(),
+        current_user: admin_current_user(),
+        data_scope: all_data_scope(),
+        avatar_storage: None,
+        ip_location_resolver: test_ip_location_resolver(outcome),
+    })
 }
 
 pub(super) fn test_router_with_repository(repository: MemoryUserRepository, config: TestConfig) -> Router {
@@ -133,6 +153,7 @@ fn test_app_with_repository(repository: MemoryUserRepository, config: TestConfig
         current_user: admin_current_user(),
         data_scope: all_data_scope(),
         avatar_storage: None,
+        ip_location_resolver: test_ip_location_resolver(TestIpLocationOutcome::Resolved),
     })
 }
 
@@ -145,6 +166,7 @@ pub(super) fn test_app_with_scope(repository: MemoryUserRepository, current_user
         current_user,
         data_scope,
         avatar_storage: None,
+        ip_location_resolver: test_ip_location_resolver(TestIpLocationOutcome::Resolved),
     })
 }
 
@@ -157,6 +179,7 @@ pub(super) fn test_app_with_avatar_storage(repository: MemoryUserRepository, ava
         current_user: admin_current_user(),
         data_scope: all_data_scope(),
         avatar_storage: Some(avatar_storage),
+        ip_location_resolver: test_ip_location_resolver(TestIpLocationOutcome::Resolved),
     })
 }
 
@@ -172,7 +195,7 @@ fn test_app_from_input(input: TestAppInput) -> TestApp {
         rbac: Arc::new(UnusedRbac),
         config: Arc::new(input.config),
         account_verifier: Arc::new(input.captcha),
-        ip_location_resolver: Arc::new(TestIpLocationResolver),
+        ip_location_resolver: input.ip_location_resolver,
         operation_audit: operation_events.clone(),
         security_audit: events.clone(),
     });
@@ -206,43 +229,6 @@ impl AvatarConfigProvider for TestAvatarConfigProvider {
 
 pub(super) fn base_repository() -> MemoryUserRepository {
     MemoryUserRepository::with_user(stored_user(1, "alice", "hashed:secret123"))
-}
-
-pub(super) struct TestCaptcha {
-    enabled: bool,
-}
-
-impl TestCaptcha {
-    pub(super) fn enabled() -> Self {
-        Self { enabled: true }
-    }
-
-    fn disabled() -> Self {
-        Self { enabled: false }
-    }
-}
-
-struct TestIpLocationResolver;
-
-#[async_trait]
-impl IpLocationResolver for TestIpLocationResolver {
-    async fn resolve_ip_location(&self, _ipaddr: &str) -> ClientInfoResult<IpLocation> {
-        Ok(IpLocation::Resolved(TEST_LOGIN_LOCATION.into()))
-    }
-}
-
-#[async_trait]
-impl AccountVerifier for TestCaptcha {
-    async fn verify_account(&self, token: Option<&str>) -> AppResult<()> {
-        if !self.enabled {
-            return Ok(());
-        }
-        match token {
-            Some(VALID_CAPTCHA_TOKEN) => Ok(()),
-            Some(_) => Err(AppError::InvalidInput(LocalizedError::new("errors.captcha.verification_failed"))),
-            None => Err(AppError::InvalidInput(LocalizedError::new("errors.captcha.verification_required"))),
-        }
-    }
 }
 
 struct UnusedRbac;
