@@ -4,7 +4,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     task::JoinHandle,
-    time::sleep,
+    time::{sleep, timeout},
 };
 
 use crate::application::task::{HttpFailureCode, HttpTaskClient, OutboundHttpRequest};
@@ -15,6 +15,7 @@ const LARGE_BODY_BYTES: usize = 1_048_593;
 const MAX_REQUEST_HEAD_BYTES: usize = 16_384;
 const SERVER_DELAY: Duration = Duration::from_millis(10);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(2);
+const SERVER_COMPLETION_TIMEOUT: Duration = Duration::from_secs(3);
 const SHORT_TIMEOUT: Duration = Duration::from_millis(20);
 const TIMEOUT_SERVER_DELAY: Duration = Duration::from_millis(100);
 
@@ -25,7 +26,7 @@ async fn captures_redirect_duplicate_headers_binary_and_large_body() {
     let client = http_client(CLIENT_TIMEOUT);
 
     let response = client.send(request("GET", fixture.start_url.clone())).await.unwrap();
-    fixture.server.await.unwrap();
+    wait_for_server(fixture.server).await;
 
     assert_eq!(response.head.status, 200);
     assert_eq!(response.head.final_url, fixture.final_url);
@@ -67,7 +68,7 @@ async fn classifies_timeout_without_a_response() {
     });
 
     let failure = http_client(SHORT_TIMEOUT).send(request("GET", url)).await.unwrap_err();
-    server.await.unwrap();
+    wait_for_server(server).await;
 
     assert_eq!(failure.code, HttpFailureCode::Timeout);
     assert_eq!(failure.response, None);
@@ -80,7 +81,7 @@ async fn body_read_failure_preserves_response_head() {
     let (url, server) = one_response_server(response).await;
 
     let failure = http_client(CLIENT_TIMEOUT).send(request("GET", url.clone())).await.unwrap_err();
-    server.await.unwrap();
+    wait_for_server(server).await;
 
     assert_eq!(failure.code, HttpFailureCode::ResponseBody);
     let head = failure.response.expect("response body failure must retain the response head");
@@ -104,11 +105,19 @@ async fn body_timeout_uses_timeout_code_without_a_response() {
     });
 
     let failure = http_client(SHORT_TIMEOUT).send(request("GET", url)).await.unwrap_err();
-    server.await.unwrap();
+    wait_for_server(server).await;
 
     assert_eq!(failure.code, HttpFailureCode::Timeout);
     assert_eq!(failure.response, None);
     assert!(failure.duration >= SHORT_TIMEOUT);
+}
+
+#[tokio::test]
+#[should_panic(expected = "HTTP test server must complete before the fixture timeout")]
+async fn stalled_server_fails_at_fixture_timeout() {
+    let server = tokio::spawn(std::future::pending());
+
+    wait_for_server_before(server, SHORT_TIMEOUT).await;
 }
 
 struct RedirectFixture {
@@ -142,6 +151,17 @@ async fn one_response_server(response: Vec<u8>) -> (String, JoinHandle<()>) {
         respond(stream, response).await;
     });
     (url, server)
+}
+
+async fn wait_for_server(server: JoinHandle<()>) {
+    wait_for_server_before(server, SERVER_COMPLETION_TIMEOUT).await;
+}
+
+async fn wait_for_server_before(server: JoinHandle<()>, completion_timeout: Duration) {
+    timeout(completion_timeout, server)
+        .await
+        .expect("HTTP test server must complete before the fixture timeout")
+        .expect("HTTP test server task must succeed");
 }
 
 async fn respond(mut stream: TcpStream, response: Vec<u8>) {
