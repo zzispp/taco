@@ -15,10 +15,10 @@ pub async fn ensure_runtime_schema_ready(pool: &PgPool) -> BackendResult<()> {
         return Err(dirty_schema_error(version).into());
     }
 
-    let migrator = migrator().await?;
-    validate_applied_migration_sources(pool, &migrator).await?;
+    let migrator = migrator();
+    validate_applied_migration_sources(pool, migrator).await?;
 
-    let pending_versions = pending_migration_versions(pool, &migrator).await?;
+    let pending_versions = pending_migration_versions(pool, migrator).await?;
     if !pending_versions.is_empty() {
         let versions = pending_versions.join(", ");
         return Err(format!("database schema is not ready: pending migrations [{versions}]. Run `{MIGRATION_UP_COMMAND}` before starting backend.").into());

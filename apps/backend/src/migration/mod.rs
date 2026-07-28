@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use crate::BackendResult;
 #[cfg(test)]
@@ -13,7 +13,7 @@ use sqlx::{
 mod readiness;
 pub use readiness::ensure_runtime_schema_ready;
 
-const MIGRATIONS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../migrations");
+static MIGRATOR: Migrator = sqlx_macros::migrate!("../../migrations");
 const MIGRATION_TABLE_NAME: &str = "_sqlx_migrations";
 #[cfg(test)]
 const MANAGED_FUNCTIONS: &[&str] = &[
@@ -68,26 +68,26 @@ pub struct MigrationStatusRow {
 }
 
 pub async fn up(pool: &PgPool, steps: Option<u32>) -> BackendResult<()> {
-    let migrator = migrator().await?;
+    let migrator = migrator();
     if let Some(steps) = steps {
-        apply_pending_steps(pool, steps, &migrator).await?;
+        apply_pending_steps(pool, steps, migrator).await?;
         return Ok(());
     }
-    run_migrator(pool, &migrator).await?;
+    run_migrator(pool, migrator).await?;
     Ok(())
 }
 
 #[cfg(test)]
 pub async fn down(pool: &PgPool, steps: Option<u32>) -> BackendResult<()> {
-    let migrator = migrator().await?;
-    let target = undo_target(pool, steps.unwrap_or(1), &migrator).await?;
-    reject_forward_only_rollback(pool, &migrator, target).await?;
-    undo_migrator(pool, &migrator, target).await?;
+    let migrator = migrator();
+    let target = undo_target(pool, steps.unwrap_or(1), migrator).await?;
+    reject_forward_only_rollback(pool, migrator, target).await?;
+    undo_migrator(pool, migrator, target).await?;
     Ok(())
 }
 
 pub async fn status(pool: &PgPool) -> BackendResult<Vec<MigrationStatusRow>> {
-    let migrator = migrator().await?;
+    let migrator = migrator();
     let mut conn = pool.acquire().await?;
     conn.ensure_migrations_table(MIGRATION_TABLE_NAME).await?;
     let applied = conn.list_applied_migrations(MIGRATION_TABLE_NAME).await?;
@@ -129,14 +129,14 @@ pub async fn status(pool: &PgPool) -> BackendResult<Vec<MigrationStatusRow>> {
 
 #[cfg(test)]
 pub async fn fresh(pool: &PgPool) -> BackendResult<()> {
-    let migrator = migrator().await?;
+    let migrator = migrator();
     reset_database(pool).await?;
-    run_migrator(pool, &migrator).await?;
+    run_migrator(pool, migrator).await?;
     Ok(())
 }
 
-async fn migrator() -> Result<Migrator, MigrateError> {
-    Migrator::new(PathBuf::from(MIGRATIONS_DIR)).await
+const fn migrator() -> &'static Migrator {
+    &MIGRATOR
 }
 
 async fn run_migrator(pool: &PgPool, migrator: &Migrator) -> Result<(), MigrateError> {

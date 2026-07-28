@@ -39,6 +39,7 @@ serde.workspace = true
 serde_json.workspace = true
 scheduler.workspace = true
 sqlx.workspace = true
+sqlx-macros.workspace = true
 storage.workspace = true
 system.workspace = true
 time.workspace = true

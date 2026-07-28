@@ -6,6 +6,7 @@ use std::{
 use serde::Deserialize;
 
 const DEFAULT_LOCALE_ENTRY_DOCUMENT_NAME: &str = "index.html";
+const MIGRATIONS_DIRECTORY: &str = "../../migrations";
 const NOT_FOUND_DOCUMENT_NAME: &str = "404.html";
 const LOCALE_NOT_FOUND_DOCUMENT_PATH: &str = "error/404/index.html";
 
@@ -28,6 +29,7 @@ struct Locale {
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies CARGO_MANIFEST_DIR"));
+    println!("cargo:rerun-if-changed={}", manifest_dir.join(MIGRATIONS_DIRECTORY).display());
     let contract_path = manifest_dir.join("../../locale-contract.json");
     println!("cargo:rerun-if-changed={}", contract_path.display());
     let contract = read_locale_contract(&contract_path);

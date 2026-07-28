@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use sqlx::{PgPool, query};
 
 mod audit_logs;
@@ -34,11 +36,18 @@ mod user_sessions;
 use seed_assertions::assert_seed_data_exists;
 use support::{TestDatabase, bootstrap_system_administrator, managed_table_exists, migrate_through, rollback_from};
 
-use super::{down, ensure_runtime_schema_ready, fresh, status, up};
+use super::{down, ensure_runtime_schema_ready, fresh, migrator, status, up};
 
 const MIGRATION_TOTAL: usize = 32;
 const FORWARD_ONLY_MIGRATION_VERSION: i64 = 20260717000007;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
+
+#[test]
+fn migration_sources_are_embedded_for_single_binary_runtime() {
+    let source = migrator();
+
+    assert!(matches!(source.migrations, Cow::Borrowed(_)));
+}
 
 #[tokio::test]
 async fn migrations_support_forward_application_and_fresh_rebuild() {

@@ -100,6 +100,7 @@ rust_decimal = { version = "1.41.0", features = ["serde-with-float"] }
 rust-i18n = "4.1.0"
 rust_xlsxwriter = "0.92.2"
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "derive", "migrate", "time", "chrono", "uuid", "json", "rust_decimal"] }
+sqlx-macros = { version = "0.9.0", default-features = false, features = ["migrate"] }
 time = { version = "0.3.44", features = ["formatting", "macros", "parsing"] }
 nix = { version = "0.29.0", features = ["net"] }
 pulldown-cmark = "0.13.0"

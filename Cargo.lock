@@ -338,6 +338,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "sqlx-macros",
  "storage",
  "system",
  "taco_tracing",
