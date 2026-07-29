@@ -17,6 +17,8 @@ export function DictManagementPanel() {
     <DashboardContent>
       <AdminBreadcrumbs
         heading={t('pages.dictManagement')}
+        onRefresh={actions.refreshPage}
+        refreshing={resources.dictTypes.isValidating || resources.dictData.isValidating}
         action={
           <DictHeaderActions
             t={t}

@@ -104,6 +104,7 @@
     "refreshCache": "刷新緩存",
     "addDictData": "新增字典數據",
     "saveSort": "保存排序",
+    "refresh": "刷新",
     "import": "導入",
     "export": "導出",
     "downloadTemplate": "下載模板",
@@ -215,6 +216,7 @@
     "selectedCount": "已選 {{count}} 項",
     "importSuccess": "導入成功",
     "importFailed": "導入失敗",
+    "refreshFailed": "刷新失敗",
     "exportFailed": "導出失敗"
   },
   "roles": {

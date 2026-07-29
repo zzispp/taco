@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 
 import { useHasPermission } from 'src/entities/session';
 import {
@@ -115,7 +116,7 @@ function useJobLogActions(options: LogActionOptions) {
     () => changeFilters(DEFAULT_JOB_LOG_FILTER_DRAFT),
     [changeFilters]
   );
-  const viewActions = useJobLogViewActions(options.state);
+  const viewActions = useJobLogViewActions(options);
   const deleteActions = useJobLogDeleteActions(options);
   const maintenanceActions = useJobLogMaintenanceActions(options);
   const copyExecutionId = useCopyExecutionIdAction(options.resources);
@@ -129,10 +130,22 @@ function useJobLogActions(options: LogActionOptions) {
   };
 }
 
-function useJobLogViewActions(state: LogActionOptions['state']) {
-  const openDetail = useCallback((log: SchedulerJobLog) => state.setDetailTarget(log), [state]);
-  const closeDetail = useCallback(() => state.setDetailTarget(null), [state]);
-  return { openDetail, closeDetail };
+function useJobLogViewActions(options: LogActionOptions) {
+  const openDetail = useCallback(
+    (log: SchedulerJobLog) => options.state.setDetailTarget(log),
+    [options]
+  );
+  const closeDetail = useCallback(() => options.state.setDetailTarget(null), [options]);
+  const refreshPage = useCallback(
+    () =>
+      refreshCursorPage({
+        cursor: options.state.table.cursor,
+        resetCursor: options.state.table.onResetCursor,
+        refresh: options.resources.logs.refresh,
+      }),
+    [options]
+  );
+  return { openDetail, closeDetail, refreshPage };
 }
 
 function useJobLogDeleteActions(options: LogActionOptions) {

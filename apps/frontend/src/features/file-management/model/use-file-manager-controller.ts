@@ -2,10 +2,11 @@
 
 import type { FileListQuery, FileDirectoryTrailEntry } from 'src/entities/file';
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 import { usePendingMutation } from 'src/shared/api/use-pending-mutation';
 
 import { useAuthContext, usePermissionChecker } from 'src/entities/session';
@@ -43,11 +44,15 @@ export function useFileManagerController(route: FileManagerRoute = EMPTY_FILE_MA
     refreshMoveFolders: moveResources.folders.refresh,
     t: context.t,
   });
+  const refreshPage = useFileManagerPageRefresh({
+    state: context.state,
+    resources: context.resources,
+  });
   return {
     state: context.state,
     permissions: context.permissions,
     resources: { ...context.resources, ...moveResources, spaceId: context.spaceId },
-    actions,
+    actions: { ...actions, refreshPage },
     pending: mutation.pending,
   };
 }
@@ -88,6 +93,8 @@ function useFileManagerResources(
       directoryTrail: directory.trail,
       directoryTrailError: directory.error,
       directoryTrailLoading: directory.loading,
+      directoryTrailValidating: directory.isValidating,
+      directoryTrailRefresh: directory.refresh,
       detail,
       overview,
       spaceSelector,
@@ -120,7 +127,34 @@ function useManagerDirectoryTrail(state: ReturnType<typeof useFileManagerState>,
     trail: currentDirectoryTrail(state.parentId, resource.data),
     error: resource.error,
     loading: resource.isLoading,
+    isValidating: resource.isValidating,
+    refresh: resource.mutate,
   };
+}
+
+function useFileManagerPageRefresh(
+  options: Readonly<{
+    state: ReturnType<typeof useFileManagerState>;
+    resources: ReturnType<typeof useFileManagerResources>['resources'];
+  }>
+) {
+  const { state, resources } = options;
+  return useCallback(async () => {
+    await Promise.all([
+      refreshCursorPage({
+        cursor: state.table.cursor,
+        resetCursor: state.table.onResetCursor,
+        refresh: resources.entries.refresh,
+      }),
+      resources.overview.mutate(),
+      refreshCursorPage({
+        cursor: resources.spaceSelector.table.cursor,
+        resetCursor: resources.spaceSelector.table.onResetCursor,
+        refresh: resources.spaceSelector.spaces.refresh,
+      }),
+      resources.directoryTrailRefresh(),
+    ]);
+  }, [resources, state.table.cursor, state.table.onResetCursor]);
 }
 
 function currentDirectoryTrail(

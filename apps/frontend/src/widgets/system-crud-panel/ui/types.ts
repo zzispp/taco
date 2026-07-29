@@ -1,8 +1,8 @@
 import type React from 'react';
 import type { IconifyName } from 'src/shared/ui/iconify';
 import type { UseTableReturn, TableHeadCellProps } from 'src/shared/ui/table';
-import type { CursorResourceState } from 'src/shared/api/use-cursor-resource';
 import type { LocalDateTimeFilterError } from 'src/shared/lib/local-date-time-filter';
+import type { RefreshableCursorResourceState } from 'src/shared/api/use-cursor-resource';
 
 export type CrudField<T> = {
   key: keyof T;
@@ -34,7 +34,7 @@ export type CrudPanelProps<T extends Record<string, unknown>, I extends Record<s
   nameKey: keyof T;
   fields: CrudField<T>[];
   defaultInput: I;
-  resource: CursorResourceState<T>;
+  resource: RefreshableCursorResourceState<T>;
   table: UseTableReturn;
   filters?: CrudFilter[];
   filterValues?: Record<string, string>;

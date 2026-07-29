@@ -16,7 +16,11 @@ export function AdminSchedulerPanel() {
   const controller = useSchedulerController();
   return (
     <DashboardContent>
-      <AdminBreadcrumbs heading={t('pages.jobManagement')} />
+      <AdminBreadcrumbs
+        heading={t('pages.jobManagement')}
+        onRefresh={controller.actions.refreshPage}
+        refreshing={controller.resources.jobs.isValidating}
+      />
       <SchedulerToolbar controller={controller} />
       <SchedulerTableSection controller={controller} />
       <SchedulerDialogs controller={controller} />

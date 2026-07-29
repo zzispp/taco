@@ -18,6 +18,7 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { EmptyContent } from 'src/shared/ui/empty-content';
 import { LoadingScreen } from 'src/shared/ui/loading-screen';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 
 import { useFileOverview } from 'src/entities/file';
 import { useAuthContext, usePermissionChecker } from 'src/entities/session';
@@ -28,42 +29,20 @@ import {
   useFileSpaceSelector,
 } from 'src/features/file-management';
 
+import { PageRefreshButton } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
 
 import { UsageCard } from './usage-card';
 import { RecentAssets } from './recent-assets';
 
 export function FileStorageOverviewPanel() {
-  const { t } = useTranslate('admin');
   const resources = useOverviewResources();
-  if (!resources.permissions.canQuery)
-    return (
-      <DashboardContent>
-        <Alert severity="warning">{t('file.permissionDenied')}</Alert>
-      </DashboardContent>
-    );
-  if (resources.overview.isLoading)
-    return (
-      <DashboardContent>
-        <LoadingScreen portal={false} sx={{ minHeight: 320 }} />
-      </DashboardContent>
-    );
-  if (resources.overview.error) {
-    return (
-      <DashboardContent>
-        <Alert severity="error">
-          {getErrorMessage(resources.overview.error) || t('file.messages.overviewFailed')}
-        </Alert>
-      </DashboardContent>
-    );
-  }
-  if (!resources.overview.data)
-    return (
-      <DashboardContent>
-        <EmptyContent filled title={t('file.noSpace')} />
-      </DashboardContent>
-    );
-  return <OverviewContent overview={resources.overview.data} resources={resources} />;
+  return (
+    <DashboardContent maxWidth="xl">
+      <OverviewHeader overview={resources.overview.data} resources={resources} />
+      <OverviewState resources={resources} />
+    </DashboardContent>
+  );
 }
 
 function useOverviewResources() {
@@ -81,26 +60,26 @@ function useOverviewResources() {
 type Overview = NonNullable<ReturnType<typeof useFileOverview>['data']>;
 type OverviewResources = ReturnType<typeof useOverviewResources>;
 
-function OverviewContent({
-  overview,
-  resources,
-}: {
-  overview: Overview;
-  resources: OverviewResources;
-}) {
-  return (
-    <DashboardContent maxWidth="xl">
-      <OverviewHeader overview={overview} resources={resources} />
-      <OverviewMetrics overview={overview} />
-    </DashboardContent>
-  );
+function OverviewState({ resources }: { resources: OverviewResources }) {
+  const { t } = useTranslate('admin');
+  if (!resources.permissions.canQuery)
+    return <Alert severity="warning">{t('file.permissionDenied')}</Alert>;
+  if (resources.overview.isLoading) return <LoadingScreen portal={false} sx={{ minHeight: 320 }} />;
+  if (resources.overview.error)
+    return (
+      <Alert severity="error">
+        {getErrorMessage(resources.overview.error) || t('file.messages.overviewFailed')}
+      </Alert>
+    );
+  if (!resources.overview.data) return <EmptyContent filled title={t('file.noSpace')} />;
+  return <OverviewMetrics overview={resources.overview.data} />;
 }
 
 function OverviewHeader({
   overview,
   resources,
 }: {
-  overview: Overview;
+  overview: Overview | undefined;
   resources: OverviewResources;
 }) {
   const { t } = useTranslate('admin');
@@ -113,9 +92,11 @@ function OverviewHeader({
     >
       <Box sx={{ flex: 1 }}>
         <Typography variant="h4">{t('file.overviewTitle')}</Typography>
-        <Typography variant="body2" color="text.secondary">
-          {t('file.fields.usage')}: {fData(overview.logical_asset_size)}
-        </Typography>
+        {overview ? (
+          <Typography variant="body2" color="text.secondary">
+            {t('file.fields.usage')}: {fData(overview.logical_asset_size)}
+          </Typography>
+        ) : null}
       </Box>
       {resources.permissions.canListSpaces ? (
         <FileSpaceSelector
@@ -125,16 +106,35 @@ function OverviewHeader({
           onChange={resources.setSpaceId}
         />
       ) : null}
-      <Button
-        variant="contained"
-        component={RouterLink}
-        href={paths.dashboard.fileManager}
-        startIcon={<Iconify icon="solar:add-folder-bold" />}
-      >
-        {t('file.actions.open')}
-      </Button>
+      {resources.permissions.canQuery ? (
+        <PageRefreshButton
+          onRefresh={() => refreshOverviewPage(resources)}
+          loading={resources.overview.isValidating || resources.spaceSelector.spaces.isValidating}
+        />
+      ) : null}
+      {resources.permissions.canQuery ? (
+        <Button
+          variant="contained"
+          component={RouterLink}
+          href={paths.dashboard.fileManager}
+          startIcon={<Iconify icon="solar:add-folder-bold" />}
+        >
+          {t('file.actions.open')}
+        </Button>
+      ) : null}
     </Stack>
   );
+}
+
+async function refreshOverviewPage(resources: OverviewResources) {
+  await Promise.all([
+    resources.overview.mutate(),
+    refreshCursorPage({
+      cursor: resources.spaceSelector.table.cursor,
+      resetCursor: resources.spaceSelector.table.onResetCursor,
+      refresh: resources.spaceSelector.spaces.refresh,
+    }),
+  ]);
 }
 
 function OverviewMetrics({ overview }: { overview: Overview }) {

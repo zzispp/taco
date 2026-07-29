@@ -12,6 +12,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 import { usePendingMutation } from 'src/shared/api/use-pending-mutation';
 
 import { usePermissionChecker } from 'src/entities/session';
@@ -136,7 +137,16 @@ function useLoginLogActions(options: LoginActionOptions) {
   const sort = useLoginSortAction(options.state);
   const deletes = useLoginDeleteActions(options);
   const maintenance = useLoginMaintenanceActions(options);
-  return { ...deletes, ...maintenance, sort, changeFilters, resetFilters };
+  const refreshPage = useCallback(
+    () =>
+      refreshCursorPage({
+        cursor: options.state.table.cursor,
+        resetCursor: options.state.table.onResetCursor,
+        refresh: options.resources.logs.refresh,
+      }),
+    [options]
+  );
+  return { ...deletes, ...maintenance, sort, changeFilters, resetFilters, refreshPage };
 }
 
 function useLoginFilterAction(state: LoginActionOptions['state']) {

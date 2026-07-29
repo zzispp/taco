@@ -9,6 +9,7 @@ import { systemMutations } from 'src/features/system-management';
 
 import { useDictResources } from './dict-resources';
 import { useDictToolActions } from './dict-tool-actions';
+import { useDictPageRefresh } from './dict-page-refresh';
 import { DEFAULT_DATA_INPUT, DEFAULT_TYPE_INPUT } from './dict-constants';
 import { openDataEdit, openTypeEdit, closeDataDialog, closeTypeDialog } from './dict-helpers';
 
@@ -57,8 +58,9 @@ export function useDictManagementController() {
     resetDataList: resetDataCursor,
   });
   const tools = useDictToolActions({ resources, state });
+  const refreshPage = useDictPageRefresh(resources);
 
-  return { resources, state, actions: { ...open, ...submit, ...deletion, ...tools } };
+  return { resources, state, actions: { ...open, ...submit, ...deletion, ...tools, refreshPage } };
 }
 
 export type DictManagementController = ReturnType<typeof useDictManagementController>;

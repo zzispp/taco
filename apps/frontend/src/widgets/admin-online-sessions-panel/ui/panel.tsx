@@ -12,7 +12,11 @@ export function OnlineSessionsPanel() {
 
   return (
     <DashboardContent>
-      <AdminBreadcrumbs heading={resources.t('pages.onlineManagement')} />
+      <AdminBreadcrumbs
+        heading={resources.t('pages.onlineManagement')}
+        onRefresh={actions.refreshPage}
+        refreshing={resources.sessions.isValidating}
+      />
       <OnlineSessionsTableSection
         table={resources.table}
         filters={resources.filters}

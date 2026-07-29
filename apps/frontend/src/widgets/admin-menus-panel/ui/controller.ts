@@ -24,7 +24,11 @@ export function useMenuManagementController() {
   const sort = useMenuSortAction({ dialogs, t: resources.t, resetMenus });
   const deletion = useMenuDeleteAction({ dialogs, t: resources.t, resetMenus });
 
-  return { resources, dialogs, actions: { ...crud, ...sort, ...deletion } };
+  return {
+    resources,
+    dialogs,
+    actions: { ...crud, ...sort, ...deletion, refreshPage: resetMenus },
+  };
 }
 
 export type MenuManagementController = ReturnType<typeof useMenuManagementController>;

@@ -16,6 +16,8 @@ export function MenuManagementView() {
     <DashboardContent>
       <AdminBreadcrumbs
         heading={t('pages.menuManagement')}
+        onRefresh={actions.refreshPage}
+        refreshing={resources.menus.isValidating || resources.allMenus.isValidating}
         action={
           resources.canAdd ? (
             <AddButton onClick={actions.openCreate}>{t('actions.addMenuItem')}</AddButton>

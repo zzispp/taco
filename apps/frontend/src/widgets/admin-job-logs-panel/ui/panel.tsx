@@ -16,7 +16,11 @@ export function AdminJobLogsPanel() {
   const controller = useJobLogController();
   return (
     <DashboardContent>
-      <AdminBreadcrumbs heading={t('pages.jobLogManagement')} />
+      <AdminBreadcrumbs
+        heading={t('pages.jobLogManagement')}
+        onRefresh={controller.actions.refreshPage}
+        refreshing={controller.resources.logs.isValidating}
+      />
       <JobLogToolbar controller={controller} />
       <JobLogTableSection controller={controller} />
       <JobLogDialogs controller={controller} />

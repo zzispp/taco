@@ -16,6 +16,8 @@ export function DeptManagementPanel() {
     <DashboardContent>
       <AdminBreadcrumbs
         heading={t('pages.deptManagement')}
+        onRefresh={resources.resource.reset}
+        refreshing={resources.resource.isValidating}
         action={
           resources.canAdd ? (
             <AddButton onClick={actions.openCreate}>{t('actions.addDept')}</AddButton>

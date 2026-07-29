@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 
 import { useHasPermission } from 'src/entities/session';
@@ -44,6 +45,7 @@ export function useUserResources() {
     [canDelete, head]
   );
   const selectableUsers = users.items;
+  const pageRefresh = useUserPageRefresh({ table, users, formOptions: options, publicConfigs });
 
   return {
     t,
@@ -65,5 +67,32 @@ export function useUserResources() {
     loadingHead,
     selectableUsers,
     passwordPolicy,
+    ...pageRefresh,
   };
+}
+
+function useUserPageRefresh(
+  options: Readonly<{
+    table: ReturnType<typeof useTable>;
+    users: ReturnType<typeof useUsers>;
+    formOptions: ReturnType<typeof useUserFormOptions>;
+    publicConfigs: ReturnType<typeof usePublicConfigs>;
+  }>
+) {
+  const refreshPage = useCallback(async () => {
+    await Promise.all([
+      refreshCursorPage({
+        cursor: options.table.cursor,
+        resetCursor: options.table.onResetCursor,
+        refresh: options.users.refresh,
+      }),
+      options.formOptions.mutate(),
+      options.publicConfigs.mutate(),
+    ]);
+  }, [options]);
+  const refreshing =
+    options.users.isValidating ||
+    options.formOptions.isValidating ||
+    options.publicConfigs.isValidating;
+  return { refreshPage, refreshing };
 }

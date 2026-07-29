@@ -27,7 +27,12 @@ import { getErrorMessage } from 'src/shared/lib/get-error-message';
 import { useTable, TableNoData, TableHeadCustom, CursorPagination } from 'src/shared/ui/table';
 
 import { usePermissionChecker } from 'src/entities/session';
-import { useFileSpaces, type FileSpace, fileSpaceSortField } from 'src/entities/file';
+import {
+  useFileSpaces,
+  type FileSpace,
+  useFileProviders,
+  fileSpaceSortField,
+} from 'src/entities/file';
 
 import {
   MIN_QUOTA_GIB,
@@ -40,6 +45,7 @@ import {
 import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
 
+import { refreshFileSpacePage } from './page-refresh';
 import { ProviderCapacityPanel } from './provider-capacity';
 
 export function FileSpacePanel() {
@@ -51,14 +57,24 @@ export function FileSpacePanel() {
     [table.order, table.orderBy]
   );
   const spaces = useFileSpaces(table.cursorRequest, query, permissions.canListSpaces);
+  const providers = useFileProviders(permissions.canQueryProvider);
   const quotaEditor = useSpaceQuotaEditor(permissions.canEditQuota);
   return (
     <DashboardContent maxWidth="xl">
       <AdminBreadcrumbs
         heading={t('file.spacesTitle')}
         parentLinks={[{ name: t('nav.fileManagement') }]}
+        onRefresh={() =>
+          refreshFileSpacePage({
+            cursor: table.cursor,
+            resetCursor: table.onResetCursor,
+            refresh: spaces.refresh,
+            refreshProviders: providers.mutate,
+          })
+        }
+        refreshing={spaces.isValidating || providers.isValidating}
       />
-      <ProviderCapacityPanel enabled={permissions.canQueryProvider} />
+      <ProviderCapacityPanel enabled={permissions.canQueryProvider} resource={providers} />
       <SpaceTableState
         table={table}
         spaces={spaces}

@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 
 import { useHasPermission } from 'src/entities/session';
 import {
@@ -122,7 +123,16 @@ function useJobViewActions(options: ActionOptions) {
     options.state.table.onResetCursor();
     closeEditor();
   }, [closeEditor, options]);
-  return { openDetail, closeDetail, closeEditor, finishEditor };
+  const refreshPage = useCallback(
+    () =>
+      refreshCursorPage({
+        cursor: options.state.table.cursor,
+        resetCursor: options.state.table.onResetCursor,
+        refresh: options.resources.jobs.refresh,
+      }),
+    [options]
+  );
+  return { openDetail, closeDetail, closeEditor, finishEditor, refreshPage };
 }
 
 function useJobMutationActions(options: ActionOptions) {

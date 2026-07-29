@@ -33,6 +33,13 @@ function FileManagerPanelContent({ route }: { route: FileManagerRoute }) {
       <AdminBreadcrumbs
         heading={t('file.managerTitle')}
         parentLinks={[{ name: t('nav.fileManagement'), href: paths.dashboard.file }]}
+        onRefresh={controller.actions.refreshPage}
+        refreshing={
+          controller.resources.entries.isValidating ||
+          controller.resources.overview.isValidating ||
+          controller.resources.spaceSelector.spaces.isValidating ||
+          controller.resources.directoryTrailValidating
+        }
       />
       {!controller.resources.spaceId && controller.resources.overview.error ? (
         <Alert severity="error" sx={{ mb: 2 }}>

@@ -17,6 +17,8 @@ export function RoleManagementView() {
     <DashboardContent>
       <AdminBreadcrumbs
         heading={t('pages.roleManagement')}
+        onRefresh={resources.refreshPage}
+        refreshing={resources.refreshing}
         action={
           <RoleToolbar
             t={t}

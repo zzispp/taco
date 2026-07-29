@@ -10,6 +10,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 
 import { useHasPermission } from 'src/entities/session';
 import {
@@ -52,6 +53,15 @@ export function useOnlineSessionsController() {
     resetCursor: table.onResetCursor,
     t,
   });
+  const refreshPage = useCallback(
+    () =>
+      refreshCursorPage({
+        cursor: table.cursor,
+        resetCursor: table.onResetCursor,
+        refresh: sessions.refresh,
+      }),
+    [sessions.refresh, table.cursor, table.onResetCursor]
+  );
   const filterErrorMessage = filterError ? t(FILTER_ERROR_TRANSLATION_KEY[filterError]) : null;
 
   return {
@@ -66,7 +76,7 @@ export function useOnlineSessionsController() {
       filterErrorMessage,
     },
     state: { forceTarget, setForceTarget },
-    actions: { setFilters, confirmForceLogout },
+    actions: { setFilters, confirmForceLogout, refreshPage },
   };
 }
 

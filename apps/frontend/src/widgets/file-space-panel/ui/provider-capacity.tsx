@@ -1,4 +1,4 @@
-import type { FileProviderSummary } from 'src/entities/file';
+import type { useFileProviders, FileProviderSummary } from 'src/entities/file';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -13,11 +13,18 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { LoadingScreen } from 'src/shared/ui/loading-screen';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
 
-import { useFileProviders, fileProviderCapacityMetrics } from 'src/entities/file';
+import { fileProviderCapacityMetrics } from 'src/entities/file';
 
-export function ProviderCapacityPanel({ enabled }: { enabled: boolean }) {
+type ProviderResource = ReturnType<typeof useFileProviders>;
+
+export function ProviderCapacityPanel({
+  enabled,
+  resource,
+}: {
+  enabled: boolean;
+  resource: ProviderResource;
+}) {
   const { t } = useTranslate('admin');
-  const resource = useFileProviders(enabled);
   if (!enabled) return null;
   if (resource.isLoading) {
     return <LoadingScreen portal={false} sx={{ minHeight: 120, mb: 3 }} />;

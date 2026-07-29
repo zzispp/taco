@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 import { apiMutationErrorMessage } from 'src/shared/api/mutation-error';
 import { usePendingMutation } from 'src/shared/api/use-pending-mutation';
 
@@ -96,10 +97,20 @@ function useSystemLogActions(options: Options) {
     () => applySystemLogFilters(options.state, createDefaultSystemLogFilters()),
     [options.state]
   );
+  const refreshPage = useCallback(
+    () =>
+      refreshCursorPage({
+        cursor: options.state.table.cursor,
+        resetCursor: options.state.table.onResetCursor,
+        refresh: options.resources.logs.refresh,
+      }),
+    [options]
+  );
   return {
     changeFilters,
     applyFilters,
     resetFilters,
+    refreshPage,
     openDetail: options.state.setDetailTarget,
     closeDetail: () => options.state.setDetailTarget(null),
     requestDelete: options.state.setDeleteTarget,

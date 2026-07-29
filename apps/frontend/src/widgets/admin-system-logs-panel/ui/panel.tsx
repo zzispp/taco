@@ -1,13 +1,12 @@
 'use client';
 
-import { useSystemLogController } from 'src/features/system-log-management';
+import type { SystemLogController } from 'src/features/system-log-management';
 
 import { SystemLogToolbar } from './toolbar';
 import { SystemLogDialogs } from './dialogs';
 import { SystemLogTableSection } from './table-section';
 
-export function AdminSystemLogsPanel() {
-  const controller = useSystemLogController();
+export function AdminSystemLogsPanel({ controller }: { controller: SystemLogController }) {
   return (
     <>
       <SystemLogToolbar controller={controller} />

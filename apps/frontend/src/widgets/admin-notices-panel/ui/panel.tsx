@@ -16,7 +16,11 @@ export function AdminNoticesPanel() {
   const controller = useNoticeManagementController();
   return (
     <DashboardContent>
-      <AdminBreadcrumbs heading={t('pages.noticeManagement')} />
+      <AdminBreadcrumbs
+        heading={t('pages.noticeManagement')}
+        onRefresh={controller.actions.refreshPage}
+        refreshing={controller.resources.notices.isValidating}
+      />
       <NoticeToolbar controller={controller} />
       <NoticeTableSection controller={controller} />
       <NoticeDialogs controller={controller} />

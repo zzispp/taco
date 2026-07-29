@@ -104,6 +104,7 @@
     "refreshCache": "Refresh cache",
     "addDictData": "Add dictionary data",
     "saveSort": "Save sort",
+    "refresh": "Refresh",
     "import": "Import",
     "export": "Export",
     "downloadTemplate": "Download template",
@@ -215,6 +216,7 @@
     "selectedCount": "{{count}} selected",
     "importSuccess": "Import succeeded",
     "importFailed": "Import failed",
+    "refreshFailed": "Refresh failed",
     "exportFailed": "Export failed"
   },
   "roles": {

@@ -20,6 +20,8 @@ export function UserManagementView() {
     <DashboardContent>
       <AdminBreadcrumbs
         heading={t('pages.userManagement')}
+        onRefresh={resources.refreshPage}
+        refreshing={resources.refreshing}
         action={<Toolbar controller={controller} />}
       />
       <UserTableSection

@@ -5,6 +5,7 @@ import { useMemo, useCallback } from 'react';
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 import { LOCAL_DATE_TIME_FILTER_ERROR_TRANSLATION_KEY } from 'src/shared/lib/local-date-time-filter';
 
@@ -34,6 +35,15 @@ export function useRoleResources() {
     [canDelete, head]
   );
   const selectableRoles = useMemo(() => roles.items.filter((role) => !role.system), [roles.items]);
+  const refreshPage = useCallback(
+    () =>
+      refreshCursorPage({
+        cursor: table.cursor,
+        resetCursor: table.onResetCursor,
+        refresh: roles.refresh,
+      }),
+    [roles.refresh, table.cursor, table.onResetCursor]
+  );
 
   return {
     t,
@@ -49,6 +59,8 @@ export function useRoleResources() {
     canExport,
     loadingHead,
     selectableRoles,
+    refreshPage,
+    refreshing: roles.isValidating,
   };
 }
 

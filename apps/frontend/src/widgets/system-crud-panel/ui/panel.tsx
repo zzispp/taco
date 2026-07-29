@@ -2,6 +2,8 @@
 
 import type { CrudField, CrudFilter, CrudPanelProps, ActionIconProps } from './types';
 
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
+
 import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
 
@@ -24,6 +26,14 @@ export function SystemCrudPanel<
     <DashboardContent>
       <AdminBreadcrumbs
         heading={props.title}
+        onRefresh={() =>
+          refreshCursorPage({
+            cursor: props.table.cursor,
+            resetCursor: props.table.onResetCursor,
+            refresh: props.resource.refresh,
+          })
+        }
+        refreshing={props.resource.isValidating}
         action={
           <CrudToolbarSection
             addLabel={props.addLabel}

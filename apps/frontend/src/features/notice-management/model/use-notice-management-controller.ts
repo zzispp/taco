@@ -2,12 +2,13 @@
 
 import type { NoticeInput, NoticeFilters, NoticeSummary } from 'src/entities/notice';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
+import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 
 import { useHasPermission } from 'src/entities/session';
 import { useNotice, useNotices, useNoticeReaders, NOTICE_PERMISSION } from 'src/entities/notice';
@@ -29,7 +30,16 @@ export function useNoticeManagementController() {
   const permissions = useNoticePermissions();
   const resources = useNoticeResources(state, permissions);
   const mutation = useNoticeMutation();
-  const actions = buildNoticeActions({ state, mutation, t });
+  const refreshPage = useCallback(
+    () =>
+      refreshCursorPage({
+        cursor: state.table.cursor,
+        resetCursor: state.table.onResetCursor,
+        refresh: resources.notices.refresh,
+      }),
+    [resources.notices.refresh, state.table.cursor, state.table.onResetCursor]
+  );
+  const actions = { ...buildNoticeActions({ state, mutation, t }), refreshPage };
   return { state, permissions, resources, actions, pending: mutation.pending };
 }
 
