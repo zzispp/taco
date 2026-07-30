@@ -8,7 +8,7 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 
 export function LoginLogToolbar({ controller }: { controller: LoginLogController }) {
   return (
-    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ mb: 2 }}>
+    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1}>
       <DeleteButtons controller={controller} />
       <UnlockButton controller={controller} />
       <ExportButton controller={controller} />

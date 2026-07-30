@@ -20,8 +20,8 @@ export function AdminSchedulerPanel() {
         heading={t('pages.jobManagement')}
         onRefresh={controller.actions.refreshPage}
         refreshing={controller.resources.jobs.isValidating}
+        action={<SchedulerToolbar controller={controller} />}
       />
-      <SchedulerToolbar controller={controller} />
       <SchedulerTableSection controller={controller} />
       <SchedulerDialogs controller={controller} />
     </DashboardContent>

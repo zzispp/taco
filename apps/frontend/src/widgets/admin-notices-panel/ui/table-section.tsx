@@ -1,6 +1,7 @@
 import type { TableHeadCellProps } from 'src/shared/ui/table';
 import type { NoticeManagementController } from 'src/features/notice-management';
 
+import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Alert from '@mui/material/Alert';
 import Table from '@mui/material/Table';
@@ -14,6 +15,7 @@ import { TableNoData, CursorPagination } from 'src/shared/ui/table';
 import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { NoticeRow } from './row';
+import { NoticeToolbar } from './toolbar';
 
 const HEAD: TableHeadCellProps[] = [
   { id: 'notice_title', label: 'notice.fields.title', width: 260 },
@@ -32,27 +34,34 @@ export function NoticeTableSection({ controller }: { controller: NoticeManagemen
     label: cell.label ? t(cell.label) : '',
   }));
   const loadingHead = permissions.canRemove ? withSelectionHead(head) : head;
-  if (resources.notices.error)
-    return <Alert severity="error">{getErrorMessage(resources.notices.error)}</Alert>;
   return (
     <Card>
-      <Scrollbar>
-        <Table sx={{ minWidth: 1050 }}>
-          <NoticeTableHeader controller={controller} head={head} />
-          <NoticeTableBody controller={controller} head={loadingHead} />
-        </Table>
-      </Scrollbar>
-      <CursorPagination
-        limit={state.table.limit}
-        itemCount={resources.notices.itemCount}
-        visitedBatchIndex={state.table.visitedBatchIndex}
-        hasPrevious={resources.notices.hasPrevious}
-        hasNext={resources.notices.hasNext}
-        pending={resources.notices.isValidating}
-        onPrevious={() => state.table.onPreviousCursor(resources.notices.previousCursor)}
-        onNext={() => state.table.onNextCursor(resources.notices.nextCursor)}
-        onLimitChange={state.table.onChangeLimit}
-      />
+      <NoticeToolbar controller={controller} />
+      {resources.notices.error ? (
+        <Box sx={{ px: 2, pb: 2 }}>
+          <Alert severity="error">{getErrorMessage(resources.notices.error)}</Alert>
+        </Box>
+      ) : (
+        <>
+          <Scrollbar>
+            <Table sx={{ minWidth: 1050 }}>
+              <NoticeTableHeader controller={controller} head={head} />
+              <NoticeTableBody controller={controller} head={loadingHead} />
+            </Table>
+          </Scrollbar>
+          <CursorPagination
+            limit={state.table.limit}
+            itemCount={resources.notices.itemCount}
+            visitedBatchIndex={state.table.visitedBatchIndex}
+            hasPrevious={resources.notices.hasPrevious}
+            hasNext={resources.notices.hasNext}
+            pending={resources.notices.isValidating}
+            onPrevious={() => state.table.onPreviousCursor(resources.notices.previousCursor)}
+            onNext={() => state.table.onNextCursor(resources.notices.nextCursor)}
+            onLimitChange={state.table.onChangeLimit}
+          />
+        </>
+      )}
     </Card>
   );
 }

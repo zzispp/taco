@@ -130,6 +130,7 @@ export function DashboardLayout({
 
           {isNavHorizontal && (
             <SiteBrand
+              showSubtitle
               sx={{
                 display: 'none',
                 [theme.breakpoints.up(layoutQuery)]: { display: 'flex' },

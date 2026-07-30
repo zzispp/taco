@@ -20,6 +20,7 @@ export type PasswordPolicy = {
 };
 export type SiteDisplayConfig = {
   site_name: string;
+  site_subtitle: string;
   logo_url: string;
   footer_text: string;
 };
@@ -107,6 +108,7 @@ function isSiteDisplayConfig(value: unknown): value is SiteDisplayConfig {
   }
   return (
     isNonEmptyString(value.site_name) &&
+    isNonEmptyString(value.site_subtitle) &&
     isLogoUrl(value.logo_url) &&
     isNonEmptyString(value.footer_text)
   );

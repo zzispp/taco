@@ -15,7 +15,7 @@ import { AddButton } from 'src/widgets/admin-common';
 
 export function NoticeToolbar({ controller }: { controller: NoticeManagementController }) {
   return (
-    <Box sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+    <Box sx={{ p: 2 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} useFlexGap flexWrap="wrap">
         <NoticeFilters controller={controller} />
         <NoticeToolbarActions controller={controller} />

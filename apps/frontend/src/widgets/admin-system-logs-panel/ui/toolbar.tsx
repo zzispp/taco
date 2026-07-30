@@ -12,7 +12,7 @@ export function SystemLogToolbar({ controller }: { controller: SystemLogControll
   const { t } = useTranslate('systemLog');
   const { state, resources, pending, actions } = controller;
   return (
-    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ mb: 2 }}>
+    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1}>
       {resources.canRemove && (
         <Button
           color="error"

@@ -70,7 +70,9 @@ async fn assert_seed_config_values(pool: &PgPool) {
     assert_eq!(file_config["upload_part_bytes"], 16_777_216_u64);
     assert_eq!(file_config["upload_session_inactivity_days"], 7);
     assert_eq!(export_batch_config(pool).await["page_size"], EXPECTED_EXPORT_PAGE_SIZE);
-    assert_eq!(site_display_config(pool).await["site_name"], "taco");
+    let site_display = site_display_config(pool).await;
+    assert_eq!(site_display["site_name"], "taco");
+    assert_eq!(site_display["site_subtitle"], "Backend Control Plane");
     assert_eq!(mode_theme(pool).await, "theme-light");
     assert_legacy_captcha_configs_removed(pool).await;
 }
@@ -128,7 +130,7 @@ async fn assert_seed_config_remarks(pool: &PgPool) {
     .await;
     assert_config_value_and_remark_exclude(pool, "sys.upload.avatarConfig", "config.yaml").await;
     assert_config_remark_contains(pool, "sys.export.batchConfig", &["page_size"]).await;
-    assert_config_remark_contains(pool, "sys.site.displayConfig", &["site_name", "logo_url", "footer_text"]).await;
+    assert_config_remark_contains(pool, "sys.site.displayConfig", &["site_name", "site_subtitle", "logo_url", "footer_text"]).await;
 }
 
 async fn assert_config_value_and_remark_exclude(pool: &PgPool, key: &str, excluded: &str) {

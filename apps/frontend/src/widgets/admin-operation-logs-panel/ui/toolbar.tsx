@@ -10,7 +10,7 @@ export function OperationLogToolbar({ controller }: { controller: OperationLogCo
   const { t } = useTranslate('audit');
   const { state, resources, pending } = controller;
   return (
-    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ mb: 2 }}>
+    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1}>
       {resources.canRemove && (
         <Button
           color="error"

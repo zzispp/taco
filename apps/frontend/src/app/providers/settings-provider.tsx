@@ -67,6 +67,7 @@ function siteDisplayFromConfigs({
 
   return {
     siteName: remote.site_name.trim(),
+    siteSubtitle: remote.site_subtitle.trim(),
     logoUrl: remote.logo_url.trim(),
     footerText: remote.footer_text.trim(),
   };

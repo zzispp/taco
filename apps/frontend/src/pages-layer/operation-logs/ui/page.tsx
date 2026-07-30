@@ -7,7 +7,10 @@ import { useOperationLogController } from 'src/features/audit-log-management';
 
 import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
-import { AdminOperationLogsPanel } from 'src/widgets/admin-operation-logs-panel';
+import {
+  OperationLogToolbar,
+  AdminOperationLogsPanel,
+} from 'src/widgets/admin-operation-logs-panel';
 
 export function OperationLogsPage() {
   const { t } = useTranslate('audit');
@@ -26,6 +29,7 @@ export function OperationLogsPage() {
           parentLinks={parentLinks}
           onRefresh={controller.actions.refreshPage}
           refreshing={controller.resources.logs.isValidating}
+          action={<OperationLogToolbar controller={controller} />}
         />
         <AdminOperationLogsPanel controller={controller} />
       </DashboardContent>

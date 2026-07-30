@@ -7,7 +7,7 @@ import { useLoginLogController } from 'src/features/audit-log-management';
 
 import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
-import { AdminLoginLogsPanel } from 'src/widgets/admin-login-logs-panel';
+import { LoginLogToolbar, AdminLoginLogsPanel } from 'src/widgets/admin-login-logs-panel';
 
 export function LoginLogsPage() {
   const { t } = useTranslate('audit');
@@ -26,6 +26,7 @@ export function LoginLogsPage() {
           parentLinks={parentLinks}
           onRefresh={controller.actions.refreshPage}
           refreshing={controller.resources.logs.isValidating}
+          action={<LoginLogToolbar controller={controller} />}
         />
         <AdminLoginLogsPanel controller={controller} />
       </DashboardContent>

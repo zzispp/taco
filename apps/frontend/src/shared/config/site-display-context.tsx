@@ -6,12 +6,14 @@ import { CONFIG } from './index';
 
 export type SiteDisplay = {
   siteName: string;
+  siteSubtitle: string;
   logoUrl: string;
   footerText: string;
 };
 
 export const defaultSiteDisplay: SiteDisplay = {
   siteName: CONFIG.appName,
+  siteSubtitle: 'Backend Control Plane',
   logoUrl: `${CONFIG.assetsDir}/logo/logo.svg`,
   footerText: `${CONFIG.appName} backend control plane.`,
 };

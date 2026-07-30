@@ -12,7 +12,7 @@ export function SchedulerToolbar({ controller }: { controller: SchedulerControll
   const { t: tAdmin } = useTranslate('admin');
   const { resources, state, actions, pending } = controller;
   return (
-    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+    <Stack direction="row" spacing={1}>
       {resources.canImport && (
         <AddButton onClick={() => state.setImportOpen(true)}>{t('importJob')}</AddButton>
       )}

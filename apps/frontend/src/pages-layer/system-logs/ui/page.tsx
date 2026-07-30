@@ -7,7 +7,7 @@ import { useSystemLogController } from 'src/features/system-log-management';
 
 import { AdminBreadcrumbs } from 'src/widgets/admin-common';
 import { DashboardContent } from 'src/widgets/dashboard-shell';
-import { AdminSystemLogsPanel } from 'src/widgets/admin-system-logs-panel';
+import { SystemLogToolbar, AdminSystemLogsPanel } from 'src/widgets/admin-system-logs-panel';
 
 export function SystemLogsPage() {
   const { t } = useTranslate('systemLog');
@@ -25,6 +25,7 @@ export function SystemLogsPage() {
           ]}
           onRefresh={controller.actions.refreshPage}
           refreshing={controller.resources.logs.isValidating}
+          action={<SystemLogToolbar controller={controller} />}
         />
         <AdminSystemLogsPanel controller={controller} />
       </DashboardContent>

@@ -20,8 +20,8 @@ export function AdminJobLogsPanel() {
         heading={t('pages.jobLogManagement')}
         onRefresh={controller.actions.refreshPage}
         refreshing={controller.resources.logs.isValidating}
+        action={<JobLogToolbar controller={controller} />}
       />
-      <JobLogToolbar controller={controller} />
       <JobLogTableSection controller={controller} />
       <JobLogDialogs controller={controller} />
     </DashboardContent>

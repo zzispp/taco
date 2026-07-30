@@ -11,7 +11,7 @@ export function JobLogToolbar({ controller }: { controller: JobLogController }) 
   const { t: tAdmin } = useTranslate('admin');
   const { state, resources, actions, pending } = controller;
   return (
-    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ mb: 2 }}>
+    <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1}>
       {resources.canRemove && (
         <Button
           color="error"
