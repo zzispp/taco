@@ -3,7 +3,7 @@ use types::rbac::{Menu, Role, RoleUser};
 
 use crate::{
     application::{
-        RbacResult,
+        RbacError, RbacResult,
         cursor::{MenuBoundary, MenuCursorCodec, RoleBoundary, RoleCursorCodec, RoleUserCursorCodec, TimeIdPoint, point},
     },
     infra::{
@@ -69,7 +69,9 @@ where
     let Some(first) = records.first() else {
         return empty_page_cursors(context);
     };
-    let last = records.last().expect("a non-empty cursor page has a last record");
+    let last = records
+        .last()
+        .ok_or_else(|| RbacError::Infrastructure("cursor page has a first record but no last record".into()))?;
     let has_previous = context.navigation.from_cursor && (context.navigation.direction == CursorDirection::Next || has_extra);
     let has_next = has_extra || (context.navigation.from_cursor && context.navigation.direction == CursorDirection::Previous);
     let next = has_next

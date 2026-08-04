@@ -34,13 +34,7 @@ export function NavMobile({
   ...other
 }: NavMobileProps) {
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (open) {
-      onClose();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  useCloseOnPathChange({ onClose, open, pathname });
 
   return (
     <Drawer
@@ -78,4 +72,19 @@ export function NavMobile({
       {slots?.bottomArea}
     </Drawer>
   );
+}
+
+function useCloseOnPathChange({
+  onClose,
+  open,
+  pathname,
+}: {
+  onClose: () => void;
+  open: boolean;
+  pathname: string;
+}) {
+  useEffect(() => {
+    if (open) onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 }

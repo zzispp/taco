@@ -1,9 +1,7 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use parking_lot::Mutex;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
@@ -90,7 +88,7 @@ impl SystemLogRuntime {
 
     pub async fn shutdown(&self) {
         self.request_shutdown();
-        let Some(mut writer) = self.writer.lock().unwrap().take() else {
+        let Some(mut writer) = self.writer.lock().take() else {
             return;
         };
         match timeout(SYSTEM_LOG_SHUTDOWN_DRAIN_TIMEOUT, &mut writer).await {

@@ -33,30 +33,87 @@ export function FileThumbnail({
   const { previewUrl } = useFilePreview(previewEnabled ? file : null);
 
   const imageSrc = hasPreviewUrlProp ? previewUrlProp : previewUrl;
-  const canShowImage = fileMeta.format === 'image' && !!showImage && imageSrc;
+  const canShowImage = Boolean(fileMeta.format === 'image' && showImage && imageSrc);
 
-  const tooltipProps = slotProps?.tooltip;
-
-  const renderImage = () => (
-    <ThumbnailImage
-      showImage
-      alt={fileMeta.name}
-      src={imageSrc}
-      className={fileThumbnailClasses.img}
-      {...slotProps?.img}
-    />
+  const content = (
+    <ThumbnailRoot
+      className={mergeClasses([fileThumbnailClasses.root, className])}
+      sx={sx}
+      {...other}
+    >
+      <ThumbnailMedia
+        canShowImage={canShowImage}
+        fileMeta={fileMeta}
+        imageSrc={imageSrc}
+        slotProps={slotProps}
+      />
+      <ThumbnailActions onRemove={onRemove} onDownload={onDownload} slotProps={slotProps} />
+    </ThumbnailRoot>
   );
 
-  const renderIcon = () => (
+  if (!file) return null;
+
+  return tooltip ? (
+    <FileThumbnailTooltip
+      content={content}
+      name={fileMeta.name}
+      tooltipProps={slotProps?.tooltip}
+    />
+  ) : (
+    content
+  );
+}
+
+type FileThumbnailTooltipProps = {
+  name: string;
+  content: React.ReactElement;
+  tooltipProps?: NonNullable<FileThumbnailProps['slotProps']>['tooltip'];
+};
+
+function FileThumbnailTooltip({ content, name, tooltipProps }: FileThumbnailTooltipProps) {
+  return (
+    <Tooltip
+      arrow
+      title={name}
+      {...tooltipProps}
+      slotProps={{
+        ...tooltipProps?.slotProps,
+        popper: {
+          modifiers: [{ name: 'offset', options: { offset: [0, -12] } }],
+          ...tooltipProps?.slotProps?.popper,
+        },
+      }}
+    >
+      {content}
+    </Tooltip>
+  );
+}
+
+type ThumbnailMediaProps = {
+  canShowImage: boolean;
+  imageSrc?: string;
+  fileMeta: ReturnType<typeof getFileMeta>;
+  slotProps?: FileThumbnailProps['slotProps'];
+};
+
+function ThumbnailMedia({ canShowImage, fileMeta, imageSrc, slotProps }: ThumbnailMediaProps) {
+  const imageProps = canShowImage ? slotProps?.img : slotProps?.icon;
+
+  return (
     <ThumbnailImage
+      {...(canShowImage && { showImage: true })}
       alt={fileMeta.name}
-      src={getFileIcon(fileMeta.format)}
-      className={fileThumbnailClasses.icon}
-      {...slotProps?.icon}
+      src={canShowImage ? imageSrc : getFileIcon(fileMeta.format)}
+      className={canShowImage ? fileThumbnailClasses.img : fileThumbnailClasses.icon}
+      {...imageProps}
     />
   );
+}
 
-  const renderActions = () => (
+type ThumbnailActionsProps = Pick<FileThumbnailProps, 'onDownload' | 'onRemove' | 'slotProps'>;
+
+function ThumbnailActions({ onRemove, onDownload, slotProps }: ThumbnailActionsProps) {
+  return (
     <>
       {onRemove && (
         <RemoveButton
@@ -67,7 +124,6 @@ export function FileThumbnail({
           <Iconify icon="mingcute:close-line" width={12} />
         </RemoveButton>
       )}
-
       {onDownload && (
         <DownloadButton
           onClick={onDownload}
@@ -78,37 +134,5 @@ export function FileThumbnail({
         </DownloadButton>
       )}
     </>
-  );
-
-  const renderContent = () => (
-    <ThumbnailRoot
-      className={mergeClasses([fileThumbnailClasses.root, className])}
-      sx={sx}
-      {...other}
-    >
-      {canShowImage ? renderImage() : renderIcon()}
-      {renderActions()}
-    </ThumbnailRoot>
-  );
-
-  if (!file) return null;
-
-  if (!tooltip) return renderContent();
-
-  return (
-    <Tooltip
-      arrow
-      title={fileMeta.name}
-      {...tooltipProps}
-      slotProps={{
-        ...tooltipProps?.slotProps,
-        popper: {
-          modifiers: [{ name: 'offset', options: { offset: [0, -12] } }],
-          ...tooltipProps?.slotProps?.popper,
-        },
-      }}
-    >
-      {renderContent()}
-    </Tooltip>
   );
 }

@@ -28,6 +28,8 @@ export type EmptyContentProps = React.ComponentProps<'div'> & {
   };
 };
 
+type EmptyContentSlotProps = NonNullable<EmptyContentProps['slotProps']>;
+
 export function EmptyContent({
   sx,
   imgUrl,
@@ -40,58 +42,83 @@ export function EmptyContent({
 }: EmptyContentProps) {
   return (
     <ContentRoot filled={filled} sx={sx} {...other}>
-      <Box
-        component="img"
-        alt="Empty content"
-        src={imgUrl ?? `${CONFIG.assetsDir}/assets/icons/empty/ic-content.svg`}
-        {...slotProps?.img}
-        sx={[
-          {
-            width: 1,
-            maxWidth: 160,
-          },
-          ...(Array.isArray(slotProps?.img?.sx) ? slotProps.img.sx : [slotProps?.img?.sx]),
-        ]}
+      <EmptyContentImage imgUrl={imgUrl} imgProps={slotProps?.img} />
+      <EmptyContentTitle title={title} titleProps={slotProps?.title} />
+      <EmptyContentDescription
+        description={description}
+        descriptionProps={slotProps?.description}
       />
-
-      {title && (
-        <Typography
-          variant="h6"
-          {...slotProps?.title}
-          sx={[
-            {
-              mt: 1,
-              textAlign: 'center',
-              color: 'text.disabled',
-            },
-            ...(Array.isArray(slotProps?.title?.sx) ? slotProps.title.sx : [slotProps?.title?.sx]),
-          ]}
-        >
-          {title}
-        </Typography>
-      )}
-
-      {description && (
-        <Typography
-          variant="body2"
-          {...slotProps?.description}
-          sx={[
-            {
-              mt: 1,
-              textAlign: 'center',
-              color: 'text.disabled',
-            },
-            ...(Array.isArray(slotProps?.description?.sx)
-              ? slotProps.description.sx
-              : [slotProps?.description?.sx]),
-          ]}
-        >
-          {description}
-        </Typography>
-      )}
-
       {action && action}
     </ContentRoot>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function EmptyContentImage({
+  imgUrl,
+  imgProps,
+}: {
+  imgUrl?: string;
+  imgProps?: EmptyContentSlotProps['img'];
+}) {
+  return (
+    <Box
+      component="img"
+      alt="Empty content"
+      src={imgUrl ?? `${CONFIG.assetsDir}/assets/icons/empty/ic-content.svg`}
+      {...imgProps}
+      sx={[
+        { width: 1, maxWidth: 160 },
+        ...(Array.isArray(imgProps?.sx) ? imgProps.sx : [imgProps?.sx]),
+      ]}
+    />
+  );
+}
+
+function EmptyContentTitle({
+  title,
+  titleProps,
+}: {
+  title?: string;
+  titleProps?: EmptyContentSlotProps['title'];
+}) {
+  if (!title) return null;
+
+  return (
+    <Typography
+      variant="h6"
+      {...titleProps}
+      sx={[
+        { mt: 1, textAlign: 'center', color: 'text.disabled' },
+        ...(Array.isArray(titleProps?.sx) ? titleProps.sx : [titleProps?.sx]),
+      ]}
+    >
+      {title}
+    </Typography>
+  );
+}
+
+function EmptyContentDescription({
+  description,
+  descriptionProps,
+}: {
+  description?: string;
+  descriptionProps?: EmptyContentSlotProps['description'];
+}) {
+  if (!description) return null;
+
+  return (
+    <Typography
+      variant="body2"
+      {...descriptionProps}
+      sx={[
+        { mt: 1, textAlign: 'center', color: 'text.disabled' },
+        ...(Array.isArray(descriptionProps?.sx) ? descriptionProps.sx : [descriptionProps?.sx]),
+      ]}
+    >
+      {description}
+    </Typography>
   );
 }
 

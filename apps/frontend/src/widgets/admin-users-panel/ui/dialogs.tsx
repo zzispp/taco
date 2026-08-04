@@ -17,10 +17,9 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import { toast } from 'src/shared/ui/snackbar';
 import { Iconify } from 'src/shared/ui/iconify';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/shared/ui/admin-common';
 
 import { translatedRoleName } from 'src/entities/role';
-
-import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/widgets/admin-common';
 
 import { SearchMultiSelect } from './search-multi-select';
 

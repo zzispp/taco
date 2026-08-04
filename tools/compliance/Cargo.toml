@@ -1,0 +1,9 @@
+[package]
+name = "compliance"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+proc-macro2 = { workspace = true, features = ["span-locations"] }
+syn = { workspace = true, features = ["visit"] }

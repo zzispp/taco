@@ -1,7 +1,7 @@
 use kernel::pagination::{CursorDirection, CursorPage};
 
 use crate::{
-    application::{SystemBoundary, SystemCursorCodec, SystemResult, TimeIdPoint, point},
+    application::{SystemBoundary, SystemCursorCodec, SystemError, SystemResult, TimeIdPoint, point},
     domain::{ConfigItem, Dept, DictData, DictType, Post},
 };
 
@@ -56,7 +56,9 @@ fn page_cursors<R: CursorRecord>(records: &[R], context: &PageBuildContext<'_>, 
     let Some(first) = records.first() else {
         return empty_cursors(context);
     };
-    let last = records.last().expect("a non-empty system cursor page has a last record");
+    let last = records
+        .last()
+        .ok_or_else(|| SystemError::Infrastructure("system cursor page has a first record but no last record".into()))?;
     let has_previous = context.navigation.from_cursor && (context.navigation.direction == CursorDirection::Next || has_extra);
     let has_next = has_extra || (context.navigation.from_cursor && context.navigation.direction == CursorDirection::Previous);
     let next = has_next

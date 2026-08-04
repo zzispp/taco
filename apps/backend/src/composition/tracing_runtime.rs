@@ -12,7 +12,7 @@ use observability::{
 };
 use system::application::{SystemError, SystemUseCase};
 use taco_tracing::{
-    HttpLogCaptureState, InfrastructureObserver, RuntimeTracingState, SystemLogLayer, SystemLogRuntime, init_global_subscriber,
+    HttpLogCaptureState, InfrastructureObserver, InfrastructureOperation, RuntimeTracingState, SystemLogLayer, SystemLogRuntime, init_global_subscriber,
     start_system_log_runtime_with_state,
 };
 
@@ -73,8 +73,12 @@ struct TracingPostgresObserver {
 
 impl storage::PostgresOperationObserver for TracingPostgresObserver {
     fn record(&self, operation: &'static str, elapsed: std::time::Duration, succeeded: bool) {
-        self.observer
-            .record(taco_tracing::InfrastructureDependency::Postgres, operation, elapsed, succeeded);
+        self.observer.record(InfrastructureOperation {
+            dependency: taco_tracing::InfrastructureDependency::Postgres,
+            operation,
+            elapsed,
+            succeeded,
+        });
     }
 }
 

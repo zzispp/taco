@@ -10,9 +10,7 @@ import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-
 
 import { usePosts } from 'src/entities/system';
 
-import { systemMutations } from 'src/features/system-management';
-
-import { SystemCrudPanel } from 'src/widgets/system-crud-panel';
+import { systemMutations , SystemCrudPanel } from 'src/features/system-management';
 
 import { PostToolbar } from './post-toolbar';
 import { postFields, toPostFilters, postFilterFields } from './post-fields';

@@ -9,6 +9,28 @@ import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 
 // ----------------------------------------------------------------------
 
+const entitySliceNames = [
+  'audit-log',
+  'file',
+  'menu',
+  'notice',
+  'online-session',
+  'role',
+  'scheduler',
+  'session',
+  'system',
+  'system-log',
+  'user',
+];
+
+const entitySliceDependencyZones = entitySliceNames.map((target) => ({
+  target: `./src/entities/${target}`,
+  from: entitySliceNames
+    .filter((source) => source !== target)
+    .map((source) => `./src/entities/${source}`),
+  message: 'entities 切片不能依赖其他 entities 切片；跨实体组合应由 feature、widget 或 page 层拥有',
+}));
+
 /**
  * @rules common
  * from 'react', 'eslint-plugin-react-hooks'...
@@ -86,6 +108,7 @@ const importRules = () => ({
           from: ['./src/features', './src/widgets', './src/pages-layer', './src/app'],
           message: 'entities 层只能依赖 shared',
         },
+        ...entitySliceDependencyZones,
         {
           target: './src/features',
           from: ['./src/widgets', './src/pages-layer', './src/app'],

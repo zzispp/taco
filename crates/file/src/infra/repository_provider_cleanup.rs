@@ -3,7 +3,7 @@ use storage::Database;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::application::{ObjectKey, ProviderCleanupCandidate, ProviderCleanupKind, ProviderUploadRef};
+use crate::application::{ObjectKey, ProviderCleanupCandidate, ProviderCleanupKind, ProviderCleanupRecordRequest, ProviderUploadRef};
 use crate::domain::ProviderKey;
 use crate::error::keys;
 use crate::{FileError, FileResult};
@@ -14,27 +14,37 @@ const CLAIM_LEASE_MINUTES: i64 = 30;
 const RETRY_DELAY_MINUTES: i64 = 5;
 type ProviderCleanupRow = (String, String, String, Option<String>, Option<String>);
 
-pub(super) async fn record(
-    database: &Database,
-    provider_key: &ProviderKey,
-    kind: ProviderCleanupKind,
-    object_key: Option<&ObjectKey>,
-    upload_ref: Option<&ProviderUploadRef>,
-) -> FileResult<()> {
-    validate_payload(kind, object_key, upload_ref)?;
+pub(super) struct ProviderCleanupRelease<'a> {
+    pub(super) cleanup_id: &'a str,
+    pub(super) claim_token: &'a str,
+    pub(super) error_code: &'a str,
+}
+
+impl<'a> ProviderCleanupRelease<'a> {
+    pub(super) const fn new(cleanup_id: &'a str, claim_token: &'a str, error_code: &'a str) -> Self {
+        Self {
+            cleanup_id,
+            claim_token,
+            error_code,
+        }
+    }
+}
+
+pub(super) async fn record(database: &Database, request: ProviderCleanupRecordRequest<'_>) -> FileResult<()> {
+    validate_payload(request.kind, request.object_key, request.upload_ref)?;
     let mut transaction = database.pool().begin().await.map_err(storage_error)?;
-    record_tx(&mut transaction, provider_key, kind, object_key, upload_ref).await?;
+    record_tx(&mut transaction, request).await?;
     transaction.commit().await.map_err(storage_error)?;
     Ok(())
 }
 
-pub(super) async fn record_tx(
-    transaction: &mut sqlx::Transaction<'_, Postgres>,
-    provider_key: &ProviderKey,
-    kind: ProviderCleanupKind,
-    object_key: Option<&ObjectKey>,
-    upload_ref: Option<&ProviderUploadRef>,
-) -> FileResult<()> {
+pub(super) async fn record_tx(transaction: &mut sqlx::Transaction<'_, Postgres>, request: ProviderCleanupRecordRequest<'_>) -> FileResult<()> {
+    let ProviderCleanupRecordRequest {
+        provider_key,
+        kind,
+        object_key,
+        upload_ref,
+    } = request;
     validate_payload(kind, object_key, upload_ref)?;
     let now = OffsetDateTime::now_utc();
     query(
@@ -197,7 +207,12 @@ pub(super) async fn finalize(database: &Database, cleanup_id: &str, claim_token:
     transaction.commit().await.map_err(storage_error)
 }
 
-pub(super) async fn release(database: &Database, cleanup_id: &str, claim_token: &str, error_code: &str) -> FileResult<()> {
+pub(super) async fn release(database: &Database, request: ProviderCleanupRelease<'_>) -> FileResult<()> {
+    let ProviderCleanupRelease {
+        cleanup_id,
+        claim_token,
+        error_code,
+    } = request;
     let now = OffsetDateTime::now_utc();
     let result = query("UPDATE file_provider_cleanup SET status='error',claim_token=NULL,claimed_at=NULL,last_error_code=$3,next_attempt_at=$4,updated_at=$4 WHERE cleanup_id=$1 AND claim_token=$2 AND status='deleting'")
         .bind(cleanup_id)

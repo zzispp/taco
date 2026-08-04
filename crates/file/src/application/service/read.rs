@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use kernel::pagination::{CursorPage, CursorPageRequest};
 
 use crate::application::{
-    DirectoryTrailEntry, FileAccessScope, FileContent, FileContentMetadata, FileListQuery, FileManagementRepository, FilePage, FileReadRequest, FileSpaceQuery,
-    FileSpaceView, ProviderSummary, bounded_text_preview, supports_inline_preview, supports_thumbnail, thumbnail_content,
+    DirectoryTrailEntry, FileAccessScope, FileContent, FileContentMetadata, FileListQuery, FileManagementRepository, FilePage, FileReadRequest,
+    FileSpaceListRequest, FileSpaceQuery, FileSpaceView, ProviderSummary, bounded_text_preview, supports_inline_preview, supports_thumbnail, thumbnail_content,
 };
 use crate::domain::{DirectoryId, FileId, SpaceId};
 use crate::{FileError, FileResult};
@@ -48,7 +48,14 @@ where
 
     async fn list_spaces(&self, actor: FileAccessScope, query: FileSpaceQuery, page: CursorPageRequest) -> FileResult<CursorPage<FileSpaceView>> {
         let config = self.config.file_management_config().await?;
-        self.repository.list_spaces(&actor, query, page, config.default_space_quota_bytes).await
+        self.repository
+            .list_spaces(FileSpaceListRequest {
+                actor: &actor,
+                query,
+                page,
+                default_quota: config.default_space_quota_bytes,
+            })
+            .await
     }
 
     async fn content(&self, actor: FileAccessScope, request: FileReadRequest) -> FileResult<FileContent> {
@@ -69,7 +76,7 @@ where
             content.body = self.image_previews.validate_inline(&content_type, content.body).await?;
             content.metadata.accept_ranges = false;
         }
-        Ok(bounded_text_preview(content))
+        bounded_text_preview(content)
     }
 
     async fn thumbnail(&self, actor: FileAccessScope, id: FileId) -> FileResult<FileContent> {

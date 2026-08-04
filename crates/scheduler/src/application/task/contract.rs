@@ -9,6 +9,8 @@ use crate::domain::{ExecutionDetail, TaskParamFormSpec};
 
 use super::{FileCleanupPort, HttpTaskClient, SystemCacheRefreshPort, SystemLogCleanupPort};
 
+const TASK_DETAIL_ENCODING_ERROR_KEY: &str = "errors.scheduler.task_detail_encoding_failed";
+
 #[derive(Clone)]
 pub struct TaskExecutionContext {
     pub http_client: Arc<dyn HttpTaskClient>,
@@ -46,16 +48,18 @@ pub trait TaskExecutionDetailPayload: Serialize {
     const KIND: &'static str;
     const SCHEMA_VERSION: i16;
 
-    fn into_execution_detail(self) -> ExecutionDetail
+    fn into_execution_detail(self) -> Result<ExecutionDetail, TaskExecutionFailure>
     where
         Self: Sized,
     {
-        assert!(Self::SCHEMA_VERSION > 0, "task execution detail schema version must be positive");
-        let value = serde_json::to_value(self).expect("task execution detail payload serialization must succeed");
+        if Self::SCHEMA_VERSION <= 0 {
+            return Err(task_detail_encoding_failure("task execution detail schema version must be positive"));
+        }
+        let value = serde_json::to_value(self).map_err(|error| task_detail_encoding_failure(format!("task execution detail serialization failed: {error}")))?;
         let Value::Object(payload) = value else {
-            panic!("task execution detail payload must serialize as an object");
+            return Err(task_detail_encoding_failure("task execution detail payload must serialize as an object"));
         };
-        ExecutionDetail::new(Self::KIND, Self::SCHEMA_VERSION, payload)
+        Ok(ExecutionDetail::new(Self::KIND, Self::SCHEMA_VERSION, payload))
     }
 }
 
@@ -65,10 +69,10 @@ pub struct TaskExecutionOutput {
 }
 
 impl TaskExecutionOutput {
-    pub fn with_detail(payload: impl TaskExecutionDetailPayload) -> Self {
-        Self {
-            detail: Some(payload.into_execution_detail()),
-        }
+    pub fn with_detail(payload: impl TaskExecutionDetailPayload) -> Result<Self, TaskExecutionFailure> {
+        Ok(Self {
+            detail: Some(payload.into_execution_detail()?),
+        })
     }
 }
 
@@ -89,10 +93,15 @@ impl TaskExecutionFailure {
         }
     }
 
-    pub fn with_detail(mut self, payload: impl TaskExecutionDetailPayload) -> Self {
-        self.detail = Some(Box::new(payload.into_execution_detail()));
-        self
+    pub fn with_detail(mut self, payload: impl TaskExecutionDetailPayload) -> Result<Self, TaskExecutionFailure> {
+        let detail = payload.into_execution_detail()?;
+        self.detail = Some(Box::new(detail));
+        Ok(self)
     }
+}
+
+fn task_detail_encoding_failure(diagnostic: impl Into<String>) -> TaskExecutionFailure {
+    TaskExecutionFailure::new(LocalizedError::new(TASK_DETAIL_ENCODING_ERROR_KEY), diagnostic)
 }
 
 #[derive(Clone, Copy)]
@@ -187,4 +196,59 @@ pub trait TaskParams: Send + Sync + 'static {
         Self::validate(value)
     }
     fn render_invoke_target(task_key: &str, value: &Value) -> crate::application::SchedulerResult<String>;
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Serialize;
+
+    use super::{TaskExecutionDetailPayload, TaskExecutionOutput};
+
+    #[test]
+    fn serialization_failure_becomes_a_typed_task_failure() {
+        let error = TaskExecutionOutput::with_detail(SerializationFailure).unwrap_err();
+
+        assert_eq!(error.public.key(), "errors.scheduler.task_detail_encoding_failed");
+        assert!(error.to_string().contains("planned serialization failure"));
+    }
+
+    #[test]
+    fn non_object_payload_becomes_a_typed_task_failure() {
+        let error = TaskExecutionOutput::with_detail(ArrayPayload).unwrap_err();
+
+        assert_eq!(error.public.key(), "errors.scheduler.task_detail_encoding_failed");
+        assert_eq!(error.to_string(), "task execution detail payload must serialize as an object");
+    }
+
+    struct SerializationFailure;
+
+    impl Serialize for SerializationFailure {
+        fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            Err(serde::ser::Error::custom("planned serialization failure"))
+        }
+    }
+
+    impl TaskExecutionDetailPayload for SerializationFailure {
+        const KIND: &'static str = "test";
+        const SCHEMA_VERSION: i16 = 1;
+    }
+
+    struct ArrayPayload;
+
+    impl Serialize for ArrayPayload {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            ["array"].serialize(serializer)
+        }
+    }
+
+    impl TaskExecutionDetailPayload for ArrayPayload {
+        const KIND: &'static str = "test";
+        const SCHEMA_VERSION: i16 = 1;
+    }
 }

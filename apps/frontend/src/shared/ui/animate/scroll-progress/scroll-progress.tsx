@@ -38,6 +38,23 @@ export interface ScrollProgressProps extends BaseProps {
   };
 }
 
+type ProgressSurfaceProps = Pick<ScrollProgressProps, 'sx'> & {
+  color: PaletteColorKey | 'inherit';
+  theme: Theme;
+  className?: string;
+  progressSize: number;
+  other: BaseProps;
+};
+
+type CircularProgressProps = ProgressSurfaceProps & {
+  thickness: number;
+  progressValue: MotionValue<number>;
+};
+
+type LinearProgressProps = ProgressSurfaceProps & {
+  scaleX: MotionValue<number>;
+};
+
 export function ScrollProgress({
   sx,
   size,
@@ -61,8 +78,37 @@ export function ScrollProgress({
   const progressSize = variant === 'circular' ? (size ?? 64) : (size ?? 3);
 
   const scaleX = useSpring(progressValue, { stiffness: 100, damping: 30, restDelta: 0.001 });
+  const surfaceProps = { className, color, progressSize, sx, theme, other };
+  const PortalWrapper = portal ? Portal : Fragment;
 
-  const renderCircular = () => (
+  return (
+    <PortalWrapper>
+      <Box {...slotProps?.wrapper}>
+        {variant === 'circular' ? (
+          <CircularProgress {...surfaceProps} thickness={thickness} progressValue={progressValue} />
+        ) : (
+          <LinearProgress {...surfaceProps} scaleX={scaleX} />
+        )}
+      </Box>
+    </PortalWrapper>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function CircularProgress({
+  sx,
+  color,
+  theme,
+  other,
+  thickness,
+  className,
+  progressSize,
+  progressValue,
+}: CircularProgressProps) {
+  const radius = progressSize / 2 - thickness - 4;
+
+  return (
     <CircularRoot
       viewBox={`0 0 ${progressSize} ${progressSize}`}
       xmlns="http://www.w3.org/2000/svg"
@@ -80,22 +126,31 @@ export function ScrollProgress({
       <circle
         cx={progressSize / 2}
         cy={progressSize / 2}
-        r={progressSize / 2 - thickness - 4}
+        r={radius}
         strokeWidth={thickness}
         strokeOpacity={0.2}
       />
-
       <m.circle
         cx={progressSize / 2}
         cy={progressSize / 2}
-        r={progressSize / 2 - thickness - 4}
+        r={radius}
         strokeWidth={thickness}
         style={{ pathLength: progressValue }}
       />
     </CircularRoot>
   );
+}
 
-  const renderLinear = () => (
+function LinearProgress({
+  sx,
+  color,
+  theme,
+  other,
+  className,
+  progressSize,
+  scaleX,
+}: LinearProgressProps) {
+  return (
     <LinearRoot
       className={mergeClasses([scrollProgressClasses.linear, className])}
       sx={[
@@ -110,16 +165,6 @@ export function ScrollProgress({
       style={{ scaleX }}
       {...other}
     />
-  );
-
-  const PortalWrapper = portal ? Portal : Fragment;
-
-  return (
-    <PortalWrapper>
-      <Box {...slotProps?.wrapper}>
-        {variant === 'circular' ? renderCircular() : renderLinear()}
-      </Box>
-    </PortalWrapper>
   );
 }
 

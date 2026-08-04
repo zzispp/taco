@@ -8,6 +8,20 @@ use crate::{FileError, FileResult};
 
 use super::{FileService, ensure_session_owner};
 
+struct ProviderCompletionFailureInput<'a> {
+    actor: &'a FileAccessScope,
+    session_id: UploadId,
+    session: &'a UploadSessionData,
+    failure: ProviderCompletionFailure,
+}
+
+struct TerminalCompletionAbort<'a> {
+    actor: &'a FileAccessScope,
+    session_id: UploadId,
+    session: &'a UploadSessionData,
+    error: FileError,
+}
+
 impl<R> FileService<R>
 where
     R: FileManagementRepository,
@@ -32,7 +46,16 @@ where
         };
         let object = match self.complete_provider_object(&session, parts).await {
             Ok(object) => object,
-            Err(failure) => return self.handle_provider_completion_failure(&actor, session_id, &session, failure).await,
+            Err(failure) => {
+                return self
+                    .handle_provider_completion_failure(ProviderCompletionFailureInput {
+                        actor: &actor,
+                        session_id,
+                        session: &session,
+                        failure,
+                    })
+                    .await;
+            }
         };
         self.persist_upload_completion(&actor, session_id, object).await
     }
@@ -90,15 +113,22 @@ where
         }
     }
 
-    async fn handle_provider_completion_failure(
-        &self,
-        actor: &FileAccessScope,
-        session_id: UploadId,
-        session: &UploadSessionData,
-        failure: ProviderCompletionFailure,
-    ) -> FileResult<FileEntryView> {
+    async fn handle_provider_completion_failure(&self, input: ProviderCompletionFailureInput<'_>) -> FileResult<FileEntryView> {
+        let ProviderCompletionFailureInput {
+            actor,
+            session_id,
+            session,
+            failure,
+        } = input;
         if failure.terminal {
-            return self.abort_terminal_completion(actor, session_id, session, failure.error).await;
+            return self
+                .abort_terminal_completion(TerminalCompletionAbort {
+                    actor,
+                    session_id,
+                    session,
+                    error: failure.error,
+                })
+                .await;
         }
         if failure.reopen {
             self.repository.reopen_upload_completion(actor, session_id).await?;
@@ -106,13 +136,13 @@ where
         Err(failure.error)
     }
 
-    async fn abort_terminal_completion(
-        &self,
-        actor: &FileAccessScope,
-        session_id: UploadId,
-        session: &UploadSessionData,
-        error: FileError,
-    ) -> FileResult<FileEntryView> {
+    async fn abort_terminal_completion(&self, input: TerminalCompletionAbort<'_>) -> FileResult<FileEntryView> {
+        let TerminalCompletionAbort {
+            actor,
+            session_id,
+            session,
+            error,
+        } = input;
         match self.repository.abort_upload_completion_without_object(&actor.user_id, session_id).await? {
             UploadCompletionTermination::Completed(id) => self.completed_entry_by_id(actor, id).await,
             UploadCompletionTermination::Terminated => match self.abort_or_enqueue_upload(&session.provider_key, &session.provider_upload_ref).await? {

@@ -15,6 +15,7 @@ import IconButton from '@mui/material/IconButton';
 
 import { Label } from 'src/shared/ui/label';
 import { Iconify } from 'src/shared/ui/iconify';
+import { MethodLabel } from 'src/shared/ui/admin-common';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
@@ -24,8 +25,6 @@ import {
   OPERATION_BUSINESS_TYPE,
   operationBusinessTypeKeys,
 } from 'src/entities/audit-log';
-
-import { MethodLabel } from 'src/widgets/admin-common';
 
 const ELLIPSIS = {
   maxWidth: 220,

@@ -21,8 +21,7 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
 import { TableNoData, CursorPagination } from 'src/shared/ui/table';
-
-import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
+import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin-common';
 
 export function NoticeReaderDialog({ controller }: { controller: NoticeManagementController }) {
   const { t } = useTranslate('admin');

@@ -30,7 +30,7 @@ async fn run_administrator(settings: Settings, command: AdministratorCommand) ->
 }
 
 async fn run_migration(settings: Settings, command: MigrationCommand) -> BackendResult<()> {
-    let database = connect_database(&settings.database_url()?).await?;
+    let database = connect_database(&settings.database).await?;
     match command {
         MigrationCommand::Up => migration::up(database.raw_pool(), None).await?,
         MigrationCommand::Status => print_status(migration::status(database.raw_pool()).await?)?,

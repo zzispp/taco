@@ -23,7 +23,9 @@ import { fData } from 'src/shared/lib/format-number';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { LoadingScreen } from 'src/shared/ui/loading-screen';
+import { AdminBreadcrumbs } from 'src/shared/ui/admin-common';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 import { useTable, TableNoData, TableHeadCustom, CursorPagination } from 'src/shared/ui/table';
 
 import { usePermissionChecker } from 'src/entities/session';
@@ -41,9 +43,6 @@ import {
   useSpaceQuotaEditor,
   type SpaceQuotaEditor,
 } from 'src/features/file-management';
-
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
 
 import { refreshFileSpacePage } from './page-refresh';
 import { ProviderCapacityPanel } from './provider-capacity';

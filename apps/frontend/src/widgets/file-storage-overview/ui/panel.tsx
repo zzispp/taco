@@ -17,7 +17,9 @@ import { RouterLink } from 'src/shared/routes/components';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { EmptyContent } from 'src/shared/ui/empty-content';
 import { LoadingScreen } from 'src/shared/ui/loading-screen';
+import { PageRefreshButton } from 'src/shared/ui/admin-common';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 
 import { useFileOverview } from 'src/entities/file';
@@ -28,9 +30,6 @@ import {
   FileSpaceSelector,
   useFileSpaceSelector,
 } from 'src/features/file-management';
-
-import { PageRefreshButton } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
 
 import { UsageCard } from './usage-card';
 import { RecentAssets } from './recent-assets';

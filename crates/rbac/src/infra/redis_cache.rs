@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use redis::AsyncCommands;
-use taco_tracing::{InfrastructureDependency, InfrastructureObserver};
+use taco_tracing::{InfrastructureDependency, InfrastructureObserver, InfrastructureOperation};
 
 use crate::application::{RbacCache, RbacError, RbacResult};
 use crate::domain::{NavItemResponse, NavResponse, NavSectionResponse, PermissionSnapshot};
@@ -20,7 +20,12 @@ impl RedisRbacCache {
     pub async fn connect(url: &str, key_prefix: String, observer: InfrastructureObserver) -> RbacResult<Self> {
         let started = std::time::Instant::now();
         let client = redis::Client::open(url);
-        observer.record(InfrastructureDependency::Redis, "rbac_cache_connect", started.elapsed(), client.is_ok());
+        observer.record(InfrastructureOperation {
+            dependency: InfrastructureDependency::Redis,
+            operation: "rbac_cache_connect",
+            elapsed: started.elapsed(),
+            succeeded: client.is_ok(),
+        });
         let client = client.map_err(redis_error)?;
         let connection = observer
             .observe(InfrastructureDependency::Redis, "rbac_cache_connect", client.get_connection_manager())

@@ -1,12 +1,24 @@
+import type { RoleOption } from 'src/entities/role';
+import type { Post, TreeSelectNode } from 'src/entities/system';
 import type { UserInput, SystemUser, UserImportResult, UserRolesPayload } from 'src/entities/user';
 
-import { mutate } from 'swr';
+import useSWR, { mutate } from 'swr';
 
-import axios from 'src/shared/api/http-client';
+import axios, { fetcher } from 'src/shared/api/http-client';
 import { downloadBlobResponse } from 'src/shared/api/download';
 import { requestData, isEndpointKey, compactParams } from 'src/shared/api/pagination';
 
 import { userEndpoints } from 'src/entities/user';
+
+export type UserFormOptions = {
+  roles: RoleOption[];
+  posts: Post[];
+  depts: TreeSelectNode[];
+};
+
+export function useUserFormOptions() {
+  return useSWR<UserFormOptions>(userEndpoints.formOptions, fetcher, { revalidateOnFocus: false });
+}
 
 export async function createUser(payload: UserInput) {
   const user = await requestData<SystemUser>(axios.post(userEndpoints.users, payload));

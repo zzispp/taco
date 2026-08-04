@@ -77,7 +77,7 @@ async fn delete_all_matching(repository: &dyn SystemLogRepository, filter: Syste
     if batch_size == 0 {
         return Err(ObservabilityError::InvalidInput(localized("errors.observability.invalid_cleanup_batch_size")));
     }
-    let mut report = SystemLogRetentionReport { deleted: 0, batches: 0 };
+    let mut report = SystemLogRetentionReport::default();
     loop {
         let deleted = match repository.delete_filtered_batch(filter.clone(), batch_size).await {
             Ok(deleted) => deleted,
@@ -86,8 +86,8 @@ async fn delete_all_matching(repository: &dyn SystemLogRepository, filter: Syste
         if deleted == 0 {
             return Ok(report);
         }
-        report.deleted = report
-            .deleted
+        report.rows_deleted = report
+            .rows_deleted
             .checked_add(deleted)
             .ok_or_else(|| ObservabilityError::Infrastructure("system log manual cleanup deleted count overflow".into()))?;
         report.batches = report
@@ -98,7 +98,7 @@ async fn delete_all_matching(repository: &dyn SystemLogRepository, filter: Syste
 }
 
 fn partial_cleanup_error(report: SystemLogRetentionReport, error: ObservabilityError) -> ObservabilityError {
-    if report.deleted == 0 {
+    if report.batches == 0 {
         return error;
     }
     ObservabilityError::partial_cleanup(report, error.to_string())

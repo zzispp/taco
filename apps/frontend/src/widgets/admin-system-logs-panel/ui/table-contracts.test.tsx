@@ -11,8 +11,7 @@ import { ThemeProvider } from '@mui/material/styles';
 
 import { createTheme } from 'src/shared/theme';
 import { TableNoData } from 'src/shared/ui/table';
-
-import { withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
+import { withSelectionHead, ManagementTableHead } from 'src/shared/ui/admin-common';
 
 import { SystemLogRow } from './system-log-row';
 import { SYSTEM_LOG_HEAD, systemLogTableHeads } from './table-section';

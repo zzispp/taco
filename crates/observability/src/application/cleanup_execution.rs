@@ -26,7 +26,10 @@ pub enum SystemLogCleanupExecutionState {
 pub struct SystemLogCleanupExecution {
     pub execution_id: String,
     pub state: SystemLogCleanupExecutionState,
-    pub deleted: Option<u64>,
+    pub detail_schema_version: Option<i16>,
+    pub rows_deleted: Option<u64>,
+    pub dropped_partitions: Option<u64>,
+    pub legacy_total_deleted: Option<u64>,
     pub batches: Option<u64>,
 }
 

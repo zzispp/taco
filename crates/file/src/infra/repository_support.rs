@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, QueryBuilder};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::OffsetDateTime;
 
 use crate::application::{FileAccessScope, FileListQuery, FileScopeMode, FileSpaceQuery, StoredObject};
 use crate::error::keys;
@@ -13,6 +13,8 @@ pub(in crate::infra) use cursor::{EntrySortSpec, SpaceSortSpec};
 #[path = "repository_page.rs"]
 mod page;
 pub(in crate::infra) use page::{CursorBoundary, FilePageContext, PageCursor};
+
+pub(super) use super::repository_time::{format_time, parse_time};
 
 pub(super) const PHYSICAL_USAGE_SQL: &str = "COALESCE((SELECT SUM(objects.size_bytes) FROM (SELECT DISTINCT o.object_id,o.size_bytes FROM file_object o JOIN file_entry pe ON pe.object_id=o.object_id WHERE pe.space_id=s.space_id) objects),0)::BIGINT";
 
@@ -78,22 +80,28 @@ pub(super) fn same_physical_object(provider_key: &str, object_key: &str, object:
     provider_key == object.provider_key.as_str() && object_key == object.key.as_str()
 }
 
-pub(super) fn format_time(value: OffsetDateTime) -> String {
-    value.format(&Rfc3339).unwrap_or_else(|_| value.unix_timestamp().to_string())
-}
-
-pub(super) fn parse_time(value: &str) -> FileResult<OffsetDateTime> {
-    OffsetDateTime::parse(value, &Rfc3339).map_err(|_| FileError::InvalidInput(keys::TIME_FILTER_INVALID))
-}
-
 pub(super) fn scope_query(query: &mut QueryBuilder<Postgres>, scope: &FileAccessScope, alias: &str) {
     match scope.mode {
         FileScopeMode::All => {
             query.push(" TRUE");
         }
         FileScopeMode::SelfOnly => push_owner_scope(query, scope, alias),
-        FileScopeMode::Department => push_department_scope(query, scope, alias, false),
-        FileScopeMode::DepartmentAndChildren => push_department_scope(query, scope, alias, true),
+        FileScopeMode::Department => push_department_scope(
+            query,
+            DepartmentScopeRequest {
+                scope,
+                alias,
+                include_children: false,
+            },
+        ),
+        FileScopeMode::DepartmentAndChildren => push_department_scope(
+            query,
+            DepartmentScopeRequest {
+                scope,
+                alias,
+                include_children: true,
+            },
+        ),
         FileScopeMode::Custom => push_custom_scope(query, scope, alias),
     };
 }
@@ -102,7 +110,18 @@ fn push_owner_scope(query: &mut QueryBuilder<Postgres>, scope: &FileAccessScope,
     query.push(" ").push(alias).push(".owner_user_id=").push_bind(scope.user_id.clone());
 }
 
-fn push_department_scope(query: &mut QueryBuilder<Postgres>, scope: &FileAccessScope, alias: &str, include_children: bool) {
+struct DepartmentScopeRequest<'a> {
+    scope: &'a FileAccessScope,
+    alias: &'a str,
+    include_children: bool,
+}
+
+fn push_department_scope(query: &mut QueryBuilder<Postgres>, request: DepartmentScopeRequest<'_>) {
+    let DepartmentScopeRequest {
+        scope,
+        alias,
+        include_children,
+    } = request;
     query.push(" (");
     push_owner_scope(query, scope, alias);
     query.push(" OR ");
@@ -167,14 +186,30 @@ pub(super) fn normalize_list_filter(filter: FileListQuery) -> FileListQuery {
 }
 
 pub(super) fn entry_query(query: &mut QueryBuilder<Postgres>, scope: &FileAccessScope, filter: &FileListQuery) -> FileResult<()> {
+    push_entry_source(query, scope);
+    push_entry_status(query, filter);
+    push_entry_location(query, filter);
+    push_entry_kind(query, filter)?;
+    push_entry_content_filters(query, filter);
+    push_entry_time_filters(query, filter)?;
+    Ok(())
+}
+
+fn push_entry_source(query: &mut QueryBuilder<Postgres>, scope: &FileAccessScope) {
     query.push(
         " FROM file_entry e JOIN file_space s ON s.space_id=e.space_id JOIN sys_user owner ON owner.user_id=s.owner_user_id LEFT JOIN file_object o ON o.object_id=e.object_id WHERE",
     );
     scope_query(query, scope, "s");
+}
+
+fn push_entry_status(query: &mut QueryBuilder<Postgres>, filter: &FileListQuery) {
     if let Some(trashed) = filter.trashed {
         query.push(" AND e.status=");
         query.push_bind(if trashed { "trashed" } else { "active" });
     }
+}
+
+fn push_entry_location(query: &mut QueryBuilder<Postgres>, filter: &FileListQuery) {
     if let Some(space_id) = &filter.space_id {
         query.push(" AND e.space_id=").push_bind(space_id.as_str().to_owned());
     }
@@ -185,6 +220,9 @@ pub(super) fn entry_query(query: &mut QueryBuilder<Postgres>, scope: &FileAccess
             query.push(" AND e.parent_id=").push_bind(parent_id.to_string());
         }
     }
+}
+
+fn push_entry_kind(query: &mut QueryBuilder<Postgres>, filter: &FileListQuery) -> FileResult<()> {
     if let Some(kind) = &filter.kind {
         let kind = match kind.as_str() {
             "file" | "folder" => kind,
@@ -192,6 +230,10 @@ pub(super) fn entry_query(query: &mut QueryBuilder<Postgres>, scope: &FileAccess
         };
         query.push(" AND e.kind=").push_bind(kind.to_owned());
     }
+    Ok(())
+}
+
+fn push_entry_content_filters(query: &mut QueryBuilder<Postgres>, filter: &FileListQuery) {
     if let Some(search) = &filter.search {
         query.push(" AND e.name ILIKE '%' || ").push_bind(search.clone()).push(" || '%'");
     }
@@ -207,6 +249,9 @@ pub(super) fn entry_query(query: &mut QueryBuilder<Postgres>, scope: &FileAccess
             .push_bind(tag.to_lowercase())
             .push(")");
     }
+}
+
+fn push_entry_time_filters(query: &mut QueryBuilder<Postgres>, filter: &FileListQuery) -> FileResult<()> {
     if let Some(start) = &filter.start_time {
         query.push(" AND e.created_at>=").push_bind(parse_time(start)?);
     }

@@ -7,11 +7,10 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 
 import { Iconify } from 'src/shared/ui/iconify';
+import { AddButton } from 'src/shared/ui/admin-common';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 
 import { NOTICE_TYPE, noticeTypeTranslationKeys } from 'src/entities/notice';
-
-import { AddButton } from 'src/widgets/admin-common';
 
 export function NoticeToolbar({ controller }: { controller: NoticeManagementController }) {
   return (

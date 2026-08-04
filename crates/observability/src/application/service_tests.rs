@@ -23,7 +23,8 @@ async fn manual_cleanup_uses_the_configured_batch_size_until_the_filter_is_empty
 
     let report = delete_all_matching(&repository, SystemLogFilter::default(), 2400).await.unwrap();
 
-    assert_eq!(report.deleted, 3);
+    assert_eq!(report.rows_deleted, 3);
+    assert_eq!(report.dropped_partitions, 0);
     assert_eq!(report.batches, 2);
     assert_eq!(repository.limits(), vec![2400, 2400, 2400]);
 }
@@ -34,7 +35,15 @@ async fn manual_cleanup_failure_keeps_committed_batch_totals() {
 
     let error = delete_all_matching(&repository, SystemLogFilter::default(), 1000).await.unwrap_err();
 
-    assert!(matches!(error, ObservabilityError::PartialCleanup { deleted: 2, batches: 1, .. }));
+    assert!(matches!(
+        error,
+        ObservabilityError::PartialCleanup {
+            rows_deleted: 2,
+            dropped_partitions: 0,
+            batches: 1,
+            ..
+        }
+    ));
 }
 
 #[tokio::test]

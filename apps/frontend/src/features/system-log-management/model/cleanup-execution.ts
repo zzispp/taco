@@ -1,10 +1,20 @@
-import type { SystemLogCleanupExecution } from 'src/entities/system-log';
-
 import { useRef, useEffect } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
 
+import {
+  type SystemLogCleanupExecution,
+  SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION,
+  LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION,
+} from 'src/entities/system-log';
+
 type Translate = (key: string, values?: Record<string, number>) => string;
+
+export type CleanupExecutionCopy = Readonly<{
+  stateKey: string;
+  metricsKey: string;
+  values?: Record<string, number>;
+}>;
 
 type Options = Readonly<{
   execution: SystemLogCleanupExecution | undefined;
@@ -22,18 +32,58 @@ export function useCleanupExecutionNotification(options: Options) {
     handledExecution.current = execution.execution_id;
     onTerminal();
     if (execution.state === 'succeeded') {
-      toast.success(t('messages.cleanCompleted', completedParams(execution)));
+      toast.success(cleanupExecutionMessage(execution, t));
     } else {
-      toast.error(t('messages.cleanExecutionFailed', completedParams(execution)));
+      toast.error(cleanupExecutionMessage(execution, t));
     }
     onClear();
   }, [execution, onClear, onTerminal, t]);
 }
 
-function completedParams(execution: SystemLogCleanupExecution) {
+export function cleanupExecutionMessage(execution: SystemLogCleanupExecution | undefined, t: Translate) {
+  const copy = cleanupExecutionCopy(execution);
+  return `${t(copy.stateKey)} ${t(copy.metricsKey, copy.values)}`;
+}
+
+export function cleanupExecutionCopy(execution: SystemLogCleanupExecution | undefined): CleanupExecutionCopy {
+  if (!execution) {
+    return { stateKey: 'cleanupStates.pending', metricsKey: 'cleanupMetrics.unavailable' };
+  }
+  if (execution.detail_schema_version === SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION) {
+    return {
+      stateKey: `cleanupStates.${execution.state}`,
+      metricsKey: 'cleanupMetrics.current',
+      values: currentMetricValues(execution),
+    };
+  }
+  if (execution.detail_schema_version === LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION) {
+    return {
+      stateKey: `cleanupStates.${execution.state}`,
+      metricsKey: 'cleanupMetrics.legacy',
+      values: legacyMetricValues(execution),
+    };
+  }
+  return { stateKey: `cleanupStates.${execution.state}`, metricsKey: 'cleanupMetrics.unavailable' };
+}
+
+function currentMetricValues(execution: SystemLogCleanupExecution) {
+  if (execution.detail_schema_version !== SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION) {
+    throw new Error('Expected current system-log cleanup metrics');
+  }
   return {
-    count: execution.deleted ?? 0,
-    batches: execution.batches ?? 0,
+    rowsDeleted: execution.rows_deleted,
+    droppedPartitions: execution.dropped_partitions,
+    batches: execution.batches,
+  };
+}
+
+function legacyMetricValues(execution: SystemLogCleanupExecution) {
+  if (execution.detail_schema_version !== LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION) {
+    throw new Error('Expected legacy system-log cleanup metrics');
+  }
+  return {
+    legacyTotalDeleted: execution.legacy_total_deleted,
+    batches: execution.batches,
   };
 }
 

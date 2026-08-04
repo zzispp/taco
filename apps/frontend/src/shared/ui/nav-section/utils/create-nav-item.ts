@@ -31,43 +31,46 @@ export function createNavItem({
   const subItem = !rootItem;
   const subDeepItem = Number(depth) > 2;
 
-  const linkProps = externalLink
-    ? { href: path, target: '_blank', rel: 'noopener noreferrer' }
-    : { component: RouterLink, href: path };
-
-  const baseProps = hasChild && !enabledRootRedirect ? { component: 'div' } : linkProps;
-
-  /**
-   * Render @icon
-   */
-  let renderIcon = null;
-
-  if (icon && render?.navIcon && typeof icon === 'string') {
-    renderIcon = render?.navIcon[icon];
-  } else {
-    renderIcon = icon;
-  }
-
-  /**
-   * Render @info
-   */
-  let renderInfo = null;
-
-  if (info && render?.navInfo && Array.isArray(info)) {
-    const [key, value] = info;
-    const element = render.navInfo(value)[key];
-
-    renderInfo = element ? cloneElement(element) : null;
-  } else {
-    renderInfo = info;
-  }
-
   return {
     subItem,
     rootItem,
     subDeepItem,
-    baseProps,
-    renderIcon,
-    renderInfo,
+    baseProps: createBaseProps({ path, hasChild, externalLink, enabledRootRedirect }),
+    renderIcon: resolveNavIcon(icon, render),
+    renderInfo: resolveNavInfo(info, render),
   };
+}
+
+function createBaseProps({
+  path,
+  hasChild,
+  externalLink,
+  enabledRootRedirect,
+}: Pick<CreateNavItemProps, 'path' | 'hasChild' | 'externalLink' | 'enabledRootRedirect'>) {
+  if (hasChild && !enabledRootRedirect) {
+    return { component: 'div' };
+  }
+
+  return externalLink
+    ? { href: path, target: '_blank', rel: 'noopener noreferrer' }
+    : { component: RouterLink, href: path };
+}
+
+function resolveNavIcon(icon: NavItemDataProps['icon'], render: NavItemOptionsProps['render']) {
+  if (icon && render?.navIcon && typeof icon === 'string') {
+    return render.navIcon[icon];
+  }
+
+  return icon;
+}
+
+function resolveNavInfo(info: NavItemDataProps['info'], render: NavItemOptionsProps['render']) {
+  if (!info || !render?.navInfo || !Array.isArray(info)) {
+    return info;
+  }
+
+  const [key, value] = info;
+  const element = render.navInfo(value)[key];
+
+  return element ? cloneElement(element) : null;
 }

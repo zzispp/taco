@@ -4,7 +4,11 @@ use axum::{
     response::Response,
 };
 use serde_json::{Map, Value};
-use std::{sync::Arc, time::Instant};
+use std::{
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use crate::{
     HttpLogCaptureConfig, RuntimeTracingState,
@@ -58,7 +62,12 @@ pub async fn http_log_middleware(State(state): State<HttpLogCaptureState>, reque
     let context = AccessContext::new(&request, &config);
     let (request, request_capture) = capture_request(request, &config);
     let response = next.run(request).await;
-    emit_response(response, context, request_capture, &config)
+    emit_response(ResponseCaptureInput {
+        response,
+        context,
+        request_capture,
+        config: &config,
+    })
 }
 
 struct AccessContext {
@@ -87,26 +96,30 @@ impl AccessContext {
         }
     }
 
-    fn fields(&self, status: u16, request_body: Option<Value>) -> Map<String, Value> {
+    fn fields(&self, status: u16, request_body: Option<Value>) -> Result<Map<String, Value>, AccessLogBuildError> {
         let mut fields = Map::from_iter([
             ("event_type".into(), Value::String("http_access".into())),
             ("method".into(), Value::String(self.method.clone())),
             ("path".into(), Value::String(self.path.clone())),
             ("route".into(), Value::String(self.route.clone())),
             ("status".into(), Value::Number(status.into())),
-            (
-                "duration_ms".into(),
-                Value::Number(
-                    u64::try_from(self.started.elapsed().as_millis())
-                        .expect("HTTP request duration must fit in u64 milliseconds")
-                        .into(),
-                ),
-            ),
+            ("duration_ms".into(), Value::Number(duration_milliseconds(self.started.elapsed())?.into())),
         ]);
         insert_optional(&mut fields, "query_parameters", self.query.clone());
         insert_optional(&mut fields, "request_headers", self.headers.clone());
         insert_optional(&mut fields, "request_body", request_body);
-        fields
+        Ok(fields)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum AccessLogBuildError {
+    DurationMillisecondsOverflow,
+}
+
+impl fmt::Display for AccessLogBuildError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("HTTP access duration exceeds the supported millisecond range")
     }
 }
 
@@ -126,14 +139,27 @@ fn capture_request(request: Request, config: &HttpLogCaptureConfig) -> (Request,
         body,
         capture.clone(),
         BodyCaptureOptions {
-            limit: usize::try_from(config.max_body_capture_bytes).expect("validated body capture limit must fit in usize"),
+            limit: config.max_body_capture_bytes,
             on_complete: None,
         },
     );
     (Request::from_parts(parts, body), RequestBodyCapture::Enabled { content_type, capture })
 }
 
-fn emit_response(response: Response, context: AccessContext, request_capture: RequestBodyCapture, config: &HttpLogCaptureConfig) -> Response {
+struct ResponseCaptureInput<'a> {
+    response: Response,
+    context: AccessContext,
+    request_capture: RequestBodyCapture,
+    config: &'a HttpLogCaptureConfig,
+}
+
+fn emit_response(input: ResponseCaptureInput<'_>) -> Response {
+    let ResponseCaptureInput {
+        response,
+        context,
+        request_capture,
+        config,
+    } = input;
     let request_body = request_body_value(request_capture);
     let (parts, body) = response.into_parts();
     let status = parts.status.as_u16();
@@ -142,10 +168,12 @@ fn emit_response(response: Response, context: AccessContext, request_capture: Re
         return Response::from_parts(parts, body);
     }
     let response_content_type = content_type(&parts.headers);
-    let limit = usize::try_from(config.max_body_capture_bytes).expect("validated body capture limit must fit in usize");
+    let limit = config.max_body_capture_bytes;
     let callback = Box::new(move |capture| {
-        let mut fields = context.fields(status, request_body);
-        fields.insert("response_body".into(), body_value(response_content_type.as_deref(), capture));
+        let fields = context.fields(status, request_body).map(|mut fields| {
+            fields.insert("response_body".into(), body_value(response_content_type.as_deref(), capture));
+            fields
+        });
         emit_access_event(fields);
     });
     Response::from_parts(
@@ -168,11 +196,19 @@ fn request_body_value(capture: RequestBodyCapture) -> Option<Value> {
     }
 }
 
-fn emit_access_event(fields: Map<String, Value>) {
+fn emit_access_event(fields: Result<Map<String, Value>, AccessLogBuildError>) {
+    let fields = match fields {
+        Ok(fields) => fields,
+        Err(error) => return tracing::error!(target: "taco.internal", error = %error, "HTTP access log construction failed"),
+    };
     let Ok(fields_json) = serde_json::to_string(&fields) else {
         return tracing::error!(target: "taco.internal", "HTTP access log serialization failed");
     };
     tracing::info!(target: module_path!(), __taco_system_log = true, message = "HTTP access", fields_json = %fields_json);
+}
+
+fn duration_milliseconds(duration: Duration) -> Result<u64, AccessLogBuildError> {
+    u64::try_from(duration.as_millis()).map_err(|_| AccessLogBuildError::DurationMillisecondsOverflow)
 }
 
 fn insert_optional(fields: &mut Map<String, Value>, key: &'static str, value: Option<Value>) {
@@ -201,7 +237,7 @@ mod tests {
 
     use crate::{HttpLogCaptureConfig, SystemLogLayer, SystemLogLevel, start_system_log_runtime};
 
-    use super::{HttpLogCaptureState, excluded, http_log_middleware};
+    use super::{AccessLogBuildError, HttpLogCaptureState, duration_milliseconds, excluded, http_log_middleware};
 
     #[tokio::test(flavor = "current_thread")]
     async fn middleware_captures_selected_http_data_without_changing_the_body() {
@@ -255,6 +291,13 @@ mod tests {
             assert!(excluded(path), "{path} should be excluded");
         }
         assert!(!excluded("/api/system/system-logs"));
+    }
+
+    #[test]
+    fn rejects_an_access_duration_outside_the_wire_range() {
+        let error = duration_milliseconds(std::time::Duration::from_secs(u64::MAX)).unwrap_err();
+
+        assert_eq!(error, AccessLogBuildError::DurationMillisecondsOverflow);
     }
 
     async fn echo(body: String) -> impl IntoResponse {

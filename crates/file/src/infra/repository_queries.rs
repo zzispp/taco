@@ -2,7 +2,9 @@ use kernel::pagination::{CursorPage, CursorPageRequest};
 use sqlx::{Postgres, QueryBuilder, query_as};
 use storage::Database;
 
-use crate::application::{ExistingObject, FileAccessScope, FileEntryView, FileListQuery, FileOverviewView, FilePage, FileReadRequest, TypeDistributionView};
+use crate::application::{
+    ExistingObject, FileAccessScope, FileEntryView, FileListQuery, FileOverviewView, FilePage, FileReadRequest, ReusableObjectLookup, TypeDistributionView,
+};
 use crate::domain::{ByteSize, ContentDigest, FileId, ProviderKey, SpaceId, StoredObjectId};
 use crate::error::keys;
 use crate::{FileError, FileResult};
@@ -20,7 +22,36 @@ use views::build_views;
 mod spaces;
 pub(super) use spaces::{ensure_visible_space, list_spaces, resolve_visible_space};
 
-pub(super) async fn list_entries(database: &Database, actor: &FileAccessScope, filter: FileListQuery, page: CursorPageRequest) -> FileResult<FilePage> {
+pub(super) struct EntryListRequest<'a> {
+    pub(super) actor: &'a FileAccessScope,
+    pub(super) filter: FileListQuery,
+    pub(super) page: CursorPageRequest,
+}
+
+pub(super) struct FileOverviewRequest<'a> {
+    pub(super) actor: &'a FileAccessScope,
+    pub(super) requested_space: Option<SpaceId>,
+    pub(super) default_quota: ByteSize,
+}
+
+impl<'a> FileOverviewRequest<'a> {
+    pub(super) const fn new(actor: &'a FileAccessScope, requested_space: Option<SpaceId>, default_quota: ByteSize) -> Self {
+        Self {
+            actor,
+            requested_space,
+            default_quota,
+        }
+    }
+}
+
+struct RecentEntriesRequest<'a> {
+    actor: &'a FileAccessScope,
+    space_id: &'a SpaceId,
+    folders: bool,
+}
+
+pub(super) async fn list_entries(database: &Database, request: EntryListRequest<'_>) -> FileResult<FilePage> {
+    let EntryListRequest { actor, filter, page } = request;
     page.validate().map_err(|_| FileError::InvalidInput(keys::CURSOR_LIMIT_INVALID))?;
     let filter = normalize_list_filter(filter);
     let sort = EntrySortSpec::from_filter(&filter)?;
@@ -58,12 +89,12 @@ pub(super) async fn find_entry(database: &Database, actor: &FileAccessScope, id:
     Ok(build_views(database, record.into_iter().collect()).await?.into_iter().next())
 }
 
-pub(super) async fn overview(
-    database: &Database,
-    actor: &FileAccessScope,
-    requested_space: Option<SpaceId>,
-    default_quota: ByteSize,
-) -> FileResult<FileOverviewView> {
+pub(super) async fn overview(database: &Database, request: FileOverviewRequest<'_>) -> FileResult<FileOverviewView> {
+    let FileOverviewRequest {
+        actor,
+        requested_space,
+        default_quota,
+    } = request;
     let space_id = resolve_overview_space(database, actor, requested_space).await?;
     let space = overview_space_record(database, &space_id).await?;
     let (active, trashed, reserved, quota) = overview_usage(space.as_ref(), default_quota);
@@ -72,8 +103,24 @@ pub(super) async fn overview(
     let managed_physical = object_bytes.checked_add(temporary).ok_or(FileError::SizeMismatch)?;
     let logical_references = active.checked_add(trashed).ok_or(FileError::SizeMismatch)?;
     let distribution = type_distribution(database, &space_id).await?;
-    let recent_files = recent_entries(database, actor, &space_id, false).await?;
-    let recent_folders = recent_entries(database, actor, &space_id, true).await?;
+    let recent_files = recent_entries(
+        database,
+        RecentEntriesRequest {
+            actor,
+            space_id: &space_id,
+            folders: false,
+        },
+    )
+    .await?;
+    let recent_folders = recent_entries(
+        database,
+        RecentEntriesRequest {
+            actor,
+            space_id: &space_id,
+            folders: true,
+        },
+    )
+    .await?;
     Ok(FileOverviewView {
         space_id: space_id.to_string(),
         logical_asset_size: active,
@@ -180,13 +227,13 @@ pub(super) async fn read_content(
     Ok(Some((entry, provider, crate::application::ObjectKey::new(object_key)?)))
 }
 
-pub(super) async fn find_reusable_object(
-    database: &Database,
-    actor: &FileAccessScope,
-    _space_id: SpaceId,
-    digest: ContentDigest,
-    size: ByteSize,
-) -> FileResult<Option<ExistingObject>> {
+pub(super) async fn find_reusable_object(database: &Database, lookup: ReusableObjectLookup<'_>) -> FileResult<Option<ExistingObject>> {
+    let ReusableObjectLookup {
+        actor,
+        space_id: _,
+        digest,
+        size,
+    } = lookup;
     let mut query = QueryBuilder::<Postgres>::new(
         "SELECT o.object_id,o.provider_key,o.object_key,o.size_bytes,o.sha256 FROM file_object o JOIN file_entry e ON e.object_id=o.object_id JOIN file_space s ON s.space_id=e.space_id WHERE e.status='active' AND o.status='active' AND o.sha256=",
     );
@@ -219,7 +266,8 @@ pub(super) async fn find_reusable_object(
     }))
 }
 
-async fn recent_entries(database: &Database, actor: &FileAccessScope, space_id: &SpaceId, folders: bool) -> FileResult<Vec<FileEntryView>> {
+async fn recent_entries(database: &Database, request: RecentEntriesRequest<'_>) -> FileResult<Vec<FileEntryView>> {
+    let RecentEntriesRequest { actor, space_id, folders } = request;
     let filter = FileListQuery {
         space_id: Some(space_id.clone()),
         parent_id: None,

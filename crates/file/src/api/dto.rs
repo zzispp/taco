@@ -6,7 +6,7 @@ use rbac::{
 use serde::Deserialize;
 
 use crate::application::{
-    BatchIds, CreateFolderCommand, FileAccessScope, FileListQuery, FileScopeMode, FileSpaceQuery, UpdateEntryCommand, UpdateSpaceCommand,
+    BatchIds, CreateFolderCommand, FileAccessScope, FileAccessScopeInput, FileListQuery, FileScopeMode, FileSpaceQuery, UpdateEntryCommand, UpdateSpaceCommand,
 };
 use crate::domain::{ByteSize, ContentDigest};
 use crate::domain::{DirectoryId, EntryName, FileId, SpaceId, TagName};
@@ -211,16 +211,24 @@ pub struct PartPayload {
     pub sha256: String,
 }
 
-pub fn part_command(
-    session_id: crate::domain::UploadId,
-    part_number: u32,
-    digest: &str,
-    body: crate::application::ByteStream,
-) -> FileResult<crate::application::UploadPartCommand> {
+pub(in crate::api) struct PartCommandInput {
+    pub(in crate::api) session_id: crate::domain::UploadId,
+    pub(in crate::api) part_number: u32,
+    pub(in crate::api) digest: String,
+    pub(in crate::api) body: crate::application::ByteStream,
+}
+
+pub(in crate::api) fn part_command(input: PartCommandInput) -> FileResult<crate::application::UploadPartCommand> {
+    let PartCommandInput {
+        session_id,
+        part_number,
+        digest,
+        body,
+    } = input;
     Ok(crate::application::UploadPartCommand {
         session_id,
         part_number: crate::domain::PartNumber::new(part_number)?,
-        digest: ContentDigest::from_hex(digest)?,
+        digest: ContentDigest::from_hex(&digest)?,
         body,
     })
 }
@@ -243,7 +251,13 @@ pub fn file_scope(current_user: &CurrentUser, filter: &DataScopeFilter) -> FileA
         DataScope::Custom => (FileScopeMode::Custom, filter.dept_ids.clone()),
     };
     let can_manage = current_user.permissions.iter().any(|permission| permission == UPLOAD_MANAGEMENT_PERMISSION);
-    FileAccessScope::scoped(current_user.id.clone(), mode, filter.dept_id.clone(), departments).with_upload_management(can_manage)
+    FileAccessScope::scoped(FileAccessScopeInput {
+        user_id: current_user.id.clone(),
+        mode,
+        department_id: filter.dept_id.clone(),
+        department_ids: departments,
+    })
+    .with_upload_management(can_manage)
 }
 
 pub fn parse_file_id(id: String) -> FileResult<FileId> {

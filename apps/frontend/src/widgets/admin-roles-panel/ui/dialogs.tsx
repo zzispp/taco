@@ -11,71 +11,50 @@ import { RoleDialog } from './role-dialog';
 import { RoleBindingDialog } from './binding-dialog';
 import { RoleUsersDialog } from './role-users-dialog';
 
-export function RoleManagementDialogs({
-  t,
-  form,
-  creating,
-  editing,
-  submitting,
-  binding,
-  usersTarget,
-  deleteTarget,
-  batchDeleteOpen,
-  selectedCount,
-  setForm,
-  onDialogClose,
-  onRoleSubmit,
-  onBindingSubmit,
-  onBindingClose,
-  onUsersClose,
-  onBatchDeleteClose,
-  onBatchDeleteConfirm,
-  onDeleteClose,
-  onDeleteConfirm,
-}: RoleManagementDialogsProps) {
+export function RoleManagementDialogs(props: RoleManagementDialogsProps) {
   return (
     <>
       <RoleDialog
-        open={creating || !!editing}
-        editing={!!editing}
-        submitting={submitting}
-        form={form}
-        setForm={setForm}
-        onClose={onDialogClose}
-        onSubmit={onRoleSubmit}
+        open={props.creating || !!props.editing}
+        editing={Boolean(props.editing)}
+        submitting={props.submitting}
+        form={props.form}
+        setForm={props.setForm}
+        onClose={props.onDialogClose}
+        onSubmit={props.onRoleSubmit}
       />
       <RoleBindingDialog
-        role={binding.target}
-        type={binding.type}
-        nodes={binding.nodes}
-        selected={binding.selected}
-        strict={binding.strict}
-        dataScope={binding.dataScope}
-        loading={binding.loading}
-        submitting={submitting}
-        onSelectedChange={binding.onSelectedChange}
-        onStrictChange={binding.onStrictChange}
-        onDataScopeChange={binding.onDataScopeChange}
-        onResolvedSelectionChange={binding.onResolvedSelectionChange}
-        onClose={onBindingClose}
-        onSubmit={onBindingSubmit}
+        role={props.binding.target}
+        type={props.binding.type}
+        nodes={props.binding.nodes}
+        selected={props.binding.selected}
+        strict={props.binding.strict}
+        dataScope={props.binding.dataScope}
+        loading={props.binding.loading}
+        submitting={props.submitting}
+        onSelectedChange={props.binding.onSelectedChange}
+        onStrictChange={props.binding.onStrictChange}
+        onDataScopeChange={props.binding.onDataScopeChange}
+        onResolvedSelectionChange={props.binding.onResolvedSelectionChange}
+        onClose={props.onBindingClose}
+        onSubmit={props.onBindingSubmit}
       />
-      <RoleUsersDialog role={usersTarget} onClose={onUsersClose} />
+      <RoleUsersDialog role={props.usersTarget} onClose={props.onUsersClose} />
       <ConfirmDialog
-        open={batchDeleteOpen}
-        onClose={onBatchDeleteClose}
-        title={t('dialogs.deleteRole')}
-        content={t('dialogs.deleteContent', { name: String(selectedCount) })}
-        cancelText={t('common.cancel')}
-        action={deleteAction(t, onBatchDeleteConfirm)}
+        open={props.batchDeleteOpen}
+        onClose={props.onBatchDeleteClose}
+        title={props.t('dialogs.deleteRole')}
+        content={props.t('dialogs.deleteContent', { name: String(props.selectedCount) })}
+        cancelText={props.t('common.cancel')}
+        action={deleteAction(props.t, props.onBatchDeleteConfirm)}
       />
       <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={onDeleteClose}
-        title={t('dialogs.deleteRole')}
-        content={t('dialogs.deleteContent', { name: deleteTarget?.role_name ?? '' })}
-        cancelText={t('common.cancel')}
-        action={deleteAction(t, onDeleteConfirm)}
+        open={Boolean(props.deleteTarget)}
+        onClose={props.onDeleteClose}
+        title={props.t('dialogs.deleteRole')}
+        content={props.t('dialogs.deleteContent', { name: props.deleteTarget?.role_name ?? '' })}
+        cancelText={props.t('common.cancel')}
+        action={deleteAction(props.t, props.onDeleteConfirm)}
       />
     </>
   );

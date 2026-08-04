@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
 use crate::application::{
-    BeginUploadResult, BeginUploadSessionCommand, FileAccessScope, FileEntryView, FileManagementRepository, PartReceipt, UploadCommand, UploadPart,
-    UploadPartClaimRequest, UploadPartClaimResult, UploadPartCommand, UploadReceipt, UploadSessionResponse,
+    BeginUploadResult, BeginUploadSessionCommand, FileAccessScope, FileEntryView, FileManagementRepository, PartReceipt, ReusableObjectLookup, UploadCommand,
+    UploadPart, UploadPartClaimRequest, UploadPartClaimResult, UploadPartCommand, UploadReceipt, UploadSessionResponse,
 };
 use crate::{FileError, FileResult};
 
@@ -94,7 +94,16 @@ where
     ) -> FileResult<Option<UploadReceipt>> {
         let space_id = command.space_id.clone();
         let size = command.size();
-        let Some(existing) = self.repository.find_reusable_object(actor, space_id.clone(), command.digest(), size).await? else {
+        let Some(existing) = self
+            .repository
+            .find_reusable_object(ReusableObjectLookup {
+                actor,
+                space_id: space_id.clone(),
+                digest: command.digest(),
+                size,
+            })
+            .await?
+        else {
             return Ok(None);
         };
         self.repository.reserve_upload(space_id.clone(), size, default_quota).await?;

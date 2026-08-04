@@ -14,6 +14,7 @@ use super::{
 const SINK_WRITE_DURATION_METRIC: &str = "system_log_sink_write_duration_seconds";
 const SINK_WRITE_FAILURE: &str = "failure";
 const SINK_WRITE_SUCCESS: &str = "success";
+const BATCH_COUNT_OVERFLOW_DROP_REASON: &str = "batch_count_overflow";
 
 pub(super) struct WriterRuntime {
     pub(super) receiver: mpsc::Receiver<SystemLogEvent>,
@@ -34,11 +35,12 @@ impl WriterContext {
 
 pub(super) async fn run_writer(mut runtime: WriterRuntime) {
     let mut lifecycle = WriterLifecycle::new(runtime.context.state.clone());
-    run_writer_loop(&mut runtime).await;
-    lifecycle.complete();
+    if run_writer_loop(&mut runtime).await {
+        lifecycle.complete();
+    }
 }
 
-async fn run_writer_loop(runtime: &mut WriterRuntime) {
+async fn run_writer_loop(runtime: &mut WriterRuntime) -> bool {
     let mut buffer = Vec::with_capacity(SYSTEM_LOG_BATCH_SIZE);
     let flush_deadline = sleep_until(Instant::now() + SYSTEM_LOG_FLUSH_INTERVAL);
     tokio::pin!(flush_deadline);
@@ -47,8 +49,7 @@ async fn run_writer_loop(runtime: &mut WriterRuntime) {
             changed = runtime.shutdown.changed() => {
                 if changed.is_err() || *runtime.shutdown.borrow() {
                     runtime.receiver.close();
-                    drain_writer(&mut runtime.receiver, &mut buffer, &runtime.context).await;
-                    return;
+                    return drain_writer(&mut runtime.receiver, &mut buffer, &runtime.context).await;
                 }
             }
             event = runtime.receiver.recv() => match event {
@@ -57,39 +58,54 @@ async fn run_writer_loop(runtime: &mut WriterRuntime) {
                     if buffer.is_empty() {
                         flush_deadline.as_mut().reset(Instant::now() + SYSTEM_LOG_FLUSH_INTERVAL);
                     }
-                    push_event(&mut buffer, event, &runtime.context).await;
+                    if !push_event(&mut buffer, event, &runtime.context).await {
+                        return false;
+                    }
                 }
                 None => {
-                    flush(&mut buffer, &runtime.context).await;
-                    return;
+                    return flush(&mut buffer, &runtime.context).await;
                 }
             },
-            _ = &mut flush_deadline, if !buffer.is_empty() => flush(&mut buffer, &runtime.context).await,
+            _ = &mut flush_deadline, if !buffer.is_empty() => {
+                if !flush(&mut buffer, &runtime.context).await {
+                    return false;
+                }
+            }
         }
     }
 }
 
-async fn drain_writer(receiver: &mut mpsc::Receiver<SystemLogEvent>, buffer: &mut Vec<SystemLogEvent>, context: &WriterContext) {
+async fn drain_writer(receiver: &mut mpsc::Receiver<SystemLogEvent>, buffer: &mut Vec<SystemLogEvent>, context: &WriterContext) -> bool {
     while let Some(event) = receiver.recv().await {
         context.state.record_dequeued();
-        push_event(buffer, event, context).await;
+        if !push_event(buffer, event, context).await {
+            return false;
+        }
     }
-    flush(buffer, context).await;
+    flush(buffer, context).await
 }
 
-async fn push_event(buffer: &mut Vec<SystemLogEvent>, event: SystemLogEvent, context: &WriterContext) {
+async fn push_event(buffer: &mut Vec<SystemLogEvent>, event: SystemLogEvent, context: &WriterContext) -> bool {
     buffer.push(event);
     if buffer.len() >= SYSTEM_LOG_BATCH_SIZE {
-        flush(buffer, context).await;
+        return flush(buffer, context).await;
     }
+    true
 }
 
-async fn flush(buffer: &mut Vec<SystemLogEvent>, context: &WriterContext) {
+async fn flush(buffer: &mut Vec<SystemLogEvent>, context: &WriterContext) -> bool {
     if buffer.is_empty() {
-        return;
+        return true;
     }
     let events = std::mem::replace(buffer, Vec::with_capacity(SYSTEM_LOG_BATCH_SIZE));
-    let event_count = u64::try_from(events.len()).expect("system log batch length must fit in u64");
+    let event_count = match u64::try_from(events.len()) {
+        Ok(count) => count,
+        Err(error) => {
+            context.state.mark_writer_failure(BATCH_COUNT_OVERFLOW_DROP_REASON);
+            crate::__tracing::error!(target: "taco.internal.system_log_writer", %error, "system log batch size exceeds the supported event counter range");
+            return false;
+        }
+    };
     let started_at = StdInstant::now();
     let result = context.sink.insert_batch(events).await;
     match result {
@@ -102,6 +118,7 @@ async fn flush(buffer: &mut Vec<SystemLogEvent>, context: &WriterContext) {
             log_write_failure(context.state.record_write_failure(event_count, &error));
         }
     }
+    true
 }
 
 fn record_sink_duration(started_at: StdInstant, outcome: &'static str) {

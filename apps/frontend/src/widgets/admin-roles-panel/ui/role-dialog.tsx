@@ -5,8 +5,7 @@ import type { RoleInput } from 'src/entities/role';
 import MenuItem from '@mui/material/MenuItem';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
-
-import { TextFieldRow, ManagementDialog } from 'src/widgets/admin-common';
+import { TextFieldRow, ManagementDialog } from 'src/shared/ui/admin-common';
 
 type RoleDialogProps = {
   open: boolean;

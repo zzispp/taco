@@ -2,13 +2,13 @@ use sqlx::{Postgres, query, query_as};
 use storage::Database;
 use time::OffsetDateTime;
 
-use crate::application::{BeginUploadSessionCommand, ExistingObject, FileAccessScope, FileEntryView, ProviderUploadRef};
+use crate::application::{BeginUploadSessionCommand, ExistingObject, FileAccessScope, FileEntryView, ProviderUploadRef, ReusedUploadCreate};
 use crate::domain::{ByteSize, FileId, UploadId};
 use crate::{FileError, FileResult};
 
 use super::repository_commands::ensure_visible_space;
 use super::repository_queries::find_entry;
-use super::repository_session_support::{map_insert, parent_value, release_reservation_tx};
+use super::repository_session_support::{ReservationRelease, map_insert, parent_value, release_reservation_tx};
 use super::repository_support::{ensure_active_parent_tx, storage_error};
 
 // Deduplicated sessions never call a Provider; this marker only satisfies the
@@ -42,19 +42,27 @@ impl ReuseContext {
     }
 }
 
-pub(super) async fn create_reused_upload(
-    database: &Database,
-    actor: &FileAccessScope,
-    command: BeginUploadSessionCommand,
-    object: ExistingObject,
-    part_size: ByteSize,
-) -> FileResult<FileEntryView> {
+pub(super) async fn create_reused_upload(database: &Database, request: ReusedUploadCreate<'_>) -> FileResult<FileEntryView> {
+    let ReusedUploadCreate {
+        actor,
+        command,
+        object,
+        part_size,
+    } = request;
     ensure_visible_space(database, actor, &command.space_id).await?;
     let context = ReuseContext::new(command, object, part_size)?;
     let mut transaction = database.pool().begin().await.map_err(storage_error)?;
     ensure_active_parent_tx(&mut transaction, context.command.space_id.as_str(), context.command.parent_id).await?;
     if let Some(existing_id) = find_existing_entry(&mut transaction, &context).await? {
-        release_reservation_tx(&mut transaction, &context.command.space_id, context.size, context.now).await?;
+        release_reservation_tx(
+            &mut transaction,
+            ReservationRelease {
+                space_id: &context.command.space_id,
+                size: context.size,
+                now: context.now,
+            },
+        )
+        .await?;
         insert_completed_session(&mut transaction, &context, existing_id).await?;
         transaction.commit().await.map_err(storage_error)?;
         return find_entry(database, actor, existing_id).await?.ok_or(FileError::NotFound);

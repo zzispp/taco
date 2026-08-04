@@ -37,12 +37,12 @@ export function FileSpaceSelector({
   const { t: common } = useTranslate('common');
   const options = useMemo(
     () =>
-      fileSpaceOptions(
-        selector.selectedSpace,
-        selector.spaces.items,
+      fileSpaceOptions({
+        selectedSpace: selector.selectedSpace,
+        spaces: selector.spaces.items,
         currentUserId,
-        t('file.selfSpace')
-      ),
+        selfLabel: t('file.selfSpace'),
+      }),
     [currentUserId, selector.selectedSpace, selector.spaces.items, t]
   );
   const value = selectedFileSpaceOption(options, selector.selectedSpace, selector.selectedSpaceId);
@@ -184,12 +184,17 @@ function selectFileSpace({
   onChange(option.space.id);
 }
 
-function fileSpaceOptions(
-  selectedSpace: FileSpace | null,
-  spaces: readonly FileSpace[],
-  currentUserId: string | undefined,
-  selfLabel: string
-): readonly FileSpaceOption[] {
+function fileSpaceOptions({
+  selectedSpace,
+  spaces,
+  currentUserId,
+  selfLabel,
+}: Readonly<{
+  selectedSpace: FileSpace | null;
+  spaces: readonly FileSpace[];
+  currentUserId: string | undefined;
+  selfLabel: string;
+}>): readonly FileSpaceOption[] {
   const visible = spaces.filter((space) => space.owner_user_id !== currentUserId);
   const selected =
     selectedSpace && !visible.some((space) => space.id === selectedSpace.id)

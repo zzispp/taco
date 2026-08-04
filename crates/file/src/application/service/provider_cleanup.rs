@@ -1,4 +1,6 @@
-use crate::application::{CleanupObject, FileManagementRepository, ProviderCleanupCandidate, ProviderCleanupKind, ProviderUploadRef, StoredObject};
+use crate::application::{
+    CleanupObject, FileManagementRepository, ProviderCleanupCandidate, ProviderCleanupKind, ProviderCleanupRecordRequest, ProviderUploadRef, StoredObject,
+};
 use crate::domain::ProviderKey;
 use crate::{FileError, FileResult};
 
@@ -40,7 +42,12 @@ where
             }
             Err(_) => {
                 self.repository
-                    .record_provider_cleanup(&object.provider_key, ProviderCleanupKind::Object, Some(&object.object_key), None)
+                    .record_provider_cleanup(ProviderCleanupRecordRequest {
+                        provider_key: &object.provider_key,
+                        kind: ProviderCleanupKind::Object,
+                        object_key: Some(&object.object_key),
+                        upload_ref: None,
+                    })
                     .await?;
                 Ok(false)
             }
@@ -49,7 +56,12 @@ where
 
     pub(super) async fn record_orphan_object(&self, object: &StoredObject) -> FileResult<()> {
         self.repository
-            .record_provider_cleanup(&object.provider_key, ProviderCleanupKind::Object, Some(&object.key), None)
+            .record_provider_cleanup(ProviderCleanupRecordRequest {
+                provider_key: &object.provider_key,
+                kind: ProviderCleanupKind::Object,
+                object_key: Some(&object.key),
+                upload_ref: None,
+            })
             .await
     }
 
@@ -58,7 +70,12 @@ where
             Ok(provider) => provider,
             Err(error) => {
                 self.repository
-                    .record_provider_cleanup(provider_key, ProviderCleanupKind::Upload, None, Some(upload_ref))
+                    .record_provider_cleanup(ProviderCleanupRecordRequest {
+                        provider_key,
+                        kind: ProviderCleanupKind::Upload,
+                        object_key: None,
+                        upload_ref: Some(upload_ref),
+                    })
                     .await?;
                 return Ok(AbortUploadOutcome::Queued(error));
             }
@@ -67,7 +84,12 @@ where
             Ok(()) | Err(FileError::NotFound) | Err(FileError::UploadNotFound) => Ok(AbortUploadOutcome::Aborted),
             Err(error) => {
                 self.repository
-                    .record_provider_cleanup(provider_key, ProviderCleanupKind::Upload, None, Some(upload_ref))
+                    .record_provider_cleanup(ProviderCleanupRecordRequest {
+                        provider_key,
+                        kind: ProviderCleanupKind::Upload,
+                        object_key: None,
+                        upload_ref: Some(upload_ref),
+                    })
                     .await?;
                 Ok(AbortUploadOutcome::Queued(error))
             }

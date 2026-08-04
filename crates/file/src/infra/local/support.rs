@@ -1,5 +1,34 @@
 use super::*;
 use crate::error::keys;
+use uuid::Uuid;
+
+pub(super) struct PartContentValidation {
+    pub(super) expected_size: ByteSize,
+    pub(super) expected_digest: ContentDigest,
+    pub(super) actual_size: ByteSize,
+    pub(super) actual_digest: ContentDigest,
+}
+
+pub(super) struct PartAssembly<'a> {
+    pub(super) target: &'a Path,
+    pub(super) paths: &'a LocalPaths,
+    pub(super) session: &'a UploadSession,
+    pub(super) parts: &'a [ProviderPartReceipt],
+}
+
+struct CopyAndHash<'a> {
+    input: &'a mut File,
+    output: &'a mut File,
+    hasher: &'a mut Sha256,
+    size: u64,
+}
+
+struct AtomicWrite<'a> {
+    temporary: &'a Path,
+    target: &'a Path,
+    bytes: &'a [u8],
+    operation: &'static str,
+}
 
 pub(super) fn validate_begin_upload(request: &BeginUpload) -> FileResult<()> {
     if request.expected_size == ByteSize::ZERO {
@@ -25,12 +54,13 @@ pub(super) fn expected_part_size(session: &UploadSession, part: PartNumber) -> F
     Ok(ByteSize::from_bytes(total - part_size * (count - 1)))
 }
 
-pub(super) fn validate_part_content(
-    expected_size: ByteSize,
-    expected_digest: ContentDigest,
-    actual_size: ByteSize,
-    actual_digest: ContentDigest,
-) -> FileResult<()> {
+pub(super) fn validate_part_content(validation: PartContentValidation) -> FileResult<()> {
+    let PartContentValidation {
+        expected_size,
+        expected_digest,
+        actual_size,
+        actual_digest,
+    } = validation;
     if expected_size != actual_size {
         return Err(FileError::SizeMismatch);
     }
@@ -97,12 +127,8 @@ pub(super) async fn install_part(temporary: &Path, target: &Path) -> FileResult<
     }
 }
 
-pub(super) async fn assemble_parts(
-    target: &Path,
-    paths: &LocalPaths,
-    session: &UploadSession,
-    parts: &[ProviderPartReceipt],
-) -> FileResult<(ByteSize, ContentDigest)> {
+pub(super) async fn assemble_parts(assembly: PartAssembly<'_>) -> FileResult<(ByteSize, ContentDigest)> {
+    let PartAssembly { target, paths, session, parts } = assembly;
     let session_id = local_session_id(&session.provider_upload_ref)?;
     let mut output = OpenOptions::new()
         .write(true)
@@ -119,13 +145,25 @@ pub(super) async fn assemble_parts(
             return Err(FileError::DigestMismatch);
         }
         let mut input = File::open(part_path).await.map_err(|_| FileError::UploadIncomplete)?;
-        size = copy_and_hash(&mut input, &mut output, &mut hasher, size).await?;
+        size = copy_and_hash(CopyAndHash {
+            input: &mut input,
+            output: &mut output,
+            hasher: &mut hasher,
+            size,
+        })
+        .await?;
     }
     output.sync_all().await.map_err(|_| provider_io("sync completed object"))?;
     Ok((ByteSize::from_bytes(size), ContentDigest::from_digest(hasher.finalize().into())))
 }
 
-async fn copy_and_hash(input: &mut File, output: &mut File, hasher: &mut Sha256, mut size: u64) -> FileResult<u64> {
+async fn copy_and_hash(copy: CopyAndHash<'_>) -> FileResult<u64> {
+    let CopyAndHash {
+        input,
+        output,
+        hasher,
+        mut size,
+    } = copy;
     let mut buffer = vec![0_u8; STREAM_CHUNK_BYTES];
     loop {
         let read = input.read(&mut buffer).await.map_err(|_| provider_io("read upload part"))?;
@@ -197,14 +235,26 @@ pub(super) async fn read_json<T: DeserializeOwned>(path: &Path, not_found: FileE
 pub(super) async fn write_json_atomic(path: &Path, value: &impl Serialize, operation: &'static str) -> FileResult<()> {
     let bytes = serde_json::to_vec(value).map_err(|_| provider_io(operation))?;
     let temporary = path.with_extension(format!("tmp-{}", Uuid::now_v7()));
-    let result = write_atomic_bytes(&temporary, path, &bytes, operation).await;
+    let result = write_atomic_bytes(AtomicWrite {
+        temporary: &temporary,
+        target: path,
+        bytes: &bytes,
+        operation,
+    })
+    .await;
     if result.is_err() {
         remove_if_exists(&temporary, "remove failed metadata write").await?;
     }
     result
 }
 
-async fn write_atomic_bytes(temporary: &Path, target: &Path, bytes: &[u8], operation: &'static str) -> FileResult<()> {
+async fn write_atomic_bytes(write: AtomicWrite<'_>) -> FileResult<()> {
+    let AtomicWrite {
+        temporary,
+        target,
+        bytes,
+        operation,
+    } = write;
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -234,19 +284,6 @@ pub(super) async fn remove_directory_if_exists(path: &Path, operation: &'static 
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(_) => Err(provider_io(operation)),
     }
-}
-
-pub(super) fn disk_capacity(root: &Path) -> FileResult<ProviderCapacity> {
-    let root = std::fs::canonicalize(root).map_err(|_| provider_io("canonicalize local provider root"))?;
-    let disks = Disks::new_with_refreshed_list();
-    let disk = disks
-        .iter()
-        .filter(|disk| root.starts_with(disk.mount_point()))
-        .max_by_key(|disk| disk.mount_point().components().count())
-        .ok_or(FileError::ProviderUnavailable {
-            operation: "locate backing disk",
-        })?;
-    ProviderCapacity::bounded(ByteSize::from_bytes(disk.total_space()), ByteSize::from_bytes(disk.available_space()))
 }
 
 pub(super) const fn provider_io(operation: &'static str) -> FileError {

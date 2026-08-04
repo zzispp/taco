@@ -43,41 +43,58 @@ export function AuthSplitLayout({
   slotProps,
   layoutQuery = 'md',
 }: AuthSplitLayoutProps) {
-  const renderHeader = () => {
-    const headerSlotProps: HeaderSectionProps['slotProps'] = {
-      container: { maxWidth: false },
-    };
+  return (
+    <LayoutSection
+      headerSection={<AuthHeader layoutQuery={layoutQuery} slotProps={slotProps} />}
+      footerSection={null}
+      cssVars={{ '--layout-auth-content-width': '420px', ...cssVars }}
+      sx={sx}
+    >
+      <AuthMain layoutQuery={layoutQuery} slotProps={slotProps}>
+        {children}
+      </AuthMain>
+    </LayoutSection>
+  );
+}
 
-    const headerSlots: HeaderSectionProps['slots'] = {
-      leftArea: <SiteBrand />,
-      rightArea: (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 } }}>
-          <LanguagePopover data={allLangs} />
+type AuthLayoutPartProps = {
+  layoutQuery: Breakpoint;
+  slotProps?: AuthSplitLayoutProps['slotProps'];
+};
 
-          {/** @slot Settings button */}
-          <SettingsButton />
-        </Box>
-      ),
-    };
-
-    return (
-      <HeaderSection
-        disableElevation
-        layoutQuery={layoutQuery}
-        {...slotProps?.header}
-        slots={{ ...headerSlots, ...slotProps?.header?.slots }}
-        slotProps={merge(headerSlotProps, slotProps?.header?.slotProps ?? {})}
-        sx={[
-          { position: { [layoutQuery]: 'fixed' } },
-          ...(Array.isArray(slotProps?.header?.sx) ? slotProps.header.sx : [slotProps?.header?.sx]),
-        ]}
-      />
-    );
+function AuthHeader({ layoutQuery, slotProps }: AuthLayoutPartProps) {
+  const headerSlotProps: HeaderSectionProps['slotProps'] = { container: { maxWidth: false } };
+  const headerSlots: HeaderSectionProps['slots'] = {
+    leftArea: <SiteBrand />,
+    rightArea: (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 } }}>
+        <LanguagePopover data={allLangs} />
+        <SettingsButton />
+      </Box>
+    ),
   };
 
-  const renderFooter = () => null;
+  return (
+    <HeaderSection
+      disableElevation
+      layoutQuery={layoutQuery}
+      {...slotProps?.header}
+      slots={{ ...headerSlots, ...slotProps?.header?.slots }}
+      slotProps={merge(headerSlotProps, slotProps?.header?.slotProps ?? {})}
+      sx={[
+        { position: { [layoutQuery]: 'fixed' } },
+        ...(Array.isArray(slotProps?.header?.sx) ? slotProps.header.sx : [slotProps?.header?.sx]),
+      ]}
+    />
+  );
+}
 
-  const renderMain = () => (
+function AuthMain({
+  layoutQuery,
+  slotProps,
+  children,
+}: AuthLayoutPartProps & { children: React.ReactNode }) {
+  return (
     <MainSection
       {...slotProps?.main}
       sx={[
@@ -90,25 +107,5 @@ export function AuthSplitLayout({
         {children}
       </AuthSplitContent>
     </MainSection>
-  );
-
-  return (
-    <LayoutSection
-      /** **************************************
-       * @Header
-       *************************************** */
-      headerSection={renderHeader()}
-      /** **************************************
-       * @Footer
-       *************************************** */
-      footerSection={renderFooter()}
-      /** **************************************
-       * @Styles
-       *************************************** */
-      cssVars={{ '--layout-auth-content-width': '420px', ...cssVars }}
-      sx={sx}
-    >
-      {renderMain()}
-    </LayoutSection>
   );
 }

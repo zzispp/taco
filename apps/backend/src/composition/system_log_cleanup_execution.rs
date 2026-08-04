@@ -9,9 +9,12 @@ use observability::{
     domain::SystemLogFilter,
 };
 use scheduler::application::{
-    SchedulerAuditedUseCase, SchedulerError, SchedulerUseCase,
+    SchedulerAuditedUseCase, SchedulerError, SchedulerUseCase, SystemLogCleanupAuditRequest,
     task::{SystemLogCleanupFilter, SystemLogCleanupLevel},
-    tasks::{ManualSystemLogCleanupExecution, ManualSystemLogCleanupExecutionState, SYSTEM_LOG_CLEANUP_JOB_ID},
+    tasks::{
+        LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION, ManualSystemLogCleanupExecution, ManualSystemLogCleanupExecutionState,
+        SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION, SYSTEM_LOG_CLEANUP_JOB_ID, SystemLogCleanupExecutionReport,
+    },
 };
 
 #[derive(Clone)]
@@ -30,12 +33,12 @@ impl SchedulerSystemLogCleanupExecutionAdapter {
 impl SystemLogCleanupExecutionPort for SchedulerSystemLogCleanupExecutionAdapter {
     async fn enqueue_manual_cleanup(&self, request: ManualSystemLogCleanupRequest) -> ObservabilityResult<String> {
         self.audited_scheduler
-            .run_system_log_cleanup_with_audit(
-                SYSTEM_LOG_CLEANUP_JOB_ID,
-                scheduler_filter(request.filter)?,
-                &request.requested_by,
-                request.audit,
-            )
+            .run_system_log_cleanup_with_audit(SystemLogCleanupAuditRequest {
+                job_id: SYSTEM_LOG_CLEANUP_JOB_ID.to_owned(),
+                filter: scheduler_filter(request.filter)?,
+                requested_by: request.requested_by,
+                audit: request.audit,
+            })
             .await
             .map_err(scheduler_error)
     }
@@ -50,6 +53,7 @@ impl SystemLogCleanupExecutionPort for SchedulerSystemLogCleanupExecutionAdapter
 }
 
 fn adapt_cleanup_execution(execution: ManualSystemLogCleanupExecution) -> SystemLogCleanupExecution {
+    let metrics = cleanup_execution_metrics(execution.report);
     SystemLogCleanupExecution {
         execution_id: execution.execution_id,
         state: match execution.state {
@@ -60,8 +64,40 @@ fn adapt_cleanup_execution(execution: ManualSystemLogCleanupExecution) -> System
             ManualSystemLogCleanupExecutionState::Skipped => SystemLogCleanupExecutionState::Skipped,
             ManualSystemLogCleanupExecutionState::Interrupted => SystemLogCleanupExecutionState::Interrupted,
         },
-        deleted: execution.report.as_ref().map(|report| report.deleted),
-        batches: execution.report.map(|report| report.batches),
+        detail_schema_version: metrics.detail_schema_version,
+        rows_deleted: metrics.rows_deleted,
+        dropped_partitions: metrics.dropped_partitions,
+        legacy_total_deleted: metrics.legacy_total_deleted,
+        batches: metrics.batches,
+    }
+}
+
+#[derive(Default)]
+struct CleanupExecutionMetrics {
+    detail_schema_version: Option<i16>,
+    rows_deleted: Option<u64>,
+    dropped_partitions: Option<u64>,
+    legacy_total_deleted: Option<u64>,
+    batches: Option<u64>,
+}
+
+fn cleanup_execution_metrics(report: Option<SystemLogCleanupExecutionReport>) -> CleanupExecutionMetrics {
+    match report {
+        Some(SystemLogCleanupExecutionReport::Current(report)) => CleanupExecutionMetrics {
+            detail_schema_version: Some(SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION),
+            rows_deleted: Some(report.rows_deleted),
+            dropped_partitions: Some(report.dropped_partitions),
+            legacy_total_deleted: None,
+            batches: Some(report.batches),
+        },
+        Some(SystemLogCleanupExecutionReport::Legacy(report)) => CleanupExecutionMetrics {
+            detail_schema_version: Some(LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION),
+            rows_deleted: None,
+            dropped_partitions: None,
+            legacy_total_deleted: Some(report.legacy_total_deleted),
+            batches: Some(report.batches),
+        },
+        None => CleanupExecutionMetrics::default(),
     }
 }
 
@@ -98,4 +134,47 @@ fn scheduler_error(error: SchedulerError) -> ObservabilityError {
 
 fn missing_time_range() -> ObservabilityError {
     ObservabilityError::InvalidInput(localized("errors.observability.time_range_required"))
+}
+
+#[cfg(test)]
+mod tests {
+    use scheduler::application::tasks::{
+        LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION, LegacySystemLogCleanupReport, ManualSystemLogCleanupExecution, ManualSystemLogCleanupExecutionState,
+        SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION, SystemLogCleanupExecutionReport, SystemLogCleanupReport,
+    };
+
+    use super::adapt_cleanup_execution;
+
+    #[test]
+    fn current_execution_exposes_row_and_partition_metrics_separately() {
+        let execution = adapt_cleanup_execution(ManualSystemLogCleanupExecution {
+            execution_id: "execution".into(),
+            state: ManualSystemLogCleanupExecutionState::Succeeded,
+            report: Some(SystemLogCleanupExecutionReport::Current(SystemLogCleanupReport::new(5, 2, 3))),
+        });
+
+        assert_eq!(execution.detail_schema_version, Some(SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION));
+        assert_eq!(execution.rows_deleted, Some(5));
+        assert_eq!(execution.dropped_partitions, Some(2));
+        assert_eq!(execution.legacy_total_deleted, None);
+        assert_eq!(execution.batches, Some(3));
+    }
+
+    #[test]
+    fn legacy_execution_does_not_relabel_its_total_as_rows_or_partitions() {
+        let execution = adapt_cleanup_execution(ManualSystemLogCleanupExecution {
+            execution_id: "execution".into(),
+            state: ManualSystemLogCleanupExecutionState::Succeeded,
+            report: Some(SystemLogCleanupExecutionReport::Legacy(LegacySystemLogCleanupReport {
+                legacy_total_deleted: 7,
+                batches: 4,
+            })),
+        });
+
+        assert_eq!(execution.detail_schema_version, Some(LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION));
+        assert_eq!(execution.rows_deleted, None);
+        assert_eq!(execution.dropped_partitions, None);
+        assert_eq!(execution.legacy_total_deleted, Some(7));
+        assert_eq!(execution.batches, Some(4));
+    }
 }

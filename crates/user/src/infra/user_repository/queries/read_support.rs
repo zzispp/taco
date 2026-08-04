@@ -69,7 +69,9 @@ impl UserQueries {
 
     async fn user(&self, record: UserRecord) -> StorageResult<User> {
         let mut users = self.users(vec![record]).await?;
-        Ok(users.pop().expect("one user record must map to one user"))
+        users
+            .pop()
+            .ok_or_else(|| StorageError::Database("one user record did not map to a user".into()))
     }
 
     pub(super) async fn role_group(&self, user_id: &str) -> StorageResult<String> {

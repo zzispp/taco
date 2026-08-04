@@ -38,6 +38,16 @@ pub(super) struct SchedulerServices {
     pub(super) runtime: SchedulerRuntimeHandle,
 }
 
+pub(super) struct SchedulerServicesWiring<'a> {
+    pub(super) settings: &'a Settings,
+    pub(super) database: Database,
+    pub(super) system: Arc<dyn SystemUseCase>,
+    pub(super) logs: Arc<dyn SystemLogUseCase>,
+    pub(super) retention: Arc<dyn SystemLogRetentionUseCase>,
+    pub(super) file_cleanup: Arc<dyn FileCleanupUseCase>,
+    pub(super) observer: taco_tracing::InfrastructureObserver,
+}
+
 #[derive(Clone)]
 struct SchedulerSystemCacheAdapter {
     system: Arc<dyn SystemUseCase>,
@@ -87,25 +97,25 @@ impl SystemCacheRefreshPort for SchedulerSystemCacheAdapter {
 #[async_trait::async_trait]
 impl SystemLogCleanupPort for SchedulerSystemLogCleanupAdapter {
     async fn cleanup_expired(&self, retention_days: u64, boundary_batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
-        let report = self
-            .retention
-            .cleanup_expired(retention_days, boundary_batch_size)
-            .await
-            .map_err(system_log_cleanup_failure)?;
+        let report = match self.retention.cleanup_expired(retention_days, boundary_batch_size).await {
+            Ok(report) => report,
+            Err(error) => return Err(system_log_cleanup_failure(error)?),
+        };
         Ok(SystemLogCleanupResult {
-            deleted: report.deleted,
+            rows_deleted: report.rows_deleted,
+            dropped_partitions: report.dropped_partitions,
             batches: report.batches,
         })
     }
 
     async fn cleanup_filtered(&self, filter: SystemLogCleanupFilter, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
-        let report = self
-            .logs
-            .delete_filtered(system_log_filter(filter), batch_size)
-            .await
-            .map_err(system_log_cleanup_failure)?;
+        let report = match self.logs.delete_filtered(system_log_filter(filter), batch_size).await {
+            Ok(report) => report,
+            Err(error) => return Err(system_log_cleanup_failure(error)?),
+        };
         Ok(SystemLogCleanupResult {
-            deleted: report.deleted,
+            rows_deleted: report.rows_deleted,
+            dropped_partitions: report.dropped_partitions,
             batches: report.batches,
         })
     }
@@ -128,10 +138,9 @@ impl FileCleanupPort for SchedulerFileCleanupAdapter {
             failed_provider_cleanups: report.failed_provider_cleanups,
         };
         if result.failed_objects > 0 || result.failed_provider_cleanups > 0 {
-            return Err(
-                file_cleanup_failure(FileCleanupKind::PurgeTrash, "file trash cleanup completed with provider failures")
-                    .with_detail(FileTrashCleanupReport::from(result)),
-            );
+            let failure = file_cleanup_failure(FileCleanupKind::PurgeTrash, "file trash cleanup completed with provider failures")
+                .with_detail(FileTrashCleanupReport::from(result))?;
+            return Err(failure);
         }
         Ok(result)
     }
@@ -149,24 +158,24 @@ impl FileCleanupPort for SchedulerFileCleanupAdapter {
             failed_provider_cleanups: report.failed_provider_cleanups,
         };
         if result.failed_provider_cleanups > 0 {
-            return Err(
-                file_cleanup_failure(FileCleanupKind::UploadSessions, "file upload-session cleanup completed with provider failures")
-                    .with_detail(FileUploadSessionCleanupReport::from(result)),
-            );
+            let failure = file_cleanup_failure(FileCleanupKind::UploadSessions, "file upload-session cleanup completed with provider failures")
+                .with_detail(FileUploadSessionCleanupReport::from(result))?;
+            return Err(failure);
         }
         Ok(result)
     }
 }
 
-pub(super) fn build_scheduler_services(
-    settings: &Settings,
-    database: Database,
-    system: Arc<dyn SystemUseCase>,
-    logs: Arc<dyn SystemLogUseCase>,
-    retention: Arc<dyn SystemLogRetentionUseCase>,
-    file_cleanup: Arc<dyn FileCleanupUseCase>,
-    observer: taco_tracing::InfrastructureObserver,
-) -> BackendResult<SchedulerServices> {
+pub(super) fn build_scheduler_services(wiring: SchedulerServicesWiring<'_>) -> BackendResult<SchedulerServices> {
+    let SchedulerServicesWiring {
+        settings,
+        database,
+        system,
+        logs,
+        retention,
+        file_cleanup,
+        observer,
+    } = wiring;
     let config = settings.scheduler_config()?;
     let pool = database.raw_pool().clone();
     let executor_epoch = database.next_id();
@@ -248,18 +257,23 @@ fn cache_refresh_error(kind: CacheRefreshKind, error: SystemError) -> TaskExecut
     cache_refresh_failure(kind, format!("scheduler cache refresh failed: {error}"))
 }
 
-fn system_log_cleanup_failure(error: observability::application::ObservabilityError) -> TaskExecutionFailure {
+fn system_log_cleanup_failure(error: observability::application::ObservabilityError) -> Result<TaskExecutionFailure, TaskExecutionFailure> {
     let diagnostic = format!("system log cleanup failed: {error}");
     match error {
-        observability::application::ObservabilityError::PartialCleanup { deleted, batches, .. } => TaskExecutionFailure::new(
+        observability::application::ObservabilityError::PartialCleanup {
+            rows_deleted,
+            dropped_partitions,
+            batches,
+            ..
+        } => TaskExecutionFailure::new(
             kernel::error::LocalizedError::new("errors.scheduler.task_system_log_cleanup_failed"),
             diagnostic,
         )
-        .with_detail(SystemLogCleanupReport::new(deleted, batches)),
-        other => TaskExecutionFailure::new(
+        .with_detail(SystemLogCleanupReport::new(rows_deleted, dropped_partitions, batches)),
+        other => Ok(TaskExecutionFailure::new(
             kernel::error::LocalizedError::new("errors.scheduler.task_system_log_cleanup_failed"),
             format!("system log cleanup failed: {other}"),
-        ),
+        )),
     }
 }
 

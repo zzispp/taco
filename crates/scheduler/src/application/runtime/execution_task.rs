@@ -155,7 +155,7 @@ mod tests {
     fn terminalization_retry_keeps_timestamp_and_exact_detail() {
         let first = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("test timestamp must be valid");
         let retry = DateTime::<Utc>::from_timestamp(1_700_000_001, 0).expect("test timestamp must be valid");
-        let output = TaskExecutionOutput::with_detail(TestDetail { marker: "complete".into() });
+        let output = TaskExecutionOutput::with_detail(TestDetail { marker: "complete".into() }).unwrap();
         let expected_detail = output.detail.clone();
         let mut pending = successful_finish(execution(), output);
 
@@ -171,7 +171,8 @@ mod tests {
     #[test]
     fn failed_task_detail_is_forwarded_without_rewriting() {
         let failure = TaskExecutionFailure::new(LocalizedError::new("errors.scheduler.task_http_request_failed"), "stable diagnostic")
-            .with_detail(TestDetail { marker: "failed".into() });
+            .with_detail(TestDetail { marker: "failed".into() })
+            .unwrap();
         let expected_detail = failure.detail.as_deref().cloned();
 
         let pending = failed_finish(execution(), failure);

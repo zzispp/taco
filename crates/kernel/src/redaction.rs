@@ -23,18 +23,26 @@ const SENSITIVE_KEYWORDS: [&str; 10] = [
 ];
 const SENSITIVE_SUFFIXES: [&str; 3] = ["cookie", "apikey", "credential"];
 
-static URL_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?:https?|postgres(?:ql)?|redis|rediss)://[^\s\"'<>]+"#).expect("URL redaction pattern must compile"));
+static URL_PATTERN: LazyLock<Regex> = LazyLock::new(|| compile_regex(r#"(?:https?|postgres(?:ql)?|redis|rediss)://[^\s\"'<>]+"#));
 static SENSITIVE_VALUE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
+    compile_regex(
         r#"(?ix)
         (?P<label>[\"']?[a-z0-9_-]*(?:password|passwd|pwd|token|secret|captcha|verificationcode|verifycode|authcode|authorization|cookie|apikey|credential)[a-z0-9_-]*[\"']?)
         (?P<separator>\s*(?:=|:)\s*)
         (?P<value>\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|[^,\s;\}\]&]+)
         "#,
     )
-    .expect("sensitive text redaction pattern must compile")
 });
+
+fn compile_regex(pattern: &'static str) -> Regex {
+    match Regex::new(pattern) {
+        Ok(regex) => regex,
+        Err(error) => {
+            eprintln!("kernel redaction regex is invalid: {error}");
+            std::process::abort();
+        }
+    }
+}
 
 pub fn redact_json(value: &mut Value) {
     match value {

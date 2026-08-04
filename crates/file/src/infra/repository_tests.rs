@@ -10,7 +10,9 @@ use kernel::pagination::CursorPageRequest;
 use sqlx::{AssertSqlSafe, PgPool, postgres::PgPoolOptions, query, query_scalar};
 use url::Url;
 
-use crate::application::{FileAccessScope, FileManagementRepository, FileScopeMode, FileSpaceQuery, UpdateSpaceCommand};
+use crate::application::{
+    FileAccessScope, FileManagementRepository, FileScopeMode, FileSpaceListRequest, FileSpaceQuery, UpdateSpaceCommand, UpdateSpaceRequest,
+};
 use crate::domain::{ByteSize, SpaceId};
 
 use super::StorageFileRepository;
@@ -42,10 +44,20 @@ async fn list_spaces_projects_virtual_users_and_quota_update_materializes_one_sp
     insert_user(database.pool(), "peer", Some("dept-1"), "Peer").await;
     insert_user(database.pool(), "outside", Some("dept-10"), "Outside").await;
     let repository = StorageFileRepository::new(storage::Database::new(database.pool().clone()));
-    let scope = FileAccessScope::scoped("actor", FileScopeMode::Department, Some("dept-1".into()), Vec::new());
+    let scope = FileAccessScope::scoped(crate::application::FileAccessScopeInput {
+        user_id: "actor".into(),
+        mode: FileScopeMode::Department,
+        department_id: Some("dept-1".into()),
+        department_ids: Vec::new(),
+    });
 
     let page = repository
-        .list_spaces(&scope, FileSpaceQuery::default(), page(), ByteSize::from_bytes(20))
+        .list_spaces(FileSpaceListRequest {
+            actor: &scope,
+            query: FileSpaceQuery::default(),
+            page: page(),
+            default_quota: ByteSize::from_bytes(20),
+        })
         .await
         .unwrap();
     let mut owner_ids = page.items.iter().map(|item| item.owner_user_id.as_str()).collect::<Vec<_>>();
@@ -66,12 +78,12 @@ async fn list_spaces_projects_virtual_users_and_quota_update_materializes_one_sp
     );
 
     let updated = repository
-        .update_space(
-            &scope,
-            SpaceId::new("peer").unwrap(),
-            UpdateSpaceCommand { quota_bytes: Some(30) },
-            ByteSize::from_bytes(20),
-        )
+        .update_space(UpdateSpaceRequest {
+            actor: &scope,
+            space_id: SpaceId::new("peer").unwrap(),
+            command: UpdateSpaceCommand { quota_bytes: Some(30) },
+            default_quota: ByteSize::from_bytes(20),
+        })
         .await
         .unwrap();
     assert_eq!((updated.owner_user_id.as_str(), updated.quota_bytes), ("peer", 30));
@@ -100,7 +112,12 @@ async fn virtual_space_scope_honors_self_custom_and_department_tree_boundaries()
     assert_eq!(
         owners(
             &repository,
-            FileAccessScope::scoped("actor", FileScopeMode::Custom, Some("10".into()), vec!["child".into()])
+            FileAccessScope::scoped(crate::application::FileAccessScopeInput {
+                user_id: "actor".into(),
+                mode: FileScopeMode::Custom,
+                department_id: Some("10".into()),
+                department_ids: vec!["child".into()],
+            })
         )
         .await,
         vec!["actor", "child-user"]
@@ -108,7 +125,12 @@ async fn virtual_space_scope_honors_self_custom_and_department_tree_boundaries()
     assert_eq!(
         owners(
             &repository,
-            FileAccessScope::scoped("actor", FileScopeMode::DepartmentAndChildren, Some("1".into()), Vec::new())
+            FileAccessScope::scoped(crate::application::FileAccessScopeInput {
+                user_id: "actor".into(),
+                mode: FileScopeMode::DepartmentAndChildren,
+                department_id: Some("1".into()),
+                department_ids: Vec::new(),
+            })
         )
         .await,
         vec!["actor", "child-user", "parent"]
@@ -122,7 +144,12 @@ async fn virtual_space_scope_honors_self_custom_and_department_tree_boundaries()
 
 async fn owners(repository: &StorageFileRepository, scope: FileAccessScope) -> Vec<String> {
     let mut owners = repository
-        .list_spaces(&scope, FileSpaceQuery::default(), page(), ByteSize::from_bytes(20))
+        .list_spaces(FileSpaceListRequest {
+            actor: &scope,
+            query: FileSpaceQuery::default(),
+            page: page(),
+            default_quota: ByteSize::from_bytes(20),
+        })
         .await
         .unwrap()
         .items

@@ -4,8 +4,7 @@ import type { DeptInput, TreeSelectNode } from 'src/entities/system';
 import MenuItem from '@mui/material/MenuItem';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
-
-import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/widgets/admin-common';
+import { TextFieldRow, TreeSelectField, ManagementDialog } from 'src/shared/ui/admin-common';
 
 export function DeptDialog({
   open,

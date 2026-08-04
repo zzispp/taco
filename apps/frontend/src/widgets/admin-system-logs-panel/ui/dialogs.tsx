@@ -9,7 +9,7 @@ import { useTranslate } from 'src/shared/i18n/use-locales';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 import { ConfirmDialog } from 'src/shared/ui/custom-dialog';
 
-import { SystemLogDetailDialog } from 'src/features/system-log-management';
+import { SystemLogDetailDialog, cleanupExecutionMessage } from 'src/features/system-log-management';
 
 export function SystemLogDialogs({ controller }: { controller: SystemLogController }) {
   return (
@@ -28,10 +28,7 @@ function CleanupExecutionDialog({ controller }: { controller: SystemLogControlle
   const execution = resources.cleanupExecution.data;
   const content = resources.cleanupExecution.error
     ? t('messages.cleanExecutionStatusFailure')
-    : t(`cleanupStates.${execution?.state ?? 'pending'}`, {
-        count: execution?.deleted ?? 0,
-        batches: execution?.batches ?? 0,
-      });
+    : cleanupExecutionMessage(execution, t);
   return (
     <ConfirmDialog
       open={state.cleanupExecutionDialogOpen}

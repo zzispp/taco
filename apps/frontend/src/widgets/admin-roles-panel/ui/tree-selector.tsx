@@ -73,22 +73,51 @@ export function TreeSelector({
         onUnselectAll={() => onChange([])}
         onStrictChange={onStrictChange}
       />
-      <List disablePadding>
-        {tree.map((node) => (
-          <TreeNodeRow
-            key={node.id}
-            node={node}
-            level={0}
-            selected={selected}
-            selectedSet={selectedSet}
-            strict={strict}
-            expanded={expanded}
-            onToggleExpanded={toggleExpanded}
-            onChange={onChange}
-          />
-        ))}
-      </List>
+      <TreeSelectorRows
+        tree={tree}
+        selected={selected}
+        selectedSet={selectedSet}
+        strict={strict}
+        expanded={expanded}
+        onToggleExpanded={toggleExpanded}
+        onChange={onChange}
+      />
     </Box>
+  );
+}
+
+type TreeSelectorRowsProps = Pick<TreeSelectorProps, 'selected' | 'strict' | 'onChange'> & {
+  tree: TreeNode[];
+  selectedSet: Set<string>;
+  expanded: string[];
+  onToggleExpanded: (id: string) => void;
+};
+
+function TreeSelectorRows({
+  tree,
+  selected,
+  selectedSet,
+  strict,
+  expanded,
+  onToggleExpanded,
+  onChange,
+}: TreeSelectorRowsProps) {
+  return (
+    <List disablePadding>
+      {tree.map((node) => (
+        <TreeNodeRow
+          key={node.id}
+          node={node}
+          level={0}
+          selected={selected}
+          selectedSet={selectedSet}
+          strict={strict}
+          expanded={expanded}
+          onToggleExpanded={onToggleExpanded}
+          onChange={onChange}
+        />
+      ))}
+    </List>
   );
 }
 
@@ -110,15 +139,7 @@ function collectAncestors(id: string, parentById: ParentById): string[] {
   return [parentId, ...collectAncestors(parentId, parentById)];
 }
 
-function SelectorToolbar({
-  selectedCount,
-  strict,
-  onExpandAll,
-  onCollapseAll,
-  onSelectAll,
-  onUnselectAll,
-  onStrictChange,
-}: {
+type SelectorToolbarProps = {
   selectedCount: number;
   strict: boolean;
   onExpandAll: () => void;
@@ -126,7 +147,9 @@ function SelectorToolbar({
   onSelectAll: () => void;
   onUnselectAll: () => void;
   onStrictChange: (value: boolean) => void;
-}) {
+};
+
+function SelectorToolbar(props: SelectorToolbarProps) {
   const { t } = useTranslate('admin');
 
   return (
@@ -140,54 +163,74 @@ function SelectorToolbar({
         alignItems={{ xs: 'stretch', md: 'center' }}
         justifyContent="space-between"
       >
-        <ButtonGroup variant="outlined" size="small" sx={{ flexWrap: 'wrap' }}>
-          <Button startIcon={<Iconify icon="eva:expand-fill" />} onClick={onExpandAll}>
-            {t('actions.expandAll')}
-          </Button>
-          <Button startIcon={<Iconify icon="eva:collapse-fill" />} onClick={onCollapseAll}>
-            {t('actions.collapseAll')}
-          </Button>
-          <Button startIcon={<Iconify icon="eva:done-all-fill" />} onClick={onSelectAll}>
-            {t('actions.selectAll')}
-          </Button>
-          <Button startIcon={<Iconify icon="eva:minus-circle-fill" />} onClick={onUnselectAll}>
-            {t('actions.unselectAll')}
-          </Button>
-        </ButtonGroup>
-        <Stack
-          direction="row"
-          spacing={1.25}
-          alignItems="center"
-          justifyContent={{ xs: 'space-between', md: 'flex-end' }}
-        >
-          <FormControlLabel
-            label={t('actions.parentChildLinkage')}
-            control={
-              <Switch checked={strict} onChange={(event) => onStrictChange(event.target.checked)} />
-            }
-            sx={{ m: 0, whiteSpace: 'nowrap' }}
-          />
-          <Chip
-            color="primary"
-            variant="outlined"
-            label={t('messages.selectedCount', { count: selectedCount })}
-          />
-        </Stack>
+        <SelectorBulkActions {...props} t={t} />
+        <SelectorSelectionControls {...props} t={t} />
       </Stack>
     </Paper>
   );
 }
 
-function TreeNodeRow({
-  node,
-  level,
-  selected,
-  selectedSet,
+type SelectorTranslation = ReturnType<typeof useTranslate>['t'];
+
+function SelectorBulkActions({
+  onExpandAll,
+  onCollapseAll,
+  onSelectAll,
+  onUnselectAll,
+  t,
+}: Pick<SelectorToolbarProps, 'onExpandAll' | 'onCollapseAll' | 'onSelectAll' | 'onUnselectAll'> & {
+  t: SelectorTranslation;
+}) {
+  return (
+    <ButtonGroup variant="outlined" size="small" sx={{ flexWrap: 'wrap' }}>
+      <Button startIcon={<Iconify icon="eva:expand-fill" />} onClick={onExpandAll}>
+        {t('actions.expandAll')}
+      </Button>
+      <Button startIcon={<Iconify icon="eva:collapse-fill" />} onClick={onCollapseAll}>
+        {t('actions.collapseAll')}
+      </Button>
+      <Button startIcon={<Iconify icon="eva:done-all-fill" />} onClick={onSelectAll}>
+        {t('actions.selectAll')}
+      </Button>
+      <Button startIcon={<Iconify icon="eva:minus-circle-fill" />} onClick={onUnselectAll}>
+        {t('actions.unselectAll')}
+      </Button>
+    </ButtonGroup>
+  );
+}
+
+function SelectorSelectionControls({
+  selectedCount,
   strict,
-  expanded,
-  onToggleExpanded,
-  onChange,
-}: {
+  onStrictChange,
+  t,
+}: SelectorToolbarProps & {
+  t: SelectorTranslation;
+}) {
+  return (
+    <Stack
+      direction="row"
+      spacing={1.25}
+      alignItems="center"
+      justifyContent={{ xs: 'space-between', md: 'flex-end' }}
+    >
+      <FormControlLabel
+        label={t('actions.parentChildLinkage')}
+        control={
+          <Switch checked={strict} onChange={(event) => onStrictChange(event.target.checked)} />
+        }
+        sx={{ m: 0, whiteSpace: 'nowrap' }}
+      />
+      <Chip
+        color="primary"
+        variant="outlined"
+        label={t('messages.selectedCount', { count: selectedCount })}
+      />
+    </Stack>
+  );
+}
+
+type TreeNodeRowProps = {
   node: TreeNode;
   level: number;
   selected: string[];
@@ -196,21 +239,23 @@ function TreeNodeRow({
   expanded: string[];
   onToggleExpanded: (id: string) => void;
   onChange: (selected: string[]) => void;
-}) {
-  const { checked, indeterminate } = nodeState(node, selectedSet);
-  const open = expanded.includes(node.id);
-  const hasChildren = node.children.length > 0;
-  const toggle = () => onChange(nextSelected(node, selected, strict));
+};
+
+function TreeNodeRow(props: TreeNodeRowProps) {
+  const { checked, indeterminate } = nodeState(props.node, props.selectedSet);
+  const open = props.expanded.includes(props.node.id);
+  const hasChildren = props.node.children.length > 0;
+  const toggle = () => props.onChange(nextSelected(props.node, props.selected, props.strict));
 
   return (
     <>
-      <ListItemButton dense sx={{ pl: 1 + level * 2 }} onClick={toggle}>
+      <ListItemButton dense sx={{ pl: 1 + props.level * 2 }} onClick={toggle}>
         {hasChildren ? (
           <IconButton
             size="small"
             onClick={(event) => {
               event.stopPropagation();
-              onToggleExpanded(node.id);
+              props.onToggleExpanded(props.node.id);
             }}
           >
             <Iconify icon={open ? 'eva:arrow-ios-downward-fill' : 'eva:arrow-ios-forward-fill'} />
@@ -219,21 +264,21 @@ function TreeNodeRow({
           <Box sx={{ width: 34 }} />
         )}
         <Checkbox edge="start" checked={checked} indeterminate={indeterminate} tabIndex={-1} />
-        <ListItemText primary={node.label} />
+        <ListItemText primary={props.node.label} />
       </ListItemButton>
       {hasChildren && (
         <Collapse in={open}>
-          {node.children.map((child) => (
+          {props.node.children.map((child) => (
             <TreeNodeRow
               key={child.id}
               node={child}
-              level={level + 1}
-              selected={selected}
-              selectedSet={selectedSet}
-              strict={strict}
-              expanded={expanded}
-              onToggleExpanded={onToggleExpanded}
-              onChange={onChange}
+              level={props.level + 1}
+              selected={props.selected}
+              selectedSet={props.selectedSet}
+              strict={props.strict}
+              expanded={props.expanded}
+              onToggleExpanded={props.onToggleExpanded}
+              onChange={props.onChange}
             />
           ))}
         </Collapse>

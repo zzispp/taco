@@ -58,8 +58,7 @@ export function UserRow({
   const canEdit = useHasPermission('system:user:edit');
   const canDelete = useHasPermission('system:user:remove');
   const canReset = useHasPermission('system:user:resetPwd');
-  const roleNames = displayRoles(row.role_ids, roles, t);
-  const postNames = namesByIds(posts, row.post_ids, 'post_id', 'post_name');
+  const { roleNames, postNames } = useUserRowLabels({ row, roles, posts, t });
 
   return (
     <TableRow hover>
@@ -90,6 +89,23 @@ export function UserRow({
       />
     </TableRow>
   );
+}
+
+function useUserRowLabels({
+  row,
+  roles,
+  posts,
+  t,
+}: Pick<UserRowProps, 'row' | 'roles' | 'posts'> & { t: ReturnType<typeof useTranslate>['t'] }) {
+  const roleNames = displayRoles(row.role_ids, roles, t);
+  const postNames = namesByIds({
+    items: posts,
+    ids: row.post_ids,
+    idKey: 'post_id',
+    nameKey: 'post_name',
+  });
+
+  return { roleNames, postNames };
 }
 
 type UserActionsProps = Pick<

@@ -7,7 +7,7 @@ mod tag;
 mod upload;
 
 pub use capacity::{ByteSize, Capacity, ProviderCapacity, Quota};
-pub use deduplication::{ContentReuseScope, DeduplicationDecision, DeduplicationIndex};
+pub use deduplication::{ContentReuseScope, DeduplicationDecision, DeduplicationIndex, DeduplicationRegistration};
 pub use digest::ContentDigest;
 pub use directory::EntryName;
 pub use ids::{DirectoryId, FileId, ProviderKey, SpaceId, StoredObjectId, UploadId};

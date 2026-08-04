@@ -1,7 +1,7 @@
 'use client';
 
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
+import { AdminBreadcrumbs } from 'src/shared/ui/admin-common';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 
 import { DictHeaderActions } from './dict-toolbar';
 import { DictDialogSection } from './dict-dialog-section';

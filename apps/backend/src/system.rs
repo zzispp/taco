@@ -73,13 +73,20 @@ pub fn create_router(health_state: HealthState) -> Router {
     tag = "system",
     responses((status = OK, description = "Health check", body = HealthResponse))
 )]
-pub async fn health(State(health_state): State<HealthState>) -> Json<HealthResponse> {
+pub async fn health(State(health_state): State<HealthState>) -> Result<Json<HealthResponse>, StatusCode> {
+    health_response(&health_state).map(Json).map_err(|error| {
+        taco_tracing::error_with_fields!("system health response construction failed", &error, component = "health");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
+}
+
+fn health_response(health_state: &HealthState) -> Result<HealthResponse, time::error::Format> {
     let listener = health_state.tracing_config_listener.snapshot();
-    let system_log_ingestion = health_state.system_log_runtime.as_ref().map(system_log_ingestion_health);
+    let system_log_ingestion = health_state.system_log_runtime.as_ref().map(system_log_ingestion_health).transpose()?;
     let ingestion_healthy = system_log_ingestion
         .as_ref()
         .is_none_or(|status| status.writer_running && status.writer_healthy);
-    Json(HealthResponse {
+    Ok(HealthResponse {
         status: if listener.healthy && ingestion_healthy { "ok" } else { "degraded" },
         tracing_config_listener_healthy: listener.healthy,
         tracing_config_listener_failures: listener.failures,
@@ -98,17 +105,22 @@ pub async fn ready() -> (StatusCode, Json<ReadyResponse>) {
     (StatusCode::OK, Json(ReadyResponse { status: "ready" }))
 }
 
-fn system_log_ingestion_health(runtime: &Arc<taco_tracing::SystemLogRuntime>) -> SystemLogIngestionHealthResponse {
+fn system_log_ingestion_health(runtime: &Arc<taco_tracing::SystemLogRuntime>) -> Result<SystemLogIngestionHealthResponse, time::error::Format> {
     let status = runtime.status();
-    let latest_write_failure = status.latest_write_failure.map(|failure| SystemLogWriteFailureResponse {
-        failed_events: failure.failed_events,
-        reason: failure.reason,
-        occurred_at: failure
-            .occurred_at
-            .format(&time::format_description::well_known::Rfc3339)
-            .expect("system log failure timestamp must format as RFC3339"),
-    });
-    SystemLogIngestionHealthResponse {
+    let latest_write_failure = status
+        .latest_write_failure
+        .map(|failure| {
+            failure
+                .occurred_at
+                .format(&time::format_description::well_known::Rfc3339)
+                .map(|occurred_at| SystemLogWriteFailureResponse {
+                    failed_events: failure.failed_events,
+                    reason: failure.reason,
+                    occurred_at,
+                })
+        })
+        .transpose()?;
+    Ok(SystemLogIngestionHealthResponse {
         delivery_guarantee: status.delivery_guarantee.as_str(),
         queue_depth: status.queue_depth,
         queue_capacity: status.queue_capacity,
@@ -118,7 +130,7 @@ fn system_log_ingestion_health(runtime: &Arc<taco_tracing::SystemLogRuntime>) ->
         writer_running: status.writer_running,
         writer_healthy: status.writer_healthy,
         latest_write_failure,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -150,6 +162,7 @@ mod tests {
             runtime,
         )))
         .await
+        .unwrap()
         .0;
         let ingestion = response.system_log_ingestion.expect("ingestion status must be present in production health");
 
@@ -179,6 +192,7 @@ mod tests {
             runtime.clone(),
         )))
         .await
+        .unwrap()
         .0;
         let serialized = serde_json::to_value(&response).unwrap();
         let ingestion = response.system_log_ingestion.expect("ingestion status must be present in production health");

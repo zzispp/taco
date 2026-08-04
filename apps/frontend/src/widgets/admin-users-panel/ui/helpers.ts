@@ -75,7 +75,17 @@ export function displayRoles(ids: string[], roles: RoleOption[], t: TranslateFn)
   );
 }
 
-export function namesByIds<T>(items: T[], ids: string[], idKey: keyof T, nameKey: keyof T) {
+export function namesByIds<T>({
+  items,
+  ids,
+  idKey,
+  nameKey,
+}: Readonly<{
+  items: T[];
+  ids: string[];
+  idKey: keyof T;
+  nameKey: keyof T;
+}>) {
   return (
     ids.map((id) => String(items.find((item) => item[idKey] === id)?.[nameKey] ?? id)).join(', ') ||
     '-'

@@ -47,15 +47,23 @@ const fn download(path: &'static str, access: EndpointAccess, handler: &'static 
     }
 }
 
-const fn write(method: EndpointMethod, path: &'static str, access: EndpointAccess, business_type: BusinessType, handler: &'static str) -> EndpointSpec {
+struct OperationEndpoint {
+    method: EndpointMethod,
+    path: &'static str,
+    access: EndpointAccess,
+    business_type: BusinessType,
+    handler: &'static str,
+}
+
+const fn write(endpoint: OperationEndpoint) -> EndpointSpec {
     EndpointSpec {
-        method,
-        path,
-        access,
+        method: endpoint.method,
+        path: endpoint.path,
+        access: endpoint.access,
         audit: EndpointAudit::Operation(OperationEndpointAudit {
             title_key: "audit.module.file",
-            business_type,
-            handler,
+            business_type: endpoint.business_type,
+            handler: endpoint.handler,
             request_capture: RequestCapture::Sanitized,
         }),
     }
@@ -74,28 +82,28 @@ pub(super) const FILES_LIST: EndpointSpec = read("/api/system/files", scoped("li
 pub(super) const FILE_DIRECTORY_TRAIL: EndpointSpec = read("/api/system/files/{id}/directory-trail", scoped("file_directory_trail", &["file:asset:list"]));
 pub(super) const FILES_OVERVIEW: EndpointSpec = read("/api/system/files/overview", scoped("file_overview", &["file:asset:query"]));
 pub(super) const FILE_SPACES_LIST: EndpointSpec = read("/api/system/file-spaces", scoped("list_file_spaces", &["file:space:list"]));
-pub(super) const FILE_SPACE_UPDATE: EndpointSpec = write(
-    EndpointMethod::Put,
-    "/api/system/file-spaces/{id}",
-    scoped("update_file_space", &["file:space:quota"]),
-    BusinessType::Update,
-    "file::update_space",
-);
+pub(super) const FILE_SPACE_UPDATE: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Put,
+    path: "/api/system/file-spaces/{id}",
+    access: scoped("update_file_space", &["file:space:quota"]),
+    business_type: BusinessType::Update,
+    handler: "file::update_space",
+});
 pub(super) const FILE_GET: EndpointSpec = read("/api/system/files/{id}", scoped("get_file", &["file:asset:query"]));
-pub(super) const FILE_UPDATE: EndpointSpec = write(
-    EndpointMethod::Put,
-    "/api/system/files/{id}",
-    scoped("update_file", &["file:asset:edit"]),
-    BusinessType::Update,
-    "file::update_entry",
-);
-pub(super) const FOLDER_CREATE: EndpointSpec = write(
-    EndpointMethod::Post,
-    "/api/system/files/folders",
-    scoped("create_file_folder", &["file:folder:add"]),
-    BusinessType::Insert,
-    "file::create_folder",
-);
+pub(super) const FILE_UPDATE: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Put,
+    path: "/api/system/files/{id}",
+    access: scoped("update_file", &["file:asset:edit"]),
+    business_type: BusinessType::Update,
+    handler: "file::update_entry",
+});
+pub(super) const FOLDER_CREATE: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Post,
+    path: "/api/system/files/folders",
+    access: scoped("create_file_folder", &["file:folder:add"]),
+    business_type: BusinessType::Insert,
+    handler: "file::create_folder",
+});
 pub(super) const FILE_CONTENT: EndpointSpec = download(
     "/api/system/files/{id}/content",
     scoped("download_file", &["file:asset:download"]),
@@ -103,48 +111,48 @@ pub(super) const FILE_CONTENT: EndpointSpec = download(
 );
 pub(super) const FILE_PREVIEW: EndpointSpec = read("/api/system/files/{id}/preview", scoped("preview_file", &["file:asset:query"]));
 pub(super) const FILE_THUMBNAIL: EndpointSpec = read("/api/system/files/{id}/thumbnail", scoped("thumbnail_file", &["file:asset:query"]));
-pub(super) const FILE_TRASH: EndpointSpec = write(
-    EndpointMethod::Post,
-    "/api/system/files/{id}/trash",
-    scoped("trash_file", &["file:asset:remove"]),
-    BusinessType::Delete,
-    "file::trash",
-);
-pub(super) const FILE_RESTORE: EndpointSpec = write(
-    EndpointMethod::Post,
-    "/api/system/files/{id}/restore",
-    scoped("restore_file", &["file:asset:restore"]),
-    BusinessType::Update,
-    "file::restore",
-);
-pub(super) const FILE_PURGE: EndpointSpec = write(
-    EndpointMethod::Delete,
-    "/api/system/files/{id}/purge",
-    scoped("purge_file", &["file:asset:purge"]),
-    BusinessType::Delete,
-    "file::purge",
-);
-pub(super) const FILES_TRASH_BATCH: EndpointSpec = write(
-    EndpointMethod::Post,
-    "/api/system/files/trash/batch",
-    scoped("trash_files", &["file:asset:remove"]),
-    BusinessType::Delete,
-    "file::trash_batch",
-);
-pub(super) const FILES_RESTORE_BATCH: EndpointSpec = write(
-    EndpointMethod::Post,
-    "/api/system/files/trash/restore/batch",
-    scoped("restore_files", &["file:asset:restore"]),
-    BusinessType::Update,
-    "file::restore_batch",
-);
-pub(super) const FILES_PURGE_BATCH: EndpointSpec = write(
-    EndpointMethod::Post,
-    "/api/system/files/trash/purge/batch",
-    scoped("purge_files", &["file:asset:purge"]),
-    BusinessType::Delete,
-    "file::purge_batch",
-);
+pub(super) const FILE_TRASH: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Post,
+    path: "/api/system/files/{id}/trash",
+    access: scoped("trash_file", &["file:asset:remove"]),
+    business_type: BusinessType::Delete,
+    handler: "file::trash",
+});
+pub(super) const FILE_RESTORE: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Post,
+    path: "/api/system/files/{id}/restore",
+    access: scoped("restore_file", &["file:asset:restore"]),
+    business_type: BusinessType::Update,
+    handler: "file::restore",
+});
+pub(super) const FILE_PURGE: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Delete,
+    path: "/api/system/files/{id}/purge",
+    access: scoped("purge_file", &["file:asset:purge"]),
+    business_type: BusinessType::Delete,
+    handler: "file::purge",
+});
+pub(super) const FILES_TRASH_BATCH: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Post,
+    path: "/api/system/files/trash/batch",
+    access: scoped("trash_files", &["file:asset:remove"]),
+    business_type: BusinessType::Delete,
+    handler: "file::trash_batch",
+});
+pub(super) const FILES_RESTORE_BATCH: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Post,
+    path: "/api/system/files/trash/restore/batch",
+    access: scoped("restore_files", &["file:asset:restore"]),
+    business_type: BusinessType::Update,
+    handler: "file::restore_batch",
+});
+pub(super) const FILES_PURGE_BATCH: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Post,
+    path: "/api/system/files/trash/purge/batch",
+    access: scoped("purge_files", &["file:asset:purge"]),
+    business_type: BusinessType::Delete,
+    handler: "file::purge_batch",
+});
 pub(super) const PROVIDERS_LIST: EndpointSpec = read("/api/system/file-providers", permission("list_file_providers", &["file:provider:query"]));
 
 pub(super) const UPLOAD_SESSIONS_CREATE: EndpointSpec = quiet_write(
@@ -161,20 +169,20 @@ pub(super) const UPLOAD_SESSION_PART: EndpointSpec = quiet_write(
     "/api/system/file-upload-sessions/{id}/parts/{part_number}",
     scoped("write_upload_part", &["file:asset:upload"]),
 );
-pub(super) const UPLOAD_SESSION_COMPLETE: EndpointSpec = write(
-    EndpointMethod::Post,
-    "/api/system/file-upload-sessions/{id}/complete",
-    scoped("complete_upload_session", &["file:asset:upload"]),
-    BusinessType::Import,
-    "file::complete_upload",
-);
-pub(super) const UPLOAD_SESSION_CANCEL: EndpointSpec = write(
-    EndpointMethod::Delete,
-    "/api/system/file-upload-sessions/{id}",
-    scoped_any("cancel_upload_session", &["file:asset:upload", "file:upload:manage"]),
-    BusinessType::Delete,
-    "file::cancel_upload",
-);
+pub(super) const UPLOAD_SESSION_COMPLETE: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Post,
+    path: "/api/system/file-upload-sessions/{id}/complete",
+    access: scoped("complete_upload_session", &["file:asset:upload"]),
+    business_type: BusinessType::Import,
+    handler: "file::complete_upload",
+});
+pub(super) const UPLOAD_SESSION_CANCEL: EndpointSpec = write(OperationEndpoint {
+    method: EndpointMethod::Delete,
+    path: "/api/system/file-upload-sessions/{id}",
+    access: scoped_any("cancel_upload_session", &["file:asset:upload", "file:upload:manage"]),
+    business_type: BusinessType::Delete,
+    handler: "file::cancel_upload",
+});
 
 const ENDPOINTS: &[EndpointSpec] = &[
     FILES_LIST,

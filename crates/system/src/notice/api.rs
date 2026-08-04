@@ -35,18 +35,18 @@ impl NoticeApiState {
     }
 }
 
-pub fn create_router(state: NoticeApiState) -> Router {
+pub fn create_router(state: NoticeApiState) -> Result<Router, audit_contract::EndpointSpecError> {
     use super::endpoints::{NOTICE_READ, NOTICE_READERS, NOTICE_REPLACE, NOTICES_CREATE, NOTICES_DELETE_BATCH, NOTICES_READ_ALL, NOTICES_TOP};
 
-    Router::new()
-        .route(NOTICES_CREATE.api_route_path(), get(list_notices).post(create_notice))
-        .route(NOTICES_TOP.api_route_path(), get(top_notices))
-        .route(NOTICES_READ_ALL.api_route_path(), put(mark_all_notices_read))
-        .route(NOTICES_DELETE_BATCH.api_route_path(), delete(delete_notices))
-        .route(NOTICE_READ.api_route_path(), put(mark_notice_read))
-        .route(NOTICE_READERS.api_route_path(), get(list_notice_readers))
-        .route(NOTICE_REPLACE.api_route_path(), get(get_notice).put(replace_notice).delete(delete_notice))
-        .with_state(state)
+    Ok(Router::new()
+        .route(NOTICES_CREATE.api_route_path()?, get(list_notices).post(create_notice))
+        .route(NOTICES_TOP.api_route_path()?, get(top_notices))
+        .route(NOTICES_READ_ALL.api_route_path()?, put(mark_all_notices_read))
+        .route(NOTICES_DELETE_BATCH.api_route_path()?, delete(delete_notices))
+        .route(NOTICE_READ.api_route_path()?, put(mark_notice_read))
+        .route(NOTICE_READERS.api_route_path()?, get(list_notice_readers))
+        .route(NOTICE_REPLACE.api_route_path()?, get(get_notice).put(replace_notice).delete(delete_notice))
+        .with_state(state))
 }
 
 type ApiResult<T> = Result<Json<T>, SystemApiError>;

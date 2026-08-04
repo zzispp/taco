@@ -2,8 +2,8 @@ use std::{error::Error, fmt};
 
 use serde::Deserialize;
 
-pub const DEFAULT_HTTP_BODY_CAPTURE_BYTES: u64 = 16 * 1024;
-pub const MAX_HTTP_BODY_CAPTURE_BYTES: u64 = 64 * 1024;
+pub const DEFAULT_HTTP_BODY_CAPTURE_BYTES: usize = 16 * 1024;
+pub const MAX_HTTP_BODY_CAPTURE_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -57,7 +57,7 @@ pub struct HttpLogCaptureConfig {
     pub capture_response_body: bool,
     pub capture_query_parameters: bool,
     pub capture_request_headers: bool,
-    pub max_body_capture_bytes: u64,
+    pub max_body_capture_bytes: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]

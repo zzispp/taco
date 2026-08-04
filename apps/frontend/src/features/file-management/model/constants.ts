@@ -37,17 +37,50 @@ export function fileQuery(
   }>
 ): FileListQuery {
   const { filters, mode, parentId, spaceId, sortBy, sortOrder } = options;
-  const parentFilter = filters.search
-    ? undefined
-    : (parentId ?? (mode === 'active' ? ROOT_DIRECTORY_ID : undefined));
+  const parentFilter = fileQueryParentFilter({ filters, mode, parentId });
   return {
-    ...(spaceId ? { space_id: spaceId } : {}),
-    ...(parentFilter ? { parent_id: parentFilter } : {}),
+    ...fileQuerySpace(spaceId),
+    ...fileQueryParent(parentFilter),
+    ...fileQueryFilters(filters),
+    ...fileQueryMode(mode),
+    ...fileQuerySort({ sortBy, sortOrder }),
+  };
+}
+
+function fileQueryParentFilter({
+  filters,
+  mode,
+  parentId,
+}: Pick<Parameters<typeof fileQuery>[0], 'filters' | 'mode' | 'parentId'>) {
+  if (filters.search) return undefined;
+  return parentId ?? (mode === 'active' ? ROOT_DIRECTORY_ID : undefined);
+}
+
+function fileQuerySpace(spaceId: string | undefined) {
+  return spaceId ? { space_id: spaceId } : {};
+}
+
+function fileQueryParent(parentId: string | undefined) {
+  return parentId ? { parent_id: parentId } : {};
+}
+
+function fileQueryFilters(filters: FileFilterDraft) {
+  return {
     ...(filters.search ? { search: filters.search } : {}),
     ...(filters.extension ? { extension: filters.extension } : {}),
     ...(filters.tag ? { tag: filters.tag } : {}),
-    ...(mode === 'trash' ? { trashed: true } : {}),
-    ...(mode === 'active' ? { trashed: false } : {}),
+  };
+}
+
+function fileQueryMode(mode: FileManagerMode) {
+  return { trashed: mode === 'trash' };
+}
+
+function fileQuerySort({
+  sortBy,
+  sortOrder,
+}: Pick<Parameters<typeof fileQuery>[0], 'sortBy' | 'sortOrder'>) {
+  return {
     ...(sortBy ? { sort_by: sortBy } : {}),
     ...(sortOrder ? { sort_order: sortOrder } : {}),
   };

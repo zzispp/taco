@@ -107,6 +107,7 @@ fn test_router(repository: TestRepository, user: CurrentUser) -> Router {
     let notices: Arc<dyn NoticeUseCase> = service.clone();
     let notices_audited: Arc<dyn NoticeAuditedUseCase> = service;
     create_router(NoticeApiState::new(notices, notices_audited))
+        .expect("notice endpoint specifications must be valid")
         .layer(Extension(user))
         .layer(Extension(operation_audit_context()))
         .layer(middleware::from_fn(types::http::locale_middleware))

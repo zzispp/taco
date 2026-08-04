@@ -3,20 +3,39 @@ use storage::Database;
 use time::OffsetDateTime;
 
 use crate::FileResult;
-use crate::application::{BeginUploadSessionCommand, FileAccessScope, UploadSession, UploadSessionData};
-use crate::domain::{SpaceId, UploadId};
+use crate::application::{BeginUploadSessionCommand, FileAccessScope, UploadIntentLookup, UploadSession, UploadSessionData};
+use crate::domain::UploadId;
 
 use super::repository_commands::ensure_visible_space;
 use super::repository_session_support::{SessionRecord, parent_value, session_columns, session_with_parts};
 use super::repository_support::{ensure_active_parent_tx, scope_query, storage_error};
 
+pub(super) struct UploadSessionCreateRequest<'a> {
+    pub(super) actor: &'a FileAccessScope,
+    pub(super) command: BeginUploadSessionCommand,
+    pub(super) provider_session: UploadSession,
+}
+
+impl<'a> UploadSessionCreateRequest<'a> {
+    pub(super) fn new(actor: &'a FileAccessScope, command: BeginUploadSessionCommand, provider_session: UploadSession) -> Self {
+        Self {
+            actor,
+            command,
+            provider_session,
+        }
+    }
+}
+
 pub(super) async fn find_upload_intent(
     database: &Database,
-    actor: &FileAccessScope,
-    owner_user_id: &str,
-    space_id: SpaceId,
-    idempotency_key: &str,
+    lookup: UploadIntentLookup<'_>,
 ) -> FileResult<Option<(UploadSessionData, Vec<crate::application::PartReceipt>)>> {
+    let UploadIntentLookup {
+        actor,
+        owner_user_id,
+        space_id,
+        idempotency_key,
+    } = lookup;
     let mut query = QueryBuilder::<Postgres>::new(format!(
         "SELECT {} FROM file_upload_session us JOIN file_space s ON s.space_id=us.space_id WHERE us.owner_user_id=",
         session_columns()
@@ -35,12 +54,12 @@ pub(super) async fn find_upload_intent(
     session_with_parts(database, record).await
 }
 
-pub(super) async fn create_upload_session(
-    database: &Database,
-    actor: &FileAccessScope,
-    command: BeginUploadSessionCommand,
-    provider_session: UploadSession,
-) -> FileResult<UploadSessionData> {
+pub(super) async fn create_upload_session(database: &Database, request: UploadSessionCreateRequest<'_>) -> FileResult<UploadSessionData> {
+    let UploadSessionCreateRequest {
+        actor,
+        command,
+        provider_session,
+    } = request;
     ensure_visible_space(database, actor, &command.space_id).await?;
     let now = OffsetDateTime::now_utc();
     let size = i64::try_from(command.size.bytes()).map_err(|_| crate::FileError::SizeMismatch)?;

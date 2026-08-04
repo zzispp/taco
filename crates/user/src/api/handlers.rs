@@ -40,6 +40,13 @@ type UploadAccountAvatarRequest = (
     Multipart,
 );
 
+struct AvatarBindingInput<'a> {
+    state: &'a ApiState,
+    owner: AvatarOwner,
+    next: AvatarFileId,
+    audit_context: Option<Extension<audit_contract::OperationAuditContext>>,
+}
+
 mod admin;
 mod auth;
 mod auth_events;
@@ -111,7 +118,14 @@ pub async fn upload_account_avatar(
     let max_bytes = state.avatar_config.avatar_config().await?.max_bytes;
     let avatar = normalize_avatar(avatar, max_bytes).await?;
     let file_id = state.avatar_storage.store_avatar(owner.clone(), avatar).await?;
-    match bind_avatar(&state, owner.clone(), file_id.clone(), audit_context).await {
+    match bind_avatar(AvatarBindingInput {
+        state: &state,
+        owner: owner.clone(),
+        next: file_id.clone(),
+        audit_context,
+    })
+    .await
+    {
         Ok(response) => Ok(ok(response)),
         Err(error) => {
             state.avatar_storage.trash_avatar(owner, file_id).await?;
@@ -120,12 +134,13 @@ pub async fn upload_account_avatar(
     }
 }
 
-async fn bind_avatar(
-    state: &ApiState,
-    owner: AvatarOwner,
-    next: AvatarFileId,
-    audit_context: Option<Extension<audit_contract::OperationAuditContext>>,
-) -> ApiResult<AvatarResponse> {
+async fn bind_avatar(input: AvatarBindingInput<'_>) -> ApiResult<AvatarResponse> {
+    let AvatarBindingInput {
+        state,
+        owner,
+        next,
+        audit_context,
+    } = input;
     let audit = successful_operation_audit(audit_context)?;
     let user = state
         .users

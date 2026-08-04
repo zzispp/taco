@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::application::task::{
-    HttpFailureCode, OutboundHttpFailure, OutboundHttpRequest, OutboundHttpResponse, OutboundHttpResponseHead, TaskExecutionDetailPayload,
+    HttpFailureCode, OutboundHttpFailure, OutboundHttpRequest, OutboundHttpResponse, OutboundHttpResponseHead, TaskExecutionDetailPayload, TaskExecutionFailure,
 };
 
 use super::http_sanitization::{HTTP_EXECUTION_DETAIL_KIND, sanitize_http_method, sanitize_http_url};
@@ -18,23 +18,23 @@ pub(super) struct HttpExecutionReport {
 }
 
 impl HttpExecutionReport {
-    pub fn from_response(request: HttpRequestReport, response: OutboundHttpResponse, failure: Option<HttpFailureCode>) -> Self {
+    pub fn from_response(request: HttpRequestReport, response: OutboundHttpResponse, failure: Option<HttpFailureCode>) -> Result<Self, TaskExecutionFailure> {
         let OutboundHttpResponse { head, duration, .. } = response;
-        Self {
-            duration_ms: duration_ms(duration),
+        Ok(Self {
+            duration_ms: duration_ms(duration)?,
             request,
             response: Some(HttpResponseReport::complete(head)),
             failure: failure.map(HttpFailureReport::new),
-        }
+        })
     }
 
-    pub fn from_failure(request: HttpRequestReport, failure: OutboundHttpFailure) -> Self {
-        Self {
-            duration_ms: duration_ms(failure.duration),
+    pub fn from_failure(request: HttpRequestReport, failure: OutboundHttpFailure) -> Result<Self, TaskExecutionFailure> {
+        Ok(Self {
+            duration_ms: duration_ms(failure.duration)?,
             request,
             response: failure.response.map(HttpResponseReport::incomplete),
             failure: Some(HttpFailureReport::new(failure.code)),
-        }
+        })
     }
 }
 
@@ -100,8 +100,13 @@ impl HttpFailureReport {
     }
 }
 
-fn duration_ms(duration: Duration) -> u64 {
-    u64::try_from(duration.as_millis()).expect("HTTP execution duration must fit in u64 milliseconds")
+fn duration_ms(duration: Duration) -> Result<u64, TaskExecutionFailure> {
+    u64::try_from(duration.as_millis()).map_err(|error| {
+        TaskExecutionFailure::new(
+            kernel::error::LocalizedError::new("errors.scheduler.task_detail_encoding_failed"),
+            format!("HTTP execution duration cannot be represented in milliseconds: {error}"),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -112,6 +117,13 @@ mod tests {
 
     #[test]
     fn duration_conversion_retains_milliseconds() {
-        assert_eq!(duration_ms(Duration::from_millis(12)), 12);
+        assert_eq!(duration_ms(Duration::from_millis(12)).unwrap(), 12);
+    }
+
+    #[test]
+    fn duration_conversion_returns_a_typed_failure_on_overflow() {
+        let error = duration_ms(Duration::from_secs(u64::MAX)).unwrap_err();
+
+        assert_eq!(error.public.key(), "errors.scheduler.task_detail_encoding_failed");
     }
 }

@@ -1,4 +1,4 @@
-import type { CSSObject } from '@mui/material/styles';
+import type { Theme, CSSObject } from '@mui/material/styles';
 import type { ElementRect } from './hooks';
 import type { ArrowProps, PaperOffset, ArrowPlacement } from './types';
 
@@ -96,28 +96,32 @@ function getArrowColor({
 }: ArrowColorParams): 'cyan' | 'red' | null {
   if (!placement) return null;
 
-  const isTop = placement.startsWith('top-');
-  const isBottom = placement.startsWith('bottom-');
-  const isLeft = placement.startsWith('left-');
-  const isRight = placement.startsWith('right-');
+  const [side] = placement.split('-') as [Side];
+  if (side === 'top') return xRatio > ARROW_COLOR_THRESHOLDS.topCyan ? 'cyan' : null;
+  if (side === 'bottom') return xRatio < ARROW_COLOR_THRESHOLDS.bottomRed ? 'red' : null;
+  return getSideArrowColor({ side, isRtl, yRatio, paperRatio });
+}
 
-  if (isTop && xRatio > ARROW_COLOR_THRESHOLDS.topCyan) return 'cyan';
-  if (isBottom && xRatio < ARROW_COLOR_THRESHOLDS.bottomRed) return 'red';
+type SideArrowColorParams = Pick<ArrowColorParams, 'isRtl' | 'yRatio' | 'paperRatio'> & {
+  side: Side;
+};
 
-  if (isLeft || isRight) {
-    const useCyan = yRatio > ARROW_COLOR_THRESHOLDS.sideCyan || paperRatio >= 1.8;
-    const useRed = yRatio < ARROW_COLOR_THRESHOLDS.sideRed || paperRatio >= 1.8;
+function getSideArrowColor({
+  side,
+  isRtl,
+  yRatio,
+  paperRatio,
+}: SideArrowColorParams): 'cyan' | 'red' | null {
+  if (side !== 'left' && side !== 'right') return null;
 
-    if (isRtl) {
-      if (isRight && useCyan) return 'red';
-      if (isLeft && useRed) return 'cyan';
-    } else {
-      if (isRight && useRed) return 'cyan';
-      if (isLeft && useCyan) return 'red';
-    }
-  }
+  const hasWidePaper = paperRatio >= 1.8;
+  const useCyan = yRatio > ARROW_COLOR_THRESHOLDS.sideCyan || hasWidePaper;
+  const useRed = yRatio < ARROW_COLOR_THRESHOLDS.sideRed || hasWidePaper;
+  const colorBySide: Record<'left' | 'right', 'cyan' | 'red' | null> = isRtl
+    ? { right: useCyan ? 'red' : null, left: useRed ? 'cyan' : null }
+    : { right: useRed ? 'cyan' : null, left: useCyan ? 'red' : null };
 
-  return null;
+  return colorBySide[side];
 }
 
 // ----------------------------------------------------------------------
@@ -127,22 +131,23 @@ type StyledArrowProps = ArrowProps & {
   anchorRect: ElementRect;
 };
 
-export const Arrow = styled('span', {
-  shouldForwardProp: (prop: string) =>
-    !['size', 'placement', 'anchorRect', 'paperRect', 'sx'].includes(prop),
-})<StyledArrowProps>(({ size = 0, placement = 'top-right', anchorRect, paperRect, theme }) => {
-  const isRtl = theme.direction === 'rtl';
-  const { offsetX, offsetY } = getArrowOffset(anchorRect, paperRect, size);
+type ArrowStyleParams = StyledArrowProps & { theme: Theme };
 
-  const arrowColor = getArrowColor({
-    isRtl,
-    placement,
-    xRatio: offsetX / paperRect.width,
-    yRatio: offsetY / paperRect.height,
-    paperRatio: Math.round((paperRect.width / paperRect.height) * 100) / 100,
-  });
+type ArrowVisualParams = {
+  size: number;
+  theme: Theme;
+  isRtl: boolean;
+  arrowColor: 'cyan' | 'red' | null;
+};
 
-  const arrowBaseStyle: CSSObject = {
+type ArrowVariantParams = {
+  isRtl: boolean;
+  offsetX: number;
+  offsetY: number;
+};
+
+function getArrowBaseStyle({ size, theme, isRtl }: ArrowVisualParams): CSSObject {
+  return {
     width: size,
     height: size,
     position: 'absolute',
@@ -155,8 +160,10 @@ export const Arrow = styled('span', {
       border: `solid 1px ${varAlpha(theme.vars.palette.common.blackChannel, 0.12)}`,
     }),
   };
+}
 
-  const arrowBackgroundStyle: CSSObject = {
+function getArrowBackgroundStyle({ size, theme, arrowColor }: ArrowVisualParams): CSSObject {
+  return {
     backgroundRepeat: 'no-repeat',
     backgroundSize: `${size * 3}px ${size * 3}px`,
     ...(arrowColor === 'cyan' && {
@@ -168,27 +175,54 @@ export const Arrow = styled('span', {
       backgroundImage: `linear-gradient(45deg, ${varAlpha(theme.vars.palette.error.mainChannel, 0.08)}, ${varAlpha(theme.vars.palette.error.mainChannel, 0.08)})`,
     }),
   };
+}
+
+function getArrowVariants({ isRtl, offsetX, offsetY }: ArrowVariantParams) {
+  return [
+    {
+      props: (props: StyledArrowProps) => props.placement?.startsWith('top-'),
+      style: { ...getArrowPlacementStyles('top'), left: noRtlFlip(`${offsetX}px`) },
+    },
+    {
+      props: (props: StyledArrowProps) => props.placement?.startsWith('bottom-'),
+      style: { ...getArrowPlacementStyles('bottom'), left: noRtlFlip(`${offsetX}px`) },
+    },
+    {
+      props: (props: StyledArrowProps) => props.placement?.startsWith('left-'),
+      style: { ...getArrowPlacementStyles('left', isRtl), top: `${offsetY}px` },
+    },
+    {
+      props: (props: StyledArrowProps) => props.placement?.startsWith('right-'),
+      style: { ...getArrowPlacementStyles('right', isRtl), top: `${offsetY}px` },
+    },
+  ];
+}
+
+function createArrowStyles({
+  size = 0,
+  placement = 'top-right',
+  anchorRect,
+  paperRect,
+  theme,
+}: ArrowStyleParams) {
+  const isRtl = theme.direction === 'rtl';
+  const { offsetX, offsetY } = getArrowOffset(anchorRect, paperRect, size);
+  const arrowColor = getArrowColor({
+    isRtl,
+    placement,
+    xRatio: offsetX / paperRect.width,
+    yRatio: offsetY / paperRect.height,
+    paperRatio: Math.round((paperRect.width / paperRect.height) * 100) / 100,
+  });
 
   return {
-    ...arrowBaseStyle,
-    ...arrowBackgroundStyle,
-    variants: [
-      {
-        props: (props) => props.placement?.startsWith('top-'),
-        style: { ...getArrowPlacementStyles('top'), left: noRtlFlip(`${offsetX}px`) },
-      },
-      {
-        props: (props) => props.placement?.startsWith('bottom-'),
-        style: { ...getArrowPlacementStyles('bottom'), left: noRtlFlip(`${offsetX}px`) },
-      },
-      {
-        props: (props) => props.placement?.startsWith('left-'),
-        style: { ...getArrowPlacementStyles('left', isRtl), top: `${offsetY}px` },
-      },
-      {
-        props: (props) => props.placement?.startsWith('right-'),
-        style: { ...getArrowPlacementStyles('right', isRtl), top: `${offsetY}px` },
-      },
-    ],
+    ...getArrowBaseStyle({ size, theme, isRtl, arrowColor }),
+    ...getArrowBackgroundStyle({ size, theme, isRtl, arrowColor }),
+    variants: getArrowVariants({ isRtl, offsetX, offsetY }),
   };
-});
+}
+
+export const Arrow = styled('span', {
+  shouldForwardProp: (prop: string) =>
+    !['size', 'placement', 'anchorRect', 'paperRect', 'sx'].includes(prop),
+})<StyledArrowProps>((props) => createArrowStyles(props));

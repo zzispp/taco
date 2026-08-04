@@ -10,7 +10,8 @@ fn loads_a_complete_yaml_configuration_from_an_explicit_path() {
     let settings = Settings::load_from_args(["taco", "migration", "status", "--config", file.path().to_str().unwrap()]).unwrap();
 
     assert_eq!(settings.data_directory, std::path::PathBuf::from("/var/lib/taco"));
-    assert!(settings.database.auto_migrate);
+    assert_eq!(settings.database.pool.max_connections, 8);
+    assert_eq!(settings.database.session.application_name, "taco-test");
     assert_eq!(settings.database.password, "database-password");
 }
 
@@ -39,13 +40,17 @@ fn yaml_loader_rejects_missing_and_unknown_fields() {
     let missing_error = Settings::load_from_args(["taco", "--config", missing.path().to_str().unwrap()]).unwrap_err();
     assert!(matches!(missing_error, SettingsError::MissingConfigField("redis.username")));
 
-    let missing_auto_migrate = write_config(&valid_yaml().replace("  auto_migrate: true\n", ""));
-    let auto_migrate_error = Settings::load_from_args(["taco", "--config", missing_auto_migrate.path().to_str().unwrap()]).unwrap_err();
-    assert!(matches!(auto_migrate_error, SettingsError::Yaml(_)));
+    let missing_pool_field = write_config(&valid_yaml().replace("    max_connections: 8\n", ""));
+    let missing_pool_error = Settings::load_from_args(["taco", "--config", missing_pool_field.path().to_str().unwrap()]).unwrap_err();
+    assert!(matches!(missing_pool_error, SettingsError::Yaml(_)));
 
-    let unknown = write_config(&valid_yaml().replace("  port: 3000", "  port: 3000\n  unexpected: true"));
+    let unknown = write_config(&valid_yaml().replace("    max_lifetime_ms: 300000", "    max_lifetime_ms: 300000\n    unexpected: true"));
     let unknown_error = Settings::load_from_args(["taco", "--config", unknown.path().to_str().unwrap()]).unwrap_err();
     assert!(matches!(unknown_error, SettingsError::Yaml(_)));
+
+    let removed_auto_migrate = write_config(&valid_yaml().replace("  pool:\n", "  auto_migrate: false\n  pool:\n"));
+    let auto_migrate_error = Settings::load_from_args(["taco", "--config", removed_auto_migrate.path().to_str().unwrap()]).unwrap_err();
+    assert!(matches!(auto_migrate_error, SettingsError::Yaml(_)));
 }
 
 #[test]
@@ -159,7 +164,16 @@ database:
   username: taco
   password: database-password
   name: taco
-  auto_migrate: true
+  pool:
+    max_connections: 8
+    acquire_timeout_ms: 2000
+    idle_timeout_ms: 60000
+    max_lifetime_ms: 300000
+  session:
+    application_name: taco-test
+    statement_timeout_ms: 30000
+    lock_timeout_ms: 5000
+    idle_in_transaction_session_timeout_ms: 60000
 jwt:
   secret: config-test-jwt-secret-32-bytes!
 user:

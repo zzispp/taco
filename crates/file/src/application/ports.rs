@@ -2,8 +2,9 @@ use async_trait::async_trait;
 
 use super::models::{
     BeginUploadSessionCommand, CreateFolderCommand, DirectoryTrailEntry, ExistingObject, FileAccessScope, FileEntryView, FileListQuery, FileOverviewView,
-    FilePage, FileReadRequest, FileSpaceQuery, FileSpaceView, ProviderCleanupCandidate, ProviderCleanupKind, TrashCleanupBatch, UpdateEntryCommand,
-    UpdateSpaceCommand, UploadCleanupCandidate, UploadCommand, UploadCompletionResult, UploadPartClaimRequest, UploadPartClaimResult, UploadSessionData,
+    FilePage, FileReadRequest, FileSpaceListRequest, FileSpaceView, ProviderCleanupCandidate, ProviderCleanupRecordRequest, ReusableObjectLookup,
+    ReusedUploadCreate, TrashCleanupBatch, UpdateEntryCommand, UpdateSpaceRequest, UploadCleanupCandidate, UploadCommand, UploadCompletionResult,
+    UploadIntentLookup, UploadPartClaimRequest, UploadPartClaimResult, UploadSessionData,
 };
 use crate::domain::{DirectoryId, FileId, ProviderCapacity, ProviderKey, SpaceId, StoredObjectId, UploadId};
 use crate::{
@@ -41,13 +42,7 @@ pub trait FileManagementRepository: Send + Sync + 'static {
     async fn find_entry(&self, actor: &FileAccessScope, id: FileId) -> FileResult<Option<FileEntryView>>;
     async fn directory_trail(&self, actor: &FileAccessScope, directory_id: DirectoryId) -> FileResult<Vec<DirectoryTrailEntry>>;
     async fn overview(&self, actor: &FileAccessScope, space_id: Option<SpaceId>, default_quota: crate::domain::ByteSize) -> FileResult<FileOverviewView>;
-    async fn list_spaces(
-        &self,
-        actor: &FileAccessScope,
-        query: FileSpaceQuery,
-        page: kernel::pagination::CursorPageRequest,
-        default_quota: crate::domain::ByteSize,
-    ) -> FileResult<kernel::pagination::CursorPage<FileSpaceView>>;
+    async fn list_spaces(&self, request: FileSpaceListRequest<'_>) -> FileResult<kernel::pagination::CursorPage<FileSpaceView>>;
     async fn ensure_space(&self, owner_user_id: &str, owner_dept_id: Option<&str>) -> FileResult<SpaceId>;
     async fn ensure_target_space(&self, actor: &FileAccessScope, space_id: &SpaceId) -> FileResult<SpaceId>;
     async fn ensure_avatar_folder(&self, owner_user_id: &str, owner_dept_id: Option<&str>) -> FileResult<DirectoryId>;
@@ -57,35 +52,17 @@ pub trait FileManagementRepository: Send + Sync + 'static {
     async fn restore(&self, actor: &FileAccessScope, ids: &[FileId]) -> FileResult<()>;
     async fn purge(&self, actor: &FileAccessScope, ids: &[FileId]) -> FileResult<crate::application::PurgeBatch>;
     async fn read_content(&self, actor: &FileAccessScope, request: FileReadRequest) -> FileResult<Option<(FileEntryView, ProviderKey, ObjectKey)>>;
-    async fn find_reusable_object(
-        &self,
-        actor: &FileAccessScope,
-        space_id: SpaceId,
-        digest: crate::domain::ContentDigest,
-        size: crate::domain::ByteSize,
-    ) -> FileResult<Option<ExistingObject>>;
+    async fn find_reusable_object(&self, lookup: ReusableObjectLookup<'_>) -> FileResult<Option<ExistingObject>>;
     async fn reserve_upload(&self, space_id: SpaceId, bytes: crate::domain::ByteSize, default_quota: crate::domain::ByteSize) -> FileResult<()>;
     async fn release_upload(&self, space_id: SpaceId, bytes: crate::domain::ByteSize) -> FileResult<()>;
     async fn create_uploaded_file(&self, actor: &FileAccessScope, command: UploadCommand, object: StoredObject) -> FileResult<FileEntryView>;
     async fn create_reused_file(&self, actor: &FileAccessScope, command: UploadCommand, object: ExistingObject) -> FileResult<FileEntryView>;
-    async fn update_space(
-        &self,
-        actor: &FileAccessScope,
-        space_id: SpaceId,
-        command: UpdateSpaceCommand,
-        default_quota: crate::domain::ByteSize,
-    ) -> FileResult<FileSpaceView>;
+    async fn update_space(&self, request: UpdateSpaceRequest<'_>) -> FileResult<FileSpaceView>;
     async fn claim_upload_cancellation(&self, owner_user_id: &str, session_id: UploadId) -> FileResult<String>;
     async fn cancel_upload(&self, owner_user_id: &str, session_id: UploadId, claim_token: &str) -> FileResult<()>;
     async fn expired_trash(&self, retention_days: u64, batch_size: u64) -> FileResult<TrashCleanupBatch>;
     async fn finalize_cleanup_object(&self, object_id: StoredObjectId) -> FileResult<()>;
-    async fn record_provider_cleanup(
-        &self,
-        provider_key: &ProviderKey,
-        kind: ProviderCleanupKind,
-        object_key: Option<&ObjectKey>,
-        upload_ref: Option<&ProviderUploadRef>,
-    ) -> FileResult<()>;
+    async fn record_provider_cleanup(&self, request: ProviderCleanupRecordRequest<'_>) -> FileResult<()>;
     async fn claim_provider_cleanups(&self, batch_size: u64) -> FileResult<Vec<ProviderCleanupCandidate>>;
     async fn finalize_provider_cleanup(&self, cleanup_id: &str, claim_token: &str) -> FileResult<()>;
     async fn release_provider_cleanup(&self, cleanup_id: &str, claim_token: &str, error_code: &str) -> FileResult<()>;
@@ -98,13 +75,7 @@ pub trait FileManagementRepository: Send + Sync + 'static {
         command: BeginUploadSessionCommand,
         provider_session: UploadSession,
     ) -> FileResult<UploadSessionData>;
-    async fn find_upload_intent(
-        &self,
-        actor: &FileAccessScope,
-        owner_user_id: &str,
-        space_id: SpaceId,
-        idempotency_key: &str,
-    ) -> FileResult<Option<(UploadSessionData, Vec<PartReceipt>)>>;
+    async fn find_upload_intent(&self, lookup: UploadIntentLookup<'_>) -> FileResult<Option<(UploadSessionData, Vec<PartReceipt>)>>;
     async fn get_upload_session(&self, actor: &FileAccessScope, session_id: UploadId) -> FileResult<Option<(UploadSessionData, Vec<PartReceipt>)>>;
     async fn claim_upload_part(&self, actor: &FileAccessScope, request: UploadPartClaimRequest) -> FileResult<UploadPartClaimResult>;
     async fn complete_upload_part(&self, actor: &FileAccessScope, receipt: PartReceipt, claim_token: &str) -> FileResult<()>;
@@ -127,13 +98,7 @@ pub trait FileManagementRepository: Send + Sync + 'static {
     ) -> FileResult<super::models::UploadCompletionTermination>;
     async fn finish_upload_session(&self, actor: &FileAccessScope, session_id: UploadId, object: StoredObject) -> FileResult<UploadCompletionResult>;
     async fn finish_claimed_upload_session(&self, session_id: UploadId, claim_token: &str, object: StoredObject) -> FileResult<UploadCompletionResult>;
-    async fn create_reused_upload(
-        &self,
-        actor: &FileAccessScope,
-        command: BeginUploadSessionCommand,
-        object: ExistingObject,
-        part_size: crate::domain::ByteSize,
-    ) -> FileResult<FileEntryView>;
+    async fn create_reused_upload(&self, request: ReusedUploadCreate<'_>) -> FileResult<FileEntryView>;
 }
 
 #[cfg(test)]

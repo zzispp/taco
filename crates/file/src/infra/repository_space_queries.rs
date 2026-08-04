@@ -1,8 +1,8 @@
-use kernel::pagination::{CursorPage, CursorPageRequest};
+use kernel::pagination::CursorPage;
 use sqlx::{Postgres, QueryBuilder};
 use storage::Database;
 
-use crate::application::{FileAccessScope, FileSpaceQuery, FileSpaceView};
+use crate::application::{FileAccessScope, FileSpaceListRequest, FileSpaceQuery, FileSpaceView};
 use crate::domain::SpaceId;
 use crate::error::keys;
 use crate::{FileError, FileResult};
@@ -12,13 +12,13 @@ use crate::infra::repository_support::{
     CursorBoundary, FilePageContext, PHYSICAL_USAGE_SQL, SpaceRecord, SpaceSortSpec, VIRTUAL_SPACE_CTE, scope_query, space_page_fingerprint, storage_error,
 };
 
-pub(in crate::infra) async fn list_spaces(
-    database: &Database,
-    actor: &FileAccessScope,
-    filter: FileSpaceQuery,
-    page: CursorPageRequest,
-    default_quota: crate::domain::ByteSize,
-) -> FileResult<CursorPage<FileSpaceView>> {
+pub(in crate::infra) async fn list_spaces(database: &Database, request: FileSpaceListRequest<'_>) -> FileResult<CursorPage<FileSpaceView>> {
+    let FileSpaceListRequest {
+        actor,
+        query: filter,
+        page,
+        default_quota,
+    } = request;
     page.validate().map_err(|_| FileError::InvalidInput(keys::CURSOR_LIMIT_INVALID))?;
     let sort = SpaceSortSpec::from_filter(&filter)?;
     let fingerprint = space_page_fingerprint(actor, &filter);

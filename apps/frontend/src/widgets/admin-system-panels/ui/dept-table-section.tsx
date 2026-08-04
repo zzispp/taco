@@ -8,8 +8,7 @@ import TableBody from '@mui/material/TableBody';
 
 import { TableNoData } from 'src/shared/ui/table';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
-
-import { ManagementTableHead } from 'src/widgets/admin-common';
+import { ManagementTableHead } from 'src/shared/ui/admin-common';
 
 import { DeptRow } from './dept-row';
 import { toggle } from './dept-helpers';

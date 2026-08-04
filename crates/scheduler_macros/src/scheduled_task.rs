@@ -65,23 +65,27 @@ impl Parse for ScheduledTaskArgs {
         while !input.is_empty() {
             let key: syn::Ident = input.parse()?;
             input.parse::<Token![=]>()?;
-            match key.to_string().as_str() {
-                "task_key" => set_once(&mut args.task_key, input.parse()?, &key)?,
-                "name_key" => set_once(&mut args.name_key, input.parse()?, &key)?,
-                "group" => set_once(&mut args.group, input.parse()?, &key)?,
-                "group_key" => set_once(&mut args.group_key, input.parse()?, &key)?,
-                "description_key" => set_once(&mut args.description_key, input.parse()?, &key)?,
-                "repeatable" => set_once(&mut args.repeatable, input.parse()?, &key)?,
-                "lifecycle" => set_once(&mut args.lifecycle, input.parse()?, &key)?,
-                "params" => set_once(&mut args.params, input.parse()?, &key)?,
-                other => return Err(syn::Error::new(key.span(), format!("unsupported scheduled_task argument: {other}"))),
-            }
+            set_scheduled_task_argument(&mut args, &key, input)?;
             if input.is_empty() {
                 break;
             }
             input.parse::<Token![,]>()?;
         }
         args.finish(input)
+    }
+}
+
+fn set_scheduled_task_argument(args: &mut PartialScheduledTaskArgs, key: &syn::Ident, input: ParseStream<'_>) -> syn::Result<()> {
+    match key.to_string().as_str() {
+        "task_key" => set_once(&mut args.task_key, input.parse()?, key),
+        "name_key" => set_once(&mut args.name_key, input.parse()?, key),
+        "group" => set_once(&mut args.group, input.parse()?, key),
+        "group_key" => set_once(&mut args.group_key, input.parse()?, key),
+        "description_key" => set_once(&mut args.description_key, input.parse()?, key),
+        "repeatable" => set_once(&mut args.repeatable, input.parse()?, key),
+        "lifecycle" => set_once(&mut args.lifecycle, input.parse()?, key),
+        "params" => set_once(&mut args.params, input.parse()?, key),
+        other => Err(syn::Error::new(key.span(), format!("unsupported scheduled_task argument: {other}"))),
     }
 }
 

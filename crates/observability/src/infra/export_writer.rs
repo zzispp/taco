@@ -11,11 +11,23 @@ use super::export_xlsx::SystemLogXlsxWriter;
 
 pub struct SystemLogXlsxWriterFactory;
 
+struct XlsxWriterStart {
+    capacity: usize,
+    sheet_name: String,
+    headers: [String; 6],
+    continuation_headers: [String; 4],
+}
+
 impl SystemLogExportWriterFactory for SystemLogXlsxWriterFactory {
     fn start(&self, request: SystemLogExportWriterRequest) -> ObservabilityResult<Box<dyn SystemLogExportWriter>> {
         let (sheet_name, headers, continuation_headers) = request.layout.into_parts();
-        BlockingSystemLogExportWriter::start(request.capacity, sheet_name, headers, continuation_headers)
-            .map(|writer| Box::new(writer) as Box<dyn SystemLogExportWriter>)
+        BlockingSystemLogExportWriter::start(XlsxWriterStart {
+            capacity: request.capacity,
+            sheet_name,
+            headers,
+            continuation_headers,
+        })
+        .map(|writer| Box::new(writer) as Box<dyn SystemLogExportWriter>)
     }
 }
 
@@ -25,7 +37,13 @@ struct BlockingSystemLogExportWriter {
 }
 
 impl BlockingSystemLogExportWriter {
-    fn start(capacity: usize, sheet_name: String, headers: [String; 6], continuation_headers: [String; 4]) -> ObservabilityResult<Self> {
+    fn start(start: XlsxWriterStart) -> ObservabilityResult<Self> {
+        let XlsxWriterStart {
+            capacity,
+            sheet_name,
+            headers,
+            continuation_headers,
+        } = start;
         let xlsx = SystemLogXlsxWriter::new(&sheet_name, headers, continuation_headers).map_err(excel_error)?;
         let (sender, receiver) = mpsc::channel(capacity);
         let writer = tokio::task::spawn_blocking(move || write_system_log_xlsx(receiver, xlsx));

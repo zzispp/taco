@@ -143,3 +143,59 @@ fn listener_and_connection_ports_must_be_positive() {
     assert!(matches!(database.validate(), Err(SettingsError::NonPositiveNumber("database.port"))));
     assert!(matches!(redis.validate(), Err(SettingsError::NonPositiveNumber("redis.port"))));
 }
+
+#[test]
+fn database_pool_and_session_governance_requires_positive_values_and_a_name() {
+    let mut connections = valid_settings();
+    connections.database.pool.max_connections = 0;
+    let mut acquire_timeout = valid_settings();
+    acquire_timeout.database.pool.acquire_timeout_ms = 0;
+    let mut idle_timeout = valid_settings();
+    idle_timeout.database.session.idle_in_transaction_session_timeout_ms = 0;
+    let mut lifetime = valid_settings();
+    lifetime.database.pool.max_lifetime_ms = 0;
+    let mut statement_timeout = valid_settings();
+    statement_timeout.database.session.statement_timeout_ms = 0;
+    let mut lock_timeout = valid_settings();
+    lock_timeout.database.session.lock_timeout_ms = 0;
+    let mut application_name = valid_settings();
+    application_name.database.session.application_name = "  ".into();
+
+    assert!(matches!(
+        connections.database.validate(),
+        Err(SettingsError::NonPositiveNumber("database.pool.max_connections"))
+    ));
+    assert!(matches!(
+        acquire_timeout.database.validate(),
+        Err(SettingsError::NonPositiveNumber("database.pool.acquire_timeout_ms"))
+    ));
+    assert!(matches!(
+        idle_timeout.database.validate(),
+        Err(SettingsError::NonPositiveNumber("database.session.idle_in_transaction_session_timeout_ms"))
+    ));
+    assert!(matches!(
+        lifetime.database.validate(),
+        Err(SettingsError::NonPositiveNumber("database.pool.max_lifetime_ms"))
+    ));
+    assert!(matches!(
+        statement_timeout.database.validate(),
+        Err(SettingsError::NonPositiveNumber("database.session.statement_timeout_ms"))
+    ));
+    assert!(matches!(
+        lock_timeout.database.validate(),
+        Err(SettingsError::NonPositiveNumber("database.session.lock_timeout_ms"))
+    ));
+    assert!(matches!(
+        application_name.database.validate(),
+        Err(SettingsError::BlankConfigValue("database.session.application_name"))
+    ));
+}
+
+#[test]
+fn database_governance_serializes_and_deserializes_without_losing_fields() {
+    let database = database_parts();
+    let serialized = serde_yaml::to_string(&database).unwrap();
+    let restored: DatabaseSettings = serde_yaml::from_str(&serialized).unwrap();
+
+    assert_eq!(restored, database);
+}

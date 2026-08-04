@@ -19,6 +19,9 @@ impl From<RbacError> for RbacApiError {
 
 impl IntoResponse for RbacApiError {
     fn into_response(self) -> Response {
+        if matches!(&self.0, RbacError::Infrastructure(_)) {
+            taco_tracing::error_with_fields!("RBAC API infrastructure failure", &self.0, component = "rbac");
+        }
         let body = error_response(&self.0);
         (status_code(&self.0), Json(body)).into_response()
     }
@@ -62,7 +65,7 @@ mod tests {
     use kernel::error::LocalizedError;
     use types::http::Locale;
 
-    use super::{RbacApiError, StatusCode, error_response_for_locale};
+    use super::{RbacApiError, StatusCode, error_response_for_locale, status_code};
     use crate::application::RbacError;
 
     #[test]
@@ -86,6 +89,28 @@ mod tests {
             assert_eq!(body.code, "invalid_input");
             assert_eq!(body.message, message);
             assert_eq!(body.details.as_deref(), Some(details));
+        }
+    }
+
+    #[test]
+    fn infrastructure_diagnostics_are_not_exposed_in_any_supported_locale() {
+        let diagnostic = "redis endpoint=private";
+        let error = RbacError::Infrastructure(diagnostic.into());
+        let cases = [
+            (Locale::ZhCn, "服务异常", "服务暂不可用"),
+            (Locale::En, "Service error", "Service is temporarily unavailable"),
+            (Locale::ZhTw, "服務異常", "服務暫不可用"),
+        ];
+
+        assert_eq!(status_code(&error), StatusCode::INTERNAL_SERVER_ERROR);
+        for (locale, message, details) in cases {
+            let response = error_response_for_locale(&error, locale);
+            let serialized = serde_json::to_string(&response).unwrap();
+
+            assert_eq!(response.code, "infrastructure_error");
+            assert_eq!(response.message, message);
+            assert_eq!(response.details.as_deref(), Some(details));
+            assert!(!serialized.contains(diagnostic));
         }
     }
 }

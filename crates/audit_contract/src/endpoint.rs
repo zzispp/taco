@@ -110,11 +110,11 @@ pub struct EndpointSpec {
 }
 
 impl EndpointSpec {
-    pub fn api_route_path(self) -> &'static str {
+    pub fn api_route_path(self) -> Result<&'static str, EndpointSpecError> {
         self.path
             .strip_prefix(API_PREFIX)
             .filter(|path| path.starts_with('/'))
-            .expect("endpoint specs must use an absolute /api path")
+            .ok_or(EndpointSpecError::InvalidPath { path: self.path })
     }
 }
 

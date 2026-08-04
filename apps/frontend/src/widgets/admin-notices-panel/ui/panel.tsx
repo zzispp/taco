@@ -1,11 +1,10 @@
 'use client';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { AdminBreadcrumbs } from 'src/shared/ui/admin-common';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 
 import { useNoticeManagementController } from 'src/features/notice-management';
-
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
 
 import { NoticeDialogs } from './dialogs';
 import { NoticeTableSection } from './table-section';

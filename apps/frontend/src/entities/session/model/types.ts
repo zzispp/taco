@@ -1,4 +1,8 @@
-import type { RoleSummary } from 'src/entities/role';
+export type SessionRoleSummary = {
+  role_id: string;
+  role_name: string;
+  role_key: string;
+};
 
 export type SessionUser = {
   user_id: string;
@@ -14,7 +18,7 @@ export type SessionUser = {
   auth_source: string;
   email_verified: boolean;
   remark: string | null;
-  roles: RoleSummary[];
+  roles: SessionRoleSummary[];
   role_ids: string[];
   post_ids: string[];
   permissions: string[];

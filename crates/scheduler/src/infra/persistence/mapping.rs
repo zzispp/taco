@@ -118,7 +118,7 @@ pub fn map_execution_log_detail(record: ExecutionLogDetailRecord) -> SchedulerRe
 }
 
 pub fn params_value(message: &LocalizedMessage) -> Value {
-    serde_json::to_value(&message.params).expect("localized message parameters are serializable")
+    Value::Object(message.params.iter().map(|(key, value)| (key.clone(), Value::String(value.clone()))).collect())
 }
 
 fn localized_message(key: Option<String>, params: Value) -> SchedulerResult<Option<LocalizedMessage>> {

@@ -25,6 +25,7 @@ errors.scheduler.task_file_cleanup_upload_sessions_failed: "File upload-session 
 errors.scheduler.task_definition_changed: "Task definition changed and the queued execution cannot run"
 errors.scheduler.task_http_status: "HTTP task returned a non-success status: %{status}"
 errors.scheduler.task_http_request_failed: "HTTP task request failed"
+errors.scheduler.task_detail_encoding_failed: "Task execution detail could not be recorded"
 errors.scheduler.task_cache_refresh_failed: "System cache refresh failed: %{kind}"
 errors.scheduler.task_key_required: "Task key is required"
 errors.scheduler.job_name_required: "Job name is required"

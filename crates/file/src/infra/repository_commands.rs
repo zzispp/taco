@@ -2,7 +2,7 @@ use sqlx::{Postgres, QueryBuilder, query, query_as};
 use storage::Database;
 use time::OffsetDateTime;
 
-use crate::application::{CreateFolderCommand, FileAccessScope, FileEntryView, UpdateEntryCommand, UpdateSpaceCommand};
+use crate::application::{CreateFolderCommand, FileAccessScope, FileEntryView, FileSpaceListRequest, UpdateEntryCommand, UpdateSpaceRequest};
 use crate::domain::{DirectoryId, EntryName, FileId, SpaceId, TagName};
 use crate::error::keys;
 use crate::{FileError, FileResult};
@@ -13,6 +13,21 @@ use super::repository_system_folders::ensure_space;
 
 pub(super) use super::repository_purge::purge;
 pub(super) use super::repository_trash::{restore, trash};
+
+struct ParentValidationRequest<'a> {
+    space_id: &'a str,
+    parent_id: DirectoryId,
+    moving_id: FileId,
+}
+
+struct TagReplacementRequest<'a> {
+    space_id: &'a str,
+    entry_id: FileId,
+    tags: Vec<TagName>,
+    actor_user_id: &'a str,
+}
+
+type UpdateEntryRecord = (String, String, Option<String>, String, String, Option<String>);
 
 pub(super) async fn create_folder(database: &Database, actor: &FileAccessScope, command: CreateFolderCommand) -> FileResult<FileEntryView> {
     ensure_target_space(database, actor, &command.space_id).await?;
@@ -39,23 +54,20 @@ pub(super) async fn create_folder(database: &Database, actor: &FileAccessScope, 
 
 pub(super) async fn update_entry(database: &Database, actor: &FileAccessScope, command: UpdateEntryCommand) -> FileResult<FileEntryView> {
     let mut transaction = database.pool().begin().await.map_err(storage_error)?;
-    let mut lookup = QueryBuilder::<Postgres>::new(
-        "SELECT e.entry_id,e.space_id,e.parent_id,e.kind,e.name,e.system_kind FROM file_entry e JOIN file_space s ON s.space_id=e.space_id WHERE e.entry_id=",
-    );
-    lookup.push_bind(command.id.to_string()).push(" AND e.status='active' AND");
-    scope_query(&mut lookup, actor, "s");
-    lookup.push(" FOR UPDATE OF e");
-    let current = lookup
-        .build_query_as::<(String, String, Option<String>, String, String, Option<String>)>()
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(storage_error)?
-        .ok_or(FileError::NotFound)?;
+    let current = lock_update_entry(&mut transaction, actor, command.id).await?;
     if current.5.is_some() && (command.name.is_some() || command.parent_id.is_some()) {
         return Err(FileError::InvalidInput(keys::SYSTEM_FOLDER_IMMUTABLE));
     }
     if let Some(parent_id) = command.parent_id {
-        ensure_parent_tx(&mut transaction, &current.1, parent_id, command.id).await?;
+        ensure_parent_tx(
+            &mut transaction,
+            ParentValidationRequest {
+                space_id: &current.1,
+                parent_id,
+                moving_id: command.id,
+            },
+        )
+        .await?;
     }
     let next_name = command.name.as_ref().map_or(current.4.as_str(), EntryName::as_str);
     let normalized = command
@@ -75,19 +87,43 @@ pub(super) async fn update_entry(database: &Database, actor: &FileAccessScope, c
         .await;
     map_write(result)?;
     if let Some(tags) = command.tags {
-        replace_tags(&mut transaction, &current.1, command.id, tags, &command.actor_user_id).await?;
+        replace_tags(
+            &mut transaction,
+            TagReplacementRequest {
+                space_id: &current.1,
+                entry_id: command.id,
+                tags,
+                actor_user_id: &command.actor_user_id,
+            },
+        )
+        .await?;
     }
     transaction.commit().await.map_err(storage_error)?;
     find_entry(database, actor, command.id).await?.ok_or(FileError::NotFound)
 }
 
-pub(super) async fn update_space(
-    database: &Database,
-    actor: &FileAccessScope,
-    space_id: SpaceId,
-    command: UpdateSpaceCommand,
-    default_quota: crate::domain::ByteSize,
-) -> FileResult<crate::application::FileSpaceView> {
+async fn lock_update_entry(transaction: &mut sqlx::Transaction<'_, Postgres>, actor: &FileAccessScope, entry_id: FileId) -> FileResult<UpdateEntryRecord> {
+    let mut lookup = QueryBuilder::<Postgres>::new(
+        "SELECT e.entry_id,e.space_id,e.parent_id,e.kind,e.name,e.system_kind FROM file_entry e JOIN file_space s ON s.space_id=e.space_id WHERE e.entry_id=",
+    );
+    lookup.push_bind(entry_id.to_string()).push(" AND e.status='active' AND");
+    scope_query(&mut lookup, actor, "s");
+    lookup.push(" FOR UPDATE OF e");
+    lookup
+        .build_query_as::<UpdateEntryRecord>()
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(storage_error)?
+        .ok_or(FileError::NotFound)
+}
+
+pub(super) async fn update_space(database: &Database, request: UpdateSpaceRequest<'_>) -> FileResult<crate::application::FileSpaceView> {
+    let UpdateSpaceRequest {
+        actor,
+        space_id,
+        command,
+        default_quota,
+    } = request;
     let Some((resolved_id, owner_user_id, owner_dept_id, materialized)) = resolve_visible_space(database, actor, &space_id).await? else {
         return Err(FileError::NotFound);
     };
@@ -110,14 +146,16 @@ pub(super) async fn update_space(
         .map_err(storage_error)?;
     list_spaces(
         database,
-        actor,
-        crate::application::FileSpaceQuery {
-            cursor: None,
-            owner_user_id: Some(owner_user_id),
-            ..crate::application::FileSpaceQuery::default()
+        FileSpaceListRequest {
+            actor,
+            query: crate::application::FileSpaceQuery {
+                cursor: None,
+                owner_user_id: Some(owner_user_id),
+                ..crate::application::FileSpaceQuery::default()
+            },
+            page: kernel::pagination::CursorPageRequest { limit: 1, cursor: None },
+            default_quota,
         },
-        kernel::pagination::CursorPageRequest { limit: 1, cursor: None },
-        default_quota,
     )
     .await?
     .items
@@ -149,7 +187,12 @@ pub(super) async fn ensure_visible_space(database: &Database, actor: &FileAccess
         .ok_or(FileError::NotFound)
 }
 
-async fn ensure_parent_tx(transaction: &mut sqlx::Transaction<'_, Postgres>, space_id: &str, parent_id: DirectoryId, moving_id: FileId) -> FileResult<()> {
+async fn ensure_parent_tx(transaction: &mut sqlx::Transaction<'_, Postgres>, request: ParentValidationRequest<'_>) -> FileResult<()> {
+    let ParentValidationRequest {
+        space_id,
+        parent_id,
+        moving_id,
+    } = request;
     if parent_id == DirectoryId::ROOT {
         return Ok(());
     }
@@ -162,7 +205,13 @@ fn parent_value(parent_id: DirectoryId) -> Option<String> {
     (parent_id != DirectoryId::ROOT).then(|| parent_id.to_string())
 }
 
-async fn replace_tags(transaction: &mut sqlx::Transaction<'_, Postgres>, space_id: &str, entry_id: FileId, tags: Vec<TagName>, actor: &str) -> FileResult<()> {
+async fn replace_tags(transaction: &mut sqlx::Transaction<'_, Postgres>, request: TagReplacementRequest<'_>) -> FileResult<()> {
+    let TagReplacementRequest {
+        space_id,
+        entry_id,
+        tags,
+        actor_user_id,
+    } = request;
     query("DELETE FROM file_entry_tag WHERE entry_id=$1")
         .bind(entry_id.to_string())
         .execute(&mut **transaction)
@@ -172,7 +221,7 @@ async fn replace_tags(transaction: &mut sqlx::Transaction<'_, Postgres>, space_i
         let trimmed = tag.as_str();
         let normalized = tag.normalized();
         let tag_id = query_as::<_, (String,)>("INSERT INTO file_tag(tag_id,space_id,name,normalized_name,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(space_id,normalized_name) DO UPDATE SET name=file_tag.name RETURNING tag_id")
-            .bind(FileId::new().to_string()).bind(space_id).bind(trimmed).bind(&normalized).bind(actor).bind(OffsetDateTime::now_utc()).fetch_one(&mut **transaction).await.map_err(storage_error)?.0;
+            .bind(FileId::new().to_string()).bind(space_id).bind(trimmed).bind(&normalized).bind(actor_user_id).bind(OffsetDateTime::now_utc()).fetch_one(&mut **transaction).await.map_err(storage_error)?.0;
         query("INSERT INTO file_entry_tag(entry_id,tag_id,created_at) VALUES($1,$2,$3) ON CONFLICT DO NOTHING")
             .bind(entry_id.to_string())
             .bind(tag_id)

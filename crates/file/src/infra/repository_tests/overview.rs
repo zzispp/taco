@@ -2,7 +2,9 @@ use sqlx::query;
 use sqlx::query_scalar;
 
 use super::{TestDatabase, insert_user, migrate};
-use crate::application::{CreateFolderCommand, FileAccessScope, FileManagementRepository, ObjectKey, StoredObject, UploadCommand};
+use crate::application::{
+    CreateFolderCommand, FileAccessScope, FileManagementRepository, ObjectKey, ProviderCleanupKind, ProviderCleanupRecordRequest, StoredObject, UploadCommand,
+};
 use crate::domain::{ByteSize, ContentDigest, DirectoryId, EntryName, ProviderKey, StoredObjectId, UploadId};
 use crate::infra::StorageFileRepository;
 
@@ -77,7 +79,12 @@ async fn adopting_a_pending_cleanup_identity_cancels_that_cleanup_atomically() {
     let space_id = repository.ensure_space("actor", None).await.unwrap();
     let key = ObjectKey::new("reused-key").unwrap();
     repository
-        .record_provider_cleanup(&ProviderKey::local(), crate::application::ProviderCleanupKind::Object, Some(&key), None)
+        .record_provider_cleanup(ProviderCleanupRecordRequest {
+            provider_key: &ProviderKey::local(),
+            kind: ProviderCleanupKind::Object,
+            object_key: Some(&key),
+            upload_ref: None,
+        })
         .await
         .unwrap();
     repository
@@ -124,7 +131,12 @@ async fn provider_cleanup_does_not_claim_an_active_referenced_object() {
         .await
         .unwrap();
     repository
-        .record_provider_cleanup(&ProviderKey::local(), crate::application::ProviderCleanupKind::Object, Some(&key), None)
+        .record_provider_cleanup(ProviderCleanupRecordRequest {
+            provider_key: &ProviderKey::local(),
+            kind: ProviderCleanupKind::Object,
+            object_key: Some(&key),
+            upload_ref: None,
+        })
         .await
         .unwrap();
 

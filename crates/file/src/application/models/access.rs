@@ -21,6 +21,14 @@ pub enum FileScopeMode {
     Custom,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileAccessScopeInput {
+    pub user_id: String,
+    pub mode: FileScopeMode,
+    pub department_id: Option<String>,
+    pub department_ids: Vec<String>,
+}
+
 impl FileAccessScope {
     pub fn self_only(user_id: impl Into<String>, department_id: Option<String>) -> Self {
         Self {
@@ -42,9 +50,15 @@ impl FileAccessScope {
         }
     }
 
-    pub fn scoped(user_id: impl Into<String>, mode: FileScopeMode, department_id: Option<String>, department_ids: Vec<String>) -> Self {
+    pub fn scoped(input: FileAccessScopeInput) -> Self {
+        let FileAccessScopeInput {
+            user_id,
+            mode,
+            department_id,
+            department_ids,
+        } = input;
         Self {
-            user_id: user_id.into(),
+            user_id,
             mode,
             department_id,
             department_ids,

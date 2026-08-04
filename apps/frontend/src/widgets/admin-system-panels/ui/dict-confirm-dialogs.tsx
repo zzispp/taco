@@ -24,39 +24,56 @@ export function DictConfirmDialogs({
 }: DictConfirmDialogsProps) {
   return (
     <>
-      <ConfirmDialog
+      <DeleteDialog
         open={batchDeleteTypeOpen}
+        name={String(selectedTypeCount)}
+        t={t}
         onClose={onBatchDeleteTypeClose}
-        title={t('common.delete')}
-        content={t('dialogs.deleteContent', { name: String(selectedTypeCount) })}
-        cancelText={t('common.cancel')}
-        action={deleteAction(t, onBatchDeleteTypes)}
+        onDelete={onBatchDeleteTypes}
       />
-      <ConfirmDialog
+      <DeleteDialog
         open={batchDeleteDataOpen}
+        name={String(selectedDataCount)}
+        t={t}
         onClose={onBatchDeleteDataClose}
-        title={t('common.delete')}
-        content={t('dialogs.deleteContent', { name: String(selectedDataCount) })}
-        cancelText={t('common.cancel')}
-        action={deleteAction(t, onBatchDeleteData)}
+        onDelete={onBatchDeleteData}
       />
-      <ConfirmDialog
-        open={!!deleteType}
+      <DeleteDialog
+        open={Boolean(deleteType)}
+        name={deleteType?.dict_name ?? ''}
+        t={t}
         onClose={onDeleteTypeClose}
-        title={t('common.delete')}
-        content={t('dialogs.deleteContent', { name: deleteType?.dict_name ?? '' })}
-        cancelText={t('common.cancel')}
-        action={deleteAction(t, onDeleteType)}
+        onDelete={onDeleteType}
       />
-      <ConfirmDialog
-        open={!!deleteData}
+      <DeleteDialog
+        open={Boolean(deleteData)}
+        name={deleteData?.dict_label ?? ''}
+        t={t}
         onClose={onDeleteDataClose}
-        title={t('common.delete')}
-        content={t('dialogs.deleteContent', { name: deleteData?.dict_label ?? '' })}
-        cancelText={t('common.cancel')}
-        action={deleteAction(t, onDeleteData)}
+        onDelete={onDeleteData}
       />
     </>
+  );
+}
+
+type DeleteDialogProps = {
+  open: boolean;
+  name: string;
+  t: TranslateFn;
+  onClose: () => void;
+  onDelete: () => void;
+};
+
+function DeleteDialog({ open, name, t, onClose, onDelete }: DeleteDialogProps) {
+  return (
+    <ConfirmDialog
+      open={open}
+      onClose={onClose}
+      title={t('common.delete')}
+      content={t('dialogs.deleteContent', { name })}
+      cancelText={t('common.cancel')}
+      action={deleteAction(t, onDelete)}
+    />
   );
 }
 

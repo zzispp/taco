@@ -39,7 +39,7 @@ impl ScheduledTask for HttpRequestTask {
         let request_report = HttpRequestReport::from(&request);
         match context.http_client.send(request).await {
             Ok(response) => response_result(request_report, response),
-            Err(failure) => Err(request_failure(request_report, failure)),
+            Err(failure) => request_failure(request_report, failure),
         }
     }
 }
@@ -47,25 +47,27 @@ impl ScheduledTask for HttpRequestTask {
 fn response_result(request: HttpRequestReport, response: OutboundHttpResponse) -> Result<TaskExecutionOutput, TaskExecutionFailure> {
     let status = response.head.status;
     if (HTTP_SUCCESS_STATUS_START..HTTP_SUCCESS_STATUS_END).contains(&status) {
-        let report = HttpExecutionReport::from_response(request, response, None);
-        return Ok(TaskExecutionOutput::with_detail(report));
+        let report = HttpExecutionReport::from_response(request, response, None)?;
+        return TaskExecutionOutput::with_detail(report);
     }
-    let report = HttpExecutionReport::from_response(request, response, Some(HttpFailureCode::HttpStatus));
-    Err(TaskExecutionFailure::new(
+    let report = HttpExecutionReport::from_response(request, response, Some(HttpFailureCode::HttpStatus))?;
+    let failure = TaskExecutionFailure::new(
         LocalizedError::new("errors.scheduler.task_http_status").with_param("status", status.to_string()),
         format!("scheduled HTTP task returned non-success status {status}"),
     )
-    .with_detail(report))
+    .with_detail(report)?;
+    Err(failure)
 }
 
-fn request_failure(request: HttpRequestReport, failure: OutboundHttpFailure) -> TaskExecutionFailure {
+fn request_failure(request: HttpRequestReport, failure: OutboundHttpFailure) -> Result<TaskExecutionOutput, TaskExecutionFailure> {
     let code = failure.code;
-    let report = HttpExecutionReport::from_failure(request, failure);
-    TaskExecutionFailure::new(
+    let report = HttpExecutionReport::from_failure(request, failure)?;
+    let task_failure = TaskExecutionFailure::new(
         LocalizedError::new("errors.scheduler.task_http_request_failed"),
         format!("scheduled HTTP request failed with code {}", code.code()),
     )
-    .with_detail(report)
+    .with_detail(report)?;
+    Err(task_failure)
 }
 
 #[cfg(test)]

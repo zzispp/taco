@@ -49,9 +49,42 @@ export const SYSTEM_LOG_CLEANUP_EXECUTION_STATES = [
 
 export type SystemLogCleanupExecutionState = (typeof SYSTEM_LOG_CLEANUP_EXECUTION_STATES)[number];
 
-export type SystemLogCleanupExecution = Readonly<{
+export const LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION = 1;
+export const SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION = 2;
+
+type SystemLogCleanupExecutionBase = Readonly<{
   execution_id: string;
   state: SystemLogCleanupExecutionState;
-  deleted: number | null;
-  batches: number | null;
 }>;
+
+type CurrentSystemLogCleanupExecution = SystemLogCleanupExecutionBase &
+  Readonly<{
+    detail_schema_version: typeof SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION;
+    rows_deleted: number;
+    dropped_partitions: number;
+    legacy_total_deleted: null;
+    batches: number;
+  }>;
+
+type LegacySystemLogCleanupExecution = SystemLogCleanupExecutionBase &
+  Readonly<{
+    detail_schema_version: typeof LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION;
+    rows_deleted: null;
+    dropped_partitions: null;
+    legacy_total_deleted: number;
+    batches: number;
+  }>;
+
+type UnreportedSystemLogCleanupExecution = SystemLogCleanupExecutionBase &
+  Readonly<{
+    detail_schema_version: null;
+    rows_deleted: null;
+    dropped_partitions: null;
+    legacy_total_deleted: null;
+    batches: null;
+  }>;
+
+export type SystemLogCleanupExecution =
+  | CurrentSystemLogCleanupExecution
+  | LegacySystemLogCleanupExecution
+  | UnreportedSystemLogCleanupExecution;

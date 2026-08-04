@@ -2,12 +2,16 @@ use storage::Database;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::application::{ProviderCleanupKind, ProviderUploadRef, StoredObject, UploadCompletionTermination};
+use crate::application::{ProviderCleanupKind, ProviderCleanupRecordRequest, ProviderUploadRef, StoredObject, UploadCompletionTermination};
 use crate::domain::{FileId, ProviderKey, UploadId};
 use crate::{FileError, FileResult};
 
 use super::repository_provider_cleanup::record_tx;
 use super::repository_support::storage_error;
+
+#[path = "repository_session_lifecycle_requests.rs"]
+mod requests;
+pub(in crate::infra) use requests::{ClaimedUploadCompletionAbortRequest, UploadCancellationRequest, UploadCompletionAbortRequest};
 
 pub(super) async fn claim_upload_cancellation(database: &Database, owner_user_id: &str, session_id: UploadId) -> FileResult<String> {
     let claim_token = Uuid::now_v7().to_string();
@@ -27,7 +31,12 @@ pub(super) async fn claim_upload_cancellation(database: &Database, owner_user_id
     Ok(claim_token)
 }
 
-pub(super) async fn cancel_upload(database: &Database, owner_user_id: &str, session_id: UploadId, claim_token: &str) -> FileResult<()> {
+pub(super) async fn cancel_upload(database: &Database, request: UploadCancellationRequest<'_>) -> FileResult<()> {
+    let UploadCancellationRequest {
+        owner_user_id,
+        session_id,
+        claim_token,
+    } = request;
     let now = OffsetDateTime::now_utc();
     let mut transaction = database.pool().begin().await.map_err(storage_error)?;
     let row = sqlx::query_as::<_, (String, i64, String, String)>(
@@ -63,12 +72,12 @@ pub(super) async fn cancel_upload(database: &Database, owner_user_id: &str, sess
     transaction.commit().await.map_err(storage_error)
 }
 
-pub(super) async fn abort_upload_completion(
-    database: &Database,
-    owner_user_id: &str,
-    session_id: UploadId,
-    object: StoredObject,
-) -> FileResult<UploadCompletionTermination> {
+pub(super) async fn abort_upload_completion(database: &Database, request: UploadCompletionAbortRequest<'_>) -> FileResult<UploadCompletionTermination> {
+    let UploadCompletionAbortRequest {
+        owner_user_id,
+        session_id,
+        object,
+    } = request;
     terminate_upload_completion(
         database,
         CompletionTermination {
@@ -102,10 +111,13 @@ pub(super) async fn abort_upload_completion_without_object(
 
 pub(super) async fn abort_claimed_upload_completion(
     database: &Database,
-    session_id: UploadId,
-    claim_token: &str,
-    object: StoredObject,
+    request: ClaimedUploadCompletionAbortRequest<'_>,
 ) -> FileResult<UploadCompletionTermination> {
+    let ClaimedUploadCompletionAbortRequest {
+        session_id,
+        claim_token,
+        object,
+    } = request;
     terminate_upload_completion(
         database,
         CompletionTermination {
@@ -229,7 +241,16 @@ async fn apply_termination(transaction: &mut sqlx::Transaction<'_, sqlx::Postgre
         .await
         .map_err(storage_error)?;
     if let Some(object) = object {
-        record_tx(transaction, &object.provider_key, ProviderCleanupKind::Object, Some(&object.key), None).await?;
+        record_tx(
+            transaction,
+            ProviderCleanupRecordRequest {
+                provider_key: &object.provider_key,
+                kind: ProviderCleanupKind::Object,
+                object_key: Some(&object.key),
+                upload_ref: None,
+            },
+        )
+        .await?;
     } else {
         let cleanup = upload_cleanup_reference(session.provider_key, session.upload_ref)?;
         record_upload_cleanup(transaction, &cleanup).await?;
@@ -250,5 +271,14 @@ fn upload_cleanup_reference(provider_key: String, upload_ref: String) -> FileRes
 }
 
 async fn record_upload_cleanup(transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>, cleanup: &UploadCleanupReference) -> FileResult<()> {
-    record_tx(transaction, &cleanup.provider_key, ProviderCleanupKind::Upload, None, Some(&cleanup.upload_ref)).await
+    record_tx(
+        transaction,
+        ProviderCleanupRecordRequest {
+            provider_key: &cleanup.provider_key,
+            kind: ProviderCleanupKind::Upload,
+            object_key: None,
+            upload_ref: Some(&cleanup.upload_ref),
+        },
+    )
+    .await
 }

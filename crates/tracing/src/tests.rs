@@ -128,9 +128,24 @@ async fn infrastructure_observer_logs_only_failed_or_slow_operations_with_safe_f
     let subscriber = Registry::default().with(SystemLogLayer::new(runtime.emitter()));
 
     tracing::subscriber::with_default(subscriber, || {
-        observer.record(super::InfrastructureDependency::OutboundHttp, "safe_operation", Duration::ZERO, true);
-        observer.record(super::InfrastructureDependency::Redis, "slow_cache_read", Duration::from_millis(100), true);
-        observer.record(super::InfrastructureDependency::Postgres, "failed_query", Duration::from_millis(1), false);
+        observer.record(super::InfrastructureOperation {
+            dependency: super::InfrastructureDependency::OutboundHttp,
+            operation: "safe_operation",
+            elapsed: Duration::ZERO,
+            succeeded: true,
+        });
+        observer.record(super::InfrastructureOperation {
+            dependency: super::InfrastructureDependency::Redis,
+            operation: "slow_cache_read",
+            elapsed: Duration::from_millis(100),
+            succeeded: true,
+        });
+        observer.record(super::InfrastructureOperation {
+            dependency: super::InfrastructureDependency::Postgres,
+            operation: "failed_query",
+            elapsed: Duration::from_millis(1),
+            succeeded: false,
+        });
     });
     wait_for_system_logs(&sink, 2).await;
 

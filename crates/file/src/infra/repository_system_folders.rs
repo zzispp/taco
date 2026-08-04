@@ -11,6 +11,12 @@ const AVATAR_FOLDER_NAME: &str = "Avatars";
 const AVATAR_FOLDER_NORMALIZED_NAME: &str = "avatars";
 const AVATAR_SYSTEM_KIND: &str = "avatar";
 
+struct AvatarFolderInsert<'a> {
+    space_id: &'a SpaceId,
+    id: DirectoryId,
+    owner_user_id: &'a str,
+}
+
 pub(super) async fn ensure_space(database: &Database, owner_user_id: &str, owner_dept_id: Option<&str>) -> FileResult<SpaceId> {
     let now = OffsetDateTime::now_utc();
     query(
@@ -35,7 +41,15 @@ pub(super) async fn ensure_avatar_folder(database: &Database, owner_user_id: &st
         return DirectoryId::parse(&id);
     }
     let id = DirectoryId::new();
-    insert_avatar_folder(&mut transaction, &space_id, id, owner_user_id).await?;
+    insert_avatar_folder(
+        &mut transaction,
+        AvatarFolderInsert {
+            space_id: &space_id,
+            id,
+            owner_user_id,
+        },
+    )
+    .await?;
     transaction.commit().await.map_err(storage_error)?;
     Ok(id)
 }
@@ -59,12 +73,8 @@ async fn find_avatar_folder(transaction: &mut sqlx::Transaction<'_, sqlx::Postgr
         .map_err(storage_error)
 }
 
-async fn insert_avatar_folder(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    space_id: &SpaceId,
-    id: DirectoryId,
-    owner_user_id: &str,
-) -> FileResult<()> {
+async fn insert_avatar_folder(transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>, request: AvatarFolderInsert<'_>) -> FileResult<()> {
+    let AvatarFolderInsert { space_id, id, owner_user_id } = request;
     let now = OffsetDateTime::now_utc();
     query(
         "INSERT INTO file_entry(entry_id,space_id,parent_id,kind,name,normalized_name,object_id,status,system_kind,created_by,created_at,updated_by,updated_at) VALUES($1,$2,NULL,'folder',$3,$4,NULL,'active',$5,$6,$7,$6,$7)",

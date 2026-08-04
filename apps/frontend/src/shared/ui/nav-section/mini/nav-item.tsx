@@ -15,69 +15,97 @@ import { navItemStyles, navSectionClasses } from '../styles';
 
 // ----------------------------------------------------------------------
 
-export function NavItem({
-  path,
+export function NavItem(props: NavItemProps) {
+  const navItem = createNavItem(props);
+  const ownerState = createOwnerState(props, navItem);
+
+  return <NavItemRoot {...props} navItem={navItem} ownerState={ownerState} />;
+}
+
+type NavItemRootProps = NavItemProps & {
+  navItem: ReturnType<typeof createNavItem>;
+  ownerState: StyledState;
+};
+
+function NavItemRoot({
+  path: _path,
   icon,
   info,
   title,
   caption,
-  /********/
-  open,
-  active,
-  disabled,
-  /********/
-  depth,
-  render,
+  open: _open,
+  active: _active,
+  disabled: _disabled,
+  depth: _depth,
+  render: _render,
   hasChild,
   slotProps,
   className,
-  externalLink,
-  enabledRootRedirect,
+  externalLink: _externalLink,
+  enabledRootRedirect: _enabledRootRedirect,
+  navItem,
+  ownerState,
   ...other
-}: NavItemProps) {
-  const navItem = createNavItem({
-    path,
-    icon,
-    info,
-    depth,
-    render,
-    hasChild,
-    externalLink,
-    enabledRootRedirect,
-  });
-
-  const ownerState: StyledState = {
-    open,
-    active,
-    disabled,
-    variant: navItem.rootItem ? 'rootItem' : 'subItem',
-  };
-
+}: NavItemRootProps) {
   return (
     <ItemRoot
       aria-label={title}
       {...ownerState}
       {...navItem.baseProps}
       className={mergeClasses([navSectionClasses.item.root, className], {
-        [navSectionClasses.state.open]: open,
-        [navSectionClasses.state.active]: active,
-        [navSectionClasses.state.disabled]: disabled,
+        [navSectionClasses.state.open]: ownerState.open,
+        [navSectionClasses.state.active]: ownerState.active,
+        [navSectionClasses.state.disabled]: ownerState.disabled,
       })}
       sx={slotProps?.sx}
       {...other}
     >
+      <NavItemContent
+        icon={icon}
+        info={info}
+        title={title}
+        caption={caption}
+        hasChild={hasChild}
+        navItem={navItem}
+        ownerState={ownerState}
+        slotProps={slotProps}
+      />
+    </ItemRoot>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+type NavItemContentProps = Pick<
+  NavItemProps,
+  'icon' | 'info' | 'title' | 'caption' | 'hasChild' | 'slotProps'
+> & {
+  navItem: ReturnType<typeof createNavItem>;
+  ownerState: StyledState;
+};
+
+function NavItemContent({
+  icon,
+  info,
+  title,
+  caption,
+  hasChild,
+  slotProps,
+  navItem,
+  ownerState,
+}: NavItemContentProps) {
+  return (
+    <>
       {icon && (
         <ItemIcon {...ownerState} className={navSectionClasses.item.icon} sx={slotProps?.icon}>
           {navItem.renderIcon}
         </ItemIcon>
       )}
-
       {title && (
         <ItemTitle {...ownerState} className={navSectionClasses.item.title} sx={slotProps?.title}>
           {title}
         </ItemTitle>
       )}
-
       {caption && (
         <Tooltip title={caption} arrow placement="right">
           <ItemCaptionIcon
@@ -88,13 +116,11 @@ export function NavItem({
           />
         </Tooltip>
       )}
-
       {info && navItem.subItem && (
         <ItemInfo {...ownerState} className={navSectionClasses.item.info} sx={slotProps?.info}>
           {navItem.renderInfo}
         </ItemInfo>
       )}
-
       {hasChild && (
         <ItemArrow
           {...ownerState}
@@ -103,8 +129,15 @@ export function NavItem({
           sx={slotProps?.arrow}
         />
       )}
-    </ItemRoot>
+    </>
   );
+}
+
+function createOwnerState(
+  { open, active, disabled }: NavItemProps,
+  navItem: ReturnType<typeof createNavItem>
+): StyledState {
+  return { open, active, disabled, variant: navItem.rootItem ? 'rootItem' : 'subItem' };
 }
 
 // ----------------------------------------------------------------------

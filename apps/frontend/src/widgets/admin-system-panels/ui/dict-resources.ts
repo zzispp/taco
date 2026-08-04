@@ -3,13 +3,12 @@ import type { DictType } from 'src/entities/system';
 import { useMemo, useState } from 'react';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { withSelectionHead } from 'src/shared/ui/admin-common';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 
 import { useHasPermission } from 'src/entities/session';
 import { useDictData, useDictTypes } from 'src/entities/system';
-
-import { withSelectionHead } from 'src/widgets/admin-common';
 
 import { dictDataHead, dictTypeHead } from './dict-helpers';
 import { DEFAULT_DATA_FILTERS, DEFAULT_TYPE_FILTERS } from './dict-constants';

@@ -4,6 +4,8 @@ import Alert from '@mui/material/Alert';
 
 import { paths } from 'src/shared/routes/paths';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { AdminBreadcrumbs } from 'src/shared/ui/admin-common';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 
 import {
   fileManagerRouteKey,
@@ -11,9 +13,6 @@ import {
   type FileManagerRoute,
   useFileManagerController,
 } from 'src/features/file-management';
-
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
 
 import { FileManagerToolbar } from './toolbar';
 import { FileManagerDialogs } from './dialogs';

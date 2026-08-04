@@ -1,3 +1,4 @@
+import type { TreeSelectNode } from 'src/entities/system';
 import type { CursorPageResponse } from 'src/shared/api/types';
 import type {
   Role,
@@ -7,8 +8,6 @@ import type {
   RoleMenuBinding,
   RoleUserBinding,
   RoleDataScopeInput,
-  RoleMenuTreeSelect,
-  RoleDeptTreeSelect,
 } from 'src/entities/role';
 
 import { mutate } from 'swr';
@@ -21,6 +20,16 @@ import { roleEndpoints } from 'src/entities/role';
 
 const NAVBAR_ENDPOINT = '/api/navbar';
 const ROLE_USER_READ_LIMIT = 100;
+
+export type RoleMenuTreeSelect = {
+  menus: TreeSelectNode[];
+  checked_keys: string[];
+};
+
+export type RoleDeptTreeSelect = {
+  depts: TreeSelectNode[];
+  checked_keys: string[];
+};
 
 export async function createRole(payload: RoleInput) {
   const role = await requestData<Role>(axios.post(roleEndpoints.roles, payload));

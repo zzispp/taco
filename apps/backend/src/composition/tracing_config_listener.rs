@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
@@ -8,8 +8,11 @@ use std::{
 
 use constants::system_config::{SYSTEM_CONFIG_CHANGED_CHANNEL, TRACING_CONFIG_KEY};
 use metrics::{counter, gauge};
+use parking_lot::Mutex;
 use sqlx::{PgPool, postgres::PgListener, query_scalar};
-use taco_tracing::{InfrastructureDependency, InfrastructureObserver, RuntimeTracingConfig, RuntimeTracingState, parse_runtime_tracing_config};
+use taco_tracing::{
+    InfrastructureDependency, InfrastructureObserver, InfrastructureOperation, RuntimeTracingConfig, RuntimeTracingState, parse_runtime_tracing_config,
+};
 
 use crate::BackendResult;
 
@@ -47,7 +50,7 @@ impl TracingConfigListenerHealth {
         TracingConfigListenerHealthSnapshot {
             healthy: self.0.healthy.load(Ordering::Relaxed),
             failures: self.0.failures.load(Ordering::Relaxed),
-            last_failure: self.0.last_failure.lock().unwrap().clone(),
+            last_failure: self.0.last_failure.lock().clone(),
         }
     }
 
@@ -59,7 +62,7 @@ impl TracingConfigListenerHealth {
     fn failed(&self, operation: &'static str) {
         self.0.healthy.store(false, Ordering::Relaxed);
         self.0.failures.fetch_add(1, Ordering::Relaxed);
-        *self.0.last_failure.lock().unwrap() = Some(operation.into());
+        *self.0.last_failure.lock() = Some(operation.into());
         gauge!(LISTENER_HEALTH_METRIC).set(0.0);
         counter!(LISTENER_FAILURE_METRIC, "operation" => operation).increment(1);
     }
@@ -136,9 +139,12 @@ async fn run_listener(mut runtime: ListenerRuntime) {
             Ok(Some(_)) => reconcile_until_success(&runtime).await,
             Ok(None) => {
                 runtime.health.failed("disconnect");
-                runtime
-                    .observer
-                    .record(InfrastructureDependency::Postgres, "tracing_config_listener_disconnect", Duration::ZERO, false);
+                runtime.observer.record(InfrastructureOperation {
+                    dependency: InfrastructureDependency::Postgres,
+                    operation: "tracing_config_listener_disconnect",
+                    elapsed: Duration::ZERO,
+                    succeeded: false,
+                });
                 taco_tracing::warn_with_fields!(
                     "observability tracing configuration listener reconnected",
                     channel = SYSTEM_CONFIG_CHANGED_CHANNEL
@@ -147,9 +153,12 @@ async fn run_listener(mut runtime: ListenerRuntime) {
             }
             Err(error) => {
                 runtime.health.failed("listen");
-                runtime
-                    .observer
-                    .record(InfrastructureDependency::Postgres, "tracing_config_listen", Duration::ZERO, false);
+                runtime.observer.record(InfrastructureOperation {
+                    dependency: InfrastructureDependency::Postgres,
+                    operation: "tracing_config_listen",
+                    elapsed: Duration::ZERO,
+                    succeeded: false,
+                });
                 taco_tracing::error_with_fields!(
                     "observability tracing configuration listener failed",
                     &error,

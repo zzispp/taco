@@ -37,6 +37,13 @@ pub(super) struct UserServices {
     pub session_cleanup_runtime: OnlineSessionCleanupRuntimeHandle,
 }
 
+pub(super) struct UserServicesWiring<'a> {
+    pub(super) settings: &'a Settings,
+    pub(super) database: Database,
+    pub(super) system: Arc<dyn SystemUseCase>,
+    pub(super) observer: taco_tracing::InfrastructureObserver,
+}
+
 pub(super) async fn build_system_services(
     settings: &Settings,
     database: Database,
@@ -57,12 +64,13 @@ pub(super) async fn build_system_services(
     })
 }
 
-pub(super) async fn build_user_services(
-    settings: &Settings,
-    database: Database,
-    system: Arc<dyn SystemUseCase>,
-    observer: taco_tracing::InfrastructureObserver,
-) -> BackendResult<UserServices> {
+pub(super) async fn build_user_services(wiring: UserServicesWiring<'_>) -> BackendResult<UserServices> {
+    let UserServicesWiring {
+        settings,
+        database,
+        system,
+        observer,
+    } = wiring;
     let runtime_config = RuntimeUserConfig::new(system);
     let user_repository = StorageUserRepository::new(database.clone());
     let user_service = UserService::with_password_policy(user_repository, Argon2PasswordHasher, runtime_config.clone());

@@ -30,27 +30,43 @@ pub struct FieldSerde {
     pub rename: Option<String>,
 }
 
+enum DirectionalName {
+    Serialize(String),
+    Deserialize(String),
+}
+
+#[derive(Default)]
+struct DirectionalNames {
+    serialize: Option<String>,
+    deserialize: Option<String>,
+}
+
 pub fn parse_container(attrs: &[Attribute]) -> syn::Result<ContainerSerde> {
     let mut result = ContainerSerde::default();
     let mut deny_unknown_fields = false;
     for meta in serde_meta(attrs)? {
-        if meta.path().is_ident("default") {
-            set_once(
-                &mut result.default,
-                parse_default(&meta)?,
-                syn::Error::new_spanned(&meta, "duplicate serde default"),
-            )?;
-        } else if meta.path().is_ident("rename_all") {
-            let rename = parse_directional_name(&meta, "rename_all")?;
-            let rule = RenameRule::parse(&rename, &meta)?;
-            set_once(&mut result.rename_all, rule, syn::Error::new_spanned(&meta, "duplicate serde rename_all"))?;
-        } else if meta.path().is_ident("deny_unknown_fields") {
-            parse_marker(&mut deny_unknown_fields, &meta, "deny_unknown_fields")?;
-        } else {
-            return Err(incompatible_container(&meta));
-        }
+        parse_container_meta(&mut result, &mut deny_unknown_fields, &meta)?;
     }
     Ok(result)
+}
+
+fn parse_container_meta(result: &mut ContainerSerde, deny_unknown_fields: &mut bool, meta: &Meta) -> syn::Result<()> {
+    if meta.path().is_ident("default") {
+        return set_once(
+            &mut result.default,
+            parse_default(meta)?,
+            syn::Error::new_spanned(meta, "duplicate serde default"),
+        );
+    }
+    if meta.path().is_ident("rename_all") {
+        let rename = parse_directional_name(meta, "rename_all")?;
+        let rule = RenameRule::parse(&rename, meta)?;
+        return set_once(&mut result.rename_all, rule, syn::Error::new_spanned(meta, "duplicate serde rename_all"));
+    }
+    if meta.path().is_ident("deny_unknown_fields") {
+        return parse_marker(deny_unknown_fields, meta, "deny_unknown_fields");
+    }
+    Err(incompatible_container(meta))
 }
 
 pub fn parse_field(attrs: &[Attribute]) -> syn::Result<FieldSerde> {
@@ -122,41 +138,55 @@ fn parse_default(meta: &Meta) -> syn::Result<SerdeDefault> {
 
 fn parse_directional_name(meta: &Meta, name: &str) -> syn::Result<String> {
     match meta {
-        Meta::NameValue(value) => Ok(string_literal(&value.value, &format!("serde {name} must be a string"))?.value()),
-        Meta::List(list) => {
-            let nested = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-            let mut serialize = None;
-            let mut deserialize = None;
-            for item in nested {
-                let Meta::NameValue(value) = &item else {
-                    return Err(syn::Error::new_spanned(item, format!("serde {name} direction requires a string value")));
-                };
-                let literal = string_literal(&value.value, &format!("serde {name} direction must be a string"))?;
-                if value.path.is_ident("serialize") {
-                    set_once(
-                        &mut serialize,
-                        literal.value(),
-                        syn::Error::new_spanned(&item, "duplicate serde serialize name"),
-                    )?;
-                } else if value.path.is_ident("deserialize") {
-                    set_once(
-                        &mut deserialize,
-                        literal.value(),
-                        syn::Error::new_spanned(&item, "duplicate serde deserialize name"),
-                    )?;
-                } else {
-                    return Err(syn::Error::new_spanned(item, format!("unsupported serde {name} direction")));
-                }
-            }
-            match (serialize, deserialize) {
-                (Some(left), Some(right)) if left == right => Ok(left),
-                _ => Err(syn::Error::new_spanned(
-                    meta,
-                    format!("serde {name} must use the same serialize and deserialize name"),
-                )),
-            }
-        }
+        Meta::NameValue(value) => parse_directional_literal(value, name),
+        Meta::List(list) => parse_directional_names(list, name),
         Meta::Path(_) => Err(syn::Error::new_spanned(meta, format!("serde {name} requires a value"))),
+    }
+}
+
+fn parse_directional_literal(value: &syn::MetaNameValue, name: &str) -> syn::Result<String> {
+    Ok(string_literal(&value.value, &format!("serde {name} must be a string"))?.value())
+}
+
+fn parse_directional_names(list: &syn::MetaList, name: &str) -> syn::Result<String> {
+    let nested = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+    let mut names = DirectionalNames::default();
+    for item in nested {
+        names.set(parse_directional_assignment(&item, name)?, &item)?;
+    }
+    names.finish(list, name)
+}
+
+fn parse_directional_assignment(item: &Meta, name: &str) -> syn::Result<DirectionalName> {
+    let Meta::NameValue(value) = item else {
+        return Err(syn::Error::new_spanned(item, format!("serde {name} direction requires a string value")));
+    };
+    let literal = string_literal(&value.value, &format!("serde {name} direction must be a string"))?.value();
+    if value.path.is_ident("serialize") {
+        return Ok(DirectionalName::Serialize(literal));
+    }
+    if value.path.is_ident("deserialize") {
+        return Ok(DirectionalName::Deserialize(literal));
+    }
+    Err(syn::Error::new_spanned(item, format!("unsupported serde {name} direction")))
+}
+
+impl DirectionalNames {
+    fn set(&mut self, name: DirectionalName, item: &Meta) -> syn::Result<()> {
+        match name {
+            DirectionalName::Serialize(value) => set_once(&mut self.serialize, value, syn::Error::new_spanned(item, "duplicate serde serialize name")),
+            DirectionalName::Deserialize(value) => set_once(&mut self.deserialize, value, syn::Error::new_spanned(item, "duplicate serde deserialize name")),
+        }
+    }
+
+    fn finish(self, list: &syn::MetaList, name: &str) -> syn::Result<String> {
+        match (self.serialize, self.deserialize) {
+            (Some(left), Some(right)) if left == right => Ok(left),
+            _ => Err(syn::Error::new_spanned(
+                list,
+                format!("serde {name} must use the same serialize and deserialize name"),
+            )),
+        }
     }
 }
 

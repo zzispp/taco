@@ -118,12 +118,14 @@ fn part_receipts(session_id: UploadId, rows: Vec<CompletedPartRow>) -> FileResul
         .collect()
 }
 
-pub(super) async fn release_reservation_tx(
-    transaction: &mut sqlx::Transaction<'_, Postgres>,
-    space_id: &SpaceId,
-    size: i64,
-    now: OffsetDateTime,
-) -> FileResult<()> {
+pub(super) struct ReservationRelease<'a> {
+    pub(super) space_id: &'a SpaceId,
+    pub(super) size: i64,
+    pub(super) now: OffsetDateTime,
+}
+
+pub(super) async fn release_reservation_tx(transaction: &mut sqlx::Transaction<'_, Postgres>, request: ReservationRelease<'_>) -> FileResult<()> {
+    let ReservationRelease { space_id, size, now } = request;
     query("UPDATE file_space SET reserved_bytes=GREATEST(reserved_bytes-$2,0),updated_at=$3 WHERE space_id=$1")
         .bind(space_id.as_str())
         .bind(size)

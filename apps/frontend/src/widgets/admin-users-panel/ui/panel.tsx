@@ -1,9 +1,9 @@
 'use client';
 
-import { updateUserStatus } from 'src/features/user-management';
+import { AdminBreadcrumbs } from 'src/shared/ui/admin-common';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
+import { updateUserStatus } from 'src/features/user-management';
 
 import { UserToolbar } from './toolbar';
 import { toggle, showError } from './helpers';

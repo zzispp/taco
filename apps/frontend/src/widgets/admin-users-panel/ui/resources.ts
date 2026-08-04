@@ -1,19 +1,20 @@
 import { useMemo, useCallback } from 'react';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { withSelectionHead } from 'src/shared/ui/admin-common';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
 
+import { useUsers } from 'src/entities/user';
 import { useHasPermission } from 'src/entities/session';
-import { useUsers, useUserFormOptions } from 'src/entities/user';
 import {
   usePublicConfigs,
   PUBLIC_CONFIG_KEYS,
   passwordPolicyFromPublicConfigs,
 } from 'src/entities/system';
 
-import { withSelectionHead } from 'src/widgets/admin-common';
+import { useUserFormOptions } from 'src/features/user-management';
 
 import { DEFAULT_FILTERS } from './constants';
 import { userHead, flattenDeptNames } from './helpers';
@@ -36,10 +37,8 @@ export function useUserResources() {
   const deptTree = useMemo(() => options.data?.depts ?? [], [options.data?.depts]);
   const depts = useMemo(() => flattenDeptNames(deptTree), [deptTree]);
   const head = useMemo(() => userHead(t), [t]);
-  const canAdd = useHasPermission('system:user:add');
-  const canDelete = useHasPermission('system:user:remove');
-  const canImport = useHasPermission('system:user:import');
-  const canExport = useHasPermission('system:user:export');
+  const permissions = useUserPermissions();
+  const { canAdd, canDelete, canImport, canExport } = permissions;
   const loadingHead = useMemo(
     () => (canDelete ? withSelectionHead(head) : head),
     [canDelete, head]
@@ -69,6 +68,15 @@ export function useUserResources() {
     passwordPolicy,
     ...pageRefresh,
   };
+}
+
+function useUserPermissions() {
+  const canAdd = useHasPermission('system:user:add');
+  const canDelete = useHasPermission('system:user:remove');
+  const canImport = useHasPermission('system:user:import');
+  const canExport = useHasPermission('system:user:export');
+
+  return { canAdd, canDelete, canImport, canExport };
 }
 
 function useUserPageRefresh(

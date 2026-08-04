@@ -1,6 +1,6 @@
 use kernel::pagination::CursorDirection;
 use observability::{
-    application::{SystemLogBoundary, SystemLogCursorQuery, SystemLogRepository, SystemLogRetentionStore},
+    application::{ObservabilityError, SystemLogBoundary, SystemLogCursorQuery, SystemLogRepository, SystemLogRetentionStore},
     domain::{NewSystemLog, SystemLogFilter, SystemLogLevel},
     infra::StorageSystemLogRepository,
 };
@@ -36,7 +36,7 @@ async fn system_log_retention_drops_full_partitions_and_batches_only_the_boundar
 
     let report = repository.cleanup_before(time("2026-07-16T12:00:00Z"), 1).await.unwrap();
 
-    assert_eq!((report.deleted, report.batches), (5, 5));
+    assert_eq!((report.rows_deleted, report.dropped_partitions, report.batches), (2, 3, 5));
     assert_partition_lifecycle(database.pool()).await;
     database.drop().await;
 }
@@ -64,8 +64,32 @@ async fn system_log_retention_waits_for_locked_expired_partition() {
     assert!(!cleanup.is_finished());
     lock.commit().await.unwrap();
     let report = cleanup.await.unwrap();
-    assert_eq!((report.deleted, report.batches), (1, 1));
+    assert_eq!((report.rows_deleted, report.dropped_partitions, report.batches), (0, 1, 1));
     assert!(!partition_exists(database.pool(), "sys_system_log_20260714").await);
+    database.drop().await;
+}
+
+#[tokio::test]
+async fn system_log_retention_partial_failure_reports_only_committed_partition_drops() {
+    let database = TestDatabase::create().await;
+    up(database.pool(), None).await.unwrap();
+    let repository = repository(&database);
+    insert_retention_fixture(database.pool(), &repository).await;
+    install_partially_failing_retention_function(database.pool()).await;
+
+    let error = repository.cleanup_before(time("2026-07-16T12:00:00Z"), 1).await.unwrap_err();
+
+    assert!(matches!(
+        error,
+        ObservabilityError::PartialCleanup {
+            rows_deleted: 0,
+            dropped_partitions: 1,
+            batches: 1,
+            ..
+        }
+    ));
+    assert!(!partition_exists(database.pool(), "sys_system_log_20260713").await);
+    assert!(partition_exists(database.pool(), "sys_system_log_20260714").await);
     database.drop().await;
 }
 
@@ -107,6 +131,28 @@ async fn insert_retention_fixture(pool: &PgPool, repository: &StorageSystemLogRe
         event("future", time("2026-07-17T12:00:00Z"), "test::retention", "kept"),
     ];
     repository.insert_batch(&events).await.unwrap();
+}
+
+async fn install_partially_failing_retention_function(pool: &PgPool) {
+    query(
+        r#"
+CREATE OR REPLACE FUNCTION drop_expired_system_log_partition(value_partition_name TEXT, value_cutoff TIMESTAMPTZ)
+RETURNS BIGINT
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF value_partition_name = 'sys_system_log_20260713' THEN
+        DROP TABLE public.sys_system_log_20260713;
+        RETURN 1;
+    END IF;
+    RAISE EXCEPTION 'forced partition cleanup failure';
+END;
+$$
+"#,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn assert_partition_lifecycle(pool: &PgPool) {

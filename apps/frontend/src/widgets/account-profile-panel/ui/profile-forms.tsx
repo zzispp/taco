@@ -131,6 +131,22 @@ export function PasswordProfileForm({ username, passwordPolicy }: PasswordProfil
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 560 }}>
+      <PasswordProfileFields form={form} t={t} updateField={updateField} />
+      <Stack direction="row" spacing={2} alignItems="center">
+        <Button variant="contained" loading={loading} onClick={handleSubmit}>
+          {t('common.save')}
+        </Button>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          {passwordRuleText(t, passwordPolicy)}
+        </Typography>
+      </Stack>
+    </Stack>
+  );
+}
+
+function PasswordProfileFields({ form, t, updateField }: PasswordProfileFieldsProps) {
+  return (
+    <>
       <TextField
         type="password"
         label={t('profile.oldPassword')}
@@ -149,15 +165,7 @@ export function PasswordProfileForm({ username, passwordPolicy }: PasswordProfil
         value={form.confirm_password}
         onChange={(event) => updateField('confirm_password', event.target.value)}
       />
-      <Stack direction="row" spacing={2} alignItems="center">
-        <Button variant="contained" loading={loading} onClick={handleSubmit}>
-          {t('common.save')}
-        </Button>
-        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-          {passwordRuleText(t, passwordPolicy)}
-        </Typography>
-      </Stack>
-    </Stack>
+    </>
   );
 }
 
@@ -231,6 +239,12 @@ type BasicProfileFieldsProps = {
 type PasswordProfileFormProps = {
   username: string;
   passwordPolicy?: PasswordPolicy;
+};
+
+type PasswordProfileFieldsProps = {
+  form: PasswordFormState;
+  t: AdminTranslate;
+  updateField: (field: keyof PasswordFormState, value: string) => void;
 };
 
 type PasswordValidationContext = {

@@ -12,10 +12,12 @@ pub(crate) const MAX_BATCH_FILE_IDS: usize = 100;
 mod access;
 mod lifecycle;
 mod read;
+mod repository;
 
 pub use access::*;
 pub use lifecycle::*;
 pub use read::*;
+pub use repository::*;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreateFolderCommand {

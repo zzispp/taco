@@ -120,7 +120,9 @@ fn page_cursors(records: &[OnlineSessionRecord], context: OnlineCursorBuild<'_>)
     let Some(first) = records.first() else {
         return empty_page_cursors(page.codec, page.snapshot, page.window);
     };
-    let last = records.last().expect("a non-empty page has a last record");
+    let last = records
+        .last()
+        .ok_or_else(|| AppError::Infrastructure("online session cursor page has a first record but no last record".into()))?;
     let has_previous = page.window.from_cursor && (page.window.direction == CursorDirection::Next || has_extra);
     let has_next = has_extra || (page.window.from_cursor && page.window.direction == CursorDirection::Previous);
     let next = has_next

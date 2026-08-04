@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use reqwest::{Method, RequestBuilder, Response};
-use taco_tracing::{InfrastructureDependency, InfrastructureObserver};
+use taco_tracing::{InfrastructureDependency, InfrastructureObserver, InfrastructureOperation};
 
 use crate::application::task::{
     HttpFailureCode, HttpTaskClient, OutboundHttpFailure, OutboundHttpHeader, OutboundHttpRequest, OutboundHttpResponse, OutboundHttpResponseHead,
@@ -25,12 +25,12 @@ impl HttpTaskClient for ReqwestHttpTaskClient {
     async fn send(&self, request: OutboundHttpRequest) -> Result<OutboundHttpResponse, OutboundHttpFailure> {
         let started = Instant::now();
         let result = send_request(&self.client, request, started).await;
-        self.observer.record(
-            InfrastructureDependency::OutboundHttp,
-            "scheduler_http_request",
-            started.elapsed(),
-            result.is_ok(),
-        );
+        self.observer.record(InfrastructureOperation {
+            dependency: InfrastructureDependency::OutboundHttp,
+            operation: "scheduler_http_request",
+            elapsed: started.elapsed(),
+            succeeded: result.is_ok(),
+        });
         result
     }
 }

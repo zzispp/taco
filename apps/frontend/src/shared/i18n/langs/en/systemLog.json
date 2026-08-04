@@ -42,9 +42,7 @@
     "deleteSuccess": "Deleted",
     "deleteFailure": "Delete failed",
     "cleanAccepted": "Cleanup task accepted (execution: {{executionId}})",
-    "cleanCompleted": "Cleaned {{count}} log entries in {{batches}} batches",
     "cleanFailure": "Clean failed",
-    "cleanExecutionFailed": "Cleanup task did not complete; {{count}} log entries were deleted in {{batches}} batches.",
     "cleanExecutionStatusFailure": "Failed to load the cleanup execution status",
     "exportFailure": "Export failed",
     "listFailure": "Failed to load system logs",
@@ -54,10 +52,15 @@
   "cleanupStates": {
     "pending": "Cleanup task is waiting to run",
     "running": "Cleanup task is running",
-    "succeeded": "Cleanup completed: {{count}} log entries in {{batches}} batches",
-    "failed": "Cleanup task failed; {{count}} log entries were deleted in {{batches}} batches",
-    "skipped": "Cleanup task was skipped; {{count}} log entries were deleted in {{batches}} batches",
-    "interrupted": "Cleanup task was interrupted; {{count}} log entries were deleted in {{batches}} batches"
+    "succeeded": "Cleanup completed.",
+    "failed": "Cleanup task failed.",
+    "skipped": "Cleanup task was skipped.",
+    "interrupted": "Cleanup task was interrupted."
+  },
+  "cleanupMetrics": {
+    "current": "Rows deleted: {{rowsDeleted}}. Full partitions dropped: {{droppedPartitions}}. Committed batches: {{batches}}.",
+    "legacy": "Historical total deleted: {{legacyTotalDeleted}}. Committed batches: {{batches}}. The legacy total does not distinguish rows from partitions.",
+    "unavailable": "No committed cleanup metrics are available."
   },
   "table": {
     "actions": "Actions",

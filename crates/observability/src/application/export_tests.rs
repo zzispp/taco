@@ -11,7 +11,7 @@ use crate::{
     domain::{SystemLogDetail, SystemLogFilter, SystemLogLevel, SystemLogSummary},
 };
 
-use super::export::{ExportCursor, run_open_export, run_started_export};
+use super::export::{ExportCursor, OpenSystemLogExport, StartedSystemLogExport, run_open_export, run_started_export};
 use crate::application::SystemLogExportWriter;
 
 #[tokio::test]
@@ -20,9 +20,7 @@ async fn successful_export_finishes_the_snapshot_after_the_writer() {
     let session = FakeSession::new([Ok(page(false))], events.clone());
     let writer = FakeWriter::succeeds(events.clone());
 
-    let artifact = run_open_export(Box::new(session), SystemLogFilter::default(), ExportCursor::new(2).unwrap(), Box::new(writer))
-        .await
-        .unwrap();
+    let artifact = run_open_export(open_export(session, writer)).await.unwrap();
 
     assert!(artifact.content_length() > 0);
     assert_eq!(recorded(&events), ["page", "append", "writer_finish", "session_finish"]);
@@ -34,7 +32,7 @@ async fn page_failure_aborts_before_finishing_the_writer() {
     let session = FakeSession::new([Err(failure("page failure"))], events.clone());
     let writer = FakeWriter::succeeds(events.clone());
 
-    let error = run_open_export(Box::new(session), SystemLogFilter::default(), ExportCursor::new(2).unwrap(), Box::new(writer)).await;
+    let error = run_open_export(open_export(session, writer)).await;
     let error = error_of(error);
 
     assert!(error.to_string().contains("page failure"));
@@ -47,7 +45,7 @@ async fn writer_append_failure_aborts_and_reports_the_worker_failure() {
     let session = FakeSession::new([Ok(page(false))], events.clone());
     let writer = FakeWriter::fails_append_and_finish(events.clone());
 
-    let error = run_open_export(Box::new(session), SystemLogFilter::default(), ExportCursor::new(2).unwrap(), Box::new(writer)).await;
+    let error = run_open_export(open_export(session, writer)).await;
     let error = error_of(error);
     let message = error.to_string();
 
@@ -62,7 +60,7 @@ async fn writer_finish_failure_aborts_instead_of_committing() {
     let session = FakeSession::new([Ok(page(false))], events.clone());
     let writer = FakeWriter::fails_finish(events.clone());
 
-    let error = run_open_export(Box::new(session), SystemLogFilter::default(), ExportCursor::new(2).unwrap(), Box::new(writer)).await;
+    let error = run_open_export(open_export(session, writer)).await;
     let error = error_of(error);
 
     assert!(error.to_string().contains("writer failure"));
@@ -74,12 +72,12 @@ async fn writer_creation_failure_after_begin_aborts_the_snapshot() {
     let events = events();
     let session = FakeSession::new([], events.clone());
 
-    let error = run_started_export(
-        Box::new(session),
-        SystemLogFilter::default(),
-        ExportCursor::new(2).unwrap(),
-        Err(failure("writer creation failure")),
-    )
+    let error = run_started_export(StartedSystemLogExport {
+        export: Box::new(session),
+        filter: SystemLogFilter::default(),
+        cursor: ExportCursor::new(2).unwrap(),
+        writer: Err(failure("writer creation failure")),
+    })
     .await;
     let error = error_of(error);
 
@@ -93,7 +91,7 @@ async fn session_finish_failure_is_returned_after_the_writer_succeeds() {
     let session = FakeSession::new([Ok(page(false))], events.clone()).with_finish_failure();
     let writer = FakeWriter::succeeds(events.clone());
 
-    let error = run_open_export(Box::new(session), SystemLogFilter::default(), ExportCursor::new(2).unwrap(), Box::new(writer)).await;
+    let error = run_open_export(open_export(session, writer)).await;
     let error = error_of(error);
 
     assert!(error.to_string().contains("finish failure"));
@@ -106,7 +104,7 @@ async fn export_reports_page_writer_and_rollback_failures_together() {
     let session = FakeSession::new([Err(failure("page failure"))], events.clone()).with_abort_failure();
     let writer = FakeWriter::fails_finish(events);
 
-    let error = run_open_export(Box::new(session), SystemLogFilter::default(), ExportCursor::new(2).unwrap(), Box::new(writer)).await;
+    let error = run_open_export(open_export(session, writer)).await;
     let error = error_of(error);
     let message = error.to_string();
 
@@ -116,6 +114,15 @@ async fn export_reports_page_writer_and_rollback_failures_together() {
 }
 
 type Events = Arc<Mutex<Vec<&'static str>>>;
+
+fn open_export(session: FakeSession, writer: FakeWriter) -> OpenSystemLogExport {
+    OpenSystemLogExport {
+        export: Box::new(session),
+        filter: SystemLogFilter::default(),
+        cursor: ExportCursor::new(2).unwrap(),
+        writer: Box::new(writer),
+    }
+}
 
 struct FakeSession {
     pages: VecDeque<ObservabilityResult<SystemLogExportSlice>>,

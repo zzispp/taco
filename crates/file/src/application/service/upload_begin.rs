@@ -1,4 +1,7 @@
-use crate::application::{BeginUpload, BeginUploadResult, BeginUploadSessionCommand, FileAccessScope, FileManagementRepository, UploadSession};
+use crate::application::{
+    BeginUpload, BeginUploadResult, BeginUploadSessionCommand, FileAccessScope, FileManagementRepository, ReusableObjectLookup, ReusedUploadCreate,
+    UploadIntentLookup, UploadSession,
+};
 use crate::{FileError, FileResult};
 
 use super::{FileService, max_part_size, session_response, validate_intent, validate_session};
@@ -34,7 +37,12 @@ where
         }
         if let Some(object) = self
             .repository
-            .find_reusable_object(&actor, command.space_id.clone(), command.digest, command.size)
+            .find_reusable_object(ReusableObjectLookup {
+                actor: &actor,
+                space_id: command.space_id.clone(),
+                digest: command.digest,
+                size: command.size,
+            })
             .await?
         {
             return self
@@ -55,7 +63,12 @@ where
     async fn existing_intent_result(&self, actor: &FileAccessScope, command: &BeginUploadSessionCommand) -> FileResult<Option<BeginUploadResult>> {
         let existing = self
             .repository
-            .find_upload_intent(actor, &actor.user_id, command.space_id.clone(), &command.idempotency_key)
+            .find_upload_intent(UploadIntentLookup {
+                actor,
+                owner_user_id: &actor.user_id,
+                space_id: command.space_id.clone(),
+                idempotency_key: &command.idempotency_key,
+            })
             .await?;
         let Some(existing) = existing else {
             return Ok(None);
@@ -88,7 +101,12 @@ where
             .await?;
         let result = self
             .repository
-            .create_reused_upload(actor, intent.command.clone(), intent.object, intent.part_size)
+            .create_reused_upload(ReusedUploadCreate {
+                actor,
+                command: intent.command.clone(),
+                object: intent.object,
+                part_size: intent.part_size,
+            })
             .await;
         match result {
             Ok(entry) => Ok(BeginUploadResult::Completed { entry: Box::new(entry) }),

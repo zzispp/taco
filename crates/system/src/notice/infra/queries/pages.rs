@@ -219,7 +219,9 @@ fn build_page<R: PageRecord>(mut records: Vec<R>, context: PageContext<'_>) -> S
 
 fn page_cursors<R: PageRecord>(records: &[R], context: &PageContext<'_>, has_extra: bool) -> SystemResult<(Option<String>, Option<String>)> {
     let Some(first) = records.first() else { return empty_cursors(context) };
-    let last = records.last().expect("non-empty notice cursor page has a last row");
+    let last = records
+        .last()
+        .ok_or_else(|| SystemError::Infrastructure("notice cursor page has a first record but no last record".into()))?;
     let has_previous = context.window.from_cursor && (context.window.direction == CursorDirection::Next || has_extra);
     let has_next = has_extra || (context.window.from_cursor && context.window.direction == CursorDirection::Previous);
     let next = has_next

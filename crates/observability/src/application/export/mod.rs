@@ -13,6 +13,27 @@ pub struct SystemLogExportRequest {
     pub layout: SystemLogExportLayout,
 }
 
+pub(super) struct StartedSystemLogExport {
+    pub(super) export: Box<dyn SystemLogExportSession>,
+    pub(super) filter: SystemLogFilter,
+    pub(super) cursor: ExportCursor,
+    pub(super) writer: ObservabilityResult<Box<dyn SystemLogExportWriter>>,
+}
+
+pub(super) struct OpenSystemLogExport {
+    pub(super) export: Box<dyn SystemLogExportSession>,
+    pub(super) filter: SystemLogFilter,
+    pub(super) cursor: ExportCursor,
+    pub(super) writer: Box<dyn SystemLogExportWriter>,
+}
+
+struct ExportPageQueue<'a> {
+    export: &'a mut dyn SystemLogExportSession,
+    filter: SystemLogFilter,
+    cursor: &'a mut ExportCursor,
+    writer: &'a mut dyn SystemLogExportWriter,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct SystemLogExportLayout {
     sheet_name: String,
@@ -45,28 +66,50 @@ pub(super) async fn system_logs(
         .map_err(|error| ObservabilityError::Infrastructure(format!("system log export writer capacity conversion failed: {error}")))?;
     let export = repository.begin_export().await?;
     let writer = writer_factory.start(SystemLogExportWriterRequest { capacity, layout });
-    run_started_export(export, filter, cursor, writer).await
+    run_started_export(StartedSystemLogExport {
+        export,
+        filter,
+        cursor,
+        writer,
+    })
+    .await
 }
 
-pub(super) async fn run_started_export(
-    export: Box<dyn SystemLogExportSession>,
-    filter: SystemLogFilter,
-    cursor: ExportCursor,
-    writer: ObservabilityResult<Box<dyn SystemLogExportWriter>>,
-) -> ObservabilityResult<TemporaryXlsxFile> {
+pub(super) async fn run_started_export(start: StartedSystemLogExport) -> ObservabilityResult<TemporaryXlsxFile> {
+    let StartedSystemLogExport {
+        export,
+        filter,
+        cursor,
+        writer,
+    } = start;
     match writer {
-        Ok(writer) => run_open_export(export, filter, cursor, writer).await,
+        Ok(writer) => {
+            run_open_export(OpenSystemLogExport {
+                export,
+                filter,
+                cursor,
+                writer,
+            })
+            .await
+        }
         Err(writer_error) => abort_after_writer_failure(export, writer_error).await,
     }
 }
 
-pub(super) async fn run_open_export(
-    mut export: Box<dyn SystemLogExportSession>,
-    filter: SystemLogFilter,
-    mut cursor: ExportCursor,
-    mut writer: Box<dyn SystemLogExportWriter>,
-) -> ObservabilityResult<TemporaryXlsxFile> {
-    match queue_export_pages(export.as_mut(), filter, &mut cursor, writer.as_mut()).await {
+pub(super) async fn run_open_export(open: OpenSystemLogExport) -> ObservabilityResult<TemporaryXlsxFile> {
+    let OpenSystemLogExport {
+        mut export,
+        filter,
+        mut cursor,
+        mut writer,
+    } = open;
+    let queue = ExportPageQueue {
+        export: export.as_mut(),
+        filter,
+        cursor: &mut cursor,
+        writer: writer.as_mut(),
+    };
+    match queue_export_pages(queue).await {
         Ok(()) => finish_successful_export(export, writer).await,
         Err(page_error) => abort_failed_export(export, writer, page_error).await,
     }
@@ -112,12 +155,13 @@ fn combine_abort_failure(primary: ObservabilityError, abort: Option<Observabilit
     }
 }
 
-async fn queue_export_pages(
-    export: &mut dyn SystemLogExportSession,
-    filter: SystemLogFilter,
-    cursor: &mut ExportCursor,
-    writer: &mut dyn SystemLogExportWriter,
-) -> ObservabilityResult<()> {
+async fn queue_export_pages(queue: ExportPageQueue<'_>) -> ObservabilityResult<()> {
+    let ExportPageQueue {
+        export,
+        filter,
+        cursor,
+        writer,
+    } = queue;
     loop {
         let page = export.page(filter.clone(), cursor.request()).await?;
         if page.items.is_empty() {

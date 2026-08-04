@@ -9,13 +9,12 @@ import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
 
 import { Iconify } from 'src/shared/ui/iconify';
+import { BooleanLabel } from 'src/shared/ui/admin-common';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 
 import { translatedRoleName } from 'src/entities/role';
 import { useHasPermission } from 'src/entities/session';
-
-import { BooleanLabel } from 'src/widgets/admin-common';
 
 import { dataScopeLabel } from './role-dialog';
 

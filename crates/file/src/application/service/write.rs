@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use crate::FileResult;
 use crate::application::{
     CreateFolderCommand, FileAccessScope, FileEntryView, FileManagementRepository, FileSpaceView, PurgeObjectResult, PurgeReport, UpdateEntryCommand,
-    UpdateSpaceCommand, normalize_batch_ids,
+    UpdateSpaceCommand, UpdateSpaceRequest, normalize_batch_ids,
 };
 use crate::domain::{FileId, SpaceId};
 
@@ -61,6 +61,13 @@ where
 
     async fn update_space(&self, actor: FileAccessScope, space_id: SpaceId, command: UpdateSpaceCommand) -> FileResult<FileSpaceView> {
         let config = self.config.file_management_config().await?;
-        self.repository.update_space(&actor, space_id, command, config.default_space_quota_bytes).await
+        self.repository
+            .update_space(UpdateSpaceRequest {
+                actor: &actor,
+                space_id,
+                command,
+                default_quota: config.default_space_quota_bytes,
+            })
+            .await
     }
 }

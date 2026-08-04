@@ -46,3 +46,4 @@ target
 /local-data/
 config/config.yaml
 apps/frontend/next-env.d.ts
+docs/

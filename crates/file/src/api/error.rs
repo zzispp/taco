@@ -19,6 +19,12 @@ impl From<FileError> for FileApiError {
 
 impl IntoResponse for FileApiError {
     fn into_response(self) -> Response {
+        if matches!(
+            &self.0,
+            FileError::ProviderIo { .. } | FileError::ProviderUnavailable { .. } | FileError::Infrastructure(_)
+        ) {
+            taco_tracing::error_with_fields!("file API infrastructure failure", &self.0, component = "file");
+        }
         let status = status_code(&self.0);
         let body = response_body(&self.0);
         (status, Json(body)).into_response()
@@ -82,12 +88,36 @@ fn error_kind(error: &FileError) -> ApiErrorKind {
 }
 
 fn error_detail(error: &FileError) -> LocalizedError {
-    let key = match error {
-        FileError::InvalidInput(key) => return LocalizedError::new(key),
+    LocalizedError::new(error_detail_key(error))
+}
+
+fn error_detail_key(error: &FileError) -> &'static str {
+    match error {
+        FileError::InvalidInput(key) => key,
         FileError::NameConflict => "errors.file.name_conflict",
         FileError::NotFound => "errors.file.not_found",
         FileError::Forbidden => "errors.common.forbidden",
         FileError::UploadNotFound => "errors.file.upload_not_found",
+        FileError::RangeNotSatisfiable => "errors.file.range_not_satisfiable",
+        FileError::UploadIntentTerminal
+        | FileError::UploadResultUnavailable
+        | FileError::UploadCompletionInProgress
+        | FileError::InvalidUploadTransition { .. }
+        | FileError::UploadIncomplete
+        | FileError::InvalidPart
+        | FileError::UploadPartConflict
+        | FileError::DigestMismatch
+        | FileError::SizeMismatch => upload_error_detail_key(error),
+        FileError::CapacityExceeded { .. }
+        | FileError::QuotaExceeded { .. }
+        | FileError::ProviderUnavailable { .. }
+        | FileError::ProviderIo { .. }
+        | FileError::Infrastructure(_) => provider_error_detail_key(error),
+    }
+}
+
+fn upload_error_detail_key(error: &FileError) -> &'static str {
+    match error {
         FileError::UploadIntentTerminal => "errors.file.upload_intent_terminal",
         FileError::UploadResultUnavailable => "errors.file.upload_result_unavailable",
         FileError::UploadCompletionInProgress => "errors.file.upload_completion_in_progress",
@@ -97,19 +127,24 @@ fn error_detail(error: &FileError) -> LocalizedError {
         FileError::UploadPartConflict => "errors.file.upload_part_conflict",
         FileError::DigestMismatch => "errors.file.digest_mismatch",
         FileError::SizeMismatch => "errors.file.size_mismatch",
-        FileError::RangeNotSatisfiable => "errors.file.range_not_satisfiable",
+        _ => unreachable!("only upload-state errors are routed to upload_error_detail_key"),
+    }
+}
+
+fn provider_error_detail_key(error: &FileError) -> &'static str {
+    match error {
         FileError::CapacityExceeded { .. } => "errors.file.capacity_exceeded",
         FileError::QuotaExceeded { .. } => "errors.file.quota_exceeded",
         FileError::ProviderUnavailable { .. } => "errors.file.provider_unavailable",
         FileError::ProviderIo { .. } => "errors.file.provider_io",
         FileError::Infrastructure(_) => "errors.file.infrastructure",
-    };
-    LocalizedError::new(key)
+        _ => unreachable!("only provider errors are routed to provider_error_detail_key"),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{FileApiError, StatusCode, error_detail, response_body_for_locale};
+    use super::{FileApiError, StatusCode, error_detail, response_body_for_locale, status_code};
     use crate::{FileError, error::keys};
     use axum::response::IntoResponse;
     use types::http::Locale;
@@ -117,14 +152,21 @@ mod tests {
     #[test]
     fn invalid_input_preserves_the_specific_localization_key() {
         let error = FileError::InvalidInput(keys::ENTRY_NAME_INVALID);
+        let cases = [
+            (Locale::ZhCn, "参数错误", "文件名为空或过长"),
+            (Locale::En, "Invalid input", "The file name is blank or too long"),
+            (Locale::ZhTw, "參數錯誤", "檔案名稱為空白或過長"),
+        ];
 
         assert_eq!(error_detail(&error).key(), keys::ENTRY_NAME_INVALID);
-        assert_eq!(response_body_for_locale(&error, Locale::ZhCn).details.as_deref(), Some("文件名为空或过长"));
-        assert_eq!(
-            response_body_for_locale(&error, Locale::En).details.as_deref(),
-            Some("The file name is blank or too long")
-        );
-        assert_eq!(response_body_for_locale(&error, Locale::ZhTw).details.as_deref(), Some("檔案名稱為空白或過長"));
+        assert_eq!(status_code(&error), StatusCode::BAD_REQUEST);
+        for (locale, message, details) in cases {
+            let response = response_body_for_locale(&error, locale);
+
+            assert_eq!(response.code, "invalid_input");
+            assert_eq!(response.message, message);
+            assert_eq!(response.details.as_deref(), Some(details));
+        }
     }
 
     #[test]
@@ -132,5 +174,27 @@ mod tests {
         let response = FileApiError(FileError::InvalidInput(keys::ENTRY_NAME_INVALID)).into_response();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn infrastructure_diagnostics_are_not_exposed_in_any_supported_locale() {
+        let diagnostic = "provider endpoint=https://private.example";
+        let error = FileError::Infrastructure(diagnostic.into());
+        let cases = [
+            (Locale::ZhCn, "服务异常", "文件管理服务异常"),
+            (Locale::En, "Service error", "The file management service failed"),
+            (Locale::ZhTw, "服務異常", "檔案管理服務異常"),
+        ];
+
+        assert_eq!(status_code(&error), StatusCode::INTERNAL_SERVER_ERROR);
+        for (locale, message, details) in cases {
+            let response = response_body_for_locale(&error, locale);
+            let serialized = serde_json::to_string(&response).unwrap();
+
+            assert_eq!(response.code, "infrastructure_error");
+            assert_eq!(response.message, message);
+            assert_eq!(response.details.as_deref(), Some(details));
+            assert!(!serialized.contains(diagnostic));
+        }
     }
 }

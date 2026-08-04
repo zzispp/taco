@@ -21,10 +21,9 @@ import DialogContent from '@mui/material/DialogContent';
 
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/shared/ui/admin-common';
 
 import { translatedRoleName } from 'src/entities/role';
-
-import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
 
 type RoleUsersDialogContentProps = {
   role: Role | null;

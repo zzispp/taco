@@ -1,8 +1,4 @@
-use std::{
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::{net::SocketAddr, sync::Arc, time::Instant};
 
 use audit_contract::{
     AuditOutboxError, AuditOutboxRecorder, AuditStatus, EndpointSpec, OperationAuditContext, OperationAuditSeed, OperationEndpointAudit, OperationOutcome,
@@ -17,6 +13,7 @@ use axum::{
 };
 use client_info::ClientInfo;
 use kernel::error::LocalizedError;
+use parking_lot::Mutex;
 use time::OffsetDateTime;
 use types::http::{ApiErrorKind, current_locale, localized_error_response};
 
@@ -186,13 +183,14 @@ impl CapturedRequest {
 
 impl OperationRequestSnapshot for CapturedRequest {
     fn request_params(&self) -> String {
-        let mut state = self.capture.lock().expect("operation audit request snapshot state is valid");
+        let mut state = self.capture.lock();
         match &*state {
             RequestSnapshotState::Ready(value) => return value.clone(),
             RequestSnapshotState::Pending(_) => {}
         }
-        let RequestSnapshotState::Pending(capture) = std::mem::replace(&mut *state, RequestSnapshotState::Ready(String::new())) else {
-            unreachable!("request audit snapshot state changed while locked");
+        let capture = match std::mem::replace(&mut *state, RequestSnapshotState::Ready(String::new())) {
+            RequestSnapshotState::Pending(capture) => capture,
+            RequestSnapshotState::Ready(value) => return value,
         };
         let value = capture.finish(CaptureTrace {
             request_id: &self.request_id,

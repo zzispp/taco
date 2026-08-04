@@ -16,34 +16,13 @@ function shouldMigrateCompactLayout(storedValue: SettingsState, defaultSettings:
   return isEqual(storedValue, { ...defaultSettings, compactLayout: true });
 }
 
-export function SettingsProvider({
-  children,
-  defaultSettings,
-  storageKey = SETTINGS_STORAGE_KEY,
-}: SettingsProviderProps) {
+function useSettingsStorage(storageKey: string, defaultSettings: SettingsState) {
   const useDefaultState = useRef(!getStorage<SettingsState>(storageKey));
   const { state, setState, resetState, setField } = useLocalStorage<SettingsState>(
     storageKey,
     defaultSettings
   );
 
-  const [openDrawer, setOpenDrawer] = useState(false);
-
-  const onToggleDrawer = useCallback(() => {
-    setOpenDrawer((prev) => !prev);
-  }, []);
-
-  const onCloseDrawer = useCallback(() => {
-    setOpenDrawer(false);
-  }, []);
-
-  const canReset = !isEqual(state, defaultSettings);
-
-  const onReset = useCallback(() => {
-    resetState(defaultSettings);
-  }, [defaultSettings, resetState]);
-
-  // Version mismatch reset handling
   useEffect(() => {
     const storedValue = getStorage<SettingsState>(storageKey);
 
@@ -52,7 +31,7 @@ export function SettingsProvider({
     }
 
     if (storedValue.version !== defaultSettings.version) {
-      onReset();
+      resetState(defaultSettings);
       return;
     }
 
@@ -68,6 +47,26 @@ export function SettingsProvider({
     }
   }, [defaultSettings, resetState]);
 
+  return { state, setState, resetState, setField };
+}
+
+function useDrawerControls() {
+  const [openDrawer, setOpenDrawer] = useState(false);
+  const onToggleDrawer = useCallback(() => setOpenDrawer((previous) => !previous), []);
+  const onCloseDrawer = useCallback(() => setOpenDrawer(false), []);
+
+  return { openDrawer, onToggleDrawer, onCloseDrawer };
+}
+
+export function SettingsProvider({
+  children,
+  defaultSettings,
+  storageKey = SETTINGS_STORAGE_KEY,
+}: SettingsProviderProps) {
+  const { state, setState, resetState, setField } = useSettingsStorage(storageKey, defaultSettings);
+  const { openDrawer, onToggleDrawer, onCloseDrawer } = useDrawerControls();
+  const canReset = !isEqual(state, defaultSettings);
+  const onReset = useCallback(() => resetState(defaultSettings), [defaultSettings, resetState]);
   const memoizedValue = useMemo(
     () => ({
       defaultSettings,

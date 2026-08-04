@@ -81,6 +81,21 @@ async fn system_log_retention_migration_restores_the_removed_index_on_rollback()
     database.drop().await;
 }
 
+#[tokio::test]
+async fn system_log_retention_drop_function_does_not_count_or_explicitly_lock_the_partition() {
+    let database = TestDatabase::create().await;
+    up(database.pool(), None).await.unwrap();
+
+    let definition: String = query_scalar("SELECT pg_get_functiondef('drop_expired_system_log_partition(text,timestamptz)'::regprocedure)")
+        .fetch_one(database.pool())
+        .await
+        .unwrap();
+
+    assert!(!definition.contains("COUNT(*)"));
+    assert!(!definition.contains("LOCK TABLE"));
+    database.drop().await;
+}
+
 async fn assert_parent_partitioning(pool: &PgPool) {
     let strategy: String = query_scalar("SELECT partstrat::text FROM pg_partitioned_table WHERE partrelid='sys_system_log'::regclass")
         .fetch_one(pool)

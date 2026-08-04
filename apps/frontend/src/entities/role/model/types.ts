@@ -1,5 +1,3 @@
-import type { TreeSelectNode } from 'src/entities/system';
-
 export type Role = {
   role_id: string;
   role_name: string;
@@ -42,16 +40,6 @@ export type RoleMenuBinding = {
 
 export type RoleDeptBinding = {
   dept_ids: string[];
-};
-
-export type RoleMenuTreeSelect = {
-  menus: TreeSelectNode[];
-  checked_keys: string[];
-};
-
-export type RoleDeptTreeSelect = {
-  depts: TreeSelectNode[];
-  checked_keys: string[];
 };
 
 export type RoleDataScopeInput = {

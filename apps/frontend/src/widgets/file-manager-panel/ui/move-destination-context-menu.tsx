@@ -61,7 +61,7 @@ export function selectMoveDirectoryContextMenu({
   disabled,
   position,
 }: SelectMoveDirectoryContextMenuOptions): MoveDestinationContextMenu | null {
-  if (!canShowMoveDirectoryContextMenu(browser, canMoveHere, canCreateFolder, disabled))
+  if (!canShowMoveDirectoryContextMenu({ browser, canMoveHere, canCreateFolder, disabled }))
     return null;
   return { kind: 'directory', position };
 }
@@ -137,20 +137,60 @@ export function MoveDirectoryContextMenu({
   onCreateFolder,
   onMoveHere,
 }: MoveDirectoryContextMenuProps) {
-  const { t } = useTranslate('admin');
   if (
     !position ||
-    !canShowMoveDirectoryContextMenu(browser, canMoveHere, canCreateFolder, disabled)
+    !canShowMoveDirectoryContextMenu({ browser, canMoveHere, canCreateFolder, disabled })
   ) {
     return null;
   }
+
+  return (
+    <Menu {...menuPositionProps(position, onClose)}>
+      <MoveDirectoryActions
+        browser={browser}
+        canMoveHere={canMoveHere}
+        canCreateFolder={canCreateFolder}
+        disabled={disabled}
+        onClose={onClose}
+        onNavigate={onNavigate}
+        onCreateFolder={onCreateFolder}
+        onMoveHere={onMoveHere}
+      />
+    </Menu>
+  );
+}
+
+type MoveDirectoryActionsProps = Pick<
+  MoveDirectoryContextMenuProps,
+  | 'browser'
+  | 'canMoveHere'
+  | 'canCreateFolder'
+  | 'disabled'
+  | 'onClose'
+  | 'onNavigate'
+  | 'onCreateFolder'
+  | 'onMoveHere'
+>;
+
+function MoveDirectoryActions({
+  browser,
+  canMoveHere,
+  canCreateFolder,
+  disabled,
+  onClose,
+  onNavigate,
+  onCreateFolder,
+  onMoveHere,
+}: MoveDirectoryActionsProps) {
+  const { t } = useTranslate('admin');
   const invoke = (action: () => void) => {
     onClose();
     action();
   };
   const atRoot = browser.currentId === ROOT_DIRECTORY_ID;
+
   return (
-    <Menu {...menuPositionProps(position, onClose)}>
+    <>
       {!atRoot ? (
         <MoveContextAction
           icon="eva:arrow-ios-back-fill"
@@ -175,7 +215,7 @@ export function MoveDirectoryContextMenu({
         disabled={disabled || !canMoveHere}
         onClick={() => invoke(onMoveHere)}
       />
-    </Menu>
+    </>
   );
 }
 
@@ -211,12 +251,15 @@ export function MoveFolderContextMenu({
   );
 }
 
-function canShowMoveDirectoryContextMenu(
-  browser: MoveDirectoryBrowser,
-  canMoveHere: boolean,
-  canCreateFolder: boolean,
-  disabled: boolean
-) {
+function canShowMoveDirectoryContextMenu({
+  browser,
+  canMoveHere,
+  canCreateFolder,
+  disabled,
+}: Pick<
+  MoveDestinationContextMenuOptions,
+  'browser' | 'canMoveHere' | 'canCreateFolder' | 'disabled'
+>) {
   if (disabled) return false;
   return browser.currentId !== ROOT_DIRECTORY_ID || canMoveHere || canCreateFolder;
 }

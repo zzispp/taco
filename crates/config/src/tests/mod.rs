@@ -54,7 +54,18 @@ pub(super) fn database_parts() -> DatabaseSettings {
         username: "postgres".into(),
         password: TEST_DATABASE_PASSWORD.into(),
         name: "postgres".into(),
-        auto_migrate: false,
+        pool: DatabasePoolSettings {
+            max_connections: 8,
+            acquire_timeout_ms: 2_000,
+            idle_timeout_ms: 60_000,
+            max_lifetime_ms: 300_000,
+        },
+        session: DatabaseSessionSettings {
+            application_name: "taco-test".into(),
+            statement_timeout_ms: 30_000,
+            lock_timeout_ms: 5_000,
+            idle_in_transaction_session_timeout_ms: 60_000,
+        },
     }
 }
 

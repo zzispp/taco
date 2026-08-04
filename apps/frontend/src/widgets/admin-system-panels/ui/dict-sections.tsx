@@ -12,8 +12,7 @@ import TableBody from '@mui/material/TableBody';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { TableNoData, CursorPagination } from 'src/shared/ui/table';
-
-import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
+import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin-common';
 
 import { DictDataToolbar } from './dict-data-toolbar';
 import { DictDataRow, DictTypeRow } from './dict-rows';

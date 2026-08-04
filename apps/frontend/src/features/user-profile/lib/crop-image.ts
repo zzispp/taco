@@ -9,7 +9,7 @@ export async function croppedImageBlob(imageSrc: string, crop: Area, rotation: n
   const rotated = rotatedSize(image.width, image.height, rotation);
   canvas.width = rotated.width;
   canvas.height = rotated.height;
-  drawRotatedImage(context, image, rotated, rotation);
+  drawRotatedImage({ context, image, rotated, rotation });
 
   const cropped = context.getImageData(crop.x, crop.y, crop.width, crop.height);
   canvas.width = crop.width;
@@ -35,12 +35,17 @@ function requiredContext(canvas: HTMLCanvasElement) {
   return context;
 }
 
-function drawRotatedImage(
-  context: CanvasRenderingContext2D,
-  image: HTMLImageElement,
-  rotated: Size,
-  rotation: number
-) {
+function drawRotatedImage({
+  context,
+  image,
+  rotated,
+  rotation,
+}: Readonly<{
+  context: CanvasRenderingContext2D;
+  image: HTMLImageElement;
+  rotated: Size;
+  rotation: number;
+}>) {
   context.translate(rotated.width / 2, rotated.height / 2);
   context.rotate((rotation * Math.PI) / HALF_TURN);
   context.drawImage(image, -image.width / 2, -image.height / 2);

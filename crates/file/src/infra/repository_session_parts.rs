@@ -18,6 +18,28 @@ struct ValidatedPartClaim {
     expected_size: i64,
 }
 
+pub(super) struct UploadPartCompletionRequest<'a> {
+    pub(super) actor: &'a FileAccessScope,
+    pub(super) receipt: PartReceipt,
+    pub(super) claim_token: &'a str,
+}
+
+pub(super) struct UploadPartClaimRelease<'a> {
+    pub(super) session_id: UploadId,
+    pub(super) part_number: PartNumber,
+    pub(super) claim_token: &'a str,
+}
+
+impl<'a> UploadPartClaimRelease<'a> {
+    pub(super) const fn new(session_id: UploadId, part_number: PartNumber, claim_token: &'a str) -> Self {
+        Self {
+            session_id,
+            part_number,
+            claim_token,
+        }
+    }
+}
+
 pub(super) async fn claim_upload_part(database: &Database, actor: &FileAccessScope, request: UploadPartClaimRequest) -> FileResult<UploadPartClaimResult> {
     let mut transaction = database.pool().begin().await.map_err(storage_error)?;
     let claim = validate_part_claim(&mut transaction, actor, request).await?;
@@ -131,7 +153,8 @@ async fn touch_session(transaction: &mut sqlx::Transaction<'_, Postgres>, sessio
     Ok(())
 }
 
-pub(super) async fn complete_upload_part(database: &Database, actor: &FileAccessScope, receipt: PartReceipt, claim_token: &str) -> FileResult<()> {
+pub(super) async fn complete_upload_part(database: &Database, request: UploadPartCompletionRequest<'_>) -> FileResult<()> {
+    let UploadPartCompletionRequest { actor, receipt, claim_token } = request;
     let mut transaction = database.pool().begin().await.map_err(storage_error)?;
     let session: Option<(String,)> = query_as(
         "SELECT session_id FROM file_upload_session WHERE session_id=$1 AND owner_user_id=$2 AND state='open' AND cleanup_claim_token IS NULL FOR UPDATE",
@@ -160,7 +183,12 @@ pub(super) async fn complete_upload_part(database: &Database, actor: &FileAccess
     transaction.commit().await.map_err(storage_error)
 }
 
-pub(super) async fn release_upload_part_claim(database: &Database, session_id: UploadId, part_number: PartNumber, claim_token: &str) -> FileResult<()> {
+pub(super) async fn release_upload_part_claim(database: &Database, request: UploadPartClaimRelease<'_>) -> FileResult<()> {
+    let UploadPartClaimRelease {
+        session_id,
+        part_number,
+        claim_token,
+    } = request;
     let result = query("DELETE FROM file_upload_part WHERE session_id=$1 AND part_number=$2 AND state='writing' AND claim_token=$3")
         .bind(session_id.to_string())
         .bind(i64::from(part_number.value()))

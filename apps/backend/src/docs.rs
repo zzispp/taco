@@ -1,4 +1,5 @@
-use axum::{Json, Router, routing::get};
+use axum::{Json, Router, http::StatusCode, routing::get};
+use serde::Serialize;
 use serde_json::Value;
 use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
@@ -13,8 +14,18 @@ pub fn router() -> Router {
             "/openapi.json",
             get({
                 let openapi = openapi.clone();
-                move || async move { Json::<Value>(serde_json::to_value(&openapi).expect("openapi should serialize")) }
+                move || {
+                    let openapi = openapi.clone();
+                    async move { openapi_json(&openapi) }
+                }
             }),
         )
         .merge(Scalar::with_url("/docs", openapi))
+}
+
+fn openapi_json(openapi: &impl Serialize) -> Result<Json<Value>, StatusCode> {
+    serde_json::to_value(openapi).map(Json).map_err(|error| {
+        taco_tracing::error_with_fields!("OpenAPI serialization failed", &error, component = "docs");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
 }

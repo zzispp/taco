@@ -59,6 +59,9 @@ Replace every `<...>` placeholder in the example with a real value. Configuratio
 - YAML has no environment-variable interpolation and no implicit defaults. Optional Redis fields must still be written explicitly as a value or `null`.
 - `data_directory` may be absolute or relative. A relative path is resolved from the YAML file's directory, and runtime receives only the resulting absolute path. The repository template's `../local-data` resolves to `./local-data` at the repository root. The Local File Provider always uses `<data_directory>/files` and maintains `objects/`, `parts/`, and `derivatives/` below it; there is no second configurable local-storage root.
 - YAML contains `server`, `data_directory`, `database`, `jwt`, `redis`, `user.online_sessions`, `http`, `metrics`, `audit`, `client_info`, and `scheduler`. Restart Taco after changing YAML; these values are not reloaded at runtime.
+- `database.pool` must explicitly set `max_connections`, `acquire_timeout_ms`, `idle_timeout_ms`, and `max_lifetime_ms`. They respectively limit pool capacity, the maximum wait for a connection, idle connection reaping, and one connection's lifetime; all values are milliseconds and must be greater than zero.
+- `database.session` must explicitly set `application_name`, `statement_timeout_ms`, `lock_timeout_ms`, and `idle_in_transaction_session_timeout_ms`. Taco applies them when every connection is established to identify the connection and bound statement execution, lock waits, and idle transaction occupancy; timeout values are milliseconds and must be greater than zero.
+- Pool and session parameters are startup infrastructure configuration. Changing them requires restarting the service or rerunning the corresponding migration command; they are never read from a connection URL, environment variable, or implicit default.
 
 Generate `jwt.secret` with:
 
@@ -82,19 +85,23 @@ cargo run -p backend --bin taco -- --config config/config.yaml
 
 ## Migrations And Initial Data
 
-`database.auto_migrate` is a required boolean:
+Service startup never applies migrations automatically. It uses only the runtime YAML to establish a least-privilege connection and check schema readiness; pending, dirty, or checksum-mismatched migrations make startup fail explicitly.
 
-- With `true`, Taco applies forward migrations and validates the schema before it accepts requests.
-- With `false`, Taco only validates the schema. Pending, dirty, or checksum-mismatched migrations make startup fail. Production should use `false` and run migrations as an explicit operator step.
+Production must maintain two independent, complete strict YAML files:
+
+- The runtime YAML contains only the least-privilege database identity used by Taco. It must not have `CREATE`, `ALTER`, `DROP`, database-creation, or migration-ledger permissions, and it is the only file mounted into the long-running service.
+- The migration YAML is used only by one-shot `migration status`/`migration up` commands and contains an isolated migration identity with elevated schema permissions. Do not mount it into the long-running service, commit it, or place its credentials in the runtime YAML. Pool and session values may be sized independently for the migration window.
+
+Both YAML files must contain every field from the template because configuration parsing rejects missing and unknown fields. Production PostgreSQL connections must use `database.ssl_mode: verify-full` with the issuing CA trusted by the runtime; `verify-ca` or disabled TLS is not an acceptable production identity-validation setting. The certificate hostname must match `database.host`.
 
 The schema operator subcommands are `migration status` and `migration up`:
 
 ```bash
-taco --config <CONFIG_PATH> migration status
-taco --config <CONFIG_PATH> migration up
+taco --config <MIGRATION_CONFIG_PATH> migration status
+taco --config <MIGRATION_CONFIG_PATH> migration up
 ```
 
-An unpublished development baseline with a rebuildable database may be changed destructively; rebuild that database and reapply every migration afterward. Every schema change for a deployed or data-retaining instance requires a new forward migration. Restart Taco after applying it so the process rebuilds its runtime dependencies against the validated schema. The administrator seed data creates only the system `admin` role and explicit menu bindings, not a user.
+Commands return success or failure directly to the caller; after a failed non-transactional online migration, never edit `_sqlx_migrations` by hand. An unpublished development baseline with a rebuildable database may be changed destructively; rebuild that database and reapply every migration afterward. Every schema change for a deployed or data-retaining instance requires a new forward migration. Restart Taco with the runtime YAML after applying it so the process rebuilds its runtime dependencies against the validated schema. The administrator seed data creates only the system `admin` role and explicit menu bindings, not a user.
 
 For a first deployment, or recovery when no enabled user is bound to the built-in `admin` (`system=true`) role, explicitly create the administrator before starting the service:
 
@@ -133,12 +140,12 @@ just services-up
 
 Rust integration tests read their PostgreSQL administrative connection from local `config/config.yaml`. Each test creates, connects to, and drops an isolated temporary database; it does not run migrations or write business tables in the database named by `database.name`. The configured PostgreSQL user must be allowed to create databases, terminate connections, and drop databases.
 
-The example configuration defaults `database.auto_migrate` to `false`. In the first terminal, apply migrations, create the first administrator, and start the backend:
+For local development, copy the template as the runtime configuration; a local database user may temporarily have both runtime and migration permissions, but production files must remain separate. In the first terminal, apply migrations, create the first administrator, and start the backend:
 
 ```bash
-just backend-migration up
+cargo run -p backend --bin taco -- --config config/config.yaml migration up
 cargo run -p backend --bin taco -- --config config/config.yaml administrator bootstrap --username <username> --email <email> --password-stdin
-just run-backend
+cargo run -p backend --bin taco -- --config config/config.yaml
 ```
 
 In the second terminal, start the standalone frontend:
@@ -163,7 +170,7 @@ Build the release executable:
 just build-release
 ```
 
-Production Compose runs Taco only. PostgreSQL and Redis are external, operator-managed dependencies. Put production YAML at `/etc/taco/config.yaml` and retain the template's `data_directory: ../local-data`. Compose mounts the configuration at `/app/config/config.yaml`, so that relative path resolves to `/app/local-data`, which the named `taco-data` volume persists. Production should set `database.auto_migrate` to `false`: a new database needs explicit migration and administrator bootstrap before its first start, while an existing instance is restarted after migration during an upgrade.
+Production Compose runs Taco only. PostgreSQL and Redis are external, operator-managed dependencies. Put the least-privilege runtime YAML at `/etc/taco/runtime.yaml` and the separate elevated migration YAML at a more restricted path such as `/etc/taco/migration.yaml`; keep both files mode `0600` and readable only by the command that needs them. Compose mounts only the runtime YAML into the long-running service. A new database must be migrated explicitly with the migration YAML before administrator bootstrap and service start; an existing instance is migrated first and restarted with the runtime YAML during an upgrade.
 
 Before editing `jwt.secret` in production YAML, build the image and generate a secret:
 
@@ -172,7 +179,7 @@ docker compose -f compose.production.yaml build taco
 docker compose -f compose.production.yaml run --rm taco secret generate-jwt
 ```
 
-Copy the output into `jwt.secret` in `/etc/taco/config.yaml`; do not commit that file or pass the secret through command arguments.
+Copy the output into `jwt.secret` in the host runtime and migration YAML files; do not commit those files or pass the secret through command arguments.
 
 Compose publishes only `127.0.0.1:3000`. The browser and `/api` must use one public origin. The proxy must strip client-supplied forwarding headers and write canonical `X-Forwarded-For`, `X-Forwarded-Host`, and `X-Forwarded-Proto` values. Do not expose `/metrics`, `/docs`, or `/openapi.json` publicly.
 

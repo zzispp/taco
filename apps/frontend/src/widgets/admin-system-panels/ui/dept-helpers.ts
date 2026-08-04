@@ -42,21 +42,28 @@ export function flattenDeptRows(depts: Dept[], expanded: string[]) {
   const roots = sortDepts(
     depts.filter((dept) => dept.parent_id === '0' || !ids.has(dept.parent_id))
   );
-  return roots.flatMap((dept) => flattenDeptBranch(depts, dept, 0, expanded));
+  return roots.flatMap((dept) => flattenDeptBranch({ depts, dept, level: 0, expanded }));
 }
 
-function flattenDeptBranch(
-  depts: Dept[],
-  dept: Dept,
-  level: number,
-  expanded: string[]
-): DeptRowView[] {
+function flattenDeptBranch({
+  depts,
+  dept,
+  level,
+  expanded,
+}: Readonly<{
+  depts: Dept[];
+  dept: Dept;
+  level: number;
+  expanded: string[];
+}>): DeptRowView[] {
   const children = sortDepts(depts.filter((child) => child.parent_id === dept.dept_id));
   const row = { dept, level, childCount: children.length };
   if (!expanded.includes(dept.dept_id)) return [row];
   return [
     row,
-    ...children.flatMap((child) => flattenDeptBranch(depts, child, level + 1, expanded)),
+    ...children.flatMap((child) =>
+      flattenDeptBranch({ depts, dept: child, level: level + 1, expanded })
+    ),
   ];
 }
 

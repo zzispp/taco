@@ -21,6 +21,7 @@ use crate::application::{DirectoryTrailEntry, FileContent, FileEntryView, FileOv
 
 type ApiResult<T> = Result<Json<T>, FileApiError>;
 type ScopedState = (State<FileApiState>, Extension<CurrentUser>, Extension<DataScopeFilter>);
+type DownloadFileRequest = (ScopedState, Option<Extension<OperationAuditContext>>, Path<String>, HeaderMap);
 
 #[require_perms("file:asset:list")]
 pub async fn list_files(
@@ -75,10 +76,7 @@ pub async fn list_file_providers(State(state): State<FileApiState>) -> ApiResult
 
 #[require_perms("file:asset:download")]
 pub async fn download_file(
-    (State(state), Extension(user), Extension(scope)): ScopedState,
-    audit: Option<Extension<OperationAuditContext>>,
-    Path(id): Path<String>,
-    headers: HeaderMap,
+    ((State(state), Extension(user), Extension(scope)), audit, Path(id), headers): DownloadFileRequest,
 ) -> Result<Response, FileApiError> {
     let request = FileReadRequest {
         id: parse_file_id(id)?,

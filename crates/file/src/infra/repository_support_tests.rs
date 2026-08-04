@@ -23,7 +23,12 @@ fn entry_sql(filter: &FileListQuery) -> String {
 }
 
 fn scope(mode: FileScopeMode, department_ids: Vec<String>) -> FileAccessScope {
-    FileAccessScope::scoped("actor", mode, Some("dept-1".into()), department_ids)
+    FileAccessScope::scoped(crate::application::FileAccessScopeInput {
+        user_id: "actor".into(),
+        mode,
+        department_id: Some("dept-1".into()),
+        department_ids,
+    })
 }
 
 #[test]

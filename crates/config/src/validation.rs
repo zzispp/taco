@@ -1,6 +1,29 @@
-use crate::{HttpSettings, Settings, SettingsError};
+use crate::{DatabaseSettings, HttpSettings, Settings, SettingsError};
+
+impl DatabaseSettings {
+    pub fn validate(&self) -> Result<(), SettingsError> {
+        self.url()?;
+        positive("database.pool.max_connections", self.pool.max_connections)?;
+        positive("database.pool.acquire_timeout_ms", self.pool.acquire_timeout_ms)?;
+        positive("database.pool.idle_timeout_ms", self.pool.idle_timeout_ms)?;
+        positive("database.pool.max_lifetime_ms", self.pool.max_lifetime_ms)?;
+        crate::settings::required_config_value("database.session.application_name", &self.session.application_name)?;
+        positive("database.session.statement_timeout_ms", self.session.statement_timeout_ms)?;
+        positive("database.session.lock_timeout_ms", self.session.lock_timeout_ms)?;
+        positive(
+            "database.session.idle_in_transaction_session_timeout_ms",
+            self.session.idle_in_transaction_session_timeout_ms,
+        )?;
+        Ok(())
+    }
+}
 
 impl Settings {
+    pub fn database_config(&self) -> Result<DatabaseSettings, SettingsError> {
+        self.database.validate()?;
+        Ok(self.database.clone())
+    }
+
     pub fn http_config(&self) -> Result<HttpSettings, SettingsError> {
         if self.http.request_timeout_ms == 0 {
             return Err(SettingsError::NonPositiveNumber("http.request_timeout_ms"));
@@ -45,7 +68,7 @@ impl Settings {
         validate_data_directory(&self.data_directory)?;
         crate::settings::required_config_value("server.host", &self.server.host)?;
         positive("server.port", self.server.port)?;
-        self.database_url()?;
+        self.database.validate()?;
         self.redis_url()?;
         self.jwt_secret()?;
         self.http_config()?;

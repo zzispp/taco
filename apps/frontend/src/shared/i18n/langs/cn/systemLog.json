@@ -36,9 +36,7 @@
     "deleteSuccess": "删除成功",
     "deleteFailure": "删除失败",
     "cleanAccepted": "清理任务已提交（执行编号：{{executionId}}）",
-    "cleanCompleted": "已清理 {{count}} 条日志，共 {{batches}} 批",
     "cleanFailure": "清理失败",
-    "cleanExecutionFailed": "清理任务未完成；已清理 {{count}} 条日志，共 {{batches}} 批",
     "cleanExecutionStatusFailure": "无法读取清理任务状态",
     "exportFailure": "导出失败",
     "listFailure": "加载系统日志失败",
@@ -48,10 +46,15 @@
   "cleanupStates": {
     "pending": "清理任务等待执行",
     "running": "清理任务正在执行",
-    "succeeded": "清理完成：{{count}} 条日志，{{batches}} 批",
-    "failed": "清理任务执行失败；已清理 {{count}} 条日志，共 {{batches}} 批",
-    "skipped": "清理任务已跳过；已清理 {{count}} 条日志，共 {{batches}} 批",
-    "interrupted": "清理任务已中断；已清理 {{count}} 条日志，共 {{batches}} 批"
+    "succeeded": "清理任务已完成。",
+    "failed": "清理任务执行失败。",
+    "skipped": "清理任务已跳过。",
+    "interrupted": "清理任务已中断。"
+  },
+  "cleanupMetrics": {
+    "current": "逐行删除：{{rowsDeleted}} 条。删除完整分区：{{droppedPartitions}} 个。已提交批次：{{batches}} 个。",
+    "legacy": "历史删除总数：{{legacyTotalDeleted}}。已提交批次：{{batches}} 个。该历史总数未区分日志行和分区。",
+    "unavailable": "没有可用的已提交清理统计。"
   },
   "table": {
     "actions": "操作",

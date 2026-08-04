@@ -30,6 +30,7 @@ kernel.workspace = true
 matchit.workspace = true
 metrics.workspace = true
 observability.workspace = true
+parking_lot.workspace = true
 rbac.workspace = true
 redis.workspace = true
 rand_core.workspace = true

@@ -46,7 +46,7 @@ pub(crate) fn build_public_router(settings: &Settings, metrics_handle: taco_trac
 
 pub fn create_app(state: AppState, settings: &Settings, metrics_handle: taco_tracing::MetricsHandle) -> BackendResult<Router> {
     let auth_state = auth_state(&state);
-    let api_router = create_api_router(&state).layer(middleware::from_fn_with_state(auth_state, auth_middleware));
+    let api_router = create_api_router(&state)?.layer(middleware::from_fn_with_state(auth_state, auth_middleware));
     let public = public_routes(system::HealthState::new(
         state.tracing_config_listener_health.clone(),
         state.system_log_runtime.clone(),
@@ -84,17 +84,17 @@ fn create_avatar_router(state: &AppState) -> Router {
     create_avatar_projection_router(AvatarProjectionApiState::new(state.users.clone(), avatar_storage))
 }
 
-fn create_api_router(state: &AppState) -> Router {
-    Router::new()
-        .merge(create_user_router(user_api_state(state)))
-        .merge(create_rbac_router(rbac_api_state(state)))
-        .merge(create_system_router(system_api_state(state)))
-        .merge(create_notice_router(NoticeApiState::new(state.notices.clone(), state.notices_audited.clone())))
-        .merge(create_captcha_router(CaptchaApiState::new(state.captcha.clone())))
-        .merge(create_file_router(FileApiState::new(state.files.clone(), state.audit_outbox.clone())))
-        .merge(create_audit_router(audit_api_state(state)))
-        .merge(create_system_log_router(system_log_api_state(state)))
-        .merge(create_scheduler_router(scheduler_api_state(state)))
+fn create_api_router(state: &AppState) -> BackendResult<Router> {
+    Ok(Router::new()
+        .merge(create_user_router(user_api_state(state))?)
+        .merge(create_rbac_router(rbac_api_state(state))?)
+        .merge(create_system_router(system_api_state(state))?)
+        .merge(create_notice_router(NoticeApiState::new(state.notices.clone(), state.notices_audited.clone()))?)
+        .merge(create_captcha_router(CaptchaApiState::new(state.captcha.clone()))?)
+        .merge(create_file_router(FileApiState::new(state.files.clone(), state.audit_outbox.clone()))?)
+        .merge(create_audit_router(audit_api_state(state))?)
+        .merge(create_system_log_router(system_log_api_state(state))?)
+        .merge(create_scheduler_router(scheduler_api_state(state))?))
 }
 
 fn user_api_state(state: &AppState) -> ApiState {

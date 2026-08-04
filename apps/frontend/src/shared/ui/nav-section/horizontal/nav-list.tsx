@@ -1,6 +1,6 @@
 'use client';
 
-import type { NavListProps, NavSubListProps } from '../types';
+import type { NavListProps, NavSubListProps, NavItemDataProps } from '../types';
 
 import { useEffect, useCallback } from 'react';
 import { usePopoverHover } from 'minimal-shared/hooks';
@@ -18,21 +18,28 @@ import { NavUl, NavLi, NavDropdown, NavDropdownPaper } from '../components';
 
 // ----------------------------------------------------------------------
 
-export function NavList({
-  data,
-  depth,
-  render,
-  cssVars,
-  slotProps,
-  checkPermissions,
-  enabledRootRedirect,
-}: NavListProps) {
+type NavMenuState = ReturnType<typeof useNavMenu>;
+
+export function NavList(props: NavListProps) {
+  const { data, checkPermissions } = props;
+  const menu = useNavMenu(data);
+
+  if (data.allowedRoles && checkPermissions && checkPermissions(data.allowedRoles)) {
+    return null;
+  }
+
+  return (
+    <NavLi disabled={data.disabled}>
+      <NavListItem {...props} menu={menu} />
+      <NavListDropdown {...props} menu={menu} />
+    </NavLi>
+  );
+}
+
+function useNavMenu(data: NavItemDataProps) {
   const theme = useTheme();
-
   const pathname = usePathname();
-
   const isActive = isActiveLink(pathname, data.path, data.deepMatch ?? !!data.children);
-
   const {
     open,
     onOpen,
@@ -40,12 +47,10 @@ export function NavList({
     anchorEl,
     elementRef: navItemRef,
   } = usePopoverHover<HTMLButtonElement>();
-
   const isRtl = theme.direction === 'rtl';
   const id = open ? `${data.title}-popover` : undefined;
 
   useEffect(() => {
-    // If the pathname changes, close the menu
     if (open) {
       onClose();
     }
@@ -58,94 +63,116 @@ export function NavList({
     }
   }, [data.children, onOpen]);
 
-  const renderNavItem = () => (
+  return { open, onClose, anchorEl, navItemRef, isActive, isRtl, id, handleOpenMenu };
+}
+
+type NavListItemProps = NavListProps & { menu: NavMenuState };
+
+function NavListItem({
+  data,
+  depth,
+  render,
+  slotProps,
+  enabledRootRedirect,
+  menu,
+}: NavListItemProps) {
+  return (
     <NavItem
-      ref={navItemRef}
-      aria-describedby={id}
-      // slots
+      ref={menu.navItemRef}
+      aria-describedby={menu.id}
       title={data.title}
       path={data.path}
       icon={data.icon}
       info={data.info}
       caption={data.caption}
-      // state
-      active={isActive}
-      open={open}
+      active={menu.isActive}
+      open={menu.open}
       disabled={data.disabled}
-      // options
       depth={depth}
       render={render}
       hasChild={!!data.children}
       externalLink={isExternalLink(data.path)}
       enabledRootRedirect={enabledRootRedirect}
-      // styles
       slotProps={depth === 1 ? slotProps?.rootItem : slotProps?.subItem}
-      // actions
-      onMouseEnter={handleOpenMenu}
-      onMouseLeave={onClose}
+      onMouseEnter={menu.handleOpenMenu}
+      onMouseLeave={menu.onClose}
     />
   );
+}
 
-  const renderDropdown = () =>
-    !!data.children && (
-      <NavDropdown
-        disableScrollLock
-        aria-hidden={!open}
-        id={id}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={
-          depth === 1
-            ? { vertical: 'bottom', horizontal: isRtl ? 'right' : 'left' }
-            : { vertical: 'center', horizontal: isRtl ? 'left' : 'right' }
-        }
-        transformOrigin={
-          depth === 1
-            ? { vertical: 'top', horizontal: isRtl ? 'right' : 'left' }
-            : { vertical: 'center', horizontal: isRtl ? 'right' : 'left' }
-        }
-        slotProps={{
-          paper: {
-            onMouseEnter: handleOpenMenu,
-            onMouseLeave: onClose,
-            className: navSectionClasses.dropdown.root,
-          },
-        }}
-        sx={{
-          ...cssVars,
-          [`& .${popoverClasses.paper}`]: {
-            ...(depth === 1 && { pt: 1, ml: -0.75 }),
-          },
-        }}
-      >
-        <NavDropdownPaper
-          className={navSectionClasses.dropdown.paper}
-          sx={slotProps?.dropdown?.paper}
-        >
-          <NavSubList
-            data={data.children}
-            depth={depth}
-            render={render}
-            cssVars={cssVars}
-            slotProps={slotProps}
-            checkPermissions={checkPermissions}
-            enabledRootRedirect={enabledRootRedirect}
-          />
-        </NavDropdownPaper>
-      </NavDropdown>
-    );
+type NavListDropdownProps = NavListProps & { menu: NavMenuState };
 
-  // Hidden item by role
-  if (data.allowedRoles && checkPermissions && checkPermissions(data.allowedRoles)) {
+function NavListDropdown({
+  data,
+  depth,
+  render,
+  cssVars,
+  slotProps,
+  checkPermissions,
+  enabledRootRedirect,
+  menu,
+}: NavListDropdownProps) {
+  if (!data.children) {
     return null;
   }
 
+  const { anchorOrigin, transformOrigin } = getPopoverOrigins(depth, menu.isRtl);
+
   return (
-    <NavLi disabled={data.disabled}>
-      {renderNavItem()}
-      {renderDropdown()}
-    </NavLi>
+    <NavDropdown
+      disableScrollLock
+      aria-hidden={!menu.open}
+      id={menu.id}
+      open={menu.open}
+      anchorEl={menu.anchorEl}
+      anchorOrigin={anchorOrigin}
+      transformOrigin={transformOrigin}
+      slotProps={{
+        paper: {
+          onMouseEnter: menu.handleOpenMenu,
+          onMouseLeave: menu.onClose,
+          className: navSectionClasses.dropdown.root,
+        },
+      }}
+      sx={getDropdownSx(cssVars, depth)}
+    >
+      <NavDropdownPaper
+        className={navSectionClasses.dropdown.paper}
+        sx={slotProps?.dropdown?.paper}
+      >
+        <NavSubList
+          data={data.children}
+          depth={depth}
+          render={render}
+          cssVars={cssVars}
+          slotProps={slotProps}
+          checkPermissions={checkPermissions}
+          enabledRootRedirect={enabledRootRedirect}
+        />
+      </NavDropdownPaper>
+    </NavDropdown>
   );
+}
+
+function getPopoverOrigins(depth: number | undefined, isRtl: boolean) {
+  return depth === 1
+    ? ({
+        anchorOrigin: { vertical: 'bottom', horizontal: isRtl ? 'right' : 'left' },
+        transformOrigin: { vertical: 'top', horizontal: isRtl ? 'right' : 'left' },
+      } as const)
+    : ({
+        anchorOrigin: { vertical: 'center', horizontal: isRtl ? 'left' : 'right' },
+        transformOrigin: { vertical: 'center', horizontal: isRtl ? 'right' : 'left' },
+      } as const);
+}
+
+function getDropdownSx(cssVars: NavListProps['cssVars'], depth: number | undefined) {
+  return {
+    ...cssVars,
+    [`& .${popoverClasses.paper}`]: {
+      ...(depth === 1 && { pt: 1, ml: -0.75 }),
+    },
+  };
 }
 
 // ----------------------------------------------------------------------

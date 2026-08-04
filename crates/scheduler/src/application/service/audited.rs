@@ -3,12 +3,13 @@ use audit_contract::AuditOutboxRecord;
 
 use crate::{
     application::{
-        ImportJobCommand, ManualExecutionRequest, ReplaceJobCommand, SchedulerAuditedUseCase, SchedulerError, SchedulerResult, UpdateJobStatusCommand,
+        ImportJobCommand, ManualExecutionRequest, ReplaceJobCommand, SchedulerAuditedUseCase, SchedulerError, SchedulerResult, SystemLogCleanupAuditRequest,
+        UpdateJobStatusCommand,
         service_support::{
             new_job, replacement, require_deletion_allowed, require_editable, require_runnable, require_status_change_allowed, validate_import,
             validate_replace,
         },
-        task::{SystemLogCleanupFilter, TaskParams},
+        task::TaskParams,
         tasks::{SYSTEM_LOG_CLEANUP_TASK_KEY, SystemLogCleanupParams, manual_system_log_cleanup_params},
         validation::validate_ids,
     },
@@ -63,21 +64,21 @@ impl SchedulerAuditedUseCase for SchedulerService {
         self.audited_commands.enqueue_manual_with_audit(request, audit).await
     }
 
-    async fn run_system_log_cleanup_with_audit(
-        &self,
-        id: &str,
-        filter: SystemLogCleanupFilter,
-        requested_by: &str,
-        audit: AuditOutboxRecord,
-    ) -> SchedulerResult<String> {
-        let job = self.query.find_job(id).await?;
+    async fn run_system_log_cleanup_with_audit(&self, request: SystemLogCleanupAuditRequest) -> SchedulerResult<String> {
+        let SystemLogCleanupAuditRequest {
+            job_id,
+            filter,
+            requested_by,
+            audit,
+        } = request;
+        let job = self.query.find_job(&job_id).await?;
         require_runnable(self.catalog.as_ref(), &job)?;
         let params = manual_system_log_cleanup_params(&job.task_params, filter)?;
         let request = ManualExecutionRequest {
             expected_revision: job.schedule_revision,
             snapshot: manual_cleanup_snapshot(&job, params)?,
             scheduled_at: self.clock.now().await?,
-            requested_by: requested_by.to_owned(),
+            requested_by,
         };
         self.audited_commands.enqueue_manual_with_audit(request, audit).await
     }

@@ -9,8 +9,7 @@ import TableBody from '@mui/material/TableBody';
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { TableNoData, CursorPagination } from 'src/shared/ui/table';
-
-import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
+import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/shared/ui/admin-common';
 
 import { SystemLogFiltersBar } from './filters';
 import { SystemLogRow } from './system-log-row';

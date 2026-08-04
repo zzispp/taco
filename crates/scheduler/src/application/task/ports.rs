@@ -102,7 +102,10 @@ pub trait SystemCacheRefreshPort: Send + Sync + 'static {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SystemLogCleanupResult {
-    pub deleted: u64,
+    /// Exact number of rows deleted by row-based cleanup.
+    pub rows_deleted: u64,
+    /// Number of complete system-log partitions that were dropped.
+    pub dropped_partitions: u64,
     /// Number of committed partition-drop or row-delete transactions.
     pub batches: u64,
 }

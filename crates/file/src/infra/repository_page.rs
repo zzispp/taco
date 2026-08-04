@@ -40,7 +40,7 @@ impl<'a> FileCursorCodec<'a> {
         Self { fingerprint, limit }
     }
 
-    pub(super) fn encode(self, direction: CursorDirection, boundary: &CursorBoundary) -> String {
+    pub(super) fn encode(self, direction: CursorDirection, boundary: &CursorBoundary) -> FileResult<String> {
         let cursor = PageCursor {
             sort_value: boundary.sort_value.clone(),
             id: boundary.id.clone(),
@@ -48,7 +48,8 @@ impl<'a> FileCursorCodec<'a> {
             fingerprint: self.fingerprint.to_owned(),
             limit: self.limit,
         };
-        URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).expect("file cursor serialization is infallible"))
+        let encoded = serde_json::to_vec(&cursor).map_err(|error| FileError::Infrastructure(format!("file cursor serialization failed: {error}")))?;
+        Ok(URL_SAFE_NO_PAD.encode(encoded))
     }
 
     pub(super) fn decode(self, cursor: &str) -> FileResult<PageCursor> {
@@ -114,30 +115,29 @@ impl<'a> FilePageContext<'a> {
     where
         F: Fn(&R) -> FileResult<CursorBoundary>,
     {
-        let Some(first) = records.first() else {
-            return Ok(self.empty_page_cursors());
+        let (Some(first), Some(last)) = (records.first(), records.last()) else {
+            return self.empty_page_cursors();
         };
-        let last = records.last().expect("a non-empty file cursor page has a last record");
         let from_cursor = self.cursor.is_some();
         let has_previous = from_cursor && (self.direction() == CursorDirection::Next || has_extra);
         let has_next = has_extra || (from_cursor && self.direction() == CursorDirection::Previous);
         let next = has_next
-            .then(|| boundary(last).map(|value| self.codec.encode(CursorDirection::Next, &value)))
+            .then(|| boundary(last).and_then(|value| self.codec.encode(CursorDirection::Next, &value)))
             .transpose()?;
         let previous = has_previous
-            .then(|| boundary(first).map(|value| self.codec.encode(CursorDirection::Previous, &value)))
+            .then(|| boundary(first).and_then(|value| self.codec.encode(CursorDirection::Previous, &value)))
             .transpose()?;
         Ok((next, previous))
     }
 
-    fn empty_page_cursors(&self) -> (Option<String>, Option<String>) {
+    fn empty_page_cursors(&self) -> FileResult<(Option<String>, Option<String>)> {
         let Some(cursor) = &self.cursor else {
-            return (None, None);
+            return Ok((None, None));
         };
         let boundary = CursorBoundary::new(cursor.sort_value.clone(), cursor.id.clone());
         match cursor.direction {
-            CursorDirection::Next => (None, Some(self.codec.encode(CursorDirection::Previous, &boundary))),
-            CursorDirection::Previous => (Some(self.codec.encode(CursorDirection::Next, &boundary)), None),
+            CursorDirection::Next => Ok((None, Some(self.codec.encode(CursorDirection::Previous, &boundary)?))),
+            CursorDirection::Previous => Ok((Some(self.codec.encode(CursorDirection::Next, &boundary)?), None)),
         }
     }
 }

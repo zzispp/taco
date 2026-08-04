@@ -1,11 +1,10 @@
 'use client';
 
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { AdminBreadcrumbs } from 'src/shared/ui/admin-common';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 
 import { useJobLogController } from 'src/features/scheduler-management';
-
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
 
 import { JobLogToolbar } from './toolbar';
 import { JobLogDialogs } from './job-log-dialogs';

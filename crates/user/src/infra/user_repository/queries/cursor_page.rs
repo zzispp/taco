@@ -1,5 +1,5 @@
 use crate::application::{
-    AppResult, UserListFilter,
+    AppError, AppResult, UserListFilter,
     cursor::{UserCursorCodec, UserCursorPoint, UserDecodedCursor, timestamp_from_nanos, timestamp_nanos},
 };
 use crate::domain::User;
@@ -118,7 +118,9 @@ fn page_cursors(records: &[UserRecord], build: CursorPageBuild<'_>, has_extra: b
     let Some(first) = records.first() else {
         return empty_page_cursors(build.codec, build.snapshot, build.window);
     };
-    let last = records.last().expect("a non-empty page has a last record");
+    let last = records
+        .last()
+        .ok_or_else(|| AppError::Infrastructure("user cursor page has a first record but no last record".into()))?;
     let has_previous = build.window.from_cursor && (build.window.direction == CursorDirection::Next || has_extra);
     let has_next = has_extra || (build.window.from_cursor && build.window.direction == CursorDirection::Previous);
     Ok(PageCursors {

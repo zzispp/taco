@@ -203,7 +203,7 @@ fn test_app_from_input(input: TestAppInput) -> TestApp {
         state = state.with_avatar_storage(avatar_storage).with_avatar_config(Arc::new(TestAvatarConfigProvider));
     }
     let router = Router::new()
-        .nest("/api", create_router(state))
+        .nest("/api", create_router(state).expect("user endpoint specifications must be valid"))
         .layer(Extension(input.current_user))
         .layer(Extension(input.data_scope))
         .layer(Extension(ConnectInfo(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 40000))))

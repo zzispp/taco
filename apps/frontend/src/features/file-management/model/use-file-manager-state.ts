@@ -141,6 +141,30 @@ export type UploadQueueItemPatch = Readonly<
   Partial<Pick<UploadQueueItem, 'digest' | 'progress' | 'status'>>
 >;
 
+type DirectoryAction = Extract<
+  FileManagerSpaceAction,
+  Readonly<{
+    type:
+      | 'select-space'
+      | 'enter-directory'
+      | 'leave-directory'
+      | 'replace-directory-trail'
+      | 'reset-directory';
+  }>
+>;
+
+type UploadAction = Extract<
+  FileManagerSpaceAction,
+  Readonly<{
+    type:
+      | 'open-upload'
+      | 'close-upload'
+      | 'append-upload-files'
+      | 'remove-upload-item'
+      | 'update-upload-item';
+  }>
+>;
+
 export function createFileManagerSpaceState(spaceId?: string): FileManagerSpaceState {
   return {
     spaceId,
@@ -173,35 +197,86 @@ export function fileManagerSpaceReducer(
   state: FileManagerSpaceState,
   action: FileManagerSpaceAction
 ): FileManagerSpaceState {
-  if (action.type === 'select-space') return createFileManagerSpaceState(action.spaceId);
-  if (action.type === 'enter-directory') {
-    return { ...state, directoryTrail: [...state.directoryTrail, action.directoryId] };
-  }
-  if (action.type === 'leave-directory') {
-    return { ...state, directoryTrail: state.directoryTrail.slice(0, -1) };
-  }
-  if (action.type === 'replace-directory-trail') {
-    if (sameDirectoryTrail(state.directoryTrail, action.directoryTrail)) return state;
-    return { ...state, directoryTrail: [...action.directoryTrail] };
-  }
-  if (action.type === 'reset-directory') return { ...state, directoryTrail: [] };
-  if (action.type === 'open-upload') return { ...state, uploadOpen: true, uploadItems: [] };
-  if (action.type === 'close-upload') return { ...state, uploadOpen: false, uploadItems: [] };
-  if (action.type === 'append-upload-files') {
-    return { ...state, uploadItems: [...state.uploadItems, ...createUploadQueue(action.files)] };
-  }
-  if (action.type === 'remove-upload-item') {
-    return { ...state, uploadItems: state.uploadItems.filter((item) => item.id !== action.id) };
-  }
-  if (action.type === 'update-upload-item') {
-    return {
-      ...state,
-      uploadItems: state.uploadItems.map((item) =>
-        item.id === action.id ? { ...item, ...action.patch } : item
-      ),
-    };
-  }
+  if (isDirectoryAction(action)) return reduceDirectoryAction(state, action);
+  if (isUploadAction(action)) return reduceUploadAction(state, action);
   return { ...state, ...action.patch };
+}
+
+function isDirectoryAction(action: FileManagerSpaceAction): action is DirectoryAction {
+  switch (action.type) {
+    case 'select-space':
+    case 'enter-directory':
+    case 'leave-directory':
+    case 'replace-directory-trail':
+    case 'reset-directory':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isUploadAction(action: FileManagerSpaceAction): action is UploadAction {
+  switch (action.type) {
+    case 'open-upload':
+    case 'close-upload':
+    case 'append-upload-files':
+    case 'remove-upload-item':
+    case 'update-upload-item':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function reduceDirectoryAction(
+  state: FileManagerSpaceState,
+  action: DirectoryAction
+): FileManagerSpaceState {
+  switch (action.type) {
+    case 'select-space':
+      return createFileManagerSpaceState(action.spaceId);
+    case 'enter-directory':
+      return { ...state, directoryTrail: [...state.directoryTrail, action.directoryId] };
+    case 'leave-directory':
+      return { ...state, directoryTrail: state.directoryTrail.slice(0, -1) };
+    case 'replace-directory-trail':
+      return sameDirectoryTrail(state.directoryTrail, action.directoryTrail)
+        ? state
+        : { ...state, directoryTrail: [...action.directoryTrail] };
+    case 'reset-directory':
+      return { ...state, directoryTrail: [] };
+    default:
+      return assertUnreachableAction(action);
+  }
+}
+
+function reduceUploadAction(
+  state: FileManagerSpaceState,
+  action: UploadAction
+): FileManagerSpaceState {
+  switch (action.type) {
+    case 'open-upload':
+      return { ...state, uploadOpen: true, uploadItems: [] };
+    case 'close-upload':
+      return { ...state, uploadOpen: false, uploadItems: [] };
+    case 'append-upload-files':
+      return { ...state, uploadItems: [...state.uploadItems, ...createUploadQueue(action.files)] };
+    case 'remove-upload-item':
+      return { ...state, uploadItems: state.uploadItems.filter((item) => item.id !== action.id) };
+    case 'update-upload-item':
+      return {
+        ...state,
+        uploadItems: state.uploadItems.map((item) =>
+          item.id === action.id ? { ...item, ...action.patch } : item
+        ),
+      };
+    default:
+      return assertUnreachableAction(action);
+  }
+}
+
+function assertUnreachableAction(action: never): never {
+  throw new Error(`Unhandled file manager action: ${JSON.stringify(action)}`);
 }
 
 function sameDirectoryTrail(left: readonly string[], right: readonly string[]) {

@@ -49,15 +49,15 @@ pub fn supports_thumbnail(content_type: Option<&str>) -> bool {
     )
 }
 
-pub fn bounded_text_preview(mut content: FileContent) -> FileContent {
+pub fn bounded_text_preview(mut content: FileContent) -> FileResult<FileContent> {
     if !is_text_preview(&content.metadata.content_type) {
-        return content;
+        return Ok(content);
     }
     content.metadata.content_type = "text/plain; charset=utf-8".into();
     content.metadata.truncated = content.metadata.size.bytes() > TEXT_PREVIEW_MAX_BYTES;
-    content.metadata.range = bounded_range(content.metadata.range);
+    content.metadata.range = bounded_range(content.metadata.range)?;
     content.body = limit_stream(content.body, TEXT_PREVIEW_MAX_BYTES);
-    content
+    Ok(content)
 }
 
 fn is_text_preview(content_type: &str) -> bool {
@@ -65,12 +65,14 @@ fn is_text_preview(content_type: &str) -> bool {
     matches!(normalized.as_deref(), Some("application/json" | "application/xml")) || normalized.is_some_and(|value| value.starts_with("text/"))
 }
 
-fn bounded_range(range: Option<crate::application::ByteRange>) -> Option<crate::application::ByteRange> {
-    let range = range?;
+fn bounded_range(range: Option<crate::application::ByteRange>) -> FileResult<Option<crate::application::ByteRange>> {
+    let Some(range) = range else {
+        return Ok(None);
+    };
     if range.byte_len() <= TEXT_PREVIEW_MAX_BYTES {
-        return Some(range);
+        return Ok(Some(range));
     }
-    Some(crate::application::ByteRange::new(range.start(), range.start() + TEXT_PREVIEW_MAX_BYTES).expect("bounded range remains non-empty"))
+    Ok(Some(crate::application::ByteRange::new(range.start(), range.start() + TEXT_PREVIEW_MAX_BYTES)?))
 }
 
 fn limit_stream(body: ObjectStream, limit: u64) -> ObjectStream {
@@ -139,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn text_preview_is_plain_text_bounded_and_marked_truncated() {
         let bytes = Bytes::from(vec![b'a'; TEXT_PREVIEW_MAX_BYTES as usize + 7]);
-        let content = bounded_text_preview(file_content("text/markdown", bytes));
+        let content = bounded_text_preview(file_content("text/markdown", bytes)).unwrap();
         let metadata = content.metadata;
         let body = content.body.try_collect::<Vec<_>>().await.unwrap().concat();
 

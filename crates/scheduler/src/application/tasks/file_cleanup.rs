@@ -53,7 +53,7 @@ impl ScheduledTask for PurgeTrashTask {
     async fn execute(&self, context: TaskExecutionContext, invocation: TaskInvocation) -> Result<TaskExecutionOutput, TaskExecutionFailure> {
         let params = decode_params::<PurgeTrashParams>(&invocation)?;
         let result = context.file_cleanup.purge_trash(params.retention_days, params.batch_size).await?;
-        Ok(TaskExecutionOutput::with_detail(FileTrashCleanupReport::from(result)))
+        TaskExecutionOutput::with_detail(FileTrashCleanupReport::from(result))
     }
 }
 
@@ -75,7 +75,7 @@ impl ScheduledTask for CleanupUploadSessionsTask {
     async fn execute(&self, context: TaskExecutionContext, invocation: TaskInvocation) -> Result<TaskExecutionOutput, TaskExecutionFailure> {
         let params = decode_params::<CleanupUploadSessionsParams>(&invocation)?;
         let result = context.file_cleanup.cleanup_upload_sessions(params.batch_size).await?;
-        Ok(TaskExecutionOutput::with_detail(FileUploadSessionCleanupReport::from(result)))
+        TaskExecutionOutput::with_detail(FileUploadSessionCleanupReport::from(result))
     }
 }
 

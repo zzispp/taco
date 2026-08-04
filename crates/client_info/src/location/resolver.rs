@@ -2,7 +2,7 @@ use std::{fmt::Display, net::IpAddr, net::Ipv4Addr, net::Ipv6Addr, time::Instant
 
 use async_trait::async_trait;
 use metrics::counter;
-use taco_tracing::{InfrastructureDependency, InfrastructureObserver};
+use taco_tracing::{InfrastructureDependency, InfrastructureObserver, InfrastructureOperation};
 
 use crate::{ClientInfoError, ClientInfoResult};
 
@@ -75,12 +75,12 @@ impl PublicIpLocationResolver {
     async fn lookup(&self, provider: &ProviderEndpoint, ip_address: &str) -> Result<ProviderLocation, ProviderFailure> {
         let started = Instant::now();
         let result = self.request_and_parse(provider, ip_address).await;
-        self.observer.record(
-            InfrastructureDependency::OutboundHttp,
-            IP_LOCATION_LOOKUP_OPERATION,
-            started.elapsed(),
-            result.is_ok(),
-        );
+        self.observer.record(InfrastructureOperation {
+            dependency: InfrastructureDependency::OutboundHttp,
+            operation: IP_LOCATION_LOOKUP_OPERATION,
+            elapsed: started.elapsed(),
+            succeeded: result.is_ok(),
+        });
         result
     }
 

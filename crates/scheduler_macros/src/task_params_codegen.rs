@@ -115,13 +115,18 @@ fn disabled_when(field: &FieldModel) -> proc_macro2::TokenStream {
 }
 
 fn default_tokens(model: &ParamsModel) -> proc_macro2::TokenStream {
-    let needs_container = model.serde.default.is_some()
-        && model
-            .fields
-            .iter()
-            .any(|field| !field.field_type.optional && field.attrs.default.is_none() && field.serde.default.is_none());
-    let container = needs_container.then(|| container_default(model.serde.default.as_ref().expect("presence checked")));
-    let entries = model.fields.iter().filter_map(|field| default_entry(field, needs_container));
+    let container = model
+        .serde
+        .default
+        .as_ref()
+        .filter(|_| {
+            model
+                .fields
+                .iter()
+                .any(|field| !field.field_type.optional && field.attrs.default.is_none() && field.serde.default.is_none())
+        })
+        .map(container_default);
+    let entries = model.fields.iter().filter_map(|field| default_entry(field, container.is_some()));
     quote! {
         #container
         let mut params = serde_json::Map::new();
@@ -183,8 +188,7 @@ fn validate_tokens(model: &ParamsModel) -> proc_macro2::TokenStream {
     let patterns = model
         .fields
         .iter()
-        .filter(|field| matches!(field.field_type.schema, SchemaType::String) && field.attrs.pattern.is_some())
-        .map(pattern_check);
+        .filter_map(|field| field.attrs.pattern.as_ref().map(|pattern| pattern_check(field, pattern)));
     let custom = model.attrs.validate_with.as_ref().map(|path| quote! { #path(&params)?; });
     quote! {
         scheduler::application::task::validate_param_object_keys(value, &[#(#names),*])?;
@@ -211,9 +215,8 @@ fn enum_check(field: &FieldModel) -> proc_macro2::TokenStream {
     quote! { scheduler::application::task::validate_param_enum(&params.#ident, &[#(#options),*])?; }
 }
 
-fn pattern_check(field: &FieldModel) -> proc_macro2::TokenStream {
+fn pattern_check(field: &FieldModel, pattern: &syn::LitStr) -> proc_macro2::TokenStream {
     let ident = &field.ident;
-    let pattern = field.attrs.pattern.as_ref().expect("caller filters patterns");
     if field.field_type.optional {
         return quote! {
             if let Some(value) = &params.#ident {

@@ -9,10 +9,9 @@ import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { getErrorMessage } from 'src/shared/lib/get-error-message';
 import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/shared/ui/admin-common';
 
 import { selectableSchedulerJobIds } from 'src/features/scheduler-management';
-
-import { TableLoadingRows, withSelectionHead, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { SchedulerJobRow } from './job-row';
 

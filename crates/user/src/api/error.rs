@@ -40,7 +40,10 @@ fn status_code(error: &AppError) -> StatusCode {
 }
 
 fn error_response(error: &AppError) -> ApiErrorResponse {
-    let locale = current_locale();
+    error_response_for_locale(error, current_locale())
+}
+
+fn error_response_for_locale(error: &AppError, locale: Locale) -> ApiErrorResponse {
     match error {
         AppError::InvalidCursor => localized_error_response(locale, ApiErrorKind::InvalidCursor, None),
         AppError::InvalidInput(message) => localized_error_response(locale, ApiErrorKind::InvalidInput, Some(message)),
@@ -81,13 +84,55 @@ fn import_validation_response(locale: Locale, failures: &[LocalizedError]) -> Ap
 mod tests {
     use axum::response::IntoResponse;
 
-    use super::{ApiError, StatusCode};
+    use super::{ApiError, StatusCode, error_response_for_locale, status_code};
     use crate::application::AppError;
+    use types::http::Locale;
 
     #[test]
     fn api_error_uses_new_api_http_status() {
         let response = ApiError(AppError::Unauthorized).into_response();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[test]
+    fn account_lock_response_uses_the_request_locale_and_named_parameter() {
+        let error = AppError::AccountLocked { lock_minutes: 3 };
+        let cases = [
+            (Locale::ZhCn, "无权限访问", "账号因密码连续错误已锁定3分钟"),
+            (Locale::En, "Forbidden", "Account is locked for 3 minutes after repeated password failures"),
+            (Locale::ZhTw, "無權限存取", "帳號因密碼連續錯誤已鎖定3分鐘"),
+        ];
+
+        assert_eq!(status_code(&error), StatusCode::FORBIDDEN);
+        for (locale, message, details) in cases {
+            let response = error_response_for_locale(&error, locale);
+
+            assert_eq!(response.code, "forbidden");
+            assert_eq!(response.message, message);
+            assert_eq!(response.details.as_deref(), Some(details));
+        }
+    }
+
+    #[test]
+    fn infrastructure_diagnostics_are_not_exposed_in_any_supported_locale() {
+        let diagnostic = "postgres password=raw-secret";
+        let error = AppError::Infrastructure(diagnostic.into());
+        let cases = [
+            (Locale::ZhCn, "服务异常", "服务暂不可用"),
+            (Locale::En, "Service error", "Service is temporarily unavailable"),
+            (Locale::ZhTw, "服務異常", "服務暫不可用"),
+        ];
+
+        assert_eq!(status_code(&error), StatusCode::INTERNAL_SERVER_ERROR);
+        for (locale, message, details) in cases {
+            let response = error_response_for_locale(&error, locale);
+            let serialized = serde_json::to_string(&response).unwrap();
+
+            assert_eq!(response.code, "infrastructure_error");
+            assert_eq!(response.message, message);
+            assert_eq!(response.details.as_deref(), Some(details));
+            assert!(!serialized.contains(diagnostic));
+        }
     }
 }

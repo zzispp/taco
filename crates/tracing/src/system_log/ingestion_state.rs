@@ -1,4 +1,4 @@
-use std::sync::{Mutex, MutexGuard};
+use parking_lot::{Mutex, MutexGuard};
 
 use metrics::{counter, gauge};
 
@@ -52,7 +52,7 @@ pub(super) struct IngestionState {
 
 struct IngestionSnapshot {
     accepting: bool,
-    queue_depth: u64,
+    queue_depth: usize,
     pending_events: u64,
     persisted_events: u64,
     dropped_events: u64,
@@ -76,7 +76,7 @@ impl IngestionState {
         let snapshot = self.lock_snapshot();
         SystemLogIngestionStatus {
             delivery_guarantee: SystemLogDeliveryGuarantee::BestEffort,
-            queue_depth: usize::try_from(snapshot.queue_depth).expect("system log queue depth must fit in usize"),
+            queue_depth: snapshot.queue_depth,
             queue_capacity: self.queue_capacity,
             pending_events: snapshot.pending_events,
             persisted_events: snapshot.persisted_events,
@@ -143,7 +143,7 @@ impl IngestionState {
 
     pub(super) fn record_dequeued(&self) {
         let mut snapshot = self.lock_snapshot();
-        snapshot.queue_depth = checked_sub(snapshot.queue_depth, 1, "system log queue depth accounting underflow");
+        snapshot.queue_depth = checked_sub_usize(snapshot.queue_depth, 1, "system log queue depth accounting underflow");
         gauge!(QUEUE_DEPTH_METRIC).set(snapshot.queue_depth as f64);
     }
 
@@ -168,6 +168,12 @@ impl IngestionState {
         reason
     }
 
+    pub(super) fn mark_writer_failure(&self, reason: &'static str) {
+        let mut snapshot = self.lock_snapshot();
+        snapshot.abnormal_writer_drop_reason = reason;
+        set_writer_healthy(&mut snapshot, false);
+    }
+
     #[cfg(test)]
     pub(super) fn discard_all_pending(&self, reason: &'static str) {
         let mut snapshot = self.lock_snapshot();
@@ -176,7 +182,7 @@ impl IngestionState {
     }
 
     fn lock_snapshot(&self) -> MutexGuard<'_, IngestionSnapshot> {
-        self.snapshot.lock().expect("system log ingestion state lock poisoned")
+        self.snapshot.lock()
     }
 }
 
@@ -198,11 +204,8 @@ impl IngestionSnapshot {
 
 fn record_accepted(snapshot: &mut IngestionSnapshot, queue_capacity: usize) {
     snapshot.pending_events = checked_add(snapshot.pending_events, 1, "system log pending event accounting overflow");
-    snapshot.queue_depth = checked_add(snapshot.queue_depth, 1, "system log queue depth accounting overflow");
-    assert!(
-        snapshot.queue_depth <= queue_capacity as u64,
-        "system log queue depth exceeded channel capacity"
-    );
+    snapshot.queue_depth = checked_add_usize(snapshot.queue_depth, 1, "system log queue depth accounting overflow");
+    assert!(snapshot.queue_depth <= queue_capacity, "system log queue depth exceeded channel capacity");
     gauge!(PENDING_METRIC).set(snapshot.pending_events as f64);
     gauge!(QUEUE_DEPTH_METRIC).set(snapshot.queue_depth as f64);
 }
@@ -252,6 +255,14 @@ fn checked_add(value: u64, count: u64, message: &'static str) -> u64 {
 }
 
 fn checked_sub(value: u64, count: u64, message: &'static str) -> u64 {
+    value.checked_sub(count).unwrap_or_else(|| panic!("{message}"))
+}
+
+fn checked_add_usize(value: usize, count: usize, message: &'static str) -> usize {
+    value.checked_add(count).unwrap_or_else(|| panic!("{message}"))
+}
+
+fn checked_sub_usize(value: usize, count: usize, message: &'static str) -> usize {
     value.checked_sub(count).unwrap_or_else(|| panic!("{message}"))
 }
 

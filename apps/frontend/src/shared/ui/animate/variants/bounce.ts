@@ -21,26 +21,20 @@ type Options = {
   transition?: Transition;
 };
 
-export const varBounce = (direction: Direction, options?: Options): Variants => {
-  const distance = options?.distance || 720;
+const DEFAULT_BOUNCE_DISTANCE = 720;
 
-  const variants: Record<Direction, Variants> = {
-    /**** In ****/
-    in: {
-      initial: {},
-      animate: {
-        scale: [0.3, 1.1, 0.9, 1.03, 0.97, 1],
-        opacity: [0, 1, 1, 1, 1, 1],
-        transition: transitionEnter(options?.transition),
-      },
-    },
+function createBounceVerticalInVariants(
+  distance: number,
+  transition?: Transition
+): Partial<Record<Direction, Variants>> {
+  return {
     inUp: {
       initial: {},
       animate: {
         y: [distance, -24, 12, -4, 0],
         scaleY: [4, 0.9, 0.95, 0.985, 1],
         opacity: [0, 1, 1, 1, 1],
-        transition: { ...transitionEnter(options?.transition) },
+        transition: transitionEnter(transition),
       },
     },
     inDown: {
@@ -49,16 +43,24 @@ export const varBounce = (direction: Direction, options?: Options): Variants => 
         y: [-distance, 24, -12, 4, 0],
         scaleY: [4, 0.9, 0.95, 0.985, 1],
         opacity: [0, 1, 1, 1, 1],
-        transition: transitionEnter(options?.transition),
+        transition: transitionEnter(transition),
       },
     },
+  };
+}
+
+function createBounceHorizontalInVariants(
+  distance: number,
+  transition?: Transition
+): Partial<Record<Direction, Variants>> {
+  return {
     inLeft: {
       initial: {},
       animate: {
         x: [-distance, 24, -12, 4, 0],
         scaleX: [3, 1, 0.98, 0.995, 1],
         opacity: [0, 1, 1, 1, 1],
-        transition: transitionEnter(options?.transition),
+        transition: transitionEnter(transition),
       },
     },
     inRight: {
@@ -67,15 +69,40 @@ export const varBounce = (direction: Direction, options?: Options): Variants => 
         x: [distance, -24, 12, -4, 0],
         scaleX: [3, 1, 0.98, 0.995, 1],
         opacity: [0, 1, 1, 1, 1],
-        transition: transitionEnter(options?.transition),
+        transition: transitionEnter(transition),
       },
     },
-    /**** Out ****/
+  };
+}
+
+function createBounceInVariants(
+  distance: number,
+  transition?: Transition
+): Partial<Record<Direction, Variants>> {
+  return {
+    in: {
+      initial: {},
+      animate: {
+        scale: [0.3, 1.1, 0.9, 1.03, 0.97, 1],
+        opacity: [0, 1, 1, 1, 1, 1],
+        transition: transitionEnter(transition),
+      },
+    },
+    ...createBounceVerticalInVariants(distance, transition),
+    ...createBounceHorizontalInVariants(distance, transition),
+  };
+}
+
+function createBounceOutVariants(
+  distance: number,
+  transition?: Transition
+): Partial<Record<Direction, Variants>> {
+  return {
     out: {
       animate: {
         scale: [0.9, 1.1, 0.3],
         opacity: [1, 1, 0],
-        transition: transitionExit(options?.transition),
+        transition: transitionExit(transition),
       },
     },
     outUp: {
@@ -83,7 +110,7 @@ export const varBounce = (direction: Direction, options?: Options): Variants => 
         y: [-12, 24, -distance],
         scaleY: [0.985, 0.9, 3],
         opacity: [1, 1, 0],
-        transition: transitionExit(options?.transition),
+        transition: transitionExit(transition),
       },
     },
     outDown: {
@@ -91,7 +118,7 @@ export const varBounce = (direction: Direction, options?: Options): Variants => 
         y: [12, -24, distance],
         scaleY: [0.985, 0.9, 3],
         opacity: [1, 1, 0],
-        transition: transitionExit(options?.transition),
+        transition: transitionExit(transition),
       },
     },
     outLeft: {
@@ -99,7 +126,7 @@ export const varBounce = (direction: Direction, options?: Options): Variants => 
         x: [0, 24, -distance],
         scaleX: [1, 0.9, 2],
         opacity: [1, 1, 0],
-        transition: transitionExit(options?.transition),
+        transition: transitionExit(transition),
       },
     },
     outRight: {
@@ -107,10 +134,17 @@ export const varBounce = (direction: Direction, options?: Options): Variants => 
         x: [0, -24, distance],
         scaleX: [1, 0.9, 2],
         opacity: [1, 1, 0],
-        transition: transitionExit(options?.transition),
+        transition: transitionExit(transition),
       },
     },
   };
+}
 
-  return variants[direction];
+export const varBounce = (direction: Direction, options?: Options): Variants => {
+  const distance = options?.distance || DEFAULT_BOUNCE_DISTANCE;
+  const variants = {
+    ...createBounceInVariants(distance, options?.transition),
+    ...createBounceOutVariants(distance, options?.transition),
+  };
+  return variants[direction] as Variants;
 };

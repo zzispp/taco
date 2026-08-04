@@ -1,13 +1,15 @@
 use std::{
     fmt,
     ops::Deref,
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
+use configuration::{DatabaseSessionSettings, DatabaseSettings};
 use futures_util::StreamExt;
+use parking_lot::RwLock;
 use sqlx::{
-    Either, Execute, Executor, PgPool, Postgres, Transaction,
+    Either, Execute, Executor, PgConnection, PgPool, Postgres, Transaction,
     pool::PoolConnection,
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
     query,
@@ -50,7 +52,7 @@ impl Database {
     pub fn pool(&self) -> ObservedPgPool {
         ObservedPgPool {
             pool: self.inner.pool.clone(),
-            observer: self.inner.observer.read().unwrap().clone(),
+            observer: self.inner.observer.read().clone(),
         }
     }
 
@@ -59,7 +61,7 @@ impl Database {
     }
 
     pub fn set_postgres_observer(&self, observer: Arc<dyn PostgresOperationObserver>) {
-        *self.inner.observer.write().unwrap() = Some(observer);
+        *self.inner.observer.write() = Some(observer);
     }
 
     pub fn next_id(&self) -> String {
@@ -200,9 +202,46 @@ impl OperationRecorder {
     }
 }
 
-pub async fn connect_database(database_url: &str) -> StorageResult<Database> {
-    let pool = PgPoolOptions::new().connect(database_url).await?;
+pub async fn connect_database(settings: &DatabaseSettings) -> StorageResult<Database> {
+    settings
+        .validate()
+        .map_err(|error| StorageError::Database(format!("invalid database configuration: {error}")))?;
+    let database_url = settings
+        .url()
+        .map_err(|error| StorageError::Database(format!("invalid database configuration: {error}")))?;
+    let session = Arc::new(settings.session.clone());
+    let pool = PgPoolOptions::new()
+        .max_connections(settings.pool.max_connections)
+        .acquire_timeout(Duration::from_millis(settings.pool.acquire_timeout_ms))
+        .idle_timeout(Duration::from_millis(settings.pool.idle_timeout_ms))
+        .max_lifetime(Duration::from_millis(settings.pool.max_lifetime_ms))
+        .after_connect(move |connection, _| {
+            let session = Arc::clone(&session);
+            Box::pin(async move { apply_session_settings(connection, &session).await })
+        })
+        .connect(&database_url)
+        .await?;
     Ok(Database::new(pool))
+}
+
+async fn apply_session_settings(connection: &mut PgConnection, settings: &DatabaseSessionSettings) -> Result<(), sqlx::Error> {
+    query(
+        "SELECT set_config('application_name', $1, false), \
+                set_config('statement_timeout', $2, false), \
+                set_config('lock_timeout', $3, false), \
+                set_config('idle_in_transaction_session_timeout', $4, false)",
+    )
+    .bind(&settings.application_name)
+    .bind(timeout_value(settings.statement_timeout_ms))
+    .bind(timeout_value(settings.lock_timeout_ms))
+    .bind(timeout_value(settings.idle_in_transaction_session_timeout_ms))
+    .execute(connection)
+    .await?;
+    Ok(())
+}
+
+fn timeout_value(milliseconds: u64) -> String {
+    format!("{milliseconds}ms")
 }
 
 pub fn to_i64(value: u64) -> StorageResult<i64> {

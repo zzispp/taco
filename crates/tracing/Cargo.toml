@@ -11,6 +11,7 @@ axum.workspace = true
 bytes.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
+parking_lot.workspace = true
 kernel.workspace = true
 http-body.workspace = true
 serde.workspace = true

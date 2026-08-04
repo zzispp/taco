@@ -10,9 +10,7 @@ import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-
 
 import { useConfigs } from 'src/entities/system';
 
-import { systemMutations } from 'src/features/system-management';
-
-import { SystemCrudPanel } from 'src/widgets/system-crud-panel';
+import { systemMutations , SystemCrudPanel } from 'src/features/system-management';
 
 import { ConfigToolbar } from './config-toolbar';
 import { DEFAULT_CONFIG_INPUT, DEFAULT_CONFIG_FILTERS } from './config-constants';

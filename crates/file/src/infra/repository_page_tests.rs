@@ -11,7 +11,7 @@ const FINGERPRINT: &str = "file-query";
 #[test]
 fn cursor_round_trip_preserves_navigation_direction() {
     let codec = FileCursorCodec::new(FINGERPRINT, LIMIT);
-    let token = codec.encode(CursorDirection::Previous, &CursorBoundary::new("alpha", "entry-1"));
+    let token = codec.encode(CursorDirection::Previous, &CursorBoundary::new("alpha", "entry-1")).unwrap();
 
     let decoded = codec.decode(&token).unwrap();
 
@@ -24,7 +24,9 @@ fn cursor_round_trip_preserves_navigation_direction() {
 
 #[test]
 fn cursor_rejects_changed_filter_or_limit() {
-    let token = FileCursorCodec::new(FINGERPRINT, LIMIT).encode(CursorDirection::Next, &CursorBoundary::new("alpha", "entry-1"));
+    let token = FileCursorCodec::new(FINGERPRINT, LIMIT)
+        .encode(CursorDirection::Next, &CursorBoundary::new("alpha", "entry-1"))
+        .unwrap();
 
     assert_eq!(
         FileCursorCodec::new("different-query", LIMIT).decode(&token),
@@ -54,7 +56,9 @@ fn first_page_only_exposes_the_next_boundary() {
 
 #[test]
 fn previous_page_restores_logical_order_and_forward_navigation() {
-    let token = FileCursorCodec::new(FINGERPRINT, LIMIT).encode(CursorDirection::Previous, &CursorBoundary::new("gamma", "gamma"));
+    let token = FileCursorCodec::new(FINGERPRINT, LIMIT)
+        .encode(CursorDirection::Previous, &CursorBoundary::new("gamma", "gamma"))
+        .unwrap();
     let context = context(Some(&token));
 
     let page = context.build_page(vec!["beta", "alpha"], string_boundary).unwrap();
@@ -70,7 +74,9 @@ fn previous_page_restores_logical_order_and_forward_navigation() {
 
 #[test]
 fn empty_forward_page_exposes_the_opposite_recovery_cursor() {
-    let token = FileCursorCodec::new(FINGERPRINT, LIMIT).encode(CursorDirection::Next, &CursorBoundary::new("beta", "beta"));
+    let token = FileCursorCodec::new(FINGERPRINT, LIMIT)
+        .encode(CursorDirection::Next, &CursorBoundary::new("beta", "beta"))
+        .unwrap();
     let context = context(Some(&token));
 
     let page = context.build_page::<&str, _>(Vec::new(), string_boundary).unwrap();

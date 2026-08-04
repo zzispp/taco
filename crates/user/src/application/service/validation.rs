@@ -6,11 +6,21 @@ use std::sync::LazyLock;
 use crate::application::{AppError, AppResult, PasswordPolicy, UserListFilter};
 use crate::domain::{Credentials, NewUser, ProfileUpdate, ReplaceUser};
 
-static EMAIL_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").expect("email regex must compile"));
-static PHONE_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^1[3-9]\d{9}$").expect("phone regex must compile"));
+static EMAIL_PATTERN: LazyLock<Regex> = LazyLock::new(|| compile_validation_regex(r"^[^\s@]+@[^\s@]+\.[^\s@]+$"));
+static PHONE_PATTERN: LazyLock<Regex> = LazyLock::new(|| compile_validation_regex(r"^1[3-9]\d{9}$"));
 
 const USERNAME_MIN_LENGTH: usize = 3;
 const USERNAME_MAX_LENGTH: usize = 30;
+
+fn compile_validation_regex(pattern: &'static str) -> Regex {
+    match Regex::new(pattern) {
+        Ok(regex) => regex,
+        Err(error) => {
+            eprintln!("user validation regex is invalid: {error}");
+            std::process::abort();
+        }
+    }
+}
 
 pub(super) fn validate_credentials(input: &Credentials) -> AppResult<()> {
     reject_blank("identifier", &input.identifier)?;

@@ -27,7 +27,9 @@ use crate::{
 #[tokio::test]
 async fn export_route_delegates_to_application_and_streams_the_workbook() {
     let captured = Arc::new(Mutex::new(None));
-    let app = create_router(state(captured.clone())).layer(middleware::from_fn(types::http::locale_middleware));
+    let app = create_router(state(captured.clone()))
+        .expect("system log endpoint specifications must be valid")
+        .layer(middleware::from_fn(types::http::locale_middleware));
     let response = app
         .oneshot(
             Request::post("/system/system-logs/export?begin_time=2026-07-20T00%3A00%3A00Z&end_time=2026-07-20T23%3A59%3A59Z")
@@ -59,6 +61,7 @@ async fn single_delete_marks_operation_audit_persisted_after_repository_success(
     let context = operation_context();
     let logs = Arc::new(DeleteLogs::new(false));
     let response = create_router(delete_state(logs.clone()))
+        .expect("system log endpoint specifications must be valid")
         .layer(Extension(context.clone()))
         .oneshot(Request::delete("/system/system-logs/log-1").body(Body::empty()).unwrap())
         .await
@@ -74,6 +77,7 @@ async fn batch_delete_leaves_operation_audit_unpersisted_when_repository_fails()
     let context = operation_context();
     let logs = Arc::new(DeleteLogs::new(true));
     let response = create_router(delete_state(logs.clone()))
+        .expect("system log endpoint specifications must be valid")
         .layer(Extension(context.clone()))
         .oneshot(
             Request::delete("/system/system-logs/batch")

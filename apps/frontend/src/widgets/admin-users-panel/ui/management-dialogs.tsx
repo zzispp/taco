@@ -5,77 +5,48 @@ import type { Post, TreeSelectNode } from 'src/entities/system';
 
 import { UserDialog, PasswordDialog, RoleAssignDialog, UserImportDialog } from './dialogs';
 
-export function UserManagementDialogs({
-  form,
-  roles,
-  posts,
-  deptTree,
-  editing,
-  creating,
-  submitting,
-  roleTarget,
-  assignedRoles,
-  passwordTarget,
-  newPassword,
-  importOpen,
-  importFile,
-  updateSupport,
-  setForm,
-  onDialogClose,
-  onUserSubmit,
-  onAssignedRolesChange,
-  onRoleClose,
-  onRolesSubmit,
-  onPasswordChange,
-  onPasswordClose,
-  onPasswordSubmit,
-  onImportFileChange,
-  onUpdateSupportChange,
-  onImportTemplate,
-  onImportClose,
-  onImportSubmit,
-}: UserManagementDialogsProps) {
+export function UserManagementDialogs(props: UserManagementDialogsProps) {
   return (
     <>
       <UserDialog
-        open={creating || !!editing}
-        editing={!!editing}
-        submitting={submitting}
-        form={form}
-        roles={roles}
-        depts={deptTree}
-        posts={posts}
-        setForm={setForm}
-        onClose={onDialogClose}
-        onSubmit={onUserSubmit}
+        open={props.creating || !!props.editing}
+        editing={Boolean(props.editing)}
+        submitting={props.submitting}
+        form={props.form}
+        roles={props.roles}
+        depts={props.deptTree}
+        posts={props.posts}
+        setForm={props.setForm}
+        onClose={props.onDialogClose}
+        onSubmit={props.onUserSubmit}
       />
       <RoleAssignDialog
-        user={roleTarget}
-        roles={roles}
-        selected={assignedRoles}
-        submitting={submitting}
-        onSelectedChange={onAssignedRolesChange}
-        onClose={onRoleClose}
-        onSubmit={onRolesSubmit}
+        user={props.roleTarget}
+        roles={props.roles}
+        selected={props.assignedRoles}
+        submitting={props.submitting}
+        onSelectedChange={props.onAssignedRolesChange}
+        onClose={props.onRoleClose}
+        onSubmit={props.onRolesSubmit}
       />
       <PasswordDialog
-        user={passwordTarget}
-        password={newPassword}
-        submitting={submitting}
-        onPasswordChange={onPasswordChange}
-        onClose={onPasswordClose}
-        onSubmit={onPasswordSubmit}
+        user={props.passwordTarget}
+        password={props.newPassword}
+        submitting={props.submitting}
+        onPasswordChange={props.onPasswordChange}
+        onClose={props.onPasswordClose}
+        onSubmit={props.onPasswordSubmit}
       />
       <UserImportDialog
-        open={importOpen}
-        file={importFile}
-        updateSupport={updateSupport}
-        submitting={submitting}
-        onFileChange={onImportFileChange}
-        onUpdateSupportChange={onUpdateSupportChange}
-        onTemplate={onImportTemplate}
-        onClose={onImportClose}
-        onSubmit={onImportSubmit}
+        open={props.importOpen}
+        file={props.importFile}
+        updateSupport={props.updateSupport}
+        submitting={props.submitting}
+        onFileChange={props.onImportFileChange}
+        onUpdateSupportChange={props.onUpdateSupportChange}
+        onTemplate={props.onImportTemplate}
+        onClose={props.onImportClose}
+        onSubmit={props.onImportSubmit}
       />
     </>
   );

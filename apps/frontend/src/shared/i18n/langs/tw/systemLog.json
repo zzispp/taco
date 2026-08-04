@@ -36,9 +36,7 @@
     "deleteSuccess": "刪除成功",
     "deleteFailure": "刪除失敗",
     "cleanAccepted": "清理任務已提交（執行編號：{{executionId}}）",
-    "cleanCompleted": "已清理 {{count}} 筆日誌，共 {{batches}} 批",
     "cleanFailure": "清理失敗",
-    "cleanExecutionFailed": "清理任務未完成；已清理 {{count}} 筆日誌，共 {{batches}} 批",
     "cleanExecutionStatusFailure": "無法讀取清理任務狀態",
     "exportFailure": "匯出失敗",
     "listFailure": "載入系統日誌失敗",
@@ -48,10 +46,15 @@
   "cleanupStates": {
     "pending": "清理任務等待執行",
     "running": "清理任務正在執行",
-    "succeeded": "清理完成：{{count}} 筆日誌，{{batches}} 批",
-    "failed": "清理任務執行失敗；已清理 {{count}} 筆日誌，共 {{batches}} 批",
-    "skipped": "清理任務已跳過；已清理 {{count}} 筆日誌，共 {{batches}} 批",
-    "interrupted": "清理任務已中斷；已清理 {{count}} 筆日誌，共 {{batches}} 批"
+    "succeeded": "清理任務已完成。",
+    "failed": "清理任務執行失敗。",
+    "skipped": "清理任務已跳過。",
+    "interrupted": "清理任務已中斷。"
+  },
+  "cleanupMetrics": {
+    "current": "逐行刪除：{{rowsDeleted}} 筆。刪除完整分區：{{droppedPartitions}} 個。已提交批次：{{batches}} 個。",
+    "legacy": "歷史刪除總數：{{legacyTotalDeleted}}。已提交批次：{{batches}} 個。該歷史總數未區分日誌列和分區。",
+    "unavailable": "沒有可用的已提交清理統計。"
   },
   "table": {
     "actions": "操作",

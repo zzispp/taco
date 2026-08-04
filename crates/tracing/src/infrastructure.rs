@@ -26,6 +26,13 @@ pub struct InfrastructureObserver {
     state: RuntimeTracingState,
 }
 
+pub struct InfrastructureOperation {
+    pub dependency: InfrastructureDependency,
+    pub operation: &'static str,
+    pub elapsed: Duration,
+    pub succeeded: bool,
+}
+
 impl InfrastructureObserver {
     pub fn new(state: RuntimeTracingState) -> Self {
         Self { state }
@@ -37,26 +44,31 @@ impl InfrastructureObserver {
     {
         let started = std::time::Instant::now();
         let result = future.await;
-        self.record(dependency, operation, started.elapsed(), result.is_ok());
+        self.record(InfrastructureOperation {
+            dependency,
+            operation,
+            elapsed: started.elapsed(),
+            succeeded: result.is_ok(),
+        });
         result
     }
 
-    pub fn record(&self, dependency: InfrastructureDependency, operation: &'static str, elapsed: Duration, succeeded: bool) {
-        let threshold = threshold(&self.state, dependency);
-        if !succeeded {
+    pub fn record(&self, input: InfrastructureOperation) {
+        let threshold = threshold(&self.state, input.dependency);
+        if !input.succeeded {
             return crate::error_with_fields!(
                 "infrastructure operation failed",
-                dependency = dependency.code(),
-                operation = operation,
-                duration = DurationMs(elapsed)
+                dependency = input.dependency.code(),
+                operation = input.operation,
+                duration = DurationMs(input.elapsed)
             );
         }
-        if elapsed >= threshold {
+        if input.elapsed >= threshold {
             crate::warn_with_fields!(
                 "slow infrastructure operation",
-                dependency = dependency.code(),
-                operation = operation,
-                duration = DurationMs(elapsed),
+                dependency = input.dependency.code(),
+                operation = input.operation,
+                duration = DurationMs(input.elapsed),
                 threshold = DurationMs(threshold)
             );
         }

@@ -1,4 +1,4 @@
-use crate::application::{FileListQuery, FileManagementRepository};
+use crate::application::{FileListQuery, FileManagementRepository, FileSpaceListRequest};
 use crate::domain::{ByteSize, DirectoryId, SpaceId};
 
 use super::*;
@@ -56,16 +56,21 @@ async fn file_space_pages_return_to_the_previous_batch() {
     let scope = FileAccessScope::all("actor");
 
     let first = repository
-        .list_spaces(&scope, space_query(None), page_request(None), DEFAULT_QUOTA)
+        .list_spaces(FileSpaceListRequest {
+            actor: &scope,
+            query: space_query(None),
+            page: page_request(None),
+            default_quota: DEFAULT_QUOTA,
+        })
         .await
         .unwrap();
     let second = repository
-        .list_spaces(
-            &scope,
-            space_query(first.next_cursor.clone()),
-            page_request(first.next_cursor.clone()),
-            DEFAULT_QUOTA,
-        )
+        .list_spaces(FileSpaceListRequest {
+            actor: &scope,
+            query: space_query(first.next_cursor.clone()),
+            page: page_request(first.next_cursor.clone()),
+            default_quota: DEFAULT_QUOTA,
+        })
         .await
         .unwrap();
     let first_ids = space_ids(&first.items);
@@ -73,7 +78,12 @@ async fn file_space_pages_return_to_the_previous_batch() {
     let previous_cursor = second.previous_cursor.clone();
     let returned = match previous_cursor.clone() {
         Some(cursor) => repository
-            .list_spaces(&scope, space_query(Some(cursor.clone())), page_request(Some(cursor)), DEFAULT_QUOTA)
+            .list_spaces(FileSpaceListRequest {
+                actor: &scope,
+                query: space_query(Some(cursor.clone())),
+                page: page_request(Some(cursor)),
+                default_quota: DEFAULT_QUOTA,
+            })
             .await
             .unwrap(),
         None => kernel::pagination::CursorPage::new(Vec::new(), None, None),
@@ -139,24 +149,34 @@ async fn drifted_space_boundary_returns_an_opposite_recovery_cursor() {
     let repository = repository(&database);
     let scope = FileAccessScope::all("actor");
     let first = repository
-        .list_spaces(&scope, updated_space_query(None), page_request(None), DEFAULT_QUOTA)
+        .list_spaces(FileSpaceListRequest {
+            actor: &scope,
+            query: updated_space_query(None),
+            page: page_request(None),
+            default_quota: DEFAULT_QUOTA,
+        })
         .await
         .unwrap();
     move_space_positions_forward(database.pool()).await;
 
     let stale = repository
-        .list_spaces(
-            &scope,
-            updated_space_query(first.next_cursor.clone()),
-            page_request(first.next_cursor),
-            DEFAULT_QUOTA,
-        )
+        .list_spaces(FileSpaceListRequest {
+            actor: &scope,
+            query: updated_space_query(first.next_cursor.clone()),
+            page: page_request(first.next_cursor),
+            default_quota: DEFAULT_QUOTA,
+        })
         .await
         .unwrap();
     let recovery = stale.previous_cursor.clone();
     let returned = match recovery.clone() {
         Some(cursor) => repository
-            .list_spaces(&scope, updated_space_query(Some(cursor.clone())), page_request(Some(cursor)), DEFAULT_QUOTA)
+            .list_spaces(FileSpaceListRequest {
+                actor: &scope,
+                query: updated_space_query(Some(cursor.clone())),
+                page: page_request(Some(cursor)),
+                default_quota: DEFAULT_QUOTA,
+            })
             .await
             .unwrap(),
         None => kernel::pagination::CursorPage::new(Vec::new(), None, None),

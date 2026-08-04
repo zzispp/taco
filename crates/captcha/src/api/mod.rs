@@ -14,12 +14,12 @@ pub use state::CaptchaApiState;
 
 use self::handlers::{challenge, config, redeem};
 
-pub fn create_router(state: CaptchaApiState) -> Router {
+pub fn create_router(state: CaptchaApiState) -> Result<Router, audit_contract::EndpointSpecError> {
     use self::endpoints::{CHALLENGE, CONFIG, REDEEM};
 
-    Router::new()
-        .route(CONFIG.api_route_path(), get(config))
-        .route(CHALLENGE.api_route_path(), post(challenge))
-        .route(REDEEM.api_route_path(), post(redeem))
-        .with_state(state)
+    Ok(Router::new()
+        .route(CONFIG.api_route_path()?, get(config))
+        .route(CHALLENGE.api_route_path()?, post(challenge))
+        .route(REDEEM.api_route_path()?, post(redeem))
+        .with_state(state))
 }

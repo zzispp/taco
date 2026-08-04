@@ -10,12 +10,11 @@ import TableCell from '@mui/material/TableCell';
 import IconButton from '@mui/material/IconButton';
 
 import { Iconify } from 'src/shared/ui/iconify';
+import { StatusLabel } from 'src/shared/ui/admin-common';
 import { useTranslate } from 'src/shared/i18n/use-locales';
 import { fAdminDateTime } from 'src/shared/lib/admin-time';
 
 import { useHasPermission } from 'src/entities/session';
-
-import { StatusLabel } from 'src/widgets/admin-common';
 
 import { DATE_TIME_CELL_SX } from './dept-helpers';
 

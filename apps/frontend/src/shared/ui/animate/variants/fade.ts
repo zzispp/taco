@@ -22,13 +22,14 @@ type Options = {
   transitionOut?: Transition;
 };
 
-export const varFade = (direction: Direction, options?: Options): Variants => {
-  const distance = options?.distance || 120;
-  const transitionIn = options?.transitionIn;
-  const transitionOut = options?.transitionOut;
+const DEFAULT_FADE_DISTANCE = 120;
 
-  const variants: Record<Direction, Variants> = {
-    /**** In ****/
+function createFadeInVariants(
+  distance: number,
+  transitionIn?: Transition,
+  transitionOut?: Transition
+): Partial<Record<Direction, Variants>> {
+  return {
     in: {
       initial: { opacity: 0 },
       animate: { opacity: 1, transition: transitionEnter() },
@@ -54,7 +55,15 @@ export const varFade = (direction: Direction, options?: Options): Variants => {
       animate: { x: 0, opacity: 1, transition: transitionEnter(transitionIn) },
       exit: { x: distance, opacity: 0, transition: transitionExit(transitionOut) },
     },
-    /**** Out ****/
+  };
+}
+
+function createFadeOutVariants(
+  distance: number,
+  transitionIn?: Transition,
+  transitionOut?: Transition
+): Partial<Record<Direction, Variants>> {
+  return {
     out: {
       initial: { opacity: 1 },
       animate: { opacity: 0, transition: transitionEnter(transitionIn) },
@@ -62,41 +71,32 @@ export const varFade = (direction: Direction, options?: Options): Variants => {
     },
     outUp: {
       initial: { y: 0, opacity: 1 },
-      animate: {
-        y: -distance,
-        opacity: 0,
-        transition: transitionEnter(transitionIn),
-      },
+      animate: { y: -distance, opacity: 0, transition: transitionEnter(transitionIn) },
       exit: { y: 0, opacity: 1, transition: transitionExit(transitionOut) },
     },
     outDown: {
       initial: { y: 0, opacity: 1 },
-      animate: {
-        y: distance,
-        opacity: 0,
-        transition: transitionEnter(transitionIn),
-      },
+      animate: { y: distance, opacity: 0, transition: transitionEnter(transitionIn) },
       exit: { y: 0, opacity: 1, transition: transitionExit(transitionOut) },
     },
     outLeft: {
       initial: { x: 0, opacity: 1 },
-      animate: {
-        x: -distance,
-        opacity: 0,
-        transition: transitionEnter(transitionIn),
-      },
+      animate: { x: -distance, opacity: 0, transition: transitionEnter(transitionIn) },
       exit: { x: 0, opacity: 1, transition: transitionExit(transitionOut) },
     },
     outRight: {
       initial: { x: 0, opacity: 1 },
-      animate: {
-        x: distance,
-        opacity: 0,
-        transition: transitionEnter(transitionIn),
-      },
+      animate: { x: distance, opacity: 0, transition: transitionEnter(transitionIn) },
       exit: { x: 0, opacity: 1, transition: transitionExit(transitionOut) },
     },
   };
+}
 
-  return variants[direction];
+export const varFade = (direction: Direction, options?: Options): Variants => {
+  const distance = options?.distance || DEFAULT_FADE_DISTANCE;
+  const variants = {
+    ...createFadeInVariants(distance, options?.transitionIn, options?.transitionOut),
+    ...createFadeOutVariants(distance, options?.transitionIn, options?.transitionOut),
+  };
+  return variants[direction] as Variants;
 };

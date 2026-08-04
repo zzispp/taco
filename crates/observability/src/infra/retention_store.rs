@@ -31,6 +31,19 @@ WHERE inheritance.inhparent = 'public.sys_system_log'::regclass
 ORDER BY child.relname
 "#;
 const PARTITION_PREFIX: &str = "sys_system_log_";
+const PARTITION_DROPPED_MARKER: i64 = 1;
+
+struct BoundaryCleanup {
+    cutoff: OffsetDateTime,
+    limit: i64,
+    report: SystemLogRetentionReport,
+}
+
+struct BoundaryDeleteBatch {
+    start: OffsetDateTime,
+    cutoff: OffsetDateTime,
+    limit: i64,
+}
 
 pub(super) async fn cleanup_before(pool: &PgPool, cutoff: OffsetDateTime, boundary_batch_size: u64) -> ObservabilityResult<SystemLogRetentionReport> {
     let cutoff = cutoff.to_offset(UtcOffset::UTC);
@@ -38,14 +51,14 @@ pub(super) async fn cleanup_before(pool: &PgPool, cutoff: OffsetDateTime, bounda
     let partitions = expired_partition_names(pool, cutoff).await?;
     let mut report = SystemLogRetentionReport::default();
     for partition in partitions {
-        let deleted = drop_partition(pool, &partition, cutoff)
+        let dropped = drop_partition(pool, &partition, cutoff)
             .await
             .map_err(|error| partial_cleanup_error(report, error))?;
-        if let Some(deleted) = deleted {
-            report = record_batch(report, deleted).map_err(|error| partial_cleanup_error(report, error))?;
+        if dropped {
+            report = record_dropped_partition(report).map_err(|error| partial_cleanup_error(report, error))?;
         }
     }
-    cleanup_boundary(pool, cutoff, limit, report).await
+    cleanup_boundary(pool, BoundaryCleanup { cutoff, limit, report }).await
 }
 
 async fn expired_partition_names(pool: &PgPool, cutoff: OffsetDateTime) -> ObservabilityResult<Vec<String>> {
@@ -71,45 +84,51 @@ fn partition_end(name: &str) -> ObservabilityResult<OffsetDateTime> {
     Ok(next.with_time(Time::MIDNIGHT).assume_utc())
 }
 
-async fn drop_partition(pool: &PgPool, name: &str, cutoff: OffsetDateTime) -> ObservabilityResult<Option<u64>> {
-    let count = query_scalar::<_, Option<i64>>("SELECT drop_expired_system_log_partition($1,$2)")
+async fn drop_partition(pool: &PgPool, name: &str, cutoff: OffsetDateTime) -> ObservabilityResult<bool> {
+    let marker = query_scalar::<_, Option<i64>>("SELECT drop_expired_system_log_partition($1,$2)")
         .bind(name)
         .bind(cutoff)
         .fetch_one(pool)
         .await
         .map_err(mapping::sqlx_error)?;
-    count
-        .map(|value| {
-            u64::try_from(value).map_err(|error| ObservabilityError::Infrastructure(format!("system log partition row count conversion failed: {error}")))
-        })
-        .transpose()
+    match marker {
+        None => Ok(false),
+        Some(PARTITION_DROPPED_MARKER) => Ok(true),
+        Some(value) => Err(ObservabilityError::Infrastructure(format!(
+            "system log partition drop function returned unexpected marker: {value}"
+        ))),
+    }
 }
 
-async fn cleanup_boundary(
-    pool: &PgPool,
-    cutoff: OffsetDateTime,
-    limit: i64,
-    mut report: SystemLogRetentionReport,
-) -> ObservabilityResult<SystemLogRetentionReport> {
+async fn cleanup_boundary(pool: &PgPool, cleanup: BoundaryCleanup) -> ObservabilityResult<SystemLogRetentionReport> {
+    let BoundaryCleanup { cutoff, limit, mut report } = cleanup;
     let boundary_start = cutoff.replace_time(Time::MIDNIGHT);
     if boundary_start == cutoff {
         return Ok(report);
     }
     loop {
-        let deleted = delete_boundary_batch(pool, boundary_start, cutoff, limit)
-            .await
-            .map_err(|error| partial_cleanup_error(report, error))?;
+        let deleted = delete_boundary_batch(
+            pool,
+            BoundaryDeleteBatch {
+                start: boundary_start,
+                cutoff,
+                limit,
+            },
+        )
+        .await
+        .map_err(|error| partial_cleanup_error(report, error))?;
         if deleted == 0 {
             return Ok(report);
         }
-        report = record_batch(report, deleted).map_err(|error| partial_cleanup_error(report, error))?;
+        report = record_rows_deleted(report, deleted).map_err(|error| partial_cleanup_error(report, error))?;
     }
 }
 
-async fn delete_boundary_batch(pool: &PgPool, boundary_start: OffsetDateTime, cutoff: OffsetDateTime, limit: i64) -> ObservabilityResult<u64> {
+async fn delete_boundary_batch(pool: &PgPool, batch: BoundaryDeleteBatch) -> ObservabilityResult<u64> {
+    let BoundaryDeleteBatch { start, cutoff, limit } = batch;
     let mut transaction = pool.begin().await.map_err(mapping::sqlx_error)?;
     let count = query_scalar::<_, i64>(BOUNDARY_DELETE_SQL)
-        .bind(boundary_start)
+        .bind(start)
         .bind(cutoff)
         .bind(limit)
         .fetch_one(&mut *transaction)
@@ -119,12 +138,27 @@ async fn delete_boundary_batch(pool: &PgPool, boundary_start: OffsetDateTime, cu
     u64::try_from(count).map_err(|error| ObservabilityError::Infrastructure(format!("system log boundary cleanup count conversion failed: {error}")))
 }
 
-fn record_batch(report: SystemLogRetentionReport, deleted: u64) -> ObservabilityResult<SystemLogRetentionReport> {
+fn record_rows_deleted(report: SystemLogRetentionReport, deleted: u64) -> ObservabilityResult<SystemLogRetentionReport> {
     Ok(SystemLogRetentionReport {
-        deleted: report
-            .deleted
+        rows_deleted: report
+            .rows_deleted
             .checked_add(deleted)
             .ok_or_else(|| ObservabilityError::Infrastructure("system log cleanup deleted count overflow".into()))?,
+        dropped_partitions: report.dropped_partitions,
+        batches: report
+            .batches
+            .checked_add(1)
+            .ok_or_else(|| ObservabilityError::Infrastructure("system log cleanup batch count overflow".into()))?,
+    })
+}
+
+fn record_dropped_partition(report: SystemLogRetentionReport) -> ObservabilityResult<SystemLogRetentionReport> {
+    Ok(SystemLogRetentionReport {
+        rows_deleted: report.rows_deleted,
+        dropped_partitions: report
+            .dropped_partitions
+            .checked_add(1)
+            .ok_or_else(|| ObservabilityError::Infrastructure("system log cleanup partition count overflow".into()))?,
         batches: report
             .batches
             .checked_add(1)

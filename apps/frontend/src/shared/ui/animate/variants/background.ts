@@ -4,12 +4,48 @@ import type { Variants, Transition, TargetAndTransition } from 'framer-motion';
 
 type Direction = 'top' | 'bottom' | 'left' | 'right';
 
+const ANIMATION_DURATION_SECONDS = 5;
+
+type PanSettings = {
+  angle: number;
+  startPosition: string;
+  endPosition: string;
+  backgroundSize: string;
+};
+
+const panSettings: Record<Direction, PanSettings> = {
+  top: {
+    angle: 0,
+    startPosition: 'center 99%',
+    endPosition: 'center 1%',
+    backgroundSize: '100% 600%',
+  },
+  right: {
+    angle: 270,
+    startPosition: '1% center',
+    endPosition: '99% center',
+    backgroundSize: '600% 100%',
+  },
+  bottom: {
+    angle: 0,
+    startPosition: 'center 1%',
+    endPosition: 'center 99%',
+    backgroundSize: '100% 600%',
+  },
+  left: {
+    angle: 270,
+    startPosition: '99% center',
+    endPosition: '1% center',
+    backgroundSize: '600% 100%',
+  },
+};
+
 export const varBgColor = (colors: string[], options?: TargetAndTransition): Variants => ({
   animate: {
     background: colors,
     ...options,
     transition: {
-      duration: 5,
+      duration: ANIMATION_DURATION_SECONDS,
       ease: 'linear',
       repeat: Infinity,
       repeatType: 'reverse',
@@ -22,7 +58,7 @@ export const varBgColor = (colors: string[], options?: TargetAndTransition): Var
 
 export const varBgKenburns = (direction: Direction, options?: TargetAndTransition): Variants => {
   const transition: Transition = {
-    duration: 5,
+    duration: ANIMATION_DURATION_SECONDS,
     ease: 'easeOut',
     ...options?.transition,
   };
@@ -78,54 +114,23 @@ export const varBgPan = (
   colors: string[],
   options?: TargetAndTransition
 ): Variants => {
-  const gradient = (deg: number) => `linear-gradient(${deg}deg, ${colors.join(', ')})`;
-
+  const settings = panSettings[direction];
+  const gradient = `linear-gradient(${settings.angle}deg, ${colors.join(', ')})`;
   const transition: Transition = {
-    duration: 5,
+    duration: ANIMATION_DURATION_SECONDS,
     ease: 'linear',
     repeat: Infinity,
     repeatType: 'reverse',
     ...options?.transition,
   };
 
-  const variants: Record<Direction, Variants> = {
-    top: {
-      animate: {
-        backgroundImage: [gradient(0), gradient(0)],
-        backgroundPosition: ['center 99%', 'center 1%'],
-        backgroundSize: ['100% 600%', '100% 600%'],
-        ...options,
-        transition,
-      },
-    },
-    right: {
-      animate: {
-        backgroundImage: [gradient(270), gradient(270)],
-        backgroundPosition: ['1% center', '99% center'],
-        backgroundSize: ['600% 100%', '600% 100%'],
-        ...options,
-        transition,
-      },
-    },
-    bottom: {
-      animate: {
-        backgroundImage: [gradient(0), gradient(0)],
-        backgroundPosition: ['center 1%', 'center 99%'],
-        backgroundSize: ['100% 600%', '100% 600%'],
-        ...options,
-        transition,
-      },
-    },
-    left: {
-      animate: {
-        backgroundPosition: ['99% center', '1% center'],
-        backgroundImage: [gradient(270), gradient(270)],
-        backgroundSize: ['600% 100%', '600% 100%'],
-        ...options,
-        transition,
-      },
+  return {
+    animate: {
+      backgroundImage: [gradient, gradient],
+      backgroundPosition: [settings.startPosition, settings.endPosition],
+      backgroundSize: [settings.backgroundSize, settings.backgroundSize],
+      ...options,
+      transition,
     },
   };
-
-  return variants[direction];
 };

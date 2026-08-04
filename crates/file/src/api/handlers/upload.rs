@@ -6,21 +6,53 @@ use rbac_macros::{require_any_perms, require_perms};
 
 use crate::api::{
     FileApiError, FileApiState,
-    dto::{BeginUploadPayload, CompleteUploadPayload, file_scope, parse_upload_id, part_command},
+    dto::{BeginUploadPayload, CompleteUploadPayload, PartCommandInput, file_scope, parse_upload_id, part_command},
 };
 use crate::application::{BeginUploadResult, FileEntryView, PartReceiptResponse, UploadSessionResponse};
 use crate::error::keys;
 use crate::{FileError, FileResult};
 
 const IDEMPOTENCY_HEADER: &str = "idempotency-key";
+type CreateUploadSessionRequest = (
+    State<FileApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    HeaderMap,
+    axum::Json<BeginUploadPayload>,
+);
+type GetUploadSessionRequest = (
+    State<FileApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    axum::extract::Path<String>,
+);
+type WriteUploadPartRequest = (
+    State<FileApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    HeaderMap,
+    axum::extract::Path<(String, u32)>,
+    Body,
+);
+type CompleteUploadSessionRequest = (
+    State<FileApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    Option<Extension<OperationAuditContext>>,
+    axum::extract::Path<String>,
+    types::http::RequestJson<CompleteUploadPayload>,
+);
+type CancelUploadSessionRequest = (
+    State<FileApiState>,
+    Extension<CurrentUser>,
+    Extension<DataScopeFilter>,
+    Option<Extension<OperationAuditContext>>,
+    axum::extract::Path<String>,
+);
 
 #[require_perms("file:asset:upload")]
 pub async fn create_upload_session(
-    State(state): State<FileApiState>,
-    Extension(user): Extension<CurrentUser>,
-    Extension(scope): Extension<DataScopeFilter>,
-    headers: HeaderMap,
-    axum::Json(payload): axum::Json<BeginUploadPayload>,
+    (State(state), Extension(user), Extension(scope), headers, axum::Json(payload)): CreateUploadSessionRequest,
 ) -> Result<Json<BeginUploadResult>, FileApiError> {
     let key = idempotency_key(&headers)?.ok_or(FileError::InvalidInput(keys::IDEMPOTENCY_KEY_REQUIRED))?;
     let command = payload.into_command(&user.id, key)?;
@@ -30,10 +62,7 @@ pub async fn create_upload_session(
 
 #[require_any_perms("file:asset:upload", "file:upload:manage")]
 pub async fn get_upload_session(
-    State(state): State<FileApiState>,
-    Extension(user): Extension<CurrentUser>,
-    Extension(scope): Extension<DataScopeFilter>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    (State(state), Extension(user), Extension(scope), axum::extract::Path(id)): GetUploadSessionRequest,
 ) -> Result<Json<UploadSessionResponse>, FileApiError> {
     let response = state.files.get_upload_session(file_scope(&user, &scope), parse_upload_id(id)?).await?;
     Ok(Json(response))
@@ -41,12 +70,7 @@ pub async fn get_upload_session(
 
 #[require_perms("file:asset:upload")]
 pub async fn write_upload_part(
-    State(state): State<FileApiState>,
-    Extension(user): Extension<CurrentUser>,
-    Extension(scope): Extension<DataScopeFilter>,
-    headers: HeaderMap,
-    axum::extract::Path((id, part_number)): axum::extract::Path<(String, u32)>,
-    body: Body,
+    (State(state), Extension(user), Extension(scope), headers, axum::extract::Path((id, part_number)), body): WriteUploadPartRequest,
 ) -> Result<Json<PartReceiptResponse>, FileApiError> {
     let digest = headers
         .get("x-content-sha256")
@@ -55,7 +79,12 @@ pub async fn write_upload_part(
     let stream = body
         .into_data_stream()
         .map(|chunk| chunk.map_err(|error| FileError::Infrastructure(format!("upload request body failed: {error}"))));
-    let command = part_command(parse_upload_id(id)?, part_number, digest, Box::pin(stream))?;
+    let command = part_command(PartCommandInput {
+        session_id: parse_upload_id(id)?,
+        part_number,
+        digest: digest.to_owned(),
+        body: Box::pin(stream),
+    })?;
     let receipt = state.files.write_upload_part(file_scope(&user, &scope), command).await?;
     Ok(Json(PartReceiptResponse {
         part_number: receipt.part_number.value(),
@@ -66,12 +95,7 @@ pub async fn write_upload_part(
 
 #[require_perms("file:asset:upload")]
 pub async fn complete_upload_session(
-    State(state): State<FileApiState>,
-    Extension(user): Extension<CurrentUser>,
-    Extension(scope): Extension<DataScopeFilter>,
-    audit: Option<Extension<OperationAuditContext>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    types::http::RequestJson(payload): types::http::RequestJson<CompleteUploadPayload>,
+    (State(state), Extension(user), Extension(scope), audit, axum::extract::Path(id), types::http::RequestJson(payload)): CompleteUploadSessionRequest,
 ) -> Result<Json<FileEntryView>, FileApiError> {
     validate_complete_payload(payload)?;
     let entry = state.files.complete_upload_session(file_scope(&user, &scope), parse_upload_id(id)?).await?;
@@ -81,11 +105,7 @@ pub async fn complete_upload_session(
 
 #[require_any_perms("file:asset:upload", "file:upload:manage")]
 pub async fn cancel_upload_session(
-    State(state): State<FileApiState>,
-    Extension(user): Extension<CurrentUser>,
-    Extension(scope): Extension<DataScopeFilter>,
-    audit: Option<Extension<OperationAuditContext>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    (State(state), Extension(user), Extension(scope), audit, axum::extract::Path(id)): CancelUploadSessionRequest,
 ) -> Result<Json<()>, FileApiError> {
     state.files.cancel_upload_session(file_scope(&user, &scope), parse_upload_id(id)?).await?;
     state.record_operation(audit).await?;

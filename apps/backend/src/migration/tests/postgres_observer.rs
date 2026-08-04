@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use sqlx::query_scalar;
 use storage::{Database, PostgresOperationObserver};
 use taco_tracing::{
-    HttpLogCaptureConfig, InfrastructureDependency, InfrastructureObserver, RuntimeTracingConfig, RuntimeTracingState, SlowOperationThresholds, SystemLogEvent,
-    SystemLogLayer, SystemLogSink, TracingLevel, start_system_log_runtime_with_state,
+    HttpLogCaptureConfig, InfrastructureDependency, InfrastructureObserver, InfrastructureOperation, RuntimeTracingConfig, RuntimeTracingState,
+    SlowOperationThresholds, SystemLogEvent, SystemLogLayer, SystemLogSink, TracingLevel, start_system_log_runtime_with_state,
 };
 use tracing_subscriber::{Registry, layer::SubscriberExt};
 
@@ -85,7 +85,12 @@ struct TracingPostgresObserver {
 
 impl PostgresOperationObserver for TracingPostgresObserver {
     fn record(&self, operation: &'static str, elapsed: Duration, succeeded: bool) {
-        self.observer.record(InfrastructureDependency::Postgres, operation, elapsed, succeeded);
+        self.observer.record(InfrastructureOperation {
+            dependency: InfrastructureDependency::Postgres,
+            operation,
+            elapsed,
+            succeeded,
+        });
     }
 }
 

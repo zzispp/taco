@@ -37,7 +37,34 @@ pub struct DatabaseSettings {
     pub username: String,
     pub password: String,
     pub name: String,
-    pub auto_migrate: bool,
+    pub pool: DatabasePoolSettings,
+    pub session: DatabaseSessionSettings,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DatabasePoolSettings {
+    /// Maximum number of PostgreSQL connections this process may hold.
+    pub max_connections: u32,
+    /// Maximum time spent waiting for a connection from the pool.
+    pub acquire_timeout_ms: u64,
+    /// Idle connection reaping interval.
+    pub idle_timeout_ms: u64,
+    /// Maximum lifetime of one pooled connection.
+    pub max_lifetime_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DatabaseSessionSettings {
+    /// PostgreSQL application_name assigned to every runtime connection.
+    pub application_name: String,
+    /// Maximum execution time for one SQL statement.
+    pub statement_timeout_ms: u64,
+    /// Maximum time spent waiting for a PostgreSQL lock.
+    pub lock_timeout_ms: u64,
+    /// Maximum time an idle transaction may retain a connection.
+    pub idle_in_transaction_session_timeout_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]

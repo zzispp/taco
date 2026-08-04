@@ -136,13 +136,22 @@ fn resolve_disabled_target<'a>(
 }
 
 fn validate_disabled_values(field: &FieldModel, target: &DisabledTarget) -> syn::Result<()> {
+    let path = field
+        .attrs
+        .disabled_when_path
+        .as_ref()
+        .ok_or_else(|| syn::Error::new_spanned(&field.ident, "disabled_when_path is required when disabled_when_values is present"))?;
     let Some(expected) = scalar_kind(&target.schema) else {
         return Err(syn::Error::new_spanned(
-            field.attrs.disabled_when_path.as_ref().expect("validated condition path"),
+            path,
             "disabled_when_path must reference a String, bool, or numeric field",
         ));
     };
-    let values = field.attrs.disabled_when_values.as_deref().expect("validated condition values");
+    let values = field
+        .attrs
+        .disabled_when_values
+        .as_deref()
+        .ok_or_else(|| syn::Error::new_spanned(path, "disabled_when_values is required when disabled_when_path is present"))?;
     for value in values {
         if value.kind() != expected {
             return Err(syn::Error::new_spanned(

@@ -115,15 +115,22 @@ mod tests {
     fn infrastructure_response_does_not_expose_diagnostics() {
         let diagnostic = "postgres password=raw-secret";
         let error = SchedulerError::Infrastructure(diagnostic.into());
-
-        let response = localized_response(&error, Locale::En);
-        let serialized = serde_json::to_string(&response).unwrap();
+        let cases = [
+            (Locale::ZhCn, "服务异常", "服务暂不可用"),
+            (Locale::En, "Service error", "Service is temporarily unavailable"),
+            (Locale::ZhTw, "服務異常", "服務暫不可用"),
+        ];
 
         assert_eq!(status_code(&error), StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(response.code, "infrastructure_error");
-        assert_eq!(response.message, "Service error");
-        assert_eq!(response.details.as_deref(), Some("Service is temporarily unavailable"));
-        assert!(!serialized.contains(diagnostic));
+        for (locale, message, details) in cases {
+            let response = localized_response(&error, locale);
+            let serialized = serde_json::to_string(&response).unwrap();
+
+            assert_eq!(response.code, "infrastructure_error");
+            assert_eq!(response.message, message);
+            assert_eq!(response.details.as_deref(), Some(details));
+            assert!(!serialized.contains(diagnostic));
+        }
     }
 
     #[test]

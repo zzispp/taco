@@ -142,32 +142,38 @@ function AccountLinks({
       ) : null}
       <MenuList disablePadding>
         {data.map((option) => (
-          <MenuItem key={option.key}>
-            <Link
-              component={RouterLink}
-              href={option.href}
-              color="inherit"
-              underline="none"
-              onClick={onClose}
-              sx={{
-                p: 1,
-                width: 1,
-                display: 'flex',
-                typography: 'body2',
-                alignItems: 'center',
-                color: 'text.secondary',
-                '& svg': { width: 24, height: 24 },
-                '&:hover': { color: 'text.primary' },
-              }}
-            >
-              {option.icon}
-              <Box component="span" sx={{ ml: 2 + (option.depth ?? 0) * 1.5 }}>
-                {option.label}
-              </Box>
-            </Link>
-          </MenuItem>
+          <AccountLinkItem key={option.key} option={option} onClose={onClose} />
         ))}
       </MenuList>
     </Box>
+  );
+}
+
+function AccountLinkItem({ option, onClose }: { option: AccountLink; onClose: () => void }) {
+  return (
+    <MenuItem>
+      <Link
+        component={RouterLink}
+        href={option.href}
+        color="inherit"
+        underline="none"
+        onClick={onClose}
+        sx={{
+          p: 1,
+          width: 1,
+          display: 'flex',
+          typography: 'body2',
+          alignItems: 'center',
+          color: 'text.secondary',
+          '& svg': { width: 24, height: 24 },
+          '&:hover': { color: 'text.primary' },
+        }}
+      >
+        {option.icon}
+        <Box component="span" sx={{ ml: 2 + (option.depth ?? 0) * 1.5 }}>
+          {option.label}
+        </Box>
+      </Link>
+    </MenuItem>
   );
 }

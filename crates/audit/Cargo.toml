@@ -16,6 +16,7 @@ http-body.workspace = true
 kernel.workspace = true
 matchit.workspace = true
 metrics.workspace = true
+parking_lot.workspace = true
 rbac.workspace = true
 rbac_macros.workspace = true
 serde.workspace = true

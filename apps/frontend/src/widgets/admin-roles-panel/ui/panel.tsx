@@ -1,7 +1,7 @@
 'use client';
 
-import { AdminBreadcrumbs } from 'src/widgets/admin-common';
-import { DashboardContent } from 'src/widgets/dashboard-shell';
+import { AdminBreadcrumbs } from 'src/shared/ui/admin-common';
+import { DashboardContent } from 'src/shared/ui/dashboard-content';
 
 import { RoleToolbar } from './toolbar';
 import { RoleTableSection } from './table-section';

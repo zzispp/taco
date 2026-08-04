@@ -21,8 +21,18 @@ const VALID: EndpointSpec = EndpointSpec {
 
 #[test]
 fn endpoint_specs_expose_the_nested_axum_path() {
-    assert_eq!(VALID.api_route_path(), "/system/example");
+    assert_eq!(VALID.api_route_path(), Ok("/system/example"));
     assert_eq!(validate_endpoint_specs(&[VALID]), Ok(()));
+}
+
+#[test]
+fn endpoint_specs_report_invalid_router_paths() {
+    let invalid = EndpointSpec {
+        path: "/system/example",
+        ..VALID
+    };
+
+    assert_eq!(invalid.api_route_path(), Err(EndpointSpecError::InvalidPath { path: "/system/example" }));
 }
 
 #[test]

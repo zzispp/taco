@@ -1,13 +1,11 @@
-use std::net::SocketAddr;
+use std::{future::Future, net::SocketAddr};
 
 use configuration::Settings;
-use storage::connect_database;
 use tokio::net::TcpListener;
 
-use crate::{BackendResult, composition, migration};
+use crate::{BackendResult, composition};
 
 pub async fn serve(settings: Settings) -> BackendResult<()> {
-    prepare_runtime_schema(&settings).await?;
     let bind_addr = settings.bind_addr();
     let metrics = taco_tracing::init_metrics(taco_tracing::MetricsConfig {
         enabled: settings.metrics.enabled,
@@ -17,34 +15,37 @@ pub async fn serve(settings: Settings) -> BackendResult<()> {
     let app = composition::create_app(state, &settings, metrics)?;
     taco_tracing::info_with_fields!("backend starting", addr = bind_addr);
     let listener = TcpListener::bind(&bind_addr).await?;
+    let shutdown = shutdown_signal()?;
 
     taco_tracing::info_with_fields!("backend listening", addr = bind_addr);
     let result = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown)
         .await;
     system_logs.shutdown().await;
     result?;
     Ok(())
 }
 
-pub(crate) async fn prepare_runtime_schema(settings: &Settings) -> BackendResult<()> {
-    if !settings.database.auto_migrate {
-        return Ok(());
-    }
-    let database = connect_database(&settings.database_url()?).await?;
-    migration::up(database.raw_pool(), None).await?;
-    migration::ensure_runtime_schema_ready(database.raw_pool()).await
-}
-
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("SIGTERM handler must initialize");
+#[cfg(unix)]
+fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    Ok(async move {
         tokio::select! {
-            result = tokio::signal::ctrl_c() => result.expect("Ctrl-C handler must initialize"),
+            result = tokio::signal::ctrl_c() => record_signal_error(result),
             _ = terminate.recv() => {}
         }
+    })
+}
+
+#[cfg(not(unix))]
+fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
+    Ok(async {
+        record_signal_error(tokio::signal::ctrl_c().await);
+    })
+}
+
+fn record_signal_error(result: std::io::Result<()>) {
+    if let Err(error) = result {
+        taco_tracing::error_with_fields!("backend shutdown signal handler failed", &error, component = "shutdown_signal");
     }
-    #[cfg(not(unix))]
-    tokio::signal::ctrl_c().await.expect("Ctrl-C handler must initialize");
 }

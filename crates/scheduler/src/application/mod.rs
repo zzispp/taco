@@ -13,7 +13,7 @@ pub mod task;
 pub mod tasks;
 mod validation;
 
-pub use audited::{AuditedSchedulerCommandStore, SchedulerAuditedUseCase};
+pub use audited::{AuditedSchedulerCommandStore, SchedulerAuditedUseCase, SystemLogCleanupAuditRequest};
 pub use config::parse_export_batch_config;
 pub use cron::{NEXT_TIMES_DEFAULT_COUNT, NEXT_TIMES_MAX_COUNT, next_time_after, next_times_after, validate_cron};
 pub use cursor::{

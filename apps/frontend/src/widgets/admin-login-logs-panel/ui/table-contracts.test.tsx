@@ -9,8 +9,7 @@ import { ThemeProvider } from '@mui/material/styles';
 
 import { createTheme } from 'src/shared/theme';
 import { TableNoData } from 'src/shared/ui/table';
-
-import { withSelectionHead } from 'src/widgets/admin-common';
+import { withSelectionHead } from 'src/shared/ui/admin-common';
 
 import { LoginLogRow } from './login-log-row';
 import { LOGIN_LOG_HEAD } from './table-section';

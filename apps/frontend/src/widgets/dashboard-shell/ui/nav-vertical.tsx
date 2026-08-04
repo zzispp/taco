@@ -38,56 +38,6 @@ export function NavVertical({
   layoutQuery = 'md',
   ...other
 }: NavVerticalProps) {
-  const renderNavVertical = () => (
-    <>
-      {slots?.topArea ?? (
-        <Box sx={{ pl: 3.5, pt: 2.5, pb: 1 }}>
-          <SiteBrand showSubtitle />
-        </Box>
-      )}
-
-      <Scrollbar fillContent>
-        <NavSectionVertical
-          data={data}
-          render={render}
-          cssVars={cssVars}
-          checkPermissions={checkPermissions}
-          sx={{ px: 2, flex: '1 1 auto' }}
-        />
-
-        {slots?.bottomArea}
-      </Scrollbar>
-    </>
-  );
-
-  const renderNavMini = () => (
-    <>
-      {slots?.topArea ?? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2.5 }}>
-          <Logo />
-        </Box>
-      )}
-
-      <NavSectionMini
-        data={data}
-        render={render}
-        cssVars={cssVars}
-        checkPermissions={checkPermissions}
-        sx={[
-          (theme) => ({
-            ...theme.mixins.hideScrollY,
-            pb: 2,
-            px: 0.5,
-            flex: '1 1 auto',
-            overflowY: 'auto',
-          }),
-        ]}
-      />
-
-      {slots?.bottomArea}
-    </>
-  );
-
   return (
     <NavRoot
       isNavMini={isNavMini}
@@ -106,8 +56,79 @@ export function NavVertical({
           }),
         ]}
       />
-      {isNavMini ? renderNavMini() : renderNavVertical()}
+      <NavContent
+        isNavMini={isNavMini}
+        data={data}
+        slots={slots}
+        cssVars={cssVars}
+        render={render}
+        checkPermissions={checkPermissions}
+      />
     </NavRoot>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+type NavContentProps = Pick<
+  NavVerticalProps,
+  'data' | 'slots' | 'cssVars' | 'render' | 'checkPermissions'
+>;
+
+function NavContent({
+  isNavMini,
+  ...other
+}: NavContentProps & Pick<NavVerticalProps, 'isNavMini'>) {
+  return isNavMini ? <NavMiniContent {...other} /> : <NavVerticalContent {...other} />;
+}
+
+function NavVerticalContent({ data, slots, cssVars, render, checkPermissions }: NavContentProps) {
+  return (
+    <>
+      {slots?.topArea ?? (
+        <Box sx={{ pl: 3.5, pt: 2.5, pb: 1 }}>
+          <SiteBrand showSubtitle />
+        </Box>
+      )}
+      <Scrollbar fillContent>
+        <NavSectionVertical
+          data={data}
+          render={render}
+          cssVars={cssVars}
+          checkPermissions={checkPermissions}
+          sx={{ px: 2, flex: '1 1 auto' }}
+        />
+        {slots?.bottomArea}
+      </Scrollbar>
+    </>
+  );
+}
+
+function NavMiniContent({ data, slots, cssVars, render, checkPermissions }: NavContentProps) {
+  return (
+    <>
+      {slots?.topArea ?? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2.5 }}>
+          <Logo />
+        </Box>
+      )}
+      <NavSectionMini
+        data={data}
+        render={render}
+        cssVars={cssVars}
+        checkPermissions={checkPermissions}
+        sx={[
+          (theme) => ({
+            ...theme.mixins.hideScrollY,
+            pb: 2,
+            px: 0.5,
+            flex: '1 1 auto',
+            overflowY: 'auto',
+          }),
+        ]}
+      />
+      {slots?.bottomArea}
+    </>
   );
 }
 

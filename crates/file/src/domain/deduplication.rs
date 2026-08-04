@@ -26,6 +26,14 @@ pub enum DeduplicationDecision {
     Reuse(StoredObjectId),
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeduplicationRegistration {
+    pub object_id: StoredObjectId,
+    pub digest: ContentDigest,
+    pub size: crate::domain::ByteSize,
+    pub space_id: SpaceId,
+}
+
 #[derive(Clone, Debug)]
 struct StoredObjectCandidate {
     object_id: StoredObjectId,
@@ -48,7 +56,13 @@ impl DeduplicationIndex {
             .map_or(DeduplicationDecision::Store, |candidate| DeduplicationDecision::Reuse(candidate.object_id))
     }
 
-    pub fn register(&mut self, object_id: StoredObjectId, digest: ContentDigest, size: crate::domain::ByteSize, space_id: SpaceId) -> Result<(), FileError> {
+    pub fn register(&mut self, registration: DeduplicationRegistration) -> Result<(), FileError> {
+        let DeduplicationRegistration {
+            object_id,
+            digest,
+            size,
+            space_id,
+        } = registration;
         let candidates = self.objects.entry(digest).or_default();
         if candidates.iter().any(|candidate| candidate.object_id == object_id) {
             return Err(FileError::NameConflict);
@@ -96,7 +110,12 @@ mod tests {
         let digest = ContentDigest::from_bytes(b"same");
         let object = StoredObjectId::new();
         index
-            .register(object, digest, crate::domain::ByteSize::from_bytes(4), source_space.clone())
+            .register(DeduplicationRegistration {
+                object_id: object,
+                digest,
+                size: crate::domain::ByteSize::from_bytes(4),
+                space_id: source_space.clone(),
+            })
             .unwrap();
 
         assert_eq!(

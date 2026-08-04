@@ -25,6 +25,7 @@ errors.scheduler.task_file_cleanup_upload_sessions_failed: "檔案上傳工作�
 errors.scheduler.task_definition_changed: "任務定義已變更，無法執行已排隊實例"
 errors.scheduler.task_http_status: "HTTP 任務傳回非成功狀態碼：%{status}"
 errors.scheduler.task_http_request_failed: "HTTP 任務請求失敗"
+errors.scheduler.task_detail_encoding_failed: "任務執行詳情無法記錄"
 errors.scheduler.task_cache_refresh_failed: "系統快取刷新失敗：%{kind}"
 errors.scheduler.task_key_required: "任務標識不能為空"
 errors.scheduler.job_name_required: "任務名稱不能為空"

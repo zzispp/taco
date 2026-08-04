@@ -15,7 +15,7 @@ pub use tracing as __tracing;
 
 pub use fields::{DurationMs, error, error_with_fields_impl, info_with_fields_impl, safe_error_value, safe_field_value, warn_with_fields_impl};
 pub use http_log::{HttpLogCaptureState, http_log_middleware};
-pub use infrastructure::{InfrastructureDependency, InfrastructureObserver};
+pub use infrastructure::{InfrastructureDependency, InfrastructureObserver, InfrastructureOperation};
 pub use metrics::{MetricsConfig, MetricsError, MetricsHandle, db_query_metric, init_metrics, metrics_handler, metrics_middleware};
 pub use runtime_config::{
     DEFAULT_HTTP_BODY_CAPTURE_BYTES, HttpLogCaptureConfig, MAX_HTTP_BODY_CAPTURE_BYTES, RuntimeTracingConfig, RuntimeTracingConfigError,

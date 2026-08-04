@@ -4,9 +4,19 @@ use super::{ObservabilityError, ObservabilityResult, SystemLogRetentionStore, lo
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SystemLogRetentionReport {
-    pub deleted: u64,
+    /// Exact rows deleted by row-based cleanup.
+    pub rows_deleted: u64,
+    /// Number of complete UTC-day partitions dropped without a row scan.
+    pub dropped_partitions: u64,
     /// Number of committed cleanup transactions.
     pub batches: u64,
+}
+
+#[derive(Clone, Copy)]
+struct RetentionCleanupAt {
+    reference: OffsetDateTime,
+    retention_days: u64,
+    boundary_batch_size: u64,
 }
 
 pub(super) async fn cleanup_expired(
@@ -14,15 +24,23 @@ pub(super) async fn cleanup_expired(
     retention_days: u64,
     boundary_batch_size: u64,
 ) -> ObservabilityResult<SystemLogRetentionReport> {
-    cleanup_expired_at(store, OffsetDateTime::now_utc(), retention_days, boundary_batch_size).await
+    cleanup_expired_at(
+        store,
+        RetentionCleanupAt {
+            reference: OffsetDateTime::now_utc(),
+            retention_days,
+            boundary_batch_size,
+        },
+    )
+    .await
 }
 
-async fn cleanup_expired_at(
-    store: &dyn SystemLogRetentionStore,
-    reference: OffsetDateTime,
-    retention_days: u64,
-    boundary_batch_size: u64,
-) -> ObservabilityResult<SystemLogRetentionReport> {
+async fn cleanup_expired_at(store: &dyn SystemLogRetentionStore, input: RetentionCleanupAt) -> ObservabilityResult<SystemLogRetentionReport> {
+    let RetentionCleanupAt {
+        reference,
+        retention_days,
+        boundary_batch_size,
+    } = input;
     if boundary_batch_size == 0 {
         return Err(ObservabilityError::InvalidInput(localized("errors.observability.invalid_cleanup_batch_size")));
     }
@@ -45,16 +63,36 @@ mod tests {
 
     use crate::application::{ObservabilityResult, SystemLogRetentionReport, SystemLogRetentionStore};
 
-    use super::cleanup_expired_at;
+    use super::{RetentionCleanupAt, cleanup_expired_at};
 
     #[tokio::test]
     async fn retention_passes_an_exact_rolling_cutoff_and_boundary_limit() {
-        let store = RecordingStore::new(SystemLogRetentionReport { deleted: 8, batches: 3 });
+        let store = RecordingStore::new(SystemLogRetentionReport {
+            rows_deleted: 5,
+            dropped_partitions: 3,
+            batches: 3,
+        });
         let reference = timestamp("2026-07-20T18:00:00Z");
 
-        let report = cleanup_expired_at(&store, reference, 7, 1_000).await.unwrap();
+        let report = cleanup_expired_at(
+            &store,
+            RetentionCleanupAt {
+                reference,
+                retention_days: 7,
+                boundary_batch_size: 1_000,
+            },
+        )
+        .await
+        .unwrap();
 
-        assert_eq!(report, SystemLogRetentionReport { deleted: 8, batches: 3 });
+        assert_eq!(
+            report,
+            SystemLogRetentionReport {
+                rows_deleted: 5,
+                dropped_partitions: 3,
+                batches: 3,
+            }
+        );
         assert_eq!(store.calls(), vec![(timestamp("2026-07-13T18:00:00Z"), 1_000)]);
     }
 
@@ -62,7 +100,15 @@ mod tests {
     async fn retention_rejects_a_zero_boundary_batch_size_before_storage() {
         let store = RecordingStore::new(SystemLogRetentionReport::default());
 
-        let result = cleanup_expired_at(&store, timestamp("2026-07-20T18:00:00Z"), 7, 0).await;
+        let result = cleanup_expired_at(
+            &store,
+            RetentionCleanupAt {
+                reference: timestamp("2026-07-20T18:00:00Z"),
+                retention_days: 7,
+                boundary_batch_size: 0,
+            },
+        )
+        .await;
 
         assert!(matches!(result, Err(crate::application::ObservabilityError::InvalidInput(_))));
         assert_eq!(store.calls(), Vec::new());

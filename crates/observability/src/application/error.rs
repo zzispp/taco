@@ -14,8 +14,15 @@ pub enum ObservabilityError {
     InvalidCursor,
     #[error("{code}: {details}")]
     Conflict { code: &'static str, details: LocalizedError },
-    #[error("system log cleanup partially completed after {deleted} deletions in {batches} batches: {failure}")]
-    PartialCleanup { deleted: u64, batches: u64, failure: String },
+    #[error(
+        "system log cleanup partially completed after {rows_deleted} row deletions and {dropped_partitions} partition drops in {batches} batches: {failure}"
+    )]
+    PartialCleanup {
+        rows_deleted: u64,
+        dropped_partitions: u64,
+        batches: u64,
+        failure: String,
+    },
     #[error("system log infrastructure failure: {0}")]
     Infrastructure(String),
 }
@@ -27,7 +34,8 @@ impl ObservabilityError {
 
     pub fn partial_cleanup(report: SystemLogRetentionReport, failure: impl Into<String>) -> Self {
         Self::PartialCleanup {
-            deleted: report.deleted,
+            rows_deleted: report.rows_deleted,
+            dropped_partitions: report.dropped_partitions,
             batches: report.batches,
             failure: failure.into(),
         }
@@ -40,4 +48,32 @@ pub fn localized(key: &'static str) -> LocalizedError {
 
 pub fn localized_param(key: &'static str, name: &'static str, value: impl Into<String>) -> LocalizedError {
     LocalizedError::new(key).with_param(name, value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ObservabilityError;
+    use crate::application::SystemLogRetentionReport;
+
+    #[test]
+    fn partial_cleanup_retains_each_completed_work_unit_separately() {
+        let error = ObservabilityError::partial_cleanup(
+            SystemLogRetentionReport {
+                rows_deleted: 7,
+                dropped_partitions: 2,
+                batches: 3,
+            },
+            "planned failure",
+        );
+
+        assert!(matches!(
+            error,
+            ObservabilityError::PartialCleanup {
+                rows_deleted: 7,
+                dropped_partitions: 2,
+                batches: 3,
+                ..
+            }
+        ));
+    }
 }

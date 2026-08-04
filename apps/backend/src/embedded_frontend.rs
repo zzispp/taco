@@ -19,6 +19,33 @@ use rust_embed::RustEmbed;
 
 #[cfg(any(test, feature = "embedded-frontend"))]
 const API_ROOT_PATH: &str = "/api";
+#[cfg(any(test, feature = "embedded-frontend"))]
+const DEFAULT_CONTENT_TYPE: &str = "application/octet-stream";
+#[cfg(any(test, feature = "embedded-frontend"))]
+const CONTENT_TYPES: &[(&str, &str)] = &[
+    ("html", "text/html; charset=utf-8"),
+    ("css", "text/css; charset=utf-8"),
+    ("js", "application/javascript; charset=utf-8"),
+    ("mjs", "application/javascript; charset=utf-8"),
+    ("json", "application/json; charset=utf-8"),
+    ("map", "application/json; charset=utf-8"),
+    ("svg", "image/svg+xml"),
+    ("png", "image/png"),
+    ("jpg", "image/jpeg"),
+    ("jpeg", "image/jpeg"),
+    ("gif", "image/gif"),
+    ("webp", "image/webp"),
+    ("avif", "image/avif"),
+    ("ico", "image/x-icon"),
+    ("woff", "font/woff"),
+    ("woff2", "font/woff2"),
+    ("ttf", "font/ttf"),
+    ("otf", "font/otf"),
+    ("wasm", "application/wasm"),
+    ("txt", "text/plain; charset=utf-8"),
+    ("xml", "application/xml; charset=utf-8"),
+    ("webmanifest", "application/manifest+json"),
+];
 
 /// Adds the release-only embedded frontend fallback after all backend routes.
 ///
@@ -167,28 +194,16 @@ fn empty_response(status: StatusCode) -> Response {
 
 #[cfg(any(test, feature = "embedded-frontend"))]
 fn content_type(path: &str) -> HeaderValue {
-    match path.rsplit('.').next().unwrap_or_default() {
-        "html" => HeaderValue::from_static("text/html; charset=utf-8"),
-        "css" => HeaderValue::from_static("text/css; charset=utf-8"),
-        "js" | "mjs" => HeaderValue::from_static("application/javascript; charset=utf-8"),
-        "json" | "map" => HeaderValue::from_static("application/json; charset=utf-8"),
-        "svg" => HeaderValue::from_static("image/svg+xml"),
-        "png" => HeaderValue::from_static("image/png"),
-        "jpg" | "jpeg" => HeaderValue::from_static("image/jpeg"),
-        "gif" => HeaderValue::from_static("image/gif"),
-        "webp" => HeaderValue::from_static("image/webp"),
-        "avif" => HeaderValue::from_static("image/avif"),
-        "ico" => HeaderValue::from_static("image/x-icon"),
-        "woff" => HeaderValue::from_static("font/woff"),
-        "woff2" => HeaderValue::from_static("font/woff2"),
-        "ttf" => HeaderValue::from_static("font/ttf"),
-        "otf" => HeaderValue::from_static("font/otf"),
-        "wasm" => HeaderValue::from_static("application/wasm"),
-        "txt" => HeaderValue::from_static("text/plain; charset=utf-8"),
-        "xml" => HeaderValue::from_static("application/xml; charset=utf-8"),
-        "webmanifest" => HeaderValue::from_static("application/manifest+json"),
-        _ => HeaderValue::from_static("application/octet-stream"),
-    }
+    let suffix = path.rsplit('.').next().unwrap_or_default();
+    HeaderValue::from_static(content_type_for_suffix(suffix))
+}
+
+#[cfg(any(test, feature = "embedded-frontend"))]
+fn content_type_for_suffix(suffix: &str) -> &'static str {
+    CONTENT_TYPES
+        .iter()
+        .find_map(|(extension, content_type)| (*extension == suffix).then_some(*content_type))
+        .unwrap_or(DEFAULT_CONTENT_TYPE)
 }
 
 #[cfg(any(test, feature = "embedded-frontend"))]

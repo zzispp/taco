@@ -21,6 +21,27 @@ const DEFAULT_ARROW_SIZE: number = 14;
 const DEFAULT_ARROW_PLACEMENT: ArrowPlacement = 'top-right';
 const DEFAULT_PAPER_OFFSET: PaperOffset = [8, 2];
 
+function createPaperStyles(
+  placement: ArrowPlacement,
+  offset: PaperOffset,
+  isRtl: boolean
+): SxProps<Theme> {
+  return {
+    ...getPaperOffsetStyles(placement, offset, isRtl),
+    overflow: 'inherit',
+    [`& .${listClasses.root}`]: { minWidth: 140 },
+    [`& .${menuItemClasses.root}`]: { gap: 2 },
+  };
+}
+
+function usePopoverRects({ open, anchorEl }: Pick<CustomPopoverProps, 'open' | 'anchorEl'>) {
+  const paperRef = useRef<HTMLDivElement>(null);
+  const paperRect = useElementRect(paperRef.current, 'popoverPaper', open);
+  const anchorRect = useElementRect(anchorEl as HTMLElement, 'anchor', open);
+
+  return { paperRef, paperRect, anchorRect };
+}
+
 export function CustomPopover({
   open,
   onClose,
@@ -40,18 +61,11 @@ export function CustomPopover({
 
   const { anchorOrigin, transformOrigin } = getPopoverOrigin(arrowPlacement, isRtl);
 
-  const paperRef = useRef<HTMLDivElement>(null);
-  const paperRect = useElementRect(paperRef.current, 'popoverPaper', open);
-  const anchorRect = useElementRect(anchorEl as HTMLElement, 'anchor', open);
+  const { paperRef, paperRect, anchorRect } = usePopoverRects({ open, anchorEl });
 
   const isArrowVisible = !arrowProps?.hide && !!paperRect && !!anchorRect;
 
-  const paperStyles: SxProps<Theme> = {
-    ...getPaperOffsetStyles(arrowPlacement, paperOffset, isRtl),
-    overflow: 'inherit',
-    [`& .${listClasses.root}`]: { minWidth: 140 },
-    [`& .${menuItemClasses.root}`]: { gap: 2 },
-  };
+  const paperStyles = createPaperStyles(arrowPlacement, paperOffset, isRtl);
 
   return (
     <Popover

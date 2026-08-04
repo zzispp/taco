@@ -5,7 +5,7 @@ use storage::Database;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::application::{CleanupObject, ProviderCleanupKind, ProviderUploadRef, TrashCleanupBatch, UploadCleanupCandidate};
+use crate::application::{CleanupObject, ProviderCleanupKind, ProviderCleanupRecordRequest, ProviderUploadRef, TrashCleanupBatch, UploadCleanupCandidate};
 use crate::domain::{ProviderKey, StoredObjectId, UploadId};
 use crate::error::keys;
 use crate::{FileError, FileResult};
@@ -214,7 +214,16 @@ pub(super) async fn finalize_expired_upload(database: &Database, session_id: Upl
         .map_err(storage_error)?;
     let provider_key = ProviderKey::new(provider_key)?;
     let upload_ref = ProviderUploadRef::new(upload_ref)?;
-    record_tx(&mut transaction, &provider_key, ProviderCleanupKind::Upload, None, Some(&upload_ref)).await?;
+    record_tx(
+        &mut transaction,
+        ProviderCleanupRecordRequest {
+            provider_key: &provider_key,
+            kind: ProviderCleanupKind::Upload,
+            object_key: None,
+            upload_ref: Some(&upload_ref),
+        },
+    )
+    .await?;
     transaction.commit().await.map_err(storage_error)
 }
 

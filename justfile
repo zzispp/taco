@@ -46,6 +46,8 @@ test: test-build
     just _test-partition cargo test -p scheduler --test scheduler_macros_ui scheduled_task_macro_fail_contracts_reject_invalid_declarations -- --exact --test-threads=1
 
 quality-precommit:
+    cargo run -p compliance
+    node scripts/quality/check-frontend-compliance.mjs
     scripts/quality/ensure-rust-quality-tools.sh precommit
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets -- -D warnings

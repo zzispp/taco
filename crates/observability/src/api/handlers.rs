@@ -1,8 +1,9 @@
 use axum::{
     Json,
-    extract::{Extension, Path, State},
+    extract::{Extension, FromRequestParts, Path, State},
     http::StatusCode,
-    response::Response,
+    http::request::Parts,
+    response::{IntoResponse, Response},
 };
 use kernel::pagination::CursorPage;
 use rbac::api::CurrentUser;
@@ -25,6 +26,34 @@ use super::{
 };
 
 type ApiResult<T> = Result<T, SystemLogApiError>;
+pub(in crate::api) struct CleanSystemLogsRequest {
+    state: SystemLogApiState,
+    user: CurrentUser,
+    audit_context: Option<Extension<audit_contract::OperationAuditContext>>,
+    query: SystemLogCleanupQuery,
+}
+
+impl FromRequestParts<SystemLogApiState> for CleanSystemLogsRequest {
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &SystemLogApiState) -> Result<Self, Self::Rejection> {
+        let Extension(user) = Extension::<CurrentUser>::from_request_parts(parts, state)
+            .await
+            .map_err(IntoResponse::into_response)?;
+        let audit_context = Option::<Extension<audit_contract::OperationAuditContext>>::from_request_parts(parts, state)
+            .await
+            .map_err(|never| match never {})?;
+        let RequestQuery(query) = RequestQuery::<SystemLogCleanupQuery>::from_request_parts(parts, state)
+            .await
+            .map_err(IntoResponse::into_response)?;
+        Ok(Self {
+            state: state.clone(),
+            user,
+            audit_context,
+            query,
+        })
+    }
+}
 
 #[utoipa::path(
     get,
@@ -148,12 +177,13 @@ pub(in crate::api) async fn count_system_logs_for_cleanup(
     security(("bearerAuth" = []))
 )]
 #[require_perms("system:systemlog:remove")]
-pub(in crate::api) async fn clean_system_logs(
-    State(state): State<SystemLogApiState>,
-    Extension(user): Extension<CurrentUser>,
-    audit_context: Option<Extension<audit_contract::OperationAuditContext>>,
-    RequestQuery(query): RequestQuery<SystemLogCleanupQuery>,
-) -> ApiResult<(StatusCode, Json<SystemLogCleanupAcceptedResponse>)> {
+pub(in crate::api) async fn clean_system_logs(request: CleanSystemLogsRequest) -> ApiResult<(StatusCode, Json<SystemLogCleanupAcceptedResponse>)> {
+    let CleanSystemLogsRequest {
+        state,
+        user,
+        audit_context,
+        query,
+    } = request;
     let audit = successful_operation_audit(audit_context)?;
     let execution_id = state
         .cleanup_executions

@@ -4,7 +4,7 @@ use storage::Database;
 use time::OffsetDateTime;
 
 use crate::application::StoredObject;
-use crate::application::{ExistingObject, FileAccessScope, FileEntryView, UploadCommand};
+use crate::application::{ExistingObject, FileAccessScope, FileEntryView, ProviderCleanupKind, ProviderCleanupRecordRequest, UploadCommand};
 use crate::domain::{FileId, SpaceId};
 use crate::{FileError, FileResult};
 
@@ -13,12 +13,40 @@ use super::repository_provider_cleanup::{cancel_object_cleanup_tx, record_tx};
 use super::repository_queries::find_entry;
 use super::repository_support::{ensure_active_parent_tx, same_physical_object};
 
-pub(super) async fn reserve_upload(
-    database: &Database,
-    space_id: SpaceId,
-    bytes: crate::domain::ByteSize,
-    default_quota: crate::domain::ByteSize,
-) -> FileResult<()> {
+pub(super) struct UploadReservation {
+    pub(super) space_id: SpaceId,
+    pub(super) bytes: crate::domain::ByteSize,
+    pub(super) default_quota: crate::domain::ByteSize,
+}
+
+impl UploadReservation {
+    pub(super) const fn new(space_id: SpaceId, bytes: crate::domain::ByteSize, default_quota: crate::domain::ByteSize) -> Self {
+        Self {
+            space_id,
+            bytes,
+            default_quota,
+        }
+    }
+}
+
+pub(super) struct UploadedFileCreate<'a> {
+    pub(super) actor: &'a FileAccessScope,
+    pub(super) command: UploadCommand,
+    pub(super) object: StoredObject,
+}
+
+pub(super) struct ReusedFileCreate<'a> {
+    pub(super) actor: &'a FileAccessScope,
+    pub(super) command: UploadCommand,
+    pub(super) object: ExistingObject,
+}
+
+pub(super) async fn reserve_upload(database: &Database, request: UploadReservation) -> FileResult<()> {
+    let UploadReservation {
+        space_id,
+        bytes,
+        default_quota,
+    } = request;
     let bytes = i64::try_from(bytes.bytes()).map_err(|_| FileError::SizeMismatch)?;
     let result = query(
         "UPDATE file_space SET reserved_bytes=reserved_bytes+$2,updated_at=$4 WHERE space_id=$1 AND active_bytes+trashed_bytes+reserved_bytes+$2<=COALESCE(quota_override_bytes,$3)",
@@ -62,12 +90,8 @@ pub(super) async fn release_upload(database: &Database, space_id: SpaceId, bytes
     Ok(())
 }
 
-pub(super) async fn create_uploaded_file(
-    database: &Database,
-    actor: &FileAccessScope,
-    command: UploadCommand,
-    object: StoredObject,
-) -> FileResult<FileEntryView> {
+pub(super) async fn create_uploaded_file(database: &Database, request: UploadedFileCreate<'_>) -> FileResult<FileEntryView> {
+    let UploadedFileCreate { actor, command, object } = request;
     ensure_visible_space(database, actor, &command.space_id).await?;
     let digest = object.digest.ok_or(FileError::DigestMismatch)?;
     let size = i64::try_from(object.size.bytes()).map_err(|_| FileError::SizeMismatch)?;
@@ -143,22 +167,20 @@ async fn adopt_uploaded_object(transaction: &mut sqlx::Transaction<'_, Postgres>
     if !adopted {
         record_tx(
             transaction,
-            &object.provider_key,
-            crate::application::ProviderCleanupKind::Object,
-            Some(&object.key),
-            None,
+            ProviderCleanupRecordRequest {
+                provider_key: &object.provider_key,
+                kind: ProviderCleanupKind::Object,
+                object_key: Some(&object.key),
+                upload_ref: None,
+            },
         )
         .await?;
     }
     Ok(object_id)
 }
 
-pub(super) async fn create_reused_file(
-    database: &Database,
-    actor: &FileAccessScope,
-    command: UploadCommand,
-    object: ExistingObject,
-) -> FileResult<FileEntryView> {
+pub(super) async fn create_reused_file(database: &Database, request: ReusedFileCreate<'_>) -> FileResult<FileEntryView> {
+    let ReusedFileCreate { actor, command, object } = request;
     ensure_visible_space(database, actor, &command.space_id).await?;
     let id = FileId::new();
     let now = OffsetDateTime::now_utc();

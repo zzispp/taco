@@ -14,7 +14,8 @@ use super::system_log_cleanup_params::{
 };
 
 pub const SYSTEM_LOG_CLEANUP_DETAIL_KIND: &str = "system_log_cleanup";
-pub const SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION: i16 = 1;
+pub const LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION: i16 = 1;
+pub const SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION: i16 = 2;
 
 #[scheduled_task(
     task_key = SYSTEM_LOG_CLEANUP_TASK_KEY,
@@ -41,31 +42,30 @@ impl ScheduledTask for SystemLogCleanupTask {
                     .await?
             }
         };
-        Ok(TaskExecutionOutput::with_detail(SystemLogCleanupReport {
-            deleted: result.deleted,
+        TaskExecutionOutput::with_detail(SystemLogCleanupReport {
+            rows_deleted: result.rows_deleted,
+            dropped_partitions: result.dropped_partitions,
             batches: result.batches,
-        }))
+        })
     }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SystemLogCleanupReport {
-    pub deleted: u64,
+    pub rows_deleted: u64,
+    pub dropped_partitions: u64,
     /// Number of committed partition-drop or row-delete transactions.
     pub batches: u64,
 }
 
 impl SystemLogCleanupReport {
-    pub const fn new(deleted: u64, batches: u64) -> Self {
-        Self { deleted, batches }
-    }
-
-    pub fn from_execution_detail(detail: &ExecutionDetail) -> SchedulerResult<Self> {
-        if detail.kind() != SYSTEM_LOG_CLEANUP_DETAIL_KIND || detail.schema_version() != SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION {
-            return Err(invalid_cleanup_execution());
+    pub const fn new(rows_deleted: u64, dropped_partitions: u64, batches: u64) -> Self {
+        Self {
+            rows_deleted,
+            dropped_partitions,
+            batches,
         }
-        serde_json::from_value(detail.payload().clone()).map_err(|_| invalid_cleanup_execution())
     }
 }
 
@@ -88,13 +88,55 @@ pub enum ManualSystemLogCleanupExecutionState {
 pub struct ManualSystemLogCleanupExecution {
     pub execution_id: String,
     pub state: ManualSystemLogCleanupExecutionState,
-    pub report: Option<SystemLogCleanupReport>,
+    pub report: Option<SystemLogCleanupExecutionReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SystemLogCleanupExecutionReport {
+    Current(SystemLogCleanupReport),
+    Legacy(LegacySystemLogCleanupReport),
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LegacySystemLogCleanupReport {
+    pub legacy_total_deleted: u64,
+    pub batches: u64,
+}
+
+impl SystemLogCleanupExecutionReport {
+    pub fn from_execution_detail(detail: &ExecutionDetail) -> SchedulerResult<Self> {
+        if detail.kind() != SYSTEM_LOG_CLEANUP_DETAIL_KIND {
+            return Err(invalid_cleanup_execution());
+        }
+        match detail.schema_version() {
+            SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION => serde_json::from_value(detail.payload().clone())
+                .map(Self::Current)
+                .map_err(|_| invalid_cleanup_execution()),
+            LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION => serde_json::from_value::<LegacySystemLogCleanupPayload>(detail.payload().clone())
+                .map(|legacy| {
+                    Self::Legacy(LegacySystemLogCleanupReport {
+                        legacy_total_deleted: legacy.deleted,
+                        batches: legacy.batches,
+                    })
+                })
+                .map_err(|_| invalid_cleanup_execution()),
+            _ => Err(invalid_cleanup_execution()),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacySystemLogCleanupPayload {
+    deleted: u64,
+    batches: u64,
 }
 
 pub fn manual_system_log_cleanup_execution(execution: &Execution, detail: Option<&ExecutionDetail>) -> SchedulerResult<ManualSystemLogCleanupExecution> {
     ensure_manual_cleanup_execution(execution)?;
     let state = execution_state(execution)?;
-    let report = detail.map(SystemLogCleanupReport::from_execution_detail).transpose()?;
+    let report = detail.map(SystemLogCleanupExecutionReport::from_execution_detail).transpose()?;
     if state == ManualSystemLogCleanupExecutionState::Succeeded && report.is_none() {
         return Err(invalid_cleanup_execution());
     }
@@ -150,7 +192,8 @@ mod tests {
     };
 
     use super::{
-        SYSTEM_LOG_CLEANUP_DETAIL_KIND, SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION, SYSTEM_LOG_CLEANUP_TASK_KEY, SystemLogCleanupReport, SystemLogCleanupTask,
+        LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION, LegacySystemLogCleanupReport, SYSTEM_LOG_CLEANUP_DETAIL_KIND,
+        SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION, SYSTEM_LOG_CLEANUP_TASK_KEY, SystemLogCleanupExecutionReport, SystemLogCleanupTask,
     };
 
     #[tokio::test]
@@ -160,18 +203,35 @@ mod tests {
         let detail = output.detail.unwrap();
         assert_eq!(detail.kind(), SYSTEM_LOG_CLEANUP_DETAIL_KIND);
         assert_eq!(detail.schema_version(), SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION);
-        assert_eq!(detail.payload(), &json!({"deleted": 9, "batches": 3}));
+        assert_eq!(detail.payload(), &json!({"rows_deleted": 9, "dropped_partitions": 2, "batches": 3}));
     }
 
     #[test]
-    fn cleanup_report_rejects_a_detail_with_an_unknown_schema_version() {
+    fn cleanup_execution_report_reads_legacy_detail_without_relabeling_its_total() {
+        let detail = crate::domain::ExecutionDetail::new(
+            SYSTEM_LOG_CLEANUP_DETAIL_KIND,
+            LEGACY_SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION,
+            Map::from_iter([("deleted".into(), json!(2)), ("batches".into(), json!(1))]),
+        );
+
+        assert_eq!(
+            SystemLogCleanupExecutionReport::from_execution_detail(&detail).unwrap(),
+            SystemLogCleanupExecutionReport::Legacy(LegacySystemLogCleanupReport {
+                legacy_total_deleted: 2,
+                batches: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn cleanup_execution_report_rejects_a_detail_with_an_unknown_schema_version() {
         let detail = crate::domain::ExecutionDetail::new(
             SYSTEM_LOG_CLEANUP_DETAIL_KIND,
             SYSTEM_LOG_CLEANUP_DETAIL_SCHEMA_VERSION + 1,
             Map::from_iter([("deleted".into(), json!(2)), ("batches".into(), json!(1))]),
         );
 
-        assert!(SystemLogCleanupReport::from_execution_detail(&detail).is_err());
+        assert!(SystemLogCleanupExecutionReport::from_execution_detail(&detail).is_err());
     }
 
     fn context() -> TaskExecutionContext {
@@ -225,7 +285,11 @@ mod tests {
         async fn cleanup_filtered(&self, filter: SystemLogCleanupFilter, batch_size: u64) -> Result<SystemLogCleanupResult, TaskExecutionFailure> {
             assert_eq!(filter.levels, vec![SystemLogCleanupLevel::Error]);
             assert_eq!(batch_size, 1_000);
-            Ok(SystemLogCleanupResult { deleted: 9, batches: 3 })
+            Ok(SystemLogCleanupResult {
+                rows_deleted: 9,
+                dropped_partitions: 2,
+                batches: 3,
+            })
         }
     }
 

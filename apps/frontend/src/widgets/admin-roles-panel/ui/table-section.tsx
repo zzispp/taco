@@ -10,10 +10,9 @@ import TableBody from '@mui/material/TableBody';
 
 import { Scrollbar } from 'src/shared/ui/scrollbar';
 import { TableNoData, CursorPagination } from 'src/shared/ui/table';
+import { TableLoadingRows, ManagementTableHead } from 'src/shared/ui/admin-common';
 
 import { updateRoleStatus } from 'src/features/role-management';
-
-import { TableLoadingRows, ManagementTableHead } from 'src/widgets/admin-common';
 
 import { RoleRow } from './role-row';
 import { RoleFilters } from './filters';

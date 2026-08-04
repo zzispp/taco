@@ -4,6 +4,7 @@ import { useMemo, useCallback } from 'react';
 
 import { toast } from 'src/shared/ui/snackbar';
 import { useTranslate } from 'src/shared/i18n/use-locales';
+import { withSelectionHead } from 'src/shared/ui/admin-common';
 import { useTable, DEFAULT_TABLE_LIMIT } from 'src/shared/ui/table';
 import { refreshCursorPage } from 'src/shared/api/refresh-cursor-page';
 import { useLocalDateTimeFilterState } from 'src/shared/lib/use-local-date-time-filter-state';
@@ -13,8 +14,6 @@ import { useRoles } from 'src/entities/role';
 import { useHasPermission } from 'src/entities/session';
 
 import { exportRoles } from 'src/features/role-management';
-
-import { withSelectionHead } from 'src/widgets/admin-common';
 
 import { roleHead } from './helpers';
 import { DEFAULT_FILTERS } from './constants';

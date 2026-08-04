@@ -11,39 +11,111 @@ use crate::{FileError, FileResult};
 use super::repository_purge::{ensure_tree_has_no_references, ensure_tree_mutable, selected_roots};
 use super::repository_support::{scope_query, storage_error};
 
-pub(in crate::infra) async fn trash(database: &Database, actor: &FileAccessScope, ids: &[FileId], now: OffsetDateTime) -> FileResult<()> {
-    mutate_status(database, actor, ids, "active", "trashed", now).await
+pub(super) struct FileStatusChangeRequest<'a> {
+    pub(super) actor: &'a FileAccessScope,
+    pub(super) ids: &'a [FileId],
+    pub(super) now: OffsetDateTime,
 }
 
-pub(in crate::infra) async fn restore(database: &Database, actor: &FileAccessScope, ids: &[FileId], now: OffsetDateTime) -> FileResult<()> {
-    mutate_status(database, actor, ids, "trashed", "active", now).await
+impl<'a> FileStatusChangeRequest<'a> {
+    pub(super) fn new(actor: &'a FileAccessScope, ids: &'a [FileId]) -> Self {
+        Self {
+            actor,
+            ids,
+            now: OffsetDateTime::now_utc(),
+        }
+    }
 }
 
-async fn mutate_status(database: &Database, actor: &FileAccessScope, ids: &[FileId], from: &str, to: &str, now: OffsetDateTime) -> FileResult<()> {
+struct StatusMutation<'a> {
+    actor: &'a FileAccessScope,
+    ids: &'a [FileId],
+    from: &'static str,
+    to: &'static str,
+    now: OffsetDateTime,
+}
+
+struct StatusMutationValidation<'a> {
+    actor: &'a FileAccessScope,
+    roots: &'a [FileId],
+    from: &'static str,
+    to: &'static str,
+}
+
+struct RootStatusMutation<'a> {
+    roots: &'a [FileId],
+    to: &'static str,
+    now: OffsetDateTime,
+}
+
+struct EntryStatusMutation<'a> {
+    actor: &'a FileAccessScope,
+    id: FileId,
+    from: &'static str,
+    to: &'static str,
+}
+
+pub(in crate::infra) async fn trash(database: &Database, request: FileStatusChangeRequest<'_>) -> FileResult<()> {
+    let FileStatusChangeRequest { actor, ids, now } = request;
+    mutate_status(
+        database,
+        StatusMutation {
+            actor,
+            ids,
+            from: "active",
+            to: "trashed",
+            now,
+        },
+    )
+    .await
+}
+
+pub(in crate::infra) async fn restore(database: &Database, request: FileStatusChangeRequest<'_>) -> FileResult<()> {
+    let FileStatusChangeRequest { actor, ids, now } = request;
+    mutate_status(
+        database,
+        StatusMutation {
+            actor,
+            ids,
+            from: "trashed",
+            to: "active",
+            now,
+        },
+    )
+    .await
+}
+
+async fn mutate_status(database: &Database, request: StatusMutation<'_>) -> FileResult<()> {
+    let StatusMutation { actor, ids, from, to, now } = request;
     let ids = normalize_batch_ids(ids.iter().copied())?;
     let mut transaction = database.pool().begin().await.map_err(storage_error)?;
     let roots = selected_roots(&mut transaction, &ids).await?;
-    let spaces = validate_status_mutations(&mut transaction, actor, &roots, from, to).await?;
-    mutate_roots(&mut transaction, &roots, to, now).await?;
+    let spaces = validate_status_mutations(
+        &mut transaction,
+        StatusMutationValidation {
+            actor,
+            roots: &roots,
+            from,
+            to,
+        },
+    )
+    .await?;
+    mutate_roots(&mut transaction, RootStatusMutation { roots: &roots, to, now }).await?;
     recalc_space_usage(&mut transaction, &spaces, now).await?;
     transaction.commit().await.map_err(storage_error)
 }
 
-async fn validate_status_mutations(
-    transaction: &mut sqlx::Transaction<'_, Postgres>,
-    actor: &FileAccessScope,
-    roots: &[FileId],
-    from: &str,
-    to: &str,
-) -> FileResult<Vec<String>> {
+async fn validate_status_mutations(transaction: &mut sqlx::Transaction<'_, Postgres>, request: StatusMutationValidation<'_>) -> FileResult<Vec<String>> {
+    let StatusMutationValidation { actor, roots, from, to } = request;
     let mut spaces = BTreeSet::new();
     for id in roots {
-        spaces.insert(validate_status_mutation(transaction, actor, *id, from, to).await?);
+        spaces.insert(validate_status_mutation(transaction, EntryStatusMutation { actor, id: *id, from, to }).await?);
     }
     Ok(spaces.into_iter().collect())
 }
 
-async fn mutate_roots(transaction: &mut sqlx::Transaction<'_, Postgres>, roots: &[FileId], to: &str, now: OffsetDateTime) -> FileResult<()> {
+async fn mutate_roots(transaction: &mut sqlx::Transaction<'_, Postgres>, request: RootStatusMutation<'_>) -> FileResult<()> {
+    let RootStatusMutation { roots, to, now } = request;
     let sql = status_update_sql(to);
     for id in roots {
         query(sql)
@@ -68,13 +140,8 @@ fn status_update_sql(to: &str) -> &'static str {
     }
 }
 
-async fn validate_status_mutation(
-    transaction: &mut sqlx::Transaction<'_, Postgres>,
-    actor: &FileAccessScope,
-    id: FileId,
-    from: &str,
-    to: &str,
-) -> FileResult<String> {
+async fn validate_status_mutation(transaction: &mut sqlx::Transaction<'_, Postgres>, request: EntryStatusMutation<'_>) -> FileResult<String> {
+    let EntryStatusMutation { actor, id, from, to } = request;
     let mut lookup =
         QueryBuilder::<Postgres>::new("SELECT e.space_id,e.parent_id FROM file_entry e JOIN file_space s ON s.space_id=e.space_id WHERE e.entry_id=");
     lookup.push_bind(id.to_string()).push(" AND e.status=").push_bind(from).push(" AND");
