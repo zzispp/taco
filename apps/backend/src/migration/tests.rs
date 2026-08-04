@@ -14,6 +14,7 @@ mod log_menu_hierarchy;
 mod notice_repository;
 mod notice_rollback;
 mod overview_menu;
+mod partition_function_security;
 mod performance_indexes;
 mod postgres_observer;
 mod scheduler_assertions;
@@ -39,7 +40,7 @@ use support::{TestDatabase, bootstrap_system_administrator, managed_table_exists
 
 use super::{down, ensure_runtime_schema_ready, fresh, migrator, status, up};
 
-const MIGRATION_TOTAL: usize = 41;
+const MIGRATION_TOTAL: usize = 42;
 const FORWARD_ONLY_MIGRATION_VERSION: i64 = 20260717000007;
 const USERS_TABLE_REGCLASS: &str = "public.sys_user";
 
