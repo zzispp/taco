@@ -100,7 +100,7 @@ jiff = "0.2.23"
 reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
 rust-i18n = "4.1.0"
 rust_xlsxwriter = "0.92.2"
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "derive", "migrate", "time", "chrono", "uuid", "json"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-native-roots", "postgres", "derive", "migrate", "time", "chrono", "uuid", "json"] }
 sqlx-macros = { version = "0.9.0", default-features = false, features = ["migrate"] }
 time = { version = "0.3.44", features = ["formatting", "macros", "parsing"] }
 nix = { version = "0.29.0", features = ["net"] }
