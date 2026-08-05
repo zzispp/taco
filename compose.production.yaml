@@ -1,12 +1,12 @@
 services:
   taco:
     build: .
-    command: ['--config', '/app/config/runtime.yaml']
+    command: ['--config', '/app/config/config.yaml']
     ports:
       - '127.0.0.1:3000:3000'
     restart: unless-stopped
     volumes:
-      - /etc/taco/runtime.yaml:/app/config/runtime.yaml:ro
+      - /etc/taco/config.yaml:/app/config/config.yaml:ro
       - taco-data:/app/local-data
     healthcheck:
       test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:3000/health']

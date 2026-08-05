@@ -1,7 +1,7 @@
 use configuration::{
-    AuditOutboxSettings, AuditSettings, ClientInfoSettings, ClientIpLocationSettings, DatabasePoolSettings, DatabaseScheme, DatabaseSessionSettings,
-    DatabaseSettings, DatabaseSslMode, HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisProtocol, RedisScheme, RedisSettings,
-    SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, UserSettings,
+    AuditOutboxSettings, AuditSettings, ClientInfoSettings, ClientIpLocationSettings, DatabaseScheme, DatabaseSettings, DatabaseSslMode, HttpSettings,
+    JwtSettings, MetricsSettings, OnlineSessionSettings, RedisProtocol, RedisScheme, RedisSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings,
+    SchedulerSettings, ServerSettings, Settings, UserSettings,
 };
 
 const TEST_SERVER_PORT: u16 = 3_000;
@@ -85,18 +85,7 @@ fn database_settings() -> DatabaseSettings {
         username: "postgres".into(),
         password: "postgres".into(),
         name: "postgres".into(),
-        pool: DatabasePoolSettings {
-            max_connections: 8,
-            acquire_timeout_ms: 2_000,
-            idle_timeout_ms: 60_000,
-            max_lifetime_ms: 300_000,
-        },
-        session: DatabaseSessionSettings {
-            application_name: "taco-test".into(),
-            statement_timeout_ms: 30_000,
-            lock_timeout_ms: 5_000,
-            idle_in_transaction_session_timeout_ms: 60_000,
-        },
+        auto_migrate: false,
     }
 }
 

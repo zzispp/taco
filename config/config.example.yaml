@@ -22,25 +22,8 @@ database:
   password: '<DATABASE_PASSWORD>'
   # 数据库名称。
   name: 'postgres'
-  # 以下池/会话值是模板示例，必须按部署容量和 SLO 重估。
-  pool:
-    # 进程可同时持有的 PostgreSQL 连接上限。
-    max_connections: 16
-    # 等待池中可用连接的最长时间（毫秒）。
-    acquire_timeout_ms: 5000
-    # 空闲连接回收时间（毫秒）。
-    idle_timeout_ms: 600000
-    # 单条连接的最长生命周期（毫秒）。
-    max_lifetime_ms: 1800000
-  session:
-    # PostgreSQL pg_stat_activity 中显示的应用名。
-    application_name: 'taco-runtime'
-    # 单条 SQL 语句最长执行时间（毫秒）。
-    statement_timeout_ms: 30000
-    # 等待 PostgreSQL 锁的最长时间（毫秒）。
-    lock_timeout_ms: 5000
-    # 空闲事务占用连接的最长时间（毫秒）。
-    idle_in_transaction_session_timeout_ms: 60000
+  # 是否在进程启动时自动应用 migration；生产环境通常设为 false。
+  auto_migrate: false
 
 jwt:
   # JWT 签名密钥；使用 taco secret generate-jwt 生成后替换占位符。

@@ -3879,7 +3879,6 @@ version = "0.1.0"
 dependencies = [
  "async-stream",
  "audit_contract",
- "configuration",
  "futures-util",
  "parking_lot",
  "serde",

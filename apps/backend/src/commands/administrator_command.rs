@@ -5,10 +5,11 @@ use storage::connect_database;
 use user::application::{BootstrapAdministratorInput, BootstrapAdministratorOutcome};
 
 use super::parser::AdministratorBootstrapInput;
-use crate::{BackendResult, composition, migration};
+use crate::{BackendResult, composition, migration, startup};
 
 pub(super) async fn bootstrap(settings: Settings, input: AdministratorBootstrapInput) -> BackendResult<()> {
-    let database = connect_database(&settings.database).await?;
+    startup::prepare_runtime_schema(&settings).await?;
+    let database = connect_database(&settings.database_url()?).await?;
     migration::ensure_runtime_schema_ready(database.raw_pool()).await?;
     let password = read_password_from_standard_input().await?;
     let outcome = composition::bootstrap_administrator(

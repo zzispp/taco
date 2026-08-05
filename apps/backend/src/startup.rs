@@ -1,11 +1,13 @@
 use std::{future::Future, net::SocketAddr};
 
 use configuration::Settings;
+use storage::connect_database;
 use tokio::net::TcpListener;
 
-use crate::{BackendResult, composition};
+use crate::{BackendResult, composition, migration};
 
 pub async fn serve(settings: Settings) -> BackendResult<()> {
+    prepare_runtime_schema(&settings).await?;
     let bind_addr = settings.bind_addr();
     let metrics = taco_tracing::init_metrics(taco_tracing::MetricsConfig {
         enabled: settings.metrics.enabled,
@@ -24,6 +26,15 @@ pub async fn serve(settings: Settings) -> BackendResult<()> {
     system_logs.shutdown().await;
     result?;
     Ok(())
+}
+
+pub(crate) async fn prepare_runtime_schema(settings: &Settings) -> BackendResult<()> {
+    if !settings.database.auto_migrate {
+        return Ok(());
+    }
+    let database = connect_database(&settings.database_url()?).await?;
+    migration::up(database.raw_pool(), None).await?;
+    migration::ensure_runtime_schema_ready(database.raw_pool()).await
 }
 
 #[cfg(unix)]

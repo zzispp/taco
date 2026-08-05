@@ -45,7 +45,7 @@ pub(super) struct AppStateAssembly {
 }
 
 pub(super) async fn build_runtime_foundation(settings: &Settings) -> BackendResult<RuntimeFoundation> {
-    let database = connect_database(&settings.database).await?;
+    let database = connect_database(&settings.database_url()?).await?;
     migration::ensure_runtime_schema_ready(database.raw_pool()).await?;
     ensure_enabled_system_administrator(database.clone()).await?;
     let observability = build_observability_services(database.clone()).await?;

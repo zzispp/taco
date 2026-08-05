@@ -7,7 +7,6 @@ publish.workspace = true
 [dependencies]
 audit_contract.workspace = true
 async-stream.workspace = true
-configuration.workspace = true
 futures-util.workspace = true
 parking_lot.workspace = true
 serde.workspace = true

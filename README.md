@@ -59,9 +59,6 @@ cp config/config.example.yaml config/config.yaml
 - YAML 不支持环境变量插值，也没有隐式默认值。可选 Redis 字段也必须显式写为值或 `null`。
 - `data_directory` 可以是绝对路径或相对路径；相对路径以 YAML 文件所在目录解析，加载后运行时只接收绝对路径。仓库模板的 `../local-data` 会解析为项目根目录的 `./local-data`。Local File Provider 固定使用 `<data_directory>/files`，并在其中维护 `objects/`、`parts/` 和 `derivatives/`；不需要也不能配置第二个本地存储根目录。
 - YAML 承载 `server`、`data_directory`、`database`、`jwt`、`redis`、`user.online_sessions`、`http`、`metrics`、`audit`、`client_info` 与 `scheduler`。修改 YAML 后必须重启 Taco，运行时不会热加载这些值。
-- `database.pool` 必须显式设置 `max_connections`、`acquire_timeout_ms`、`idle_timeout_ms` 和 `max_lifetime_ms`。它们分别限制池容量、等待连接的最长时间、空闲连接回收时间和单条连接生命周期，单位均为毫秒且必须大于 0。
-- `database.session` 必须显式设置 `application_name`、`statement_timeout_ms`、`lock_timeout_ms` 和 `idle_in_transaction_session_timeout_ms`。这些值会在每条连接建立时应用，分别标识连接、限制语句执行、锁等待和空闲事务占用，超时单位为毫秒且必须大于 0。
-- 池与会话参数属于启动基础设施配置；任何修改都需要重启服务或重新执行对应的 migration 命令，不会从连接 URL、环境变量或隐式默认值读取。
 
 使用以下命令生成 `jwt.secret`：
 
@@ -85,23 +82,19 @@ cargo run -p backend --bin taco -- --config config/config.yaml
 
 ## Migration 与初始化数据
 
-服务启动不会自动应用 migration。启动时只使用 runtime YAML 建立低权限连接并检查 schema 是否就绪；存在待应用、脏状态或校验和不匹配的 migration 会明确拒绝启动。
+`database.auto_migrate` 是必填布尔值：
 
-生产环境必须维护两份相互独立且都完整的严格 YAML：
-
-- runtime YAML 只包含 Taco 服务使用的低权限数据库身份，不授予 `CREATE`、`ALTER`、`DROP`、创建数据库或修改 migration 账本的权限，并由长期运行的服务使用。
-- migration YAML 只供一次性的 `migration status`/`migration up` 命令使用，使用隔离的迁移身份和高权限凭据；不得挂载到长期服务容器、提交仓库或写入 runtime YAML。两份文件的池/会话值可以按各自容量与执行窗口分别设置。
-
-两份 YAML 都必须包含模板中的全部字段，因为配置解析拒绝缺失字段和未知字段。生产 PostgreSQL 连接必须使用 `database.ssl_mode: verify-full`，并让运行环境信任签发数据库证书的 CA；`verify-ca` 或禁用 TLS 不能作为生产身份校验配置。数据库证书的主机名必须与 `database.host` 匹配。
+- 设为 `true` 时，服务会在接受请求前应用前向 migration 并校验 schema。
+- 设为 `false` 时，服务只校验 schema；存在待应用、脏状态或校验和不匹配的 migration 会拒绝启动。生产环境建议设为 `false`，由显式运维步骤执行迁移。
 
 Schema 运维子命令为 `migration status` 和 `migration up`：
 
 ```bash
-taco --config <MIGRATION_CONFIG_PATH> migration status
-taco --config <MIGRATION_CONFIG_PATH> migration up
+taco --config <CONFIG_PATH> migration status
+taco --config <CONFIG_PATH> migration up
 ```
 
-命令成功或失败都会直接返回给调用者；非事务在线 migration 失败时不得手工修改 `_sqlx_migrations`。未发布且可重建数据库的开发 baseline 可破坏性调整；调整后必须重建开发数据库并重新应用全部 migration。已部署或需保留数据的实例，每次 schema 变更都必须新增前向 migration。应用 migration 后必须用 runtime YAML 重启 Taco，使进程以已验证的新 schema 重新建立运行时依赖。管理员初始化数据只创建系统 `admin` 角色和显式菜单绑定，不创建用户。
+未发布且可重建数据库的开发 baseline 可破坏性调整；调整后必须重建开发数据库并重新应用全部 migration。已部署或需保留数据的实例，每次 schema 变更都必须新增前向 migration。应用 migration 后必须重启 Taco，使进程以已验证的新 schema 重新建立运行时依赖。管理员初始化数据只创建系统 `admin` 角色和显式菜单绑定，不创建用户。
 
 首次部署，或恢复一个不存在启用内置 `admin`（`system=true`）角色用户的实例时，在服务启动前显式创建管理员：
 
@@ -140,12 +133,12 @@ just services-up
 
 Rust 集成测试从本地 `config/config.yaml` 读取 PostgreSQL 管理连接。每个用例都会创建、连接并销毁独立的临时数据库，不会在 `database.name` 指向的数据库中执行 migration 或业务表写入；配置中的 PostgreSQL 用户必须能够创建数据库、终止连接并删除数据库。
 
-开发时可先复制模板为 runtime 配置；如果本地数据库用户同时承担 migration 权限，可暂时复用该文件。生产部署不得复用。先显式应用 migration、创建首个管理员并启动后端：
+示例配置默认 `database.auto_migrate: false`。在第一个终端显式应用 migration、创建首个管理员并启动后端：
 
 ```bash
-cargo run -p backend --bin taco -- --config config/config.yaml migration up
+just backend-migration up
 cargo run -p backend --bin taco -- --config config/config.yaml administrator bootstrap --username <username> --email <email> --password-stdin
-cargo run -p backend --bin taco -- --config config/config.yaml
+just run-backend
 ```
 
 在第二个终端启动独立前端：
@@ -170,7 +163,7 @@ just services-down
 just build-release
 ```
 
-生产 Compose 只运行 Taco；PostgreSQL 与 Redis 是外部、由运维管理的依赖。将低权限 runtime YAML 放置在宿主机 `/etc/taco/runtime.yaml`，将独立的高权限 migration YAML 放置在权限更严格的位置（例如 `/etc/taco/migration.yaml`），两者均应为 `0600` 且只由需要的命令读取。Compose 只把 runtime YAML 挂载到长期服务；新数据库必须先用 migration YAML 显式执行 migration，再用 runtime YAML 创建管理员并启动服务；已运行实例升级时同样先执行 migration，再重启服务。
+生产 Compose 只运行 Taco；PostgreSQL 与 Redis 是外部、由运维管理的依赖。将生产 YAML 放置在宿主机 `/etc/taco/config.yaml`，保留模板中的 `data_directory: ../local-data`。Compose 将配置挂载到容器 `/app/config/config.yaml`，因此相对路径会解析为 `/app/local-data`，并由命名 `taco-data` volume 持久化。生产环境建议将 `database.auto_migrate` 设为 `false`：新数据库必须在首次启动前显式执行 migration 并创建管理员；已运行实例升级时执行 migration 后重启服务。
 
 在编辑生产 YAML 的 `jwt.secret` 前，构建镜像并生成密钥：
 
@@ -179,7 +172,7 @@ docker compose -f compose.production.yaml build taco
 docker compose -f compose.production.yaml run --rm taco secret generate-jwt
 ```
 
-将输出复制到宿主机 runtime YAML 和 migration YAML 的 `jwt.secret`，不要提交这些文件或通过命令参数传递密钥。
+将输出复制到宿主机 `/etc/taco/config.yaml` 的 `jwt.secret`，不要提交该文件或通过命令参数传递密钥。
 
 Compose 仅发布 `127.0.0.1:3000`。浏览器和 `/api` 必须使用同一公开 origin；代理必须清除客户端伪造的转发头，并写入规范的 `X-Forwarded-For`、`X-Forwarded-Host`、`X-Forwarded-Proto`。不要从公网暴露 `/metrics`、`/docs` 或 `/openapi.json`。
 

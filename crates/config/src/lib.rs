@@ -9,9 +9,8 @@ mod validation;
 pub use connection_types::{DatabaseScheme, DatabaseSslMode, RedisProtocol, RedisScheme};
 pub use error::SettingsError;
 pub use settings::{
-    AuditOutboxSettings, AuditSettings, ClientInfoSettings, ClientIpLocationSettings, DatabasePoolSettings, DatabaseSessionSettings, DatabaseSettings,
-    HttpSettings, JwtSettings, MetricsSettings, OnlineSessionSettings, RedisSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings,
-    ServerSettings, Settings, UserSettings,
+    AuditOutboxSettings, AuditSettings, ClientInfoSettings, ClientIpLocationSettings, DatabaseSettings, HttpSettings, JwtSettings, MetricsSettings,
+    OnlineSessionSettings, RedisSettings, SchedulerHttpClientSettings, SchedulerRuntimeSettings, SchedulerSettings, ServerSettings, Settings, UserSettings,
 };
 
 #[cfg(test)]

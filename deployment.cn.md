@@ -8,9 +8,8 @@ Taco 的生产镜像包含静态导出的前端和一个 `taco` 可执行文件�
 
 ```bash
 sudo install -d -m 0750 /etc/taco
-sudo cp config/config.example.yaml /etc/taco/runtime.yaml
-sudo cp config/config.example.yaml /etc/taco/migration.yaml
-sudo chmod 0600 /etc/taco/runtime.yaml /etc/taco/migration.yaml
+sudo cp config/config.example.yaml /etc/taco/config.yaml
+sudo chmod 0600 /etc/taco/config.yaml
 ```
 
 生成 JWT 签名密钥时，先构建镜像，再运行不依赖 YAML 的密钥命令：
@@ -20,7 +19,7 @@ docker compose -f compose.production.yaml build taco
 docker compose -f compose.production.yaml run --rm taco secret generate-jwt
 ```
 
-将命令的唯一输出完整复制到 `/etc/taco/runtime.yaml` 和 `/etc/taco/migration.yaml` 的 `jwt.secret`。不要将密钥提交到仓库，也不要通过命令参数传递。使用检出的 Rust 工具链时，等价命令为：
+将命令的唯一输出完整复制到 `/etc/taco/config.yaml` 的 `jwt.secret`。不要将密钥提交到仓库，也不要通过命令参数传递。使用检出的 Rust 工具链时，等价命令为：
 
 ```bash
 cargo run -p backend --bin taco -- secret generate-jwt
@@ -28,35 +27,29 @@ cargo run -p backend --bin taco -- secret generate-jwt
 
 使用受控的编辑方式替换文件中每个 `<...>` 占位符。生产配置至少应满足下列约束：
 
-- `data_directory` 可以是绝对路径或相对路径；相对路径以 YAML 文件所在目录解析。runtime YAML 挂载到 `/app/config/runtime.yaml`、migration YAML 挂载到 `/app/config/migration.yaml` 时，保留模板的 `../local-data` 会解析为 `/app/local-data`；命名 `taco-data` volume 持久化该目录，Local File Provider 固定使用 `/app/local-data/files`。
+- `data_directory` 可以是绝对路径或相对路径；相对路径以 YAML 文件所在目录解析。保留模板的 `../local-data` 时，Compose 将 YAML 挂载到 `/app/config/config.yaml`，其运行时结果为 `/app/local-data`；命名 `taco-data` volume 持久化该目录，Local File Provider 固定使用 `/app/local-data/files`。
 - `server.host` 使用容器可监听的地址，`server.port` 与 Compose 发布端口一致。
 - `database`、`redis` 与 `jwt.secret` 必须填写真实的外部依赖和密钥；`jwt.secret` 至少为 32 UTF-8 字节；不要把真实配置或凭据提交到仓库。
-- `database.pool` 的 `max_connections`、`acquire_timeout_ms`、`idle_timeout_ms`、`max_lifetime_ms` 分别表示池容量、获取连接等待上限、空闲回收时间和连接最大生命周期；`database.session` 的 `application_name`、`statement_timeout_ms`、`lock_timeout_ms`、`idle_in_transaction_session_timeout_ms` 分别表示连接标识、语句执行上限、锁等待上限和空闲事务占用上限。所有数值均为毫秒且必须大于 0，修改后必须重启或重新执行对应命令。
-- 生产 PostgreSQL 必须使用 `database.ssl_mode: verify-full`，并在运行环境安装签发数据库证书的 CA；证书主机名必须匹配 `database.host`。`disable`、`allow`、`prefer` 或仅 `verify-ca` 都不能满足生产 TLS 身份校验。
-- 必须维护两份独立的完整 YAML：runtime YAML 只使用低权限运行时角色，migration YAML 只使用独立的高权限迁移角色。runtime YAML 不得拥有 DDL、创建数据库或修改 `_sqlx_migrations` 的权限；migration 凭据不得写入 runtime YAML、提交仓库或挂载到长期运行的服务容器。
+- `database.auto_migrate` 在生产环境建议明确设为 `false`。
 
-配置加载是严格的：所有字段必须存在，未知字段、未替换的 `<...>` 占位符或空的必填值都会使 Taco 失败退出。YAML 不支持环境变量插值或隐式默认值。修改 runtime YAML 后必须重启 Taco，修改 migration YAML 后必须重新执行需要它的 migration 命令。
+配置加载是严格的：所有字段必须存在，未知字段、未替换的 `<...>` 占位符或空的必填值都会使 Taco 失败退出。YAML 不支持环境变量插值或隐式默认值。修改 `/etc/taco/config.yaml` 后必须重启 Taco。
 
 ## 首次启动
 
-`compose.production.yaml` 将宿主机 `/etc/taco/runtime.yaml` 以只读方式挂载到容器 `/app/config/runtime.yaml`，并以 `taco --config /app/config/runtime.yaml` 启动服务。服务启动不会自动应用 migration；新数据库必须先准备 schema 和启用中的系统管理员，否则 Taco 不会绑定 HTTP 端口。
+`compose.production.yaml` 将宿主机 `/etc/taco/config.yaml` 以只读方式挂载到容器 `/app/config/config.yaml`，并以 `taco --config /app/config/config.yaml` 启动服务。示例配置默认关闭自动迁移；新数据库必须先准备 schema 和启用中的系统管理员，否则 Taco 不会绑定 HTTP 端口。
 
-先构建 Compose 服务镜像，再用只在一次性容器中挂载的 migration YAML 检查并应用 migration。长期服务容器不会看到该文件：
+先构建 Compose 服务镜像，再使用同一只读配置检查并应用 migration：
 
 ```bash
 docker compose -f compose.production.yaml build taco
-docker compose -f compose.production.yaml run --rm --no-deps \
-  -v /etc/taco/migration.yaml:/app/config/migration.yaml:ro taco \
-  --config /app/config/migration.yaml migration status
-docker compose -f compose.production.yaml run --rm --no-deps \
-  -v /etc/taco/migration.yaml:/app/config/migration.yaml:ro taco \
-  --config /app/config/migration.yaml migration up
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration status
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration up
 ```
 
 随后在首次启动前显式创建管理员：
 
 ```bash
-docker compose -f compose.production.yaml run --rm --no-deps taco --config /app/config/runtime.yaml administrator bootstrap --username <username> --email <email> --password-stdin
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml administrator bootstrap --username <username> --email <email> --password-stdin
 ```
 
 `--password-stdin` 只读取标准输入的第一行密码；密码不能作为命令参数提供，也不会写入 YAML 或命令输出。该命令只在不存在绑定内置 `admin`（`system=true`）角色的启用用户时允许执行，并在同一数据库事务中创建用户和绑定该角色。
@@ -79,24 +72,20 @@ docker compose -f compose.production.yaml up -d
 
 ## Migration 与升级
 
-服务启动不会自动迁移。已部署或需保留数据的实例，每次 schema 变更都必须以新的前向 migration 表达。升级当前 Compose 服务镜像时，先构建镜像，再用独立 migration YAML 执行 `migration status` 和 `migration up`，最后以 runtime YAML 重启 Taco：
+生产配置建议关闭自动迁移。已部署或需保留数据的实例，每次 schema 变更都必须以新的前向 migration 表达。升级当前 Compose 服务镜像时，先构建镜像，再执行与首次启动相同的 `migration status` 和 `migration up` 命令，最后重启 Taco：
 
 ```bash
 docker compose -f compose.production.yaml build taco
-docker compose -f compose.production.yaml run --rm --no-deps \
-  -v /etc/taco/migration.yaml:/app/config/migration.yaml:ro taco \
-  --config /app/config/migration.yaml migration status
-docker compose -f compose.production.yaml run --rm --no-deps \
-  -v /etc/taco/migration.yaml:/app/config/migration.yaml:ro taco \
-  --config /app/config/migration.yaml migration up
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration status
+docker compose -f compose.production.yaml run --rm taco --config /app/config/config.yaml migration up
 docker compose -f compose.production.yaml up -d --force-recreate taco
 ```
 
-若所有绑定内置 `admin` 角色的启用用户均不存在，必须在重启前使用首次启动中的 `administrator bootstrap` 命令恢复管理员。Taco 不会从启动 YAML 创建管理员；不存在启用管理员时会拒绝启动。migration 命令失败时直接保留诊断并停止流程，不得手工修改 `_sqlx_migrations`。
+若所有绑定内置 `admin` 角色的启用用户均不存在，必须在重启前使用首次启动中的 `administrator bootstrap` 命令恢复管理员。Taco 不会从启动 YAML 创建管理员；不存在启用管理员时会拒绝启动。若将 `database.auto_migrate` 明确设为 `true`，服务会在接受请求前自行应用前向 migration；生产环境仍推荐上述显式步骤。
 
 ## 配置与数据迁移
 
-迁移服务器时，一并迁移宿主机 `/etc/taco/runtime.yaml`、受限保存的 `/etc/taco/migration.yaml`、外部 PostgreSQL、Redis 和 `taco-data` volume。新主机应继续只读挂载 runtime YAML 到 `/app/config/runtime.yaml`；保留 `data_directory: ../local-data` 时，其运行时目录仍为 `/app/local-data`。数据库、Redis、监听地址或数据目录发生变化时，直接更新相应 YAML 后重启或重新执行命令；启动 YAML 不支持在线重载。各 `sys_config` 参数是否可在线生效由所属功能定义，不能将其视为 YAML 的替代。
+迁移服务器时，一并迁移宿主机 `/etc/taco/config.yaml`、外部 PostgreSQL、Redis 和 `taco-data` volume。新主机应继续将配置以只读方式挂载到 `/app/config/config.yaml`；保留 `data_directory: ../local-data` 时，其运行时目录仍为 `/app/local-data`。数据库、Redis、监听地址或数据目录发生变化时，直接更新 YAML 后重启；启动 YAML 不支持在线重载。各 `sys_config` 参数是否可在线生效由所属功能定义，不能将其视为 YAML 的替代。
 
 ## 构建契约
 
