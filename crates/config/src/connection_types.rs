@@ -24,7 +24,6 @@ pub enum DatabaseSslMode {
     Prefer,
     Require,
     VerifyCa,
-    VerifyFull,
 }
 
 impl DatabaseSslMode {
@@ -35,7 +34,6 @@ impl DatabaseSslMode {
             Self::Prefer => "prefer",
             Self::Require => "require",
             Self::VerifyCa => "verify-ca",
-            Self::VerifyFull => "verify-full",
         }
     }
 }

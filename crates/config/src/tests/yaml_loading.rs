@@ -49,6 +49,15 @@ fn yaml_loader_rejects_missing_and_unknown_fields() {
 }
 
 #[test]
+fn yaml_loader_rejects_removed_verify_full_ssl_mode() {
+    let file = write_config(&valid_yaml().replace("ssl_mode: disable", "ssl_mode: verify-full"));
+
+    let error = Settings::load_from_args(["taco", "--config", file.path().to_str().unwrap()]).unwrap_err();
+
+    assert!(matches!(error, SettingsError::Yaml(_)));
+}
+
+#[test]
 fn yaml_loader_resolves_relative_data_directories_from_the_configuration_file_directory() {
     let temporary_directory = tempfile::tempdir().unwrap();
     let project_directory = temporary_directory.path().join("project");
