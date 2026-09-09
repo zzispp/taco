@@ -39,6 +39,8 @@ pub trait RbacRepository: Send + Sync + 'static {
     async fn delete_menu(&self, menu_id: &str) -> RbacResult<()>;
     async fn find_menu(&self, menu_id: &str) -> RbacResult<Option<Menu>>;
     async fn menu_has_children(&self, menu_id: &str) -> RbacResult<bool>;
+    /// Returns true when a non-system role still references this menu.
+    /// System-role bindings cannot be changed by operators and must not block deletion.
     async fn menu_has_role_bindings(&self, menu_id: &str) -> RbacResult<bool>;
     async fn list_menus(&self) -> RbacResult<Vec<Menu>>;
     async fn page_menus(&self, filter: MenuListFilter) -> RbacResult<CursorPage<Menu>>;

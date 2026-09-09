@@ -168,7 +168,7 @@ type SaveRoleBindingsOptions = {
 
 function useSaveRoleBindings({ binding, setSubmitting, t, resetList }: SaveRoleBindingsOptions) {
   return useCallback(async () => {
-    if (!binding.target) return;
+    if (!binding.target || binding.target.system) return;
     setSubmitting(true);
     try {
       if (binding.type === 'menus')

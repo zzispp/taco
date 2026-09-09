@@ -170,6 +170,24 @@ async fn ensure_user_ids_scoped_allows_visible_role_user() {
 }
 
 #[tokio::test]
+async fn menu_deletion_ignores_system_role_bindings_but_rejects_children_and_custom_roles() {
+    let system_only = test_admin_service(
+        MemoryRepository::default()
+            .with_system_role("admin-role")
+            .with_role_menu_binding("admin-role", "menu-1"),
+    );
+    assert!(system_only.delete_menu("menu-1").await.is_ok());
+
+    let custom = test_admin_service(MemoryRepository::default().with_role_menu_binding("business-role", "menu-1"));
+    let custom_result = custom.delete_menu("menu-1").await;
+    assert!(matches!(custom_result, Err(RbacError::Conflict(error)) if error.key() == "errors.rbac.menu_has_children_or_bindings"));
+
+    let children = test_admin_service(MemoryRepository::default().with_menu_children("menu-1"));
+    let children_result = children.delete_menu("menu-1").await;
+    assert!(matches!(children_result, Err(RbacError::Conflict(error)) if error.key() == "errors.rbac.menu_has_children_or_bindings"));
+}
+
+#[tokio::test]
 async fn system_role_menu_bindings_cannot_be_changed() {
     let service = test_admin_service(MemoryRepository::default().with_system_role("admin-role"));
 

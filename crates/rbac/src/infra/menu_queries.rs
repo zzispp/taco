@@ -128,11 +128,13 @@ impl MenuQueries {
     }
 
     pub async fn has_role_bindings(&self, id: &str) -> StorageResult<bool> {
-        query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sys_role_menu rm JOIN sys_role r ON r.role_id=rm.role_id WHERE rm.menu_id=$1 AND r.del_flag='0')")
-            .bind(id)
-            .fetch_one(self.database.pool())
-            .await
-            .map_err(StorageError::from)
+        query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM sys_role_menu rm JOIN sys_role r ON r.role_id=rm.role_id WHERE rm.menu_id=$1 AND r.del_flag='0' AND r.system=FALSE)",
+        )
+        .bind(id)
+        .fetch_one(self.database.pool())
+        .await
+        .map_err(StorageError::from)
     }
 
     pub async fn list(&self) -> StorageResult<Vec<Menu>> {

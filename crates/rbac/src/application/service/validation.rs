@@ -168,6 +168,7 @@ pub(super) async fn reject_duplicate_role<R: RbacRepository>(repository: &R, inp
 
 pub(super) async fn reject_menu_delete<R: RbacRepository>(repository: &R, id: &str) -> RbacResult<()> {
     ensure_menu_exists(repository, id).await?;
+    // System-role bindings cannot be unbound in the role UI, so they must not block deletion.
     if repository.menu_has_children(id).await? || repository.menu_has_role_bindings(id).await? {
         return Err(RbacError::Conflict(localized("errors.rbac.menu_has_children_or_bindings")));
     }

@@ -30,6 +30,7 @@ type TreeSelectorProps = {
   items: TreeOption[];
   selected: string[];
   strict: boolean;
+  readOnly?: boolean;
   onChange: (selected: string[]) => void;
   onStrictChange: (value: boolean) => void;
   onResolvedSelectionChange?: (selected: string[]) => void;
@@ -39,6 +40,7 @@ export function TreeSelector({
   items,
   selected,
   strict,
+  readOnly = false,
   onChange,
   onStrictChange,
   onResolvedSelectionChange,
@@ -67,6 +69,7 @@ export function TreeSelector({
       <SelectorToolbar
         selectedCount={selected.length}
         strict={strict}
+        readOnly={readOnly}
         onExpandAll={() => setExpanded(allIds)}
         onCollapseAll={() => setExpanded([])}
         onSelectAll={() => onChange(allIds)}
@@ -78,6 +81,7 @@ export function TreeSelector({
         selected={selected}
         selectedSet={selectedSet}
         strict={strict}
+        readOnly={readOnly}
         expanded={expanded}
         onToggleExpanded={toggleExpanded}
         onChange={onChange}
@@ -86,7 +90,10 @@ export function TreeSelector({
   );
 }
 
-type TreeSelectorRowsProps = Pick<TreeSelectorProps, 'selected' | 'strict' | 'onChange'> & {
+type TreeSelectorRowsProps = Pick<
+  TreeSelectorProps,
+  'selected' | 'strict' | 'readOnly' | 'onChange'
+> & {
   tree: TreeNode[];
   selectedSet: Set<string>;
   expanded: string[];
@@ -98,6 +105,7 @@ function TreeSelectorRows({
   selected,
   selectedSet,
   strict,
+  readOnly,
   expanded,
   onToggleExpanded,
   onChange,
@@ -112,6 +120,7 @@ function TreeSelectorRows({
           selected={selected}
           selectedSet={selectedSet}
           strict={strict}
+          readOnly={readOnly}
           expanded={expanded}
           onToggleExpanded={onToggleExpanded}
           onChange={onChange}
@@ -142,6 +151,7 @@ function collectAncestors(id: string, parentById: ParentById): string[] {
 type SelectorToolbarProps = {
   selectedCount: number;
   strict: boolean;
+  readOnly: boolean;
   onExpandAll: () => void;
   onCollapseAll: () => void;
   onSelectAll: () => void;
@@ -173,12 +183,16 @@ function SelectorToolbar(props: SelectorToolbarProps) {
 type SelectorTranslation = ReturnType<typeof useTranslate>['t'];
 
 function SelectorBulkActions({
+  readOnly,
   onExpandAll,
   onCollapseAll,
   onSelectAll,
   onUnselectAll,
   t,
-}: Pick<SelectorToolbarProps, 'onExpandAll' | 'onCollapseAll' | 'onSelectAll' | 'onUnselectAll'> & {
+}: Pick<
+  SelectorToolbarProps,
+  'readOnly' | 'onExpandAll' | 'onCollapseAll' | 'onSelectAll' | 'onUnselectAll'
+> & {
   t: SelectorTranslation;
 }) {
   return (
@@ -189,12 +203,16 @@ function SelectorBulkActions({
       <Button startIcon={<Iconify icon="eva:collapse-fill" />} onClick={onCollapseAll}>
         {t('actions.collapseAll')}
       </Button>
-      <Button startIcon={<Iconify icon="eva:done-all-fill" />} onClick={onSelectAll}>
-        {t('actions.selectAll')}
-      </Button>
-      <Button startIcon={<Iconify icon="eva:minus-circle-fill" />} onClick={onUnselectAll}>
-        {t('actions.unselectAll')}
-      </Button>
+      {!readOnly && (
+        <Button startIcon={<Iconify icon="eva:done-all-fill" />} onClick={onSelectAll}>
+          {t('actions.selectAll')}
+        </Button>
+      )}
+      {!readOnly && (
+        <Button startIcon={<Iconify icon="eva:minus-circle-fill" />} onClick={onUnselectAll}>
+          {t('actions.unselectAll')}
+        </Button>
+      )}
     </ButtonGroup>
   );
 }
@@ -202,6 +220,7 @@ function SelectorBulkActions({
 function SelectorSelectionControls({
   selectedCount,
   strict,
+  readOnly,
   onStrictChange,
   t,
 }: SelectorToolbarProps & {
@@ -217,7 +236,11 @@ function SelectorSelectionControls({
       <FormControlLabel
         label={t('actions.parentChildLinkage')}
         control={
-          <Switch checked={strict} onChange={(event) => onStrictChange(event.target.checked)} />
+          <Switch
+            checked={strict}
+            disabled={readOnly}
+            onChange={(event) => onStrictChange(event.target.checked)}
+          />
         }
         sx={{ m: 0, whiteSpace: 'nowrap' }}
       />
@@ -236,6 +259,7 @@ type TreeNodeRowProps = {
   selected: string[];
   selectedSet: Set<string>;
   strict: boolean;
+  readOnly?: boolean;
   expanded: string[];
   onToggleExpanded: (id: string) => void;
   onChange: (selected: string[]) => void;
@@ -245,11 +269,18 @@ function TreeNodeRow(props: TreeNodeRowProps) {
   const { checked, indeterminate } = nodeState(props.node, props.selectedSet);
   const open = props.expanded.includes(props.node.id);
   const hasChildren = props.node.children.length > 0;
-  const toggle = () => props.onChange(nextSelected(props.node, props.selected, props.strict));
+  const toggle = () => {
+    if (props.readOnly) return;
+    props.onChange(nextSelected(props.node, props.selected, props.strict));
+  };
 
   return (
     <>
-      <ListItemButton dense sx={{ pl: 1 + props.level * 2 }} onClick={toggle}>
+      <ListItemButton
+        dense
+        sx={{ pl: 1 + props.level * 2, cursor: props.readOnly ? 'default' : undefined }}
+        onClick={props.readOnly ? undefined : toggle}
+      >
         {hasChildren ? (
           <IconButton
             size="small"
@@ -263,7 +294,13 @@ function TreeNodeRow(props: TreeNodeRowProps) {
         ) : (
           <Box sx={{ width: 34 }} />
         )}
-        <Checkbox edge="start" checked={checked} indeterminate={indeterminate} tabIndex={-1} />
+        <Checkbox
+          edge="start"
+          checked={checked}
+          disabled={props.readOnly}
+          indeterminate={indeterminate}
+          tabIndex={-1}
+        />
         <ListItemText primary={props.node.label} />
       </ListItemButton>
       {hasChildren && (
@@ -276,6 +313,7 @@ function TreeNodeRow(props: TreeNodeRowProps) {
               selected={props.selected}
               selectedSet={props.selectedSet}
               strict={props.strict}
+              readOnly={props.readOnly}
               expanded={props.expanded}
               onToggleExpanded={props.onToggleExpanded}
               onChange={props.onChange}

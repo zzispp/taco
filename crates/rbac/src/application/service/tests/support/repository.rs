@@ -1,5 +1,5 @@
 use super::*;
-use crate::domain::{DataScope, PermissionSnapshot};
+use crate::domain::{DataScope, Menu, PermissionSnapshot};
 use kernel::error::LocalizedError;
 
 #[derive(Clone, Default)]
@@ -8,6 +8,9 @@ pub(in super::super) struct MemoryRepository {
     role_ids: Vec<String>,
     system_role_ids: Vec<String>,
     admin_role_users: Vec<(String, String)>,
+    menu_ids: Vec<String>,
+    menus_with_children: Vec<String>,
+    role_menu_bindings: Vec<(String, String)>,
 }
 
 #[derive(Clone)]
@@ -39,6 +42,23 @@ impl MemoryRepository {
     pub(in super::super) fn with_admin_role_user(mut self, role_id: &str, user_id: &str) -> Self {
         self = self.with_system_role(role_id);
         self.admin_role_users.push((role_id.into(), user_id.into()));
+        self
+    }
+
+    pub(in super::super) fn with_menu(mut self, menu_id: &str) -> Self {
+        self.menu_ids.push(menu_id.into());
+        self
+    }
+
+    pub(in super::super) fn with_menu_children(mut self, menu_id: &str) -> Self {
+        self = self.with_menu(menu_id);
+        self.menus_with_children.push(menu_id.into());
+        self
+    }
+
+    pub(in super::super) fn with_role_menu_binding(mut self, role_id: &str, menu_id: &str) -> Self {
+        self = self.with_menu(menu_id);
+        self.role_menu_bindings.push((role_id.into(), menu_id.into()));
         self
     }
 
@@ -172,16 +192,19 @@ impl RbacRepository for MemoryRepository {
         Ok(())
     }
 
-    async fn find_menu(&self, _menu_id: &str) -> RbacResult<Option<Menu>> {
-        Ok(None)
+    async fn find_menu(&self, menu_id: &str) -> RbacResult<Option<Menu>> {
+        Ok(self.menu_ids.iter().any(|id| id == menu_id).then(|| stored_menu(menu_id)))
     }
 
-    async fn menu_has_children(&self, _menu_id: &str) -> RbacResult<bool> {
-        Ok(false)
+    async fn menu_has_children(&self, menu_id: &str) -> RbacResult<bool> {
+        Ok(self.menus_with_children.iter().any(|id| id == menu_id))
     }
 
-    async fn menu_has_role_bindings(&self, _menu_id: &str) -> RbacResult<bool> {
-        Ok(false)
+    async fn menu_has_role_bindings(&self, menu_id: &str) -> RbacResult<bool> {
+        Ok(self
+            .role_menu_bindings
+            .iter()
+            .any(|(role_id, bound_menu_id)| bound_menu_id == menu_id && !self.system_role_ids.iter().any(|system_role_id| system_role_id == role_id)))
     }
 
     async fn list_menus(&self) -> RbacResult<Vec<Menu>> {
@@ -238,6 +261,27 @@ fn role(role_id: &str, system: bool, admin: bool) -> Role {
         system,
         remark: None,
         create_time: String::new(),
+    }
+}
+
+fn stored_menu(menu_id: &str) -> Menu {
+    Menu {
+        menu_id: menu_id.into(),
+        menu_name: "menu".into(),
+        parent_id: "0".into(),
+        order_num: 1,
+        path: "path".into(),
+        component: None,
+        query: None,
+        route_name: String::new(),
+        is_frame: false,
+        is_cache: false,
+        menu_type: "C".into(),
+        visible: "0".into(),
+        status: "0".into(),
+        perms: None,
+        icon: "#".into(),
+        remark: None,
     }
 }
 

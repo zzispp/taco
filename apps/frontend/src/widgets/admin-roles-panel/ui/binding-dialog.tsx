@@ -44,12 +44,20 @@ export function RoleBindingDialog(props: RoleBindingDialogProps) {
   const { t } = useTranslate('admin');
   const options = useMemo(() => flattenTreeNodes(props.nodes), [props.nodes]);
   const showDeptTree = props.type !== 'depts' || props.dataScope === '2';
+  const readOnly = Boolean(props.role?.system);
 
   return (
     <Dialog fullWidth maxWidth="md" open={Boolean(props.role)} onClose={props.onClose}>
       <RoleBindingDialogTitle role={props.role} type={props.type} t={t} />
-      <RoleBindingDialogContent props={props} options={options} showDeptTree={showDeptTree} t={t} />
+      <RoleBindingDialogContent
+        props={props}
+        options={options}
+        showDeptTree={showDeptTree}
+        readOnly={readOnly}
+        t={t}
+      />
       <RoleBindingDialogActions
+        readOnly={readOnly}
         submitting={props.submitting}
         t={t}
         onClose={props.onClose}
@@ -63,16 +71,20 @@ function RoleBindingDialogContent({
   props,
   options,
   showDeptTree,
+  readOnly,
   t,
 }: {
   props: RoleBindingDialogProps;
   options: ReturnType<typeof flattenTreeNodes>;
   showDeptTree: boolean;
+  readOnly: boolean;
   t: ReturnType<typeof useTranslate>['t'];
 }) {
   return (
     <DialogContent>
-      {props.type === 'depts' && <RoleBindingDataScope props={props} t={t} />}
+      {props.type === 'depts' && (
+        <RoleBindingDataScope props={props} readOnly={readOnly} t={t} />
+      )}
       {props.loading ? (
         <Box sx={{ py: 4, color: 'text.secondary' }}>{t('messages.loadingPermissions')}</Box>
       ) : showDeptTree ? (
@@ -81,6 +93,7 @@ function RoleBindingDialogContent({
             items={options}
             selected={props.selected}
             strict={props.strict}
+            readOnly={readOnly}
             onChange={props.onSelectedChange}
             onStrictChange={props.onStrictChange}
             onResolvedSelectionChange={props.onResolvedSelectionChange}
@@ -97,9 +110,11 @@ function RoleBindingDialogContent({
 
 function RoleBindingDataScope({
   props,
+  readOnly,
   t,
 }: {
   props: Pick<RoleBindingDialogProps, 'dataScope' | 'onDataScopeChange'>;
+  readOnly: boolean;
   t: ReturnType<typeof useTranslate>['t'];
 }) {
   return (
@@ -107,6 +122,7 @@ function RoleBindingDataScope({
       fullWidth
       select
       size="small"
+      disabled={readOnly}
       label={t('fields.dataScope')}
       value={props.dataScope}
       sx={{ mt: 1, mb: 2 }}
@@ -137,20 +153,24 @@ function RoleBindingDialogTitle({
 
 function RoleBindingDialogActions({
   t,
+  readOnly,
   submitting,
   onClose,
   onSubmit,
 }: Pick<RoleBindingDialogProps, 'submitting' | 'onClose' | 'onSubmit'> & {
+  readOnly: boolean;
   t: ReturnType<typeof useTranslate>['t'];
 }) {
   return (
     <DialogActions>
       <Button variant="outlined" onClick={onClose}>
-        {t('common.cancel')}
+        {t(readOnly ? 'common.close' : 'common.cancel')}
       </Button>
-      <Button variant="contained" loading={submitting} onClick={onSubmit}>
-        {t('actions.savePermissions')}
-      </Button>
+      {!readOnly && (
+        <Button variant="contained" loading={submitting} onClick={onSubmit}>
+          {t('actions.savePermissions')}
+        </Button>
+      )}
     </DialogActions>
   );
 }
