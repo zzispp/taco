@@ -11,6 +11,7 @@
   "scripts": {
     "dev:frontend": "pnpm --filter frontend dev",
     "build:frontend": "pnpm --filter frontend build",
+    "start:frontend": "pnpm --filter frontend start",
     "lint:frontend": "pnpm --filter frontend lint",
     "dev:backend": "just run-backend",
     "check:backend": "cargo check -p backend",
